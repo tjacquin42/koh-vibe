@@ -308,6 +308,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume);
         }
         lastStatuses = statuses;
+        // Only while there is nothing to show — the sole case where the hooks
+        // row is displayed (I5): the row must notice an installation made
+        // while the window is open, and nothing but this loop can observe it
+        // (see SessionsTree.setHooksInstalled). The cost is one small file
+        // read per tick, paid only on an empty dashboard.
+        if (map.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
         tree.setSessions(map);
         tree.setGroups(groups);
         // Both, and in this order: the closed view hides an entry whose
