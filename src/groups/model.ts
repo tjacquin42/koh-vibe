@@ -1,4 +1,5 @@
 import type { ChimeEvent } from '../sound/model';
+import { isRecord } from '../lib/json';
 
 /** Les deux événements qui sonnent, dans l'ordre où ils s'affichent. */
 export const CHIME_EVENTS: readonly ChimeEvent[] = ['waiting', 'done'];
@@ -78,10 +79,6 @@ export function emptyGroups(): GroupsState {
 /** `undefined` (« Sans dossier ») et la chaîne vide désignent le même seau. */
 export function orderKey(groupId: string | undefined): string {
   return groupId ?? UNFILED;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function name(v: unknown): string | undefined {

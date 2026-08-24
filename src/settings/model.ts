@@ -1,4 +1,5 @@
 import { clampVolume, DEFAULT_VOLUME, NO_SOUND } from '../sound/player';
+import { isRecord } from '../lib/json';
 
 /**
  * Les réglages du son, partagés entre TOUS les éditeurs de la machine.
@@ -21,10 +22,6 @@ export interface AppSettings {
 
 export function defaultSettings(): AppSettings {
   return { waiting: NO_SOUND, done: NO_SOUND, volume: DEFAULT_VOLUME };
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function sound(v: unknown, fallback: string): string {

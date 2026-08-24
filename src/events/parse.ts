@@ -1,10 +1,7 @@
 import { HOOK_EVENTS, LOCAL_EVENTS, type EventName, type SpoolEvent } from './types';
+import { isRecord } from '../lib/json';
 
 const NAMES: readonly string[] = [...HOOK_EVENTS, ...LOCAL_EVENTS];
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined;

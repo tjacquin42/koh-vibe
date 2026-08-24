@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises';
+import { isRecord } from '../lib/json';
 
 export interface TranscriptStats {
   offset: number;
@@ -23,10 +24,6 @@ function text(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
   return t.length > 0 ? t : undefined;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 /**
