@@ -69,7 +69,7 @@ function row(label: string, w: UsageWindow | undefined, now: number): string {
 export function usageHtml(reading: UsageReading | undefined, now: number): string {
   const body =
     reading === undefined
-      ? `<div class="empty">Consommation inconnue — cliquez pour rafraîchir.</div>`
+      ? `<div class="empty">${escape(vscode.l10n.t('Usage unknown — click to refresh.'))}</div>`
       : rowsOf(reading.usage, now) + footer(reading, now);
   return `<style>
     body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);

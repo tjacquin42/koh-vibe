@@ -331,7 +331,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       const item = new vscode.TreeItem(node.message);
       item.id = 'empty';
       if (node.action === 'install') {
-        item.command = { command: 'kohVibe.installHooks', title: 'Installer' };
+        item.command = { command: 'kohVibe.installHooks', title: vscode.l10n.t('Install') };
       }
       return item;
     }
