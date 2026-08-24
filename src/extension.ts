@@ -381,13 +381,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const watcher = new SpoolWatcher(
     dirs,
     (res) => {
-      // Une session purgée (24h sans événement, voir purgeStaleSessions) ne
-      // doit pas laisser une entrée orpheline dans ce cache en mémoire :
-      // sinon la purge sur disque ne borne rien côté mémoire.
-      for (const id of res.purged) transcripts.delete(id);
-      // Même principe côté classement en dossiers : l'affectation d'une
-      // session purgée est un déchet sans nettoyage. pruneAssignmentsAfterPurge
-      // n'écrit rien quand res.purged est vide (la quasi-totalité des tours).
+      // The transcripts cache is NOT cleaned here: render(), triggered just
+      // below, prunes every entry whose session left the spool — purged for
+      // staleness or otherwise. A second cleanup path at this site would have
+      // to be kept in step with that one for no gain.
+      // L'affectation d'une session purgée est un déchet sans nettoyage.
+      // pruneAssignmentsAfterPurge n'écrit rien quand res.purged est vide
+      // (la quasi-totalité des tours).
       void pruneAssignmentsAfterPurge(dirs, groupsPath, res.purged).catch(() => undefined);
       void render();
     },
