@@ -68,14 +68,14 @@ describe('createGroupCommand', () => {
   // qu'en trace d'appel non gérée, jamais cette fonction-ci.
   it('lève quand le nom est vide plutôt que de créer un dossier sans nom', async () => {
     await expect(createGroupCommand(file, '', () => 'g1')).rejects.toThrow(
-      'Un dossier ne peut pas avoir un nom vide.',
+      'A folder cannot have an empty name.',
     );
     expect((await readGroups(file)).groups).toEqual([]);
   });
 
   it('lève aussi quand le nom ne contient que des blancs', async () => {
     await expect(createGroupCommand(file, '   ', () => 'g1')).rejects.toThrow(
-      'Un dossier ne peut pas avoir un nom vide.',
+      'A folder cannot have an empty name.',
     );
   });
 });
@@ -101,7 +101,7 @@ describe('renameGroupCommand', () => {
   it('lève quand le nom est vide plutôt que de renommer vers un nom vide', async () => {
     await updateGroups(file, (s) => createGroup(s, 'ancien', () => 'g1'));
 
-    await expect(renameGroupCommand(file, 'g1', '')).rejects.toThrow('Un dossier ne peut pas avoir un nom vide.');
+    await expect(renameGroupCommand(file, 'g1', '')).rejects.toThrow('A folder cannot have an empty name.');
     expect((await readGroups(file)).groups).toEqual([{ id: 'g1', name: 'ancien', order: 0 }]);
   });
 });
@@ -159,9 +159,9 @@ describe('runGroupAction', () => {
   it('capture ce que l action lève et le relaie comme message, sans laisser filer le rejet', async () => {
     const onError = vi.fn();
 
-    await runGroupAction(() => Promise.reject(new Error('Un dossier ne peut pas avoir un nom vide.')), onError);
+    await runGroupAction(() => Promise.reject(new Error('A folder cannot have an empty name.')), onError);
 
-    expect(onError).toHaveBeenCalledWith('Un dossier ne peut pas avoir un nom vide.');
+    expect(onError).toHaveBeenCalledWith('A folder cannot have an empty name.');
   });
 
   it('relaie aussi un rejet qui ne porte pas une vraie Error', async () => {
