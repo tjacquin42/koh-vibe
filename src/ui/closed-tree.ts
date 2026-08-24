@@ -117,4 +117,10 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
     };
     return item;
   }
+
+  // Same contract as SessionsTree and FooterTree: the emitter is ours to
+  // release, and extension.ts registers this provider in the subscriptions.
+  dispose(): void {
+    this.emitter.dispose();
+  }
 }

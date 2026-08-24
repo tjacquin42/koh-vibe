@@ -116,6 +116,14 @@ export class UsageView implements vscode.WebviewViewProvider {
     this.view = view;
     view.webview.options = { enableScripts: true };
     view.webview.onDidReceiveMessage(() => this.onRefresh());
+    // VSCode disposes the webview when the view is destroyed (e.g. the
+    // container hidden long enough). Writing HTML to a disposed webview
+    // throws — and `paint()` runs on every render tick, so keeping the stale
+    // reference made the WHOLE dashboard render fail until reload. Dropped
+    // here; `resolveWebviewView` is called again when the view comes back.
+    view.onDidDispose(() => {
+      if (this.view === view) this.view = undefined;
+    });
     // Forcer le rendu : la vue vient d'apparaître, elle n'a encore rien affiché.
     this.rendered = undefined;
     this.paint();

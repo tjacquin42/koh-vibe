@@ -227,6 +227,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // mettait défilait avec les conversations.
   context.subscriptions.push(
     footer,
+    closedTree,
     // Trois vues empilées dans le conteneur : les sessions, la consommation,
     // puis les réglages. L'ordre vient de package.json, pas d'ici.
     vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
@@ -275,6 +276,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ),
           );
         });
+        // Sessions gone from the spool (SessionEnd, forget, purge by another
+        // window) must not leave an orphan entry in this in-memory cache: the
+        // watcher only reports ids purged for staleness, so ended and
+        // forgotten conversations would otherwise accumulate for the lifetime
+        // of the window. Pruned AFTER withTokens — `archive` (below) has
+        // already read the title it needed before the state file disappeared.
+        for (const id of transcripts.keys()) {
+          if (!map.has(id)) transcripts.delete(id);
+        }
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
