@@ -2,29 +2,35 @@ import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { readdir } from 'node:fs/promises';
-import { kohVibeHome } from '../paths';
+import { bundledSoundsDir } from './bundled';
 import { librarySoundsDir } from './library';
 
 /**
  * Où l'on cherche les sons.
  *
- * Trois emplacements, dans cet ordre : ceux du système, ceux que l'utilisateur
- * a déposés dans `~/Library/Sounds` (l'endroit prévu par macOS), et la
- * bibliothèque que Koh-Vibe propose d'installer chez lui. Aucun fichier audio
- * n'est donc embarqué dans le paquet — ni sa licence à discuter dans un dépôt
- * public.
+ * Quatre emplacements, dans cet ordre : ceux du système, ceux que l'utilisateur
+ * a déposés dans `~/Library/Sounds` (l'endroit prévu par macOS), la
+ * bibliothèque que Koh-Vibe propose d'installer chez lui, et les deux sons que
+ * le paquet embarque — les seuls, voir `bundled.ts`.
  *
- * La bibliothèque vient EN DERNIER pour la même raison que l'ordre des deux
- * autres : en cas de noms identiques, le premier trouvé gagne, et ce que
- * l'utilisateur a posé lui-même ne doit jamais être supplanté par ce que nous
- * avons installé pour lui.
+ * L'ordre suit une seule règle : en cas de noms identiques, le premier trouvé
+ * gagne, et ce que l'utilisateur a posé lui-même ne doit jamais être supplanté
+ * par ce que nous avons mis là. Nos deux sons passent donc APRÈS la
+ * bibliothèque, qu'il a au moins choisi d'installer.
+ *
+ * Les dossiers se donnent, ils ne se devinent pas : le chemin du paquet vient
+ * de l'hôte d'extensions. Sans valeur par défaut, aucun appel ne peut oublier
+ * les sons embarqués — un oubli qui rendrait muet le réglage par défaut sans
+ * rien afficher d'anormal.
  */
-export function soundDirs(home: string): string[] {
-  return ['/System/Library/Sounds', join(homedir(), 'Library', 'Sounds'), librarySoundsDir(home)];
+export function soundDirs(home: string, extensionPath: string): string[] {
+  return [
+    '/System/Library/Sounds',
+    join(homedir(), 'Library', 'Sounds'),
+    librarySoundsDir(home),
+    bundledSoundsDir(extensionPath),
+  ];
 }
-
-/** Les dossiers de la machine courante, pour les appels qui n'ont pas la racine sous la main. */
-export const SOUND_DIRS = soundDirs(kohVibeHome());
 
 /** Ce qu'`afplay` sait lire, et qui a un sens comme notification. */
 const PLAYABLE = new Set(['.aiff', '.aif', '.wav', '.m4a', '.m4r', '.mp3', '.caf']);
@@ -51,7 +57,7 @@ export interface SoundEntry {
  * du système : un fichier personnel homonyme ne remplace pas silencieusement un
  * son que l'utilisateur croit connaître.
  */
-export async function availableSounds(dirs: readonly string[] = SOUND_DIRS): Promise<SoundEntry[]> {
+export async function availableSounds(dirs: readonly string[]): Promise<SoundEntry[]> {
   const seen = new Map<string, SoundEntry>();
   for (const dir of dirs) {
     let files: string[];
@@ -96,7 +102,7 @@ export function playFile(path: string, volume: number): void {
 export async function playNamed(
   name: string,
   volume: number,
-  dirs: readonly string[] = SOUND_DIRS,
+  dirs: readonly string[],
 ): Promise<void> {
   if (name === NO_SOUND) return;
   const found = (await availableSounds(dirs)).find((s) => s.name === name);

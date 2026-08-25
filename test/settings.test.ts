@@ -8,7 +8,7 @@ import {
   serializeSettings,
   settingsFromEditor,
 } from '../src/settings/model';
-import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../src/sound/library';
+import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../src/sound/bundled';
 import { readSettings, seedSettings, writeSettings } from '../src/settings/store';
 import { settingsFile } from '../src/paths';
 

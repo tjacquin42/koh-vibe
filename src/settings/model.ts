@@ -1,4 +1,4 @@
-import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../sound/library';
+import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../sound/bundled';
 import { clampVolume, DEFAULT_VOLUME } from '../sound/player';
 
 /**

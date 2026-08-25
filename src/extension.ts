@@ -12,7 +12,7 @@ import { defaultSettings, settingsFromEditor, type AppSettings } from './setting
 import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
-import { availableSounds, NO_SOUND, playFile, playNamed } from './sound/player';
+import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
@@ -52,6 +52,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const dirs = spoolDirs(home);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
+  // Donnés une fois, passés partout : le chemin du paquet n'est connu que d'ici,
+  // et c'est lui qui porte les deux sons du réglage par défaut.
+  const soundPaths = soundDirs(home, context.extensionPath);
   const closedPath = closedFile(home);
   await ensureDirs(dirs);
   if (migrated === 'migrated') {
@@ -141,7 +144,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     title: string,
     inherit: string | undefined,
   ): Promise<{ sound: string | undefined } | undefined> {
-    const sounds = await availableSounds();
+    const sounds = await availableSounds(soundPaths);
     if (sounds.length === 0) {
       const go = await vscode.window.showInformationMessage(
         vscode.l10n.t('Koh-Vibe: no sound found on this machine.'),
@@ -166,7 +169,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ];
     const hear = (label: string | undefined): void => {
       if (label === undefined || label === inherit || label === NONE_LABEL) return;
-      void playNamed(label, volume);
+      void playNamed(label, volume, soundPaths);
     };
     picker.onDidChangeActive((active) => hear(active[0]?.label));
     // La flèche droite ne traverse pas l'API : VSCode n'expose aucun événement
@@ -291,7 +294,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const global = changed.event === 'waiting' ? sound.waiting : sound.done;
           // Le son de la conversation l'emporte, puis celui de son dossier, puis
           // le réglage global — voir `soundFor`.
-          void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume);
+          void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume, soundPaths);
         }
         lastStatuses = statuses;
         tree.setSessions(map);
@@ -545,7 +548,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();
       const steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-      const sounds = await availableSounds();
+      const sounds = await availableSounds(soundPaths);
       // Le son d'essai est celui déjà choisi ; à défaut, le premier venu — sans
       // quoi régler le volume avant d'avoir choisi un son se ferait en silence.
       const sample = sounds.find((s) => s.name === settings.waiting) ?? sounds[0];

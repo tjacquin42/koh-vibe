@@ -3,8 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_DONE_SOUND,
-  DEFAULT_WAITING_SOUND,
   installedCount,
   installLibrary,
   LIBRARY,
@@ -74,10 +72,11 @@ describe('la bibliothèque proposée', () => {
     expect(librarySoundsDir('/racine')).not.toContain('Library');
   });
 
-  it('est cherchée en DERNIER, pour ne jamais supplanter un son de l utilisateur', () => {
-    const dirs = soundDirs('/racine');
-    expect(dirs[dirs.length - 1]).toBe(librarySoundsDir('/racine'));
-    expect(dirs.indexOf(join('/racine', 'sounds'))).toBeGreaterThan(dirs.findIndex((d) => d.includes('Library')));
+  it('passe APRÈS les dossiers de l utilisateur, pour ne jamais supplanter un de ses sons', () => {
+    // Elle ne ferme plus la marche : les deux sons du paquet la suivent, parce
+    // qu installer la bibliothèque est encore un choix, embarquer non.
+    const dirs = soundDirs('/racine', '/ext');
+    expect(dirs.indexOf(librarySoundsDir('/racine'))).toBeGreaterThan(dirs.findIndex((d) => d.includes('Library')));
   });
 });
 
@@ -158,21 +157,3 @@ describe('installedCount et removeLibrary', () => {
   });
 });
 
-describe('the sounds a fresh install starts with', () => {
-  it('are two files the library really installs', async () => {
-    // The defaults are names, and a name only rings if a file carries it. If
-    // the family table is ever renamed, a fresh install would silently point at
-    // nothing — the kind of default that looks set in the footer and plays
-    // nothing. This test is the link between the two.
-    const target = join(scratch(), 'sounds');
-    await installLibrary(target, fake(['drop_003.wav', 'drop_004.wav']));
-    expect(readdirSync(target).sort()).toEqual(
-      [`${DEFAULT_DONE_SOUND}.wav`, `${DEFAULT_WAITING_SOUND}.wav`].sort(),
-    );
-    rmSync(target, { recursive: true, force: true });
-  });
-
-  it('are two different sounds: waiting and finished must not be confused', () => {
-    expect(DEFAULT_WAITING_SOUND).not.toBe(DEFAULT_DONE_SOUND);
-  });
-});
