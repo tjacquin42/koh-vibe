@@ -103,6 +103,28 @@ export function libraryLabel(file: string): string | undefined {
   return `${label} ${index}`;
 }
 
+/**
+ * The two sounds a fresh install starts with.
+ *
+ * Names, not paths: they are written into the settings file and resolved
+ * against the sound folders like any other choice, so the user who later picks
+ * something else — or silence — overwrites a value of the same nature.
+ *
+ * They belong to the library, which is NOT installed by default: on a machine
+ * that declined it, the default resolves to no file and nothing plays, exactly
+ * as before. It starts ringing the day the library is installed, without the
+ * user having to come back and choose.
+ *
+ * `drop_003` and `drop_004`: two taps of the same family, one a shade above the
+ * other — close enough to be heard as one voice, distinct enough to tell « it
+ * is waiting for you » from « it is done » without looking up. The test holds
+ * these names to files the install really lays down: a rename of the family
+ * table would otherwise leave a default that shows in the footer and plays
+ * nothing.
+ */
+export const DEFAULT_WAITING_SOUND = 'Chute 3';
+export const DEFAULT_DONE_SOUND = 'Chute 4';
+
 export interface LibraryDeps {
   /** Retourne le contenu de l'archive, ou `undefined` si elle est hors d'atteinte. */
   download: (url: string) => Promise<Uint8Array | undefined>;

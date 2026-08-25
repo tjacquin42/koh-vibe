@@ -79,6 +79,11 @@ d'interface courts ([Kenney](https://kenney.nl/assets/interface-sounds), CC0), t
 seule fois et rangée chez lui — jamais dans `~/Library/Sounds`, dont la liste sert aussi au
 panneau Son du système. La ligne *Bibliothèque de sons* des réglages l'installe et la retire.
 
+Le réglage global démarre sur deux sons de cette bibliothèque — « Chute 3 » quand une session
+attend, « Chute 4 » quand elle vient de finir : une installation neuve carillonne donc sans
+avoir eu à choisir, dès lors que la bibliothèque est là. C'est un défaut, pas une règle : un
+son déjà choisi, silence compris, reste en place, et une mise à jour ne le remet jamais.
+
 Dans la liste de choix, les flèches font entendre chaque son ; **→** rejoue le son survolé.
 
 **Retirer.** Clic droit sur une session → *Retirer de la liste*. Rien n'est arrêté : Claude

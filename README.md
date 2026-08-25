@@ -72,6 +72,11 @@ interface sounds ([Kenney](https://kenney.nl/assets/interface-sounds), CC0), dow
 and kept in its own folder — never in `~/Library/Sounds`, whose listing also feeds the system
 Sound panel. The *Sound library* row in the settings installs and removes it.
 
+The global setting starts on two sounds of that library — `Chute 3` when a session waits,
+`Chute 4` when it finishes — so a fresh install chimes without anyone having chosen first,
+from the moment the library is there. They are a default, not a policy: a sound already
+chosen, a chosen silence included, stays as it is, and an update never puts them back.
+
 In the picker, the arrow keys play each sound; **→** replays the highlighted one.
 
 **Removing.** Right-click a session → *Remove from the list*. Nothing is stopped: Claude Code

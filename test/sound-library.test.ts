@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_DONE_SOUND,
+  DEFAULT_WAITING_SOUND,
   installedCount,
   installLibrary,
   LIBRARY,
@@ -153,5 +155,24 @@ describe('installedCount et removeLibrary', () => {
     expect(existsSync(target)).toBe(false);
     // Deux fois de suite : retirer ce qui n est plus là ne doit pas lever.
     expect(await removeLibrary(target)).toBe(0);
+  });
+});
+
+describe('the sounds a fresh install starts with', () => {
+  it('are two files the library really installs', async () => {
+    // The defaults are names, and a name only rings if a file carries it. If
+    // the family table is ever renamed, a fresh install would silently point at
+    // nothing — the kind of default that looks set in the footer and plays
+    // nothing. This test is the link between the two.
+    const target = join(scratch(), 'sounds');
+    await installLibrary(target, fake(['drop_003.wav', 'drop_004.wav']));
+    expect(readdirSync(target).sort()).toEqual(
+      [`${DEFAULT_DONE_SOUND}.wav`, `${DEFAULT_WAITING_SOUND}.wav`].sort(),
+    );
+    rmSync(target, { recursive: true, force: true });
+  });
+
+  it('are two different sounds: waiting and finished must not be confused', () => {
+    expect(DEFAULT_WAITING_SOUND).not.toBe(DEFAULT_DONE_SOUND);
   });
 });

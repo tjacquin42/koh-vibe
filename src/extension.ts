@@ -8,11 +8,11 @@ import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
-import { defaultSettings, type AppSettings } from './settings/model';
+import { defaultSettings, settingsFromEditor, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
-import { availableSounds, clampVolume, NO_SOUND, playFile, playNamed } from './sound/player';
+import { availableSounds, NO_SOUND, playFile, playNamed } from './sound/player';
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
@@ -112,11 +112,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   /** Ce que cet éditeur avait chez lui, et qui ne servira qu'une fois. */
   function legacySettings(): AppSettings {
     const config = vscode.workspace.getConfiguration('kohVibe');
-    const name = (key: string): string => {
-      const value = config.get(key);
-      return typeof value === 'string' ? value : NO_SOUND;
-    };
-    return { waiting: name('sound.waiting'), done: name('sound.done'), volume: clampVolume(config.get('sound.volume')) };
+    return settingsFromEditor((key) => config.get(key));
   }
 
   // Référence du tour précédent pour le carillon. `undefined` = premier rendu :
