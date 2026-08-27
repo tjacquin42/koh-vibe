@@ -4,11 +4,13 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 
 /**
- * Une bibliothèque proposée, jamais imposée — et jamais embarquée.
+ * Une bibliothèque proposée, jamais imposée, et pratiquement jamais embarquée.
  *
- * Embarquer des fichiers audio dans le paquet aurait deux coûts : le poids, et
+ * Embarquer cent fichiers audio dans le paquet aurait deux coûts : le poids, et
  * la licence de chacun d'eux dans un dépôt public. On les récupère donc à la
- * demande, une seule fois, si l'utilisateur le veut.
+ * demande, une seule fois, si l'utilisateur le veut. Deux d'entre eux font
+ * exception et voyagent dans le paquet — ceux du réglage par défaut, sans quoi
+ * une installation neuve serait muette ; voir `bundled.ts`.
  *
  * Le choix s'est porté sur les sons d'interface de Kenney : cent sons courts
  * (aucun ne dépasse trois dixièmes de seconde), pensés pour une interface et

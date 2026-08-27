@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { closedFile, groupsFile, kohVibeHome, spoolDirs } from '../src/paths';
+import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs } from '../src/paths';
 
 describe('paths', () => {
   it('utilise KOH_VIBE_HOME quand il est posé', () => {
@@ -24,5 +24,20 @@ describe('paths', () => {
 
   it('puts the closed list at the root of the koh-vibe home', () => {
     expect(closedFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/closed.json');
+  });
+});
+
+describe('claude paths', () => {
+  it('honours CLAUDE_CONFIG_DIR, the variable Claude Code itself reads', () => {
+    expect(claudeHome({ CLAUDE_CONFIG_DIR: '/tmp/claude', HOME: '/Users/x' })).toBe('/tmp/claude');
+  });
+
+  it('falls back to ~/.claude', () => {
+    expect(claudeHome({ HOME: '/Users/x' })).toBe('/Users/x/.claude');
+    expect(claudeHome({ HOME: '/Users/x', CLAUDE_CONFIG_DIR: '' })).toBe('/Users/x/.claude');
+  });
+
+  it('finds the session registry under it', () => {
+    expect(claudeSessionsDir('/Users/x/.claude')).toBe('/Users/x/.claude/sessions');
   });
 });

@@ -24,7 +24,8 @@ and the hook bridges are zsh scripts.
   closes its Claude Code tab, which ends the conversation and files it under *Recently
   closed*. When no tab is found — a conversation running in a terminal, in the Claude desktop
   app, or in a project no window has open — the row is simply removed from the list.
-- **Your usage** over five hours and seven days, with the time until it resets.
+- **Your usage** over five hours and seven days — and per model, when your plan counts one
+  apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
 
 ## Install
@@ -72,6 +73,12 @@ interface sounds ([Kenney](https://kenney.nl/assets/interface-sounds), CC0), dow
 and kept in its own folder — never in `~/Library/Sounds`, whose listing also feeds the system
 Sound panel. The *Sound library* row in the settings installs and removes it.
 
+Two of its sounds travel inside the package, renamed after what they announce: **Attente**,
+when a session starts waiting for you, and **Fin**, when it finishes. A fresh install starts
+on those two, so the dashboard chimes from the first launch, library or no library. They are
+a default, not a policy: a sound already chosen — a chosen silence included — stays as it is,
+and an update never puts them back.
+
 In the picker, the arrow keys play each sound; **→** replays the highlighted one.
 
 **Removing.** Right-click a session → *Remove from the list*. Nothing is stopped: Claude Code
@@ -116,6 +123,12 @@ Each window watches the spool on its own, reduces the events into state, and dis
 locks: shared files are merged three ways (the state read, ours, and the freshest one re-read
 just before writing), so two windows filing at the same time do not erase each other.
 
+A conversation leaves the list when it ends, when you close it, or when you remove it —
+never because it went quiet: a tab you left open for a day is still a conversation.
+**Refresh** reads Claude Code's own registry of running processes (`~/.claude/sessions/`)
+and brings back every live conversation the list has lost, in the folder it was filed in;
+the same pass runs when the window opens, with a spinner in place of the button while it does.
+
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a
 shared file — otherwise every window would fetch exactly the same thing. The OAuth token is
 read from the system keychain, never logged and never written to disk.
@@ -129,7 +142,7 @@ Outside contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 ```bash
 pnpm install
 pnpm build       # compiles to out/, and stamps the build from the latest tag
-pnpm test        # builds, then runs 501 tests without an extension host
+pnpm test        # builds, then runs 663 tests without an extension host
 pnpm test:watch  # the same tests, without rebuilding on every run
 pnpm typecheck   # types across src AND test
 pnpm package     # produces the .vsix

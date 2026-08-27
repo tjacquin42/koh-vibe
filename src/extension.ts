@@ -3,21 +3,24 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
+import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
+import { readLiveSessions } from './claude/registry';
+import { rescanLiveSessions } from './claude/rescan';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
-import { defaultSettings, type AppSettings } from './settings/model';
+import { defaultSettings, settingsFromEditor, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
-import { availableSounds, clampVolume, NO_SOUND, playFile, playNamed } from './sound/player';
+import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
+import { showBusy } from './ui/busy';
 import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
-import { pruneAssignmentsAfterPurge } from './groups/purge';
+import { pruneAssignmentsOf } from './groups/prune';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
@@ -43,6 +46,15 @@ import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
 
 const REFRESH_MS = 2_000;
+/**
+ * A second look at the registry after activation. When the editor starts,
+ * Claude Code restores its tabs and spawns their processes over several
+ * seconds, and the first look — taken before the first render — may run
+ * before the last of them is listed. Long enough to cover a slow start,
+ * short enough that a conversation removed from the list on purpose is not
+ * brought back a minute later.
+ */
+const RESCAN_LATE_MS = 20_000;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
@@ -52,7 +64,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const dirs = spoolDirs(home);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
+  // Donnés une fois, passés partout : le chemin du paquet n'est connu que d'ici,
+  // et c'est lui qui porte les deux sons du réglage par défaut.
+  const soundPaths = soundDirs(home, context.extensionPath);
   const closedPath = closedFile(home);
+  // Claude Code's registry of running processes (`~/.claude/sessions/`): the
+  // only source saying that a conversation is alive when its hooks are silent.
+  const claudeRoot = claudeHome();
+  const registryDir = claudeSessionsDir(claudeRoot);
+  // The loading indicator around a rescan: while the flag is raised, the
+  // title shows a spinning icon where the Refresh button was (package.json
+  // switches the two on this context key), and the view runs its progress
+  // bar. Visible at startup too, since the first rescan precedes the first
+  // render.
+  const RESCANNING = 'kohVibe.rescanning';
+  const busy = {
+    setBusy: (on: boolean) => vscode.commands.executeCommand('setContext', RESCANNING, on),
+    progress: <T>(task: () => Promise<T>) =>
+      vscode.window.withProgress({ location: { viewId: 'kohVibe.sessions' } }, task),
+  };
+  /**
+   * Brings back the conversations whose process runs but whose state file is
+   * gone (see claude/rescan.ts). Never fails a refresh: the registry is a
+   * convenience over the hooks, and an unreadable one simply brings nothing
+   * back.
+   */
+  const rescan = async (): Promise<string[]> => {
+    try {
+      return await showBusy<string[]>(
+        async () => rescanLiveSessions(dirs, await readLiveSessions(registryDir), Date.now(), claudeRoot),
+        busy,
+      );
+    } catch {
+      return [];
+    }
+  };
   await ensureDirs(dirs);
   if (migrated === 'migrated') {
     void vscode.window.showInformationMessage(
@@ -112,11 +158,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   /** Ce que cet éditeur avait chez lui, et qui ne servira qu'une fois. */
   function legacySettings(): AppSettings {
     const config = vscode.workspace.getConfiguration('kohVibe');
-    const name = (key: string): string => {
-      const value = config.get(key);
-      return typeof value === 'string' ? value : NO_SOUND;
-    };
-    return { waiting: name('sound.waiting'), done: name('sound.done'), volume: clampVolume(config.get('sound.volume')) };
+    return settingsFromEditor((key) => config.get(key));
   }
 
   // Référence du tour précédent pour le carillon. `undefined` = premier rendu :
@@ -145,7 +187,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     title: string,
     inherit: string | undefined,
   ): Promise<{ sound: string | undefined } | undefined> {
-    const sounds = await availableSounds();
+    const sounds = await availableSounds(soundPaths);
     if (sounds.length === 0) {
       const go = await vscode.window.showInformationMessage(
         vscode.l10n.t('Koh-Vibe: no sound found on this machine.'),
@@ -170,7 +212,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ];
     const hear = (label: string | undefined): void => {
       if (label === undefined || label === inherit || label === NONE_LABEL) return;
-      void playNamed(label, volume);
+      void playNamed(label, volume, soundPaths);
     };
     picker.onDidChangeActive((active) => hear(active[0]?.label));
     // La flèche droite ne traverse pas l'API : VSCode n'expose aucun événement
@@ -276,15 +318,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ),
           );
         });
-        // Sessions gone from the spool (SessionEnd, forget, purge by another
-        // window) must not leave an orphan entry in this in-memory cache: the
-        // watcher only reports ids purged for staleness, so ended and
-        // forgotten conversations would otherwise accumulate for the lifetime
-        // of the window. Pruned AFTER withTokens — `archive` (below) has
-        // already read the title it needed before the state file disappeared.
-        for (const id of transcripts.keys()) {
-          if (!map.has(id)) transcripts.delete(id);
-        }
+        // The cache follows the list: a conversation that ended, or was removed,
+        // must not keep its counters in memory for the life of the window.
+        // Pruned AFTER withTokens — `archive` (below) has already read the
+        // title it needed before the state file disappeared. The one and only
+        // cleanup path: the watcher's callback, below, does not repeat it.
+        for (const id of transcripts.keys()) if (!map.has(id)) transcripts.delete(id);
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
@@ -305,7 +344,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const global = changed.event === 'waiting' ? sound.waiting : sound.done;
           // Le son de la conversation l'emporte, puis celui de son dossier, puis
           // le réglage global — voir `soundFor`.
-          void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume);
+          void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume, soundPaths);
         }
         lastStatuses = statuses;
         // Only while there is nothing to show — the sole case where the hooks
@@ -363,7 +402,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   const forget = async (id: string): Promise<void> => {
     await removeSession(dirs, id);
-    await pruneAssignmentsAfterPurge(dirs, groupsPath, [id]).catch(() => undefined);
+    await pruneAssignmentsOf(dirs, groupsPath, [id]).catch(() => undefined);
     await render();
   };
 
@@ -380,17 +419,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const watcher = new SpoolWatcher(
     dirs,
-    (res) => {
-      // The transcripts cache is NOT cleaned here: render(), triggered just
-      // below, prunes every entry whose session left the spool — purged for
-      // staleness or otherwise. A second cleanup path at this site would have
-      // to be kept in step with that one for no gain.
-      // L'affectation d'une session purgée est un déchet sans nettoyage.
-      // pruneAssignmentsAfterPurge n'écrit rien quand res.purged est vide
-      // (la quasi-totalité des tours).
-      void pruneAssignmentsAfterPurge(dirs, groupsPath, res.purged).catch(() => undefined);
-      void render();
-    },
+    () => void render(),
     () => {
       if (drainFailureWarned) return;
       drainFailureWarned = true;
@@ -420,6 +449,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   const ticker = setInterval(() => void render(), REFRESH_MS);
+  const lateRescan = setTimeout(() => {
+    void rescan().then((added) => {
+      if (added.length > 0) void render();
+    });
+  }, RESCAN_LATE_MS);
 
   // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
   // avoir n'importe quel répertoire courant, le script n'en dépend pas.
@@ -433,7 +467,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => watcher.stop() },
     { dispose: () => broker.stop() },
     { dispose: () => clearInterval(ticker) },
-    vscode.commands.registerCommand('kohVibe.refresh', () => void render()),
+    { dispose: () => clearTimeout(lateRescan) },
+    // Refresh does two things: it brings back every live conversation the
+    // spool has lost, then renders. It says so only when it found something —
+    // a refresh that changes nothing has nothing to announce.
+    vscode.commands.registerCommand('kohVibe.refresh', async () => {
+      const added = await rescan();
+      await render();
+      if (added.length === 0) return;
+      void vscode.window.showInformationMessage(
+        added.length === 1
+          ? vscode.l10n.t('Koh-Vibe: one conversation found again')
+          : vscode.l10n.t('Koh-Vibe: {0} conversations found again', added.length),
+      );
+    }),
+    // The spinning icon shown in place of Refresh while a rescan runs. A
+    // command because a title button has to be one; it does nothing on
+    // purpose, and package.json keeps it disabled.
+    vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
       // Le clic acquitte inconditionnellement (spec §5 : « clic sur la
       // session »), indépendamment de claims() — qui ne gouverne que
@@ -565,7 +616,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();
       const steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-      const sounds = await availableSounds();
+      const sounds = await availableSounds(soundPaths);
       // Le son d'essai est celui déjà choisi ; à défaut, le premier venu — sans
       // quoi régler le volume avant d'avoir choisi un son se ferait en silence.
       const sample = sounds.find((s) => s.name === settings.waiting) ?? sounds[0];
@@ -682,7 +733,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      *
      * Ne tue rien : Claude Code tourne dans son terminal, et cette extension
      * n'en connaît que les traces. Une session ENCORE VIVANTE réapparaîtra donc
-     * à son prochain événement — c'est voulu, et le libellé du menu le dit
+     * à son prochain événement — ou au prochain Rafraîchir, qui relit le
+     * registre des processus. C'est voulu, et le libellé du menu le dit
      * (« retirer de la liste », pas « fermer »), plutôt que de laisser croire à
      * un arrêt qui n'a pas eu lieu.
      */
@@ -727,6 +779,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ses propres réglages. Le premier démarré fixe la valeur ; les suivants la
   // lisent — voir seedSettings, qui ne réécrit jamais un fichier présent.
   await seedSettings(settingsPath, legacySettings);
+  // Before the first render, so that a conversation lost while this window was
+  // away — ended by a window reload before its tab was resumed, or removed by
+  // hand — is back on screen at once.
+  await rescan();
   await render();
 }
 

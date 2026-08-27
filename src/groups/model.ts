@@ -373,7 +373,7 @@ export function pruneAssignments(s: GroupsState, live: ReadonlySet<string>): Gro
     orderEntries.length === Object.keys(s.sessionOrder).length &&
     orderEntries.every(([key, ids]) => ids.length === (s.sessionOrder[key]?.length ?? -1));
   // Même identité renvoyée quand il n'y a rien à retirer : l'appelant s'en sert
-  // pour éviter une écriture inutile (groups/purge.ts).
+  // pour éviter une écriture inutile (groups/prune.ts).
   const soundsUnchanged = soundEntries.every(
     ([event, kept]) => kept.length === Object.keys(s.sessionSounds[event]).length,
   );

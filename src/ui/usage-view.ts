@@ -54,15 +54,19 @@ export function escape(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
+/**
+ * One row of the grid: always its three cells, even with nothing to say about
+ * a deadline. The rows are laid out by a CSS grid so that the percentages line
+ * up whatever the width of the label in front of them — "5 h" and "7 d Fable"
+ * share the columns — and a grid places cells by count: a row short of one
+ * would pull every following row one cell to the left.
+ */
 function row(label: string, w: UsageWindow | undefined, now: number): string {
   if (w === undefined) return '';
   const percent = Math.round(w.percent);
   const reset = resetText(w, now);
-  return `<div class="row">
-    <span class="kind">${escape(label)}</span>
-    <span class="pct" style="color:${percentColor(percent)}">${percent} %</span>
-    ${reset === '' ? '' : `<span class="dot">•</span><span class="reset">${escape(reset)}</span>`}
-  </div>`;
+  return `<span class="kind">${escape(label)}</span><span class="pct" style="color:${percentColor(percent)}">${percent} %</span><span class="reset">${reset === '' ? '' : `• ${escape(reset)}`}</span>
+`;
 }
 
 /** Le corps de la vue, séparé du webview pour être éprouvable sans éditeur. */
@@ -74,10 +78,11 @@ export function usageHtml(reading: UsageReading | undefined, now: number): strin
   return `<style>
     body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
            color: var(--vscode-foreground); padding: 4px 12px 8px; }
-    .row { display: flex; align-items: baseline; gap: 8px; line-height: 22px; white-space: nowrap; }
-    .kind { color: var(--vscode-foreground); width: 2.2em; }
-    .pct { font-variant-numeric: tabular-nums; text-align: right; width: 3.5em; }
-    .dot, .reset, .src, .empty { color: var(--vscode-descriptionForeground); }
+    .rows { display: grid; grid-template-columns: max-content max-content auto; column-gap: 8px;
+            align-items: baseline; line-height: 22px; white-space: nowrap; }
+    .kind { color: var(--vscode-foreground); min-width: 2.2em; }
+    .pct { font-variant-numeric: tabular-nums; text-align: right; min-width: 3.5em; }
+    .reset, .src, .empty { color: var(--vscode-descriptionForeground); }
     .src { display: block; margin-top: 6px; font-size: 0.9em; }
     a { color: inherit; text-decoration: none; cursor: pointer; display: block; }
   </style>
@@ -90,8 +95,12 @@ export function usageHtml(reading: UsageReading | undefined, now: number): strin
 
 function rowsOf(u: Usage, now: number): string {
   // The window names are abbreviations of durations, and abbreviations differ:
-  // French writes days "j", English "d".
-  return row(vscode.l10n.t('5 h'), u.fiveHour, now) + row(vscode.l10n.t('7 d'), u.sevenDay, now);
+  // French writes days "j", English "d". A model's row carries the model's
+  // name after the duration: the name is data from the API, escaped by `row`
+  // like every label, never trusted for being short.
+  const shared = row(vscode.l10n.t('5 h'), u.fiveHour, now) + row(vscode.l10n.t('7 d'), u.sevenDay, now);
+  const models = u.models.map((m) => row(vscode.l10n.t('7 d {0}', m.name), m, now)).join('');
+  return `<div class="rows">${shared}${models}</div>`;
 }
 
 function footer(reading: UsageReading, now: number): string {

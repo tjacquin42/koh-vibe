@@ -2,7 +2,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { defaultSettings, parseSettings, serializeSettings } from '../src/settings/model';
+import {
+  defaultSettings,
+  parseSettings,
+  serializeSettings,
+  settingsFromEditor,
+} from '../src/settings/model';
+import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../src/sound/bundled';
 import { readSettings, seedSettings, writeSettings } from '../src/settings/store';
 import { settingsFile } from '../src/paths';
 
@@ -98,5 +104,86 @@ describe('seedSettings — la migration depuis les réglages de chaque éditeur'
     const file = join(scratch(), 'settings.json');
     expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5 }))).waiting).toBe('');
     expect((await readSettings(file)).waiting).toBe('');
+  });
+});
+
+describe('the sounds a fresh install starts with', () => {
+  it('proposes two sounds of the library rather than silence', () => {
+    // A dashboard that never chimes teaches nothing about itself: someone who
+    // installs the extension has to HEAR the notification once to know it
+    // exists, and only then decide to change or mute it.
+    expect(defaultSettings().waiting).toBe(DEFAULT_WAITING_SOUND);
+    expect(defaultSettings().done).toBe(DEFAULT_DONE_SOUND);
+  });
+
+  it('never replaces a sound already chosen', () => {
+    // The whole point of a default: it fills a hole, it does not overwrite.
+    // An upgrade that reset the chime to ours would be the one bug the user
+    // would never forgive — a setting they had chosen, gone without a word.
+    expect(parseSettings('{"waiting":"Funk","done":"Hero","volume":0.3}')).toEqual({
+      waiting: 'Funk',
+      done: 'Hero',
+      volume: 0.3,
+    });
+  });
+
+  it('leaves a chosen silence silent, on both events', () => {
+    // Empty string is a CHOICE ("None" in the picker), not an absence of one.
+    // A default that read it as a hole would put the sound back on, for the one
+    // user who had deliberately asked for quiet.
+    const s = parseSettings('{"waiting":"","done":"","volume":0.5}');
+    expect(s.waiting).toBe('');
+    expect(s.done).toBe('');
+  });
+
+  it('fills in the event a file never mentions', () => {
+    const s = parseSettings('{"waiting":"Funk"}');
+    expect(s.waiting).toBe('Funk');
+    expect(s.done).toBe(DEFAULT_DONE_SOUND);
+  });
+});
+
+describe('settingsFromEditor — what the migration reads from this editor', () => {
+  it('carries over what the editor had, a chosen silence included', () => {
+    const stored: Record<string, unknown> = {
+      'sound.waiting': 'Funk',
+      'sound.done': '',
+      'sound.volume': 0.7,
+    };
+    expect(settingsFromEditor((key) => stored[key])).toEqual({
+      waiting: 'Funk',
+      done: '',
+      volume: 0.7,
+    });
+  });
+
+  it('falls back to the defaults when this editor never had a setting', () => {
+    // This is the path a FRESH install takes: no VSCode setting to migrate, so
+    // the seeded file must carry the defaults. Reading a missing setting as
+    // silence would freeze that silence into the shared file on first launch,
+    // and no new install would ever chime.
+    expect(settingsFromEditor(() => undefined)).toEqual(defaultSettings());
+  });
+});
+
+describe('a fresh install, end to end', () => {
+  it('seeds the shared file with the default sounds when there is nothing to migrate', async () => {
+    // The scenario that matters: nobody has ever chosen, and this editor holds
+    // no legacy setting either. The seeded file must carry the defaults — it is
+    // written once and then left alone forever, so a silence written here would
+    // be a silence for good.
+    const file = join(scratch(), 'settings.json');
+    const seeded = await seedSettings(file, () => settingsFromEditor(() => undefined));
+    expect(seeded).toEqual(defaultSettings());
+    expect(JSON.parse(readFileSync(file, 'utf8')).waiting).toBe(DEFAULT_WAITING_SOUND);
+  });
+
+  it('leaves an upgraded install exactly as its owner left it', async () => {
+    // The same run, on a machine where the file is already there: the defaults
+    // must not get a second chance at it.
+    const file = join(scratch(), 'settings.json');
+    await writeSettings(file, { waiting: 'Funk', done: '', volume: 0.2 });
+    const kept = await seedSettings(file, () => settingsFromEditor(() => undefined));
+    expect(kept).toEqual({ waiting: 'Funk', done: '', volume: 0.2 });
   });
 });
