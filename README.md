@@ -17,7 +17,8 @@ and the hook bridges are zsh scripts.
 - **Live sessions**, sorted by what wants your attention: the ones waiting for you first, then
   the ones working, then the ones that just finished.
 - **A status dot** per session — one glyph, five colours — next to the project, the branch and
-  the tool currently running.
+  the tool currently running. The row is named as the tab is: the title you gave it, else the
+  one Claude generated, else the last prompt.
 - **Ended conversations** stay in the list, greyed out and in their folder, for as long as
   *Persistent sessions* is on in the settings (it is by default). Turn it off and closing a
   tab takes the row away instead. *Recently closed*, a view of its own, keeps the ten

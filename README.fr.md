@@ -17,7 +17,8 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
 - **Les sessions vivantes**, triées par ce qui réclame votre attention : celles qui vous
   attendent d'abord, puis celles qui travaillent, puis celles qui viennent de finir.
 - **Une pastille de statut** par session — même glyphe, cinq couleurs — et, à côté, le projet,
-  la branche et l'outil en cours d'exécution.
+  la branche et l'outil en cours d'exécution. La ligne porte le nom de l'onglet : le titre que
+  vous lui avez donné, sinon celui que Claude a engendré, sinon le dernier prompt.
 - **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
   que *Sessions persistantes* est coché dans les réglages (il l'est par défaut). Décoché,
   fermer un onglet retire la ligne. *Fermé récemment*, une vue à part, retient dans les deux
