@@ -51,3 +51,46 @@ describe('showBusy', () => {
     expect(await showBusy(async () => 'done', flaky)).toBe('done');
   });
 });
+
+describe('showBusy — minimum duration', () => {
+  it('keeps the indicator up for at least MIN_BUSY_MS, even when the task is instant', async () => {
+    // A rescan that finds everything already in place takes a few
+    // milliseconds: without a floor, the spinner is a flicker nobody sees, and
+    // Refresh looks like it did nothing.
+    const { log, deps } = recorder();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waited: number[] = [];
+    const p = showBusy(async () => 'fast', {
+      ...deps,
+      minMs: 600,
+      wait: (ms: number) => {
+        waited.push(ms);
+        return gate;
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(log).toContain('busy');
+    expect(log).not.toContain('idle');
+    release();
+    expect(await p).toBe('fast');
+    expect(waited).toEqual([600]);
+    expect(log.at(-1)).toBe('idle');
+  });
+
+  it('does not add the floor on top of a task that already took longer', async () => {
+    const { deps } = recorder();
+    const waited: number[] = [];
+    let clock = 0;
+    await showBusy(
+      async () => {
+        clock += 1_000;
+        return 'slow';
+      },
+      { ...deps, minMs: 600, now: () => clock, wait: async (ms: number) => { waited.push(ms); } },
+    );
+    expect(waited).toEqual([]);
+  });
+});

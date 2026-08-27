@@ -175,8 +175,8 @@ describe('readTranscript — titre de la conversation', () => {
     expect((await readTranscript(p)).title).toBe('#à moi');
   });
 
-  it('pas de titre quand le transcript n en porte aucun', async () => {
-    const p = await fixture(['{"type":"user","message":{"role":"user","content":"x"}}']);
+  it('pas de titre quand le transcript n en porte aucun — ni titre, ni prompt', async () => {
+    const p = await fixture([assistant(1, 1)]);
     expect((await readTranscript(p)).title).toBeUndefined();
   });
 
@@ -206,5 +206,55 @@ describe('readTranscript — titre de la conversation', () => {
   it('reprend le dernier customTitle sur un transcript réaliste (fixture titles.jsonl)', async () => {
     const stats = await readTranscript('test/fixtures/transcripts/titles.jsonl');
     expect(stats.title).toBe('#Mon titre');
+  });
+});
+
+describe('readTranscript — titre sans titre : la règle de l’extension Claude Code', () => {
+  const user = (text: string, extra = ''): string =>
+    JSON.stringify({ type: 'user', message: { role: 'user', content: text }, ...(extra ? JSON.parse(extra) : {}) });
+
+  it('prend le dernier prompt quand aucun titre n’a été engendré — c’est ce que l’onglet affiche', async () => {
+    const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' }), JSON.stringify({ type: 'atis-latch', atis: '' })]);
+    expect((await readTranscript(path)).title).toBe('bonjour');
+  });
+
+  it('suit le dernier prompt, puis s’arrête sur le titre IA dès qu’il arrive, et cède au titre choisi', async () => {
+    const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' })]);
+    let stats = await readTranscript(path);
+    await appendLine(path, JSON.stringify({ type: 'last-prompt', lastPrompt: 'et maintenant ?' }));
+    stats = await readTranscript(path, stats);
+    expect(stats.title).toBe('et maintenant ?');
+    await appendLine(path, JSON.stringify({ type: 'ai-title', aiTitle: 'Salutations' }));
+    stats = await readTranscript(path, stats);
+    expect(stats.title).toBe('Salutations');
+    await appendLine(path, JSON.stringify({ type: 'last-prompt', lastPrompt: 'encore' }));
+    stats = await readTranscript(path, stats);
+    expect(stats.title).toBe('Salutations');
+    await appendLine(path, JSON.stringify({ type: 'custom-title', customTitle: '#Perso' }));
+    stats = await readTranscript(path, stats);
+    expect(stats.title).toBe('#Perso');
+  });
+
+  it('retombe sur le résumé, puis sur le premier message — jamais sur un résultat d’outil', async () => {
+    const toolResult = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } });
+    const path = await fixture([toolResult, user('Corrige le bug du menu'), JSON.stringify({ type: 'summary', summary: 'Bug du menu corrigé' })]);
+    expect((await readTranscript(path)).title).toBe('Bug du menu corrigé');
+    const bare = await fixture([toolResult, user('Corrige le bug du menu')]);
+    expect((await readTranscript(bare)).title).toBe('Corrige le bug du menu');
+  });
+
+  it('ne garde d’un prompt que sa première ligne, blancs repliés et coupée court — comme l’onglet', async () => {
+    const long = `   Voici   un prompt   ${'x'.repeat(120)}\n deuxième ligne, ignorée`;
+    const path = await fixture([JSON.stringify({ type: 'last-prompt', lastPrompt: long })]);
+    const title = (await readTranscript(path)).title ?? '';
+    expect(title.startsWith('Voici un prompt')).toBe(true);
+    expect(title.length).toBe(80);
+    expect(title.endsWith('…')).toBe(true);
+    expect(title).not.toContain('\n');
+  });
+
+  it('ignore les messages méta et les branches secondaires pour le premier message', async () => {
+    const path = await fixture([user('<system>', '{"isMeta":true}'), user('sous-agent', '{"isSidechain":true}'), user('la vraie question')]);
+    expect((await readTranscript(path)).title).toBe('la vraie question');
   });
 });

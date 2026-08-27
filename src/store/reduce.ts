@@ -27,11 +27,12 @@ function create(ev: SpoolEvent): Session {
  * Fonction pure. Deux fenêtres VSCode qui rejouent les mêmes événements
  * aboutissent au même état — c'est ce qui rend la convergence possible sans verrou.
  *
- * Retourne `undefined` quand la session doit disparaître.
+ * Retourne `undefined` quand la session doit disparaître — ce qui n'arrive
+ * plus qu'à un événement sans session préalable : une conversation qui se
+ * termine reste, marquée `endedAt`, jusqu'à ce que l'utilisateur la retire.
  */
 export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | undefined {
-  if (ev.event === 'SessionEnd') return undefined;
-  if (prev === undefined && !isHookEvent(ev.event)) return undefined;
+  if (prev === undefined && (ev.event === 'SessionEnd' || !isHookEvent(ev.event))) return undefined;
 
   const base = prev ?? create(ev);
 
@@ -40,8 +41,30 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
   const late = ev.at < base.lastEventAt;
   const next: Session = { ...base, lastEventAt: Math.max(base.lastEventAt, ev.at) };
   if (ev.transcriptPath !== undefined) next.transcriptPath = ev.transcriptPath;
+  // A hook is the conversation living: whatever the user removed it for is
+  // over, and so is its end — a resumed conversation starts with a hook.
+  // `Ack` is our own event, and says nothing about the conversation. A LATE
+  // hook says nothing either: it happened before the end it would undo, and
+  // must not bring back a conversation another window has since seen end.
+  if (isHookEvent(ev.event) && !late) {
+    delete next.hidden;
+    delete next.endedAt;
+  }
 
   switch (ev.event) {
+    case 'SessionEnd':
+      // The tab closed, the process is gone: nothing is in flight any more,
+      // and nothing is waiting. The row stays, greyed, in its folder — unless
+      // the end is stale: a twin of this conversation in another editor has
+      // spoken since, and it is that twin's process the row now stands for.
+      if (!late) {
+        next.status = 'idle';
+        next.endedAt = ev.at;
+        delete next.inFlightSince;
+        delete next.currentAction;
+        delete next.pendingPermission;
+      }
+      break;
     case 'SessionStart':
       next.startedAt = base.startedAt ?? ev.at;
       break;

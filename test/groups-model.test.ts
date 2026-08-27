@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assign, createGroup, deleteGroup, emptyGroups, groupIdOf, parseGroups,
-  pruneAssignments, renameGroup, reorder, serializeGroups, sessionOrderOf, setGroupColor,
+  renameGroup, reorder, serializeGroups, sessionOrderOf, setGroupColor,
   setGroupSound, setSessionOrder, setSessionSound, soundFor, unassign,
 } from '../src/groups/model';
 import type { GroupsState } from '../src/groups/model';
@@ -151,25 +151,6 @@ describe('serializeGroups', () => {
   });
 });
 
-describe('pruneAssignments', () => {
-  it('retire les affectations des sessions disparues, garde les vivantes', () => {
-    let s = createGroup(emptyGroups(), 'd', () => 'g1');
-    s = assign(assign(s, 'vivante', 'g1'), 'morte', 'g1');
-    const out = pruneAssignments(s, new Set(['vivante']));
-    expect(Object.keys(out.assignments)).toEqual(['vivante']);
-  });
-
-  it('ne touche jamais aux dossiers eux-mêmes, même vidés', () => {
-    const s = pruneAssignments(assign(createGroup(emptyGroups(), 'd', () => 'g1'), 's1', 'g1'), new Set());
-    expect(s.groups).toHaveLength(1);
-  });
-
-  it('rend le même objet quand il n y a rien à retirer', () => {
-    const s = assign(createGroup(emptyGroups(), 'd', () => 'g1'), 's1', 'g1');
-    expect(pruneAssignments(s, new Set(['s1']))).toBe(s);
-  });
-});
-
 describe('setGroupColor', () => {
   const state = (): GroupsState =>
     parseGroups(JSON.stringify({ version: 1, groups: [{ id: 'g-1', name: 'Un', order: 0 }], assignments: {} }));
@@ -292,18 +273,6 @@ describe('sessionOrder', () => {
     expect(sessionOrderOf(deleteGroup(s, 'g-1'), 'g-1')).toEqual([]);
   });
 
-  it('retire des ordres les sessions qui n existent plus', () => {
-    let s = setSessionOrder(state(), 'g-1', ['vivante', 'morte']);
-    s = setSessionOrder(s, undefined, ['morte']);
-    const pruned = pruneAssignments(s, new Set(['vivante']));
-    expect(sessionOrderOf(pruned, 'g-1')).toEqual(['vivante']);
-    expect(sessionOrderOf(pruned, undefined)).toEqual([]);
-  });
-
-  it('rend le même objet quand il n y a rien à retirer', () => {
-    const s = setSessionOrder(state(), 'g-1', ['vivante']);
-    expect(pruneAssignments(s, new Set(['vivante']))).toBe(s);
-  });
 });
 
 describe('soundFor — trois niveaux de priorité, un réglage par événement', () => {
@@ -373,8 +342,4 @@ describe('soundFor — trois niveaux de priorité, un réglage par événement',
     expect(ancien.sessionSounds).toEqual({ waiting: {}, done: {} });
   });
 
-  it('oublie le son d une session qui n existe plus, dans les deux événements', () => {
-    const pruned = pruneAssignments(state(), new Set());
-    expect(pruned.sessionSounds).toEqual({ waiting: {}, done: {} });
-  });
 });

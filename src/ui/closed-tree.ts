@@ -6,15 +6,19 @@ import { closedDescription, closedTooltip, sessionLabel } from './labels';
  * A row of the closed-conversation view, or the line standing in for an empty
  * one. `empty` carries no message: unlike the session tree's, which changes
  * with whether the hooks are installed, there is only ever one thing to say
- * here.
+ * here. `loading` is the moment before the first list arrives: the view can
+ * be on screen before the render loop has read `closed.json`, and « No closed
+ * conversation » would then be a claim, not an observation.
  */
 export type ClosedNode =
   | { kind: 'entry'; entry: ClosedEntry }
-  | { kind: 'empty' };
+  | { kind: 'empty' }
+  | { kind: 'loading' };
 
 /** Stable identity of a row, so VSCode can tell two redraws apart. */
 export function closedNodeId(node: ClosedNode): string {
-  return node.kind === 'empty' ? 'closed:empty' : `closed:${node.entry.id}`;
+  if (node.kind === 'entry') return `closed:${node.entry.id}`;
+  return `closed:${node.kind}`;
 }
 
 /**
@@ -30,8 +34,12 @@ export function closedNodeId(node: ClosedNode): string {
 export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
   private readonly emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
-  private entries: readonly ClosedEntry[] = [];
+  // `undefined` = no list received yet: the loading row shows meanwhile.
+  private entries: readonly ClosedEntry[] | undefined;
   private live: ReadonlySet<string> = new Set();
+  // The conversations a click is bringing back (ui/reopening.ts): a spinner
+  // in place of the glyph, and no command until they show up or give up.
+  private reopening: ReadonlySet<string> = new Set();
   // `undefined` = nothing drawn yet: the first render always goes through.
   private rendered: string | undefined;
 
@@ -54,6 +62,12 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
     this.refresh();
   }
 
+  /** Fed by the `Reopening` set's own notification, never computed here. */
+  setReopening(ids: ReadonlySet<string>): void {
+    this.reopening = ids;
+    this.refresh();
+  }
+
   /**
    * The entries actually shown: one whose conversation is alive again is
    * filtered out here, never deleted from the file — the same conversation
@@ -61,7 +75,7 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
    * afresh.
    */
   private visible(): ClosedEntry[] {
-    return this.entries.filter((e) => !this.live.has(e.id));
+    return (this.entries ?? []).filter((e) => !this.live.has(e.id));
   }
 
   /**
@@ -73,7 +87,10 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
    */
   private refresh(): void {
     const now = Date.now();
-    const next = JSON.stringify(this.visible().map((e) => [e.id, sessionLabel(e), closedDescription(e, now)]));
+    const next = JSON.stringify([
+      this.entries === undefined,
+      this.visible().map((e) => [e.id, sessionLabel(e), closedDescription(e, now), this.reopening.has(e.id)]),
+    ]);
     if (next === this.rendered) return;
     this.rendered = next;
     this.emitter.fire();
@@ -82,6 +99,7 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
   getChildren(node?: ClosedNode): ClosedNode[] {
     // A flat list: no row has children.
     if (node !== undefined) return [];
+    if (this.entries === undefined) return [{ kind: 'loading' }];
     const visible = this.visible();
     if (visible.length === 0) return [{ kind: 'empty' }];
     return visible.map((entry) => ({ kind: 'entry', entry }));
@@ -95,6 +113,12 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
       // could apply to a row standing in for an absence.
       return item;
     }
+    if (node.kind === 'loading') {
+      const item = new vscode.TreeItem(vscode.l10n.t('Loading…'));
+      item.id = closedNodeId(node);
+      item.iconPath = new vscode.ThemeIcon('loading~spin');
+      return item;
+    }
     const e = node.entry;
     const now = Date.now();
     const item = new vscode.TreeItem(sessionLabel(e), vscode.TreeItemCollapsibleState.None);
@@ -106,6 +130,14 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
     // conversation.
     item.contextValue = 'closedSession';
     item.accessibilityInformation = { label: `${sessionLabel(e)}, ${closedDescription(e, now)}` };
+    if (this.reopening.has(e.id)) {
+      // Between the click and the conversation showing up, the row is the
+      // only thing that can say something is happening. No command meanwhile:
+      // a second click started a second reopen, hence a second tab.
+      item.iconPath = new vscode.ThemeIcon('loading~spin');
+      item.description = vscode.l10n.t('reopening…');
+      return item;
+    }
     // One glyph for every row: they have no status to tell apart, and a single
     // shape keeps the alignment true by construction — same reason as the
     // status dots on live sessions.

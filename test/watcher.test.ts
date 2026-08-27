@@ -110,12 +110,14 @@ describe('drain', () => {
     expect(readdirSync(dirs.rejected)).toHaveLength(1);
   });
 
-  it('retire la session sur SessionEnd', async () => {
+  it('keeps the session on SessionEnd, marked ended', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await drain(dirs, NOW);
     await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
     await drain(dirs, NOW);
-    expect((await readSessions(dirs)).size).toBe(0);
+    const s = (await readSessions(dirs)).get('s1');
+    expect(s?.endedAt).toBe(2);
+    expect(s?.status).toBe('idle');
   });
 
   it('ignore le fichier temporaire du bridge en cours d écriture', async () => {
@@ -332,7 +334,7 @@ describe('drain — échec permanent (N3)', () => {
 
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     await internal.tick();
@@ -369,7 +371,7 @@ describe('drain — répertoire du spool disparu (M9)', () => {
 });
 
 describe('drain — convergence entre fenêtres (I1)', () => {
-  it("une fenêtre qui écrit depuis une base périmée ne ressuscite pas une session supprimée entre-temps par une autre", async () => {
+  it("une fenêtre qui écrit depuis une base périmée ne ressuscite pas une session supprimée entre-temps par une autre (sessions non persistantes)", async () => {
     // Établit s1 en « terminé non lu », comme reduce le prévoit.
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await dropEvent('2-1-Stop.json', hook('Stop', 2));
@@ -398,14 +400,14 @@ describe('drain — convergence entre fenêtres (I1)', () => {
       return gate.then(() => real);
     };
 
-    const drainA = drain(dirs, NOW);
+    const drainA = drain(dirs, NOW, undefined, undefined, 'remove');
     await reached;
 
     // Fenêtre B : dépose le SessionEnd et vide tout le spool pendant que A est
     // en pause. B voit aussi le fichier Ack (pas encore supprimé par A) : ça
     // n'a pas d'importance, sa réduction est pure et B finit par retirer s1.
     await dropEvent('4-1-SessionEnd.json', hook('SessionEnd', 4));
-    const resB = await drain(dirs, NOW);
+    const resB = await drain(dirs, NOW, undefined, undefined, 'remove');
     expect(resB.applied).toBeGreaterThanOrEqual(1);
     expect((await readSessions(dirs)).size).toBe(0);
 
@@ -514,7 +516,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { watcher?: unknown; timer?: NodeJS.Timeout };
 
     expect(() => watcher.start()).not.toThrow();
@@ -528,7 +530,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     // Le dossier events n'existe pas encore quand ce SpoolWatcher est
@@ -555,7 +557,7 @@ describe('SpoolWatcher', () => {
   it('stop() ferme le FSWatcher et efface le minuteur de secours ; le déclenchement est piloté par tick(), jamais par fs.watch ou un délai', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as {
       watcher?: { close: () => void };
       timer?: NodeJS.Timeout;
@@ -595,7 +597,7 @@ describe('SpoolWatcher', () => {
   it('la garde de non-réentrance ne fait perdre aucun fichier : un événement déposé pendant une vidange finit consommé', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     // Simule une vidange déjà en cours.
@@ -621,7 +623,7 @@ describe('SpoolWatcher', () => {
       throw new Error('bug dans onChange');
     });
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
@@ -640,7 +642,7 @@ describe('SpoolWatcher', () => {
 });
 
 describe('archiving a closed conversation', () => {
-  it('archives the session it is about to delete, before deleting it', async () => {
+  it("archives the session it is about to delete, before deleting it ('remove' policy)", async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await drain(dirs, NOW);
 
@@ -650,7 +652,7 @@ describe('archiving a closed conversation', () => {
     };
 
     await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
-    await drain(dirs, NOW, undefined, archive);
+    await drain(dirs, NOW, undefined, archive, 'remove');
 
     expect(seen).toEqual([{ id: 's1', stillOnDisk: true }]);
     expect(existsSync(join(dirs.sessions, 's1.json'))).toBe(false);
@@ -675,5 +677,85 @@ describe('archiving a closed conversation', () => {
     expect(res.deferred).toBe(1);
     expect(existsSync(join(dirs.sessions, 's1.json'))).toBe(true);
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(1);
+  });
+});
+
+describe("drain — the end policy (the 'persistent sessions' setting)", () => {
+  it("'keep' leaves the row, ended, and archives it all the same", async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    const seen: string[] = [];
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, async (s) => void seen.push(s.id), 'keep');
+    expect(seen).toEqual(['s1']);
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(2);
+  });
+
+  it("'remove' takes a late SessionEnd at face value: closing the tab takes the row away", async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await dropEvent('3-1-Stop.json', hook('Stop', 3));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, undefined, 'remove');
+    expect((await readSessions(dirs)).has('s1')).toBe(false);
+  });
+
+  it("'keep' ignores a late SessionEnd: a twin in another editor has spoken since", async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await dropEvent('3-1-Stop.json', hook('Stop', 3));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, undefined, 'keep');
+    const s = (await readSessions(dirs)).get('s1');
+    expect(s).not.toHaveProperty('endedAt');
+    expect(s?.status).toBe('done_unseen');
+  });
+
+  it('the watcher hands the policy to every pass, as read at that moment', async () => {
+    let policy: 'keep' | 'remove' = 'remove';
+    const watcher = new SpoolWatcher(dirs, () => undefined, () => undefined, () => NOW, async () => undefined, () => policy, async () => true);
+    const internal = watcher as unknown as { tick: () => Promise<void> };
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await internal.tick();
+    expect((await readSessions(dirs)).has('s1')).toBe(false);
+
+    policy = 'keep';
+    await dropEvent('3-1-SessionStart.json', hook('SessionStart', 3));
+    await dropEvent('4-1-SessionEnd.json', hook('SessionEnd', 4));
+    await internal.tick();
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(4);
+  });
+});
+
+describe('drain — a conversation that never got a message', () => {
+  it('drops the row on SessionEnd and archives nothing, whatever the policy: nothing to come back to', async () => {
+    for (const policy of ['keep', 'remove'] as const) {
+      await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+      await drain(dirs, NOW);
+      const seen: string[] = [];
+      await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+      await drain(dirs, NOW, undefined, async (s) => void seen.push(s.id), policy, async () => false);
+      expect(seen, policy).toEqual([]);
+      expect((await readSessions(dirs)).has('s1'), policy).toBe(false);
+    }
+  });
+
+  it('keeps and archives one that has a transcript, under the keep policy', async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    const seen: string[] = [];
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, async (s) => void seen.push(s.id), 'keep', async () => true);
+    expect(seen).toEqual(['s1']);
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(2);
+  });
+
+  it('counts every end when nobody can tell — the probe is optional', async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, undefined, 'keep');
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(2);
   });
 });

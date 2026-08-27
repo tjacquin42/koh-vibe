@@ -17,34 +17,72 @@ and the hook bridges are zsh scripts.
 - **Live sessions**, sorted by what wants your attention: the ones waiting for you first, then
   the ones working, then the ones that just finished.
 - **A status dot** per session — one glyph, five colours — next to the project, the branch and
-  the tool currently running.
-- **Recently closed**, a view of its own holding the ten conversations that ended most
-  recently, so a session you just finished with is not gone the instant it disappears.
+  the tool currently running. The row is named as the tab is: the title you gave it, else the
+  one Claude generated, else the last prompt.
+- **Ended conversations** stay in the list, greyed out and in their folder, for as long as
+  *Persistent sessions* is on in the settings (it is by default). Turn it off and closing a
+  tab takes the row away instead. *Recently closed*, a view of its own, keeps the ten
+  conversations that ended most recently either way.
+- **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
+  there for 24 hours without activity, it leaves the list — a setting turns that off.
 - **Close a conversation** with the trash icon that appears when you hover a live row. It
-  closes its Claude Code tab, which ends the conversation and files it under *Recently
-  closed*. When no tab is found — a conversation running in a terminal, in the Claude desktop
-  app, or in a project no window has open — the row is simply removed from the list.
+  closes its Claude Code tab and removes the row — the conversation goes to *Recently
+  closed* — in one click, whatever *Persistent sessions* says: that setting is for the tabs
+  you close yourself. A restored tab is closed in place, without being opened. When no tab is
+  found — a conversation running in a terminal, in the Claude desktop app, or in a project no
+  window has open — the row is simply removed from the list. On a greyed row, the icon removes
+  it for good. A conversation that ends before its first message — Claude Code starts one for
+  every panel it opens — leaves no row and no history: there is nothing to come back to.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
 
+## What's new in 1.2.0
+
+Since 1.1.0:
+
+- **Ended conversations stay** in the list, greyed out, in their folder — and a setting,
+  *Persistent sessions*, decides it. Reopening one brings back that very conversation, never
+  a blank one: the editor tab when Claude Code will find it from this window, a terminal
+  otherwise.
+- **Temporary sessions** replace *Unfiled*: left out of every folder for 24 hours, a
+  conversation leaves the list. A second setting turns that off.
+- **The trash closes in one click** — the tab and the row at once. A tab the editor restored
+  is closed in place.
+- **Restored tabs are open sessions.** After a window reload, every Claude tab still open is
+  listed as idle — never greyed, never opened twice: a click brings it to the front.
+- **New session from the dashboard**: the **+** in the view title, or the one at the right of
+  a folder row, which files the conversation there.
+- **A spinner while a conversation comes back**, on its row — and while *Recently closed*
+  loads.
+- **Rows are named as the tabs are** — the title you gave, else Claude's, else the last
+  prompt. A conversation that never got a message leaves no row and no history.
+- **Nothing is forgotten for going quiet**: a silent conversation stays; *Refresh* brings back
+  the ones the list lost, in their folder; a conversation that vanished while its process
+  still runs comes back on its own.
+- **Usage per model**, when your plan counts one apart.
+- **Two default chimes** travel in the package, so a fresh install is not silent.
+
 ## Install
 
 The extension is not published on the marketplace; it installs from a locally built package.
+From the integrated terminal of the editor you want it in:
 
 ```bash
 pnpm install
-pnpm package
-code --install-extension koh-vibe-0.1.0.vsix --force
+sh install.sh
 ```
 
-`pnpm package` compiles before packaging, so the `.vsix` always holds the code you just wrote.
+`install.sh` builds, packages under a throwaway version number and installs into the editor
+its terminal belongs to — VSCode, Cursor or Antigravity, whichever runs it. Then reload the
+window (*Developer: Reload Window*). The number comes from the clock so that every install
+lands in a fresh directory: the one in `package.json` only moves at release time, and
+reinstalling under the same number leaves the editor serving what it already had.
 
-VSCode forks expose the same command under their own binary name (usually installable from
-their palette via *Install 'code' command in PATH*). The same `.vsix` works there unchanged.
-
-**Quit the editor fully after installing** — not just a window reload. Views and icons are
-read at startup.
+By hand, the same thing is `pnpm package` then `code --install-extension koh-vibe-*.vsix
+--force` — VSCode forks expose the command under their own binary name, usually installable
+from their palette via *Install 'code' command in PATH*. Installed that way, under the
+unchanged version number, **quit the editor fully** rather than reloading the window.
 
 ### Install the hooks
 
@@ -61,7 +99,12 @@ you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing
 **Filing.** Create folders, drag sessions into them, give them a colour. The order inside a
 folder is set by hand and stays put: a session opened later lands at the end without
 disturbing what you placed. The folders themselves are dragged the same way — drop one onto
-another to put it in front, or onto *Unfiled* to send it to the end.
+another to put it in front, or onto *Temporary sessions* to send it to the end.
+
+**New session.** The **+** button in the view title opens a new Claude Code tab — a fresh
+conversation in the window's folder. Hover a folder: the same **+** appears at the right of
+its row (right-click offers it too, as *New session here*) and files the conversation in that
+folder as soon as it shows up, so it is not a temporary one.
 
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
@@ -84,10 +127,27 @@ In the picker, the arrow keys play each sound; **→** replays the highlighted o
 **Removing.** Right-click a session → *Remove from the list*. Nothing is stopped: Claude Code
 runs in its own terminal, and a session still alive reappears on its next event.
 
-**Reopening.** A conversation that just ended does not vanish: it moves into *Recently
-closed*, below the live sessions, for as long as four more have not pushed it out. One click
-brings it back — in the editor tab it ran in, or a fresh terminal on its folder, whichever it
-came from.
+**Persistent sessions.** The first row of the settings, a checkbox, decides what closing a tab
+does to its row. Checked — the default — the conversation stays in the list, greyed out, in
+its folder, with a muted dot and the time it closed; the fifty most recent are kept, and
+*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row
+instead; the rows already greyed stay either way. Hover the row for the same explanation.
+
+**Temporary sessions.** The second checkbox. A conversation filed in no folder is temporary:
+after 24 hours without activity it leaves the list — hidden, not forgotten, so any activity in
+it brings it back, and filing it in a folder keeps it for good. Unchecked, temporary
+conversations stay until you remove them.
+
+**Reopening.** One click on an ended conversation — a greyed row, or an entry of *Recently
+closed* — brings it back: in the editor tab it ran in, or a fresh terminal on its folder,
+whichever it came from. The editor tab only when Claude Code will find the conversation from
+this window — its transcript under the window's own project, and not hidden from its session
+list; otherwise a terminal resumes it, which works from anywhere. A restored tab nobody has
+opened yet is simply brought to the front, never opened a second time.
+While it comes back, the row spins in place of its dot — a few seconds pass between the click
+and the conversation showing up, during which nothing else moves — and takes no second click,
+which would open a second tab. The spinner clears when the conversation is open again, or
+after thirty seconds without it.
 
 ## Where the data lives
 
@@ -103,7 +163,7 @@ Everything sits under `~/.koh-vibe/`:
 | `backups/` | copies of `settings.json` taken before each hook install |
 | `groups.json` | folders, their colours, the chosen order and the sounds |
 | `closed.json` | the ten most recently closed conversations |
-| `settings.json` | global sounds and volume |
+| `settings.json` | global sounds, volume, and the two list settings |
 | `usage.json` | the last usage reading, cached |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |
@@ -126,8 +186,12 @@ just before writing), so two windows filing at the same time do not erase each o
 A conversation leaves the list when it ends, when you close it, or when you remove it —
 never because it went quiet: a tab you left open for a day is still a conversation.
 **Refresh** reads Claude Code's own registry of running processes (`~/.claude/sessions/`)
-and brings back every live conversation the list has lost, in the folder it was filed in;
-the same pass runs when the window opens, with a spinner in place of the button while it does.
+and brings back every live conversation the list has lost, in the folder it was filed in.
+The same pass runs when the window opens, and a few seconds after a conversation vanishes
+while its process still runs — the same conversation open in two editors, one of them
+quitting — with a spinner in place of the button while it does. Tabs the editor restored
+but you have not opened since are listed like any idle session — the tab is open, that is what counts. The editor resolves only the active tab, so no Claude Code process runs behind the others until they are shown: a click brings the tab to the front, and Claude Code resumes it. « Remove
+from the list » hides a conversation until its next activity.
 
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a
 shared file — otherwise every window would fetch exactly the same thing. The OAuth token is
@@ -142,7 +206,7 @@ Outside contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 ```bash
 pnpm install
 pnpm build       # compiles to out/, and stamps the build from the latest tag
-pnpm test        # builds, then runs 663 tests without an extension host
+pnpm test        # builds, then runs the whole suite without an extension host
 pnpm test:watch  # the same tests, without rebuilding on every run
 pnpm typecheck   # types across src AND test
 pnpm package     # produces the .vsix

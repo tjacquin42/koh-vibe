@@ -16,10 +16,36 @@ export interface SoundSettings {
   volume: number;
 }
 
+/** The two on/off settings, as the shared file names them (settings/model.ts). */
+export type SettingToggle = 'persistent' | 'expireTemporary';
+
+export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary'];
+
 export type FooterNode =
+  | { kind: 'toggle'; key: SettingToggle; on: boolean }
   | { kind: 'sound'; event: ChimeEvent; name: string }
   | { kind: 'volume'; volume: number }
   | { kind: 'library'; count: number };
+
+export function toggleLabel(key: SettingToggle): string {
+  return key === 'persistent'
+    ? vscode.l10n.t('Persistent sessions')
+    : vscode.l10n.t('Temporary sessions expire after 24 h');
+}
+
+/**
+ * What a checkbox means, spelled out where the mouse rests: "persistent" or
+ * "temporary" alone says nothing about tabs, folders, or how to come back.
+ */
+export function toggleTooltip(key: SettingToggle): string {
+  return key === 'persistent'
+    ? vscode.l10n.t(
+        'Keep a conversation in the list after its tab is closed: greyed out, in its folder, a click reopens it.\nUnchecked, closing the tab removes it from the list instead. Rows already greyed stay either way.',
+      )
+    : vscode.l10n.t(
+        'A conversation left out of every folder is temporary: after 24 hours without activity it leaves the list. Any activity brings it back; filing it in a folder keeps it for good.\nUnchecked, temporary conversations stay until you remove them.',
+      );
+}
 
 /**
  * The title of a sound picker. It names the EVENT, not the level: "sound of
@@ -55,6 +81,7 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   readonly onDidChangeTreeData = this.emitter.event;
   private sound: SoundSettings = { waiting: NO_SOUND, done: NO_SOUND, volume: 0.5 };
   private library = 0;
+  private toggles: Record<SettingToggle, boolean> = { persistent: true, expireTemporary: true };
   // Même règle que l'arbre des sessions : ne rien annoncer quand rien n'a
   // changé, sinon l'infobulle s'escamote sous la souris.
   private rendered: string | undefined;
@@ -69,8 +96,13 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
     this.refresh();
   }
 
+  setToggles(toggles: Record<SettingToggle, boolean>): void {
+    this.toggles = toggles;
+    this.refresh();
+  }
+
   private refresh(): void {
-    const next = JSON.stringify([this.sound, this.library]);
+    const next = JSON.stringify([this.sound, this.library, this.toggles]);
     if (next === this.rendered) return;
     this.rendered = next;
     this.emitter.fire();
@@ -79,6 +111,8 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   getChildren(node?: FooterNode): FooterNode[] {
     if (node !== undefined) return [];
     return [
+      // First: they are about the list itself, the sounds only comment on it.
+      ...SETTING_TOGGLES.map((key): FooterNode => ({ kind: 'toggle', key, on: this.toggles[key] })),
       { kind: 'sound', event: 'waiting', name: this.sound.waiting },
       { kind: 'sound', event: 'done', name: this.sound.done },
       { kind: 'volume', volume: this.sound.volume },
@@ -87,6 +121,17 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   }
 
   getTreeItem(node: FooterNode): vscode.TreeItem {
+    if (node.kind === 'toggle') {
+      const item = new vscode.TreeItem(toggleLabel(node.key));
+      item.tooltip = toggleTooltip(node.key);
+      // A real checkbox, not a word: the state is read at a glance, and the box
+      // itself is a target. The row is one too — `onDidChangeCheckboxState`
+      // and the command both land on the same toggle.
+      item.checkboxState = node.on ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
+      item.iconPath = new vscode.ThemeIcon(node.key === 'persistent' ? 'pin' : 'clock', new vscode.ThemeColor('descriptionForeground'));
+      item.command = { command: 'kohVibe.toggleSetting', title: vscode.l10n.t('Toggle this setting'), arguments: [node.key] };
+      return item;
+    }
     if (node.kind === 'sound') {
       const item = new vscode.TreeItem(soundRowLabel(node.event, node.name));
       item.tooltip =

@@ -8,7 +8,7 @@ import type { Session } from '../events/types';
 import type { ClosedEntry } from '../closed/model';
 import { claims } from './claims';
 import { focusPlan, focusPlanFor, type FocusPlan } from './plan';
-import { reopenPlan } from '../closed/reopen';
+import { openResumeTerminal, reopenPlan } from '../closed/reopen';
 import { closePlan } from '../close/plan';
 import { sessionLabel } from '../ui/labels';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
@@ -54,6 +54,10 @@ export class FocusBroker {
   constructor(
     private readonly dirs: SpoolDirs,
     private readonly close: CloseHandlers,
+    // Whether Claude Code's session list, in THIS window, holds an id — see
+    // claude/listed.ts. Asked right before the editor command runs, here or in
+    // the window a request travels to: the answer depends on the window.
+    private readonly listed: (sessionId: string) => Promise<boolean>,
   ) {}
 
   private folders(): string[] {
@@ -136,7 +140,9 @@ export class FocusBroker {
    * explicitly — and is handled by the caller, locally, before we are reached.
    */
   async requestReopen(entry: ClosedEntry): Promise<void> {
-    const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry));
+    const label = sessionLabel(entry);
+    // Sorting the origins only (`listed` is asked below, where it matters).
+    const plan = reopenPlan(entry.origin, entry.id, entry.cwd, label, true);
     if (plan.kind === 'terminal') {
       // The caller opens the terminal locally, before requestReopen is even
       // called: createTerminal takes the folder explicitly, so this branch
@@ -153,19 +159,22 @@ export class FocusBroker {
       return;
     }
     if (claims(this.folders(), entry.cwd)) {
-      // Only `command` reaches here now. Going through `focusSession` rather
-      // than calling `executeCommand` directly gives this local path the same
-      // one-time missing-command warning as the remote one below.
-      await this.focusSession(plan, 'reopen');
+      // The editor command only when this window's list holds the id: it
+      // would otherwise open a blank conversation. A terminal resumes it
+      // from anywhere. Going through `focusSession` rather than calling
+      // `executeCommand` directly gives this local path the same one-time
+      // missing-command warning as the remote one below.
+      const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, await this.listed(entry.id));
+      if (local.kind === 'terminal') openResumeTerminal(local);
+      else await this.focusSession(local, 'reopen');
       return;
     }
-    // Fallback deliberately different from the focus one: NO `code -r`.
-    // Opening the window would lose the reopen itself — we say so, and do
-    // nothing else.
-    await this.postRequest('reopen', { ...entry, label: sessionLabel(entry) }, () => {
-      void vscode.window.showInformationMessage(
-        vscode.l10n.t('Koh-Vibe: no window has {0} open — open it, then reopen the conversation.', entry.cwd),
-      );
+    // Fallback deliberately different from the focus one: NO `code -r`, which
+    // would lose the reopen itself. No window holds the project, so no tab
+    // can come back — but a terminal can, from here: `claude --resume` finds
+    // the conversation by its id whatever the folder.
+    await this.postRequest('reopen', { ...entry, label }, () => {
+      openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
     });
   }
 
@@ -317,12 +326,18 @@ export class FocusBroker {
           continue;
         }
         const isReopen = name.startsWith('reopen-');
-        const plan = isReopen ? reopenPlan(origin, sessionId, cwd, label) : focusPlan(sessionId, origin, label);
+        const plan = isReopen
+          ? reopenPlan(origin, sessionId, cwd, label, await this.listed(sessionId))
+          : focusPlan(sessionId, origin, label);
         if (plan.kind === 'terminal') {
-          // A reopen request should never carry a terminal origin: that case
-          // is handled locally, without going through a file. Honouring this
-          // one would open a terminal in a window where the user asked for
-          // nothing.
+          // A reopen request never carries a terminal origin — that case is
+          // handled where the click happened, without a file — and a request
+          // that does is not honoured: it would open a terminal in a window
+          // where the user asked for nothing. An EDITOR conversation this
+          // window's list does not hold is different: this window holds its
+          // project, the user asked for it back, and the terminal is the only
+          // way to bring it back without starting a blank one.
+          if (isReopen && (origin === 'vscode' || origin === 'desktop')) openResumeTerminal(plan);
           continue;
         }
         // Une seule annonce, jamais deux qui se contrediraient : « demandée »

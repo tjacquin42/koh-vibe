@@ -21,13 +21,17 @@ export type ReopenPlan =
  * because every id has passed `isValidSessionId` twice: once at the spool
  * boundary, once when `closed.json` was read back.
  */
-export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string): ReopenPlan {
+export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string, listed: boolean): ReopenPlan {
+  const terminal: ReopenPlan = { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
   if (origin === 'vscode' || origin === 'desktop') {
-    return { kind: 'command', command: 'claude-vscode.editor.open', args: [sessionId] };
+    // `listed`: whether Claude Code's session list, in the window that runs
+    // the command, holds this id (claude/listed.ts). When it does not, the
+    // command starts a BLANK conversation — observed — and a terminal is the
+    // only way back: `claude --resume` finds a conversation by its id across
+    // every project.
+    return listed ? { kind: 'command', command: 'claude-vscode.editor.open', args: [sessionId] } : terminal;
   }
-  if (origin === 'terminal') {
-    return { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
-  }
+  if (origin === 'terminal') return terminal;
   const suffix = typeof origin === 'string' && origin.length > 0 ? ` (${origin})` : '';
   return {
     kind: 'explain',
@@ -37,7 +41,7 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
 
 /**
  * Executes what a click on a closed conversation's row asks for. Extracted
- * out of the `kohVibe.reopenSession` command registration (extension.ts) for
+ * of the click on an ended row (`kohVibe.focusSession`, extension.ts) for
  * the same reason `acknowledgeVisibleSessions`/`acknowledgeClickedSession`
  * were pulled out of extension.ts's onVisible/focusSession — see
  * `focus/acknowledge.ts`'s header comment: a composition point living
@@ -56,31 +60,50 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
  * `FocusBroker.requestReopen` deliberately does nothing for it — the caller
  * opens the terminal locally, before `requestReopen` is even invoked.
  */
+/**
+ * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
+ * one is gone, and koh-vibe does not know which one it was.
+ */
+export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
+  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
+  terminal.sendText(plan.command);
+  terminal.show();
+}
+
+/**
+ * What a reopen did: whether anything is now on its way. `explain` and
+ * `failed` mean nothing is — the caller shows no wait for them.
+ */
+export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
+
 export async function reopenClosedSession(
   entry: ClosedEntry,
   requestReopen: (e: ClosedEntry) => Promise<void>,
-): Promise<void> {
-  const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry));
+): Promise<ReopenOutcome> {
+  // `listed` is the broker's question, asked in the window that will run the
+  // command; here it only sorts the origins, so `true` keeps the editor ones
+  // on the editor path.
+  const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry), true);
   if (plan.kind === 'explain') {
     void vscode.window.showInformationMessage(plan.message);
-    return;
+    return 'explain';
   }
   if (plan.kind === 'terminal') {
-    // A fresh terminal, on the conversation's folder: the old one is gone,
-    // and koh-vibe does not yet know which one it was.
-    const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
-    terminal.sendText(plan.command);
-    terminal.show();
-    return;
+    openResumeTerminal(plan);
+    return 'terminal';
   }
   // The tab can only come back in a window that holds the project: the
   // broker takes care of that, locally or by request. The catch stays — an
   // unhandled rejection would be worse — but a silently swallowed failure
   // here (full disk, `requests/` removed at runtime) would leave the click
   // doing and saying nothing, on a section whose only gesture IS this one.
-  await requestReopen(entry).catch(() => {
-    void vscode.window.showErrorMessage(
-      vscode.l10n.t('Koh-Vibe: could not reopen « {0} ».', sessionLabel(entry)),
-    );
-  });
+  return requestReopen(entry).then(
+    () => 'editor' as const,
+    () => {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('Koh-Vibe: could not reopen « {0} ».', sessionLabel(entry)),
+      );
+      return 'failed' as const;
+    },
+  );
 }

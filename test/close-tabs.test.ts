@@ -53,6 +53,31 @@ function tabs(
 }
 
 describe('closeSessionTab', () => {
+  it('closes a tab the window can locate directly — no reveal, no count, nothing created', async () => {
+    const rec = recorder();
+    const outcome = await closeSessionTab('s1', { ...tabs(rec, [2, 2], 'panel'), locate: () => 'restored' });
+
+    expect(outcome).toBe('closed');
+    expect(rec.log).toEqual(['close']);
+    expect(rec.closed).toEqual(['restored']);
+  });
+
+  it('reports nothing closed when the located tab refuses to close, and does not go on to reveal', async () => {
+    const rec = recorder();
+    const outcome = await closeSessionTab('s1', { ...tabs(rec, [2, 2], 'panel', false, false), locate: () => 'restored' });
+
+    expect(outcome).toBe('notFound');
+    expect(rec.revealed).toEqual([]);
+  });
+
+  it('takes the reveal road when nothing is located', async () => {
+    const rec = recorder();
+    const outcome = await closeSessionTab('s1', { ...tabs(rec, [2, 2], 'panel'), locate: () => undefined });
+
+    expect(outcome).toBe('closed');
+    expect(rec.revealed).toEqual(['s1']);
+  });
+
   it('closes the revealed panel and reports the conversation closed', async () => {
     const rec = recorder();
     const outcome = await closeSessionTab('s1', tabs(rec, [2, 2], 'panel'));

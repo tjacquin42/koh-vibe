@@ -6,6 +6,7 @@ import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type Group
 import { themeColorOf } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
+import { isOpen } from '../store/open';
 
 export type TreeNode =
   // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
@@ -42,6 +43,27 @@ export type TreeNode =
  */
 
 const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3, stale: 4 };
+
+/**
+ * Three tiers before any status: what runs, then the tabs nobody has woken,
+ * then what ended — the most recently ended first. Within the first tier the
+ * status decides, then recency, as the dashboard always sorted.
+ */
+function tierOf(s: Session): number {
+  // A restored tab is an OPEN session to the user — it is right there in the
+  // tab bar — so it sorts with the open ones, as the idle one it reads as.
+  if (s.endedAt !== undefined) return 2;
+  return 0;
+}
+
+export function compareSessions(a: Session, b: Session): number {
+  return (
+    tierOf(a) - tierOf(b) ||
+    (b.endedAt ?? 0) - (a.endedAt ?? 0) ||
+    ORDER[a.status] - ORDER[b.status] ||
+    b.lastEventAt - a.lastEventAt
+  );
+}
 
 /**
  * Le glyphe des dossiers : `symbol-folder`, qui est un dossier FERMÉ.
@@ -171,6 +193,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // falls back to asking `checkHooksInstalled` itself, so the first empty
   // display never waits for a render tick.
   private hooksInstalled: boolean | undefined;
+  // The ended rows a click is bringing back (ui/reopening.ts): a spinner in
+  // place of the dot, and no command until they show up or give up.
+  private reopening: ReadonlySet<string> = new Set();
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -207,7 +232,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     const now = Date.now();
     this.sessions = [...map.values()]
       .map((s) => withStaleness(s, now))
-      .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.lastEventAt - a.lastEventAt);
+      .sort(compareSessions);
     this.refresh();
   }
 
@@ -232,6 +257,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     this.refresh();
   }
 
+  /** Fed by the `Reopening` set's own notification, never computed here. */
+  setReopening(ids: ReadonlySet<string>): void {
+    this.reopening = ids;
+    this.refresh();
+  }
+
   /**
    * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
    *
@@ -250,9 +281,11 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       this.sessions.map((s) => [
         s.id,
         s.status,
+        isOpen(s),
         sessionLabel(s),
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
+        this.reopening.has(s.id),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -368,8 +401,13 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       return item;
     }
     if (node.kind === 'group') {
-      const item = new vscode.TreeItem(node.group?.name ?? vscode.l10n.t('Unfiled'), vscode.TreeItemCollapsibleState.Expanded);
+      const item = new vscode.TreeItem(node.group?.name ?? vscode.l10n.t('Temporary sessions'), vscode.TreeItemCollapsibleState.Expanded);
       item.id = nodeId(node);
+      if (node.group === undefined) {
+        item.tooltip = vscode.l10n.t(
+          'Conversations not filed in a folder. Drag one into a folder to keep it: left here, it leaves the list after 24 hours without activity (see the settings).',
+        );
+      }
       item.description =
         node.sessions.length > 1
           ? vscode.l10n.t('{0} sessions', node.sessions.length)
@@ -399,12 +437,24 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
     // chemins. La conversion reste ici pour que statusIconPath() n'ait pas
     // besoin de l'API de VSCode, et se teste donc sans elle.
-    const pastille = statusIconPath(this.extensionPath, s.status);
+    // A muted dot for what is not open — ended, or a tab nobody has woken —
+    // and the label greyed with it, through the same decoration provider the
+    // folders use: the only way VSCode offers to colour a row's text.
+    // Only an ENDED row is muted: a restored tab is open, and reads as idle.
+    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended');
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
-    // Volontairement AUCUNE couleur sur une session : la teinte du dossier
-    // descendue sur ses conversations noyait la lecture, et posait en plus un
-    // resourceUri qui décale le libellé. Le dossier porte la couleur, ses
-    // sessions portent leur statut.
+    if (s.endedAt !== undefined) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
+    if (this.reopening.has(s.id)) {
+      // Same as the closed view: between the click and the conversation
+      // showing up, the row is what says something is happening — and takes
+      // no second click, which started a second reopen and a second tab.
+      item.iconPath = new vscode.ThemeIcon('loading~spin');
+      item.description = vscode.l10n.t('reopening…');
+      return item;
+    }
+    // Volontairement AUCUNE couleur sur une session ouverte : la teinte du
+    // dossier descendue sur ses conversations noyait la lecture. Le dossier
+    // porte la couleur, ses sessions portent leur statut.
     item.command = { command: 'kohVibe.focusSession', title: vscode.l10n.t('Go to session'), arguments: [s] };
     return item;
   }

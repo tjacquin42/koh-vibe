@@ -72,6 +72,43 @@ export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolea
   }
 }
 
+/**
+ * Marks a session hidden, in place, and says whether there was one to mark.
+ *
+ * Hidden rather than removed: a removed file is exactly what the rescan looks
+ * for, and the row would be back on the next pass — while the process it
+ * describes still runs. The flag survives on disk until a hook clears it
+ * (`reduce`) or `SessionEnd` removes the file.
+ */
+export async function hideSession(dirs: SpoolDirs, id: string): Promise<boolean> {
+  const current = await readSession(dirs, id);
+  if (current === undefined) return false;
+  await writeSession(dirs, { ...current, hidden: true });
+  return true;
+}
+
+/**
+ * Keeps at most `max` ended conversations — the most recently ended ones —
+ * and removes the rest. Open conversations are never candidates. Each
+ * candidate is re-read just before removal, like every decision in this
+ * module: an entry brought back to life meanwhile is not an ended one any
+ * more. Returns the ids removed.
+ */
+export async function capEndedSessions(dirs: SpoolDirs, max: number): Promise<string[]> {
+  const all = await readSessions(dirs);
+  const ended = [...all.values()]
+    .filter((s): s is Session & { endedAt: number } => s.endedAt !== undefined)
+    .sort((a, b) => b.endedAt - a.endedAt || (a.id < b.id ? -1 : 1));
+  const removed: string[] = [];
+  for (const s of ended.slice(max)) {
+    const current = await readSession(dirs, s.id);
+    if (current === undefined || current.endedAt === undefined) continue;
+    await removeSession(dirs, s.id);
+    removed.push(s.id);
+  }
+  return removed;
+}
+
 export async function removeSession(dirs: SpoolDirs, id: string): Promise<void> {
   try {
     await unlink(join(dirs.sessions, `${id}.json`));

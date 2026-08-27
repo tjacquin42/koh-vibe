@@ -36,16 +36,22 @@ interface CloseCalls {
 }
 
 let closeCalls: CloseCalls;
+// What this window's Claude Code session list answers (claude/listed.ts).
+let listed = true;
 
 function makeBroker(): FocusBroker {
-  const b = new FocusBroker(dirs, {
-    closeHere: async (id: string) => {
-      closeCalls.closeHere.push(id);
+  const b = new FocusBroker(
+    dirs,
+    {
+      closeHere: async (id: string) => {
+        closeCalls.closeHere.push(id);
+      },
+      forget: async (id: string) => {
+        closeCalls.forget.push(id);
+      },
     },
-    forget: async (id: string) => {
-      closeCalls.forget.push(id);
-    },
-  });
+    async () => listed,
+  );
   brokers.push(b);
   return b;
 }
@@ -63,6 +69,7 @@ function setWorkspaceFolders(folders: readonly { uri: { fsPath: string } }[] | u
 }
 
 beforeEach(async () => {
+  listed = true;
   home = mkdtempSync(join(tmpdir(), 'koh-broker-'));
   dirs = spoolDirs(home);
   await ensureDirs(dirs);
@@ -265,6 +272,41 @@ describe('requestReopen', () => {
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
+  it('opens a terminal instead of the command when this window\'s session list does not hold the id — the command would start a blank conversation', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    listed = false;
+    const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const sendText = vi.fn();
+    const terminal = vi
+      .spyOn(vscode.window, 'createTerminal')
+      .mockReturnValue({ sendText, show: vi.fn() } as unknown as vscode.Terminal);
+    await makeBroker().requestReopen(entry());
+    expect(run).not.toHaveBeenCalledWith('claude-vscode.editor.open', 's1');
+    expect(terminal).toHaveBeenCalledWith({ cwd: '/Users/dev/projet', name: 'projet' });
+    expect(sendText).toHaveBeenCalledWith('claude --resume s1');
+    expect(await readdir(dirs.requests)).toEqual([]);
+  });
+
+  it('consumes a reopen request for an editor conversation its list does not hold by opening a terminal here', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    listed = false;
+    const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const sendText = vi.fn();
+    vi.spyOn(vscode.window, 'createTerminal').mockReturnValue({ sendText, show: vi.fn() } as unknown as vscode.Terminal);
+    await writeFile(
+      join(dirs.requests, 'reopen-s9.json'),
+      JSON.stringify({ sessionId: 's9', cwd: '/Users/dev/projet', label: 'projet', origin: 'vscode', at: Date.now() }),
+      'utf8',
+    );
+    const broker = makeBroker();
+    broker.start();
+    await vi.waitFor(() => {
+      expect(sendText).toHaveBeenCalledWith('claude --resume s9');
+    });
+    expect(run).not.toHaveBeenCalledWith('claude-vscode.editor.open', 's9');
+    expect(await readdir(dirs.requests)).toEqual([]);
+  });
+
   it('writes a request when another window holds the folder', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/autre' } }]);
     await makeBroker().requestReopen(entry());
@@ -434,7 +476,7 @@ describe('requestClose', () => {
         throw new Error('archive write failed');
       },
       forget: async () => undefined,
-    });
+    }, async () => true);
     brokers.push(failing);
     const internal = failing as unknown as { consume: () => Promise<void> };
     await internal.consume();

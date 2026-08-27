@@ -179,7 +179,8 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     runBridge('SessionStart', { session_id: SESSION_ID, cwd: projectDir });
     await drain(dirs, Date.now(), undefined, archive);
     runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir });
-    await drain(dirs, Date.now(), undefined, archive);
+    // 'remove': the setting off, closing the tab takes the row away.
+    await drain(dirs, Date.now(), undefined, archive, 'remove');
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
 
@@ -188,7 +189,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     // The real bridge announces CLAUDE_CODE_ENTRYPOINT=cli: this conversation
     // ran in a terminal, and that is where it must come back.
     expect(state.closed[0]?.origin).toBe('terminal');
-    expect(reopenPlan(state.closed[0]?.origin, SESSION_ID, projectDir, 'mon-projet')).toEqual({
+    expect(reopenPlan(state.closed[0]?.origin, SESSION_ID, projectDir, 'mon-projet', true)).toEqual({
       kind: 'terminal',
       cwd: projectDir,
       name: 'mon-projet',
@@ -228,7 +229,8 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     await withTokens(await readSessions(dirs), transcripts);
 
     runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir });
-    await drain(dirs, Date.now(), undefined, archive);
+    // 'remove': the setting off, closing the tab takes the row away.
+    await drain(dirs, Date.now(), undefined, archive, 'remove');
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
 
@@ -256,7 +258,10 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
       read: (id) => readSession(dirs, id),
       closeTab: async () => 'closed',
       archive,
-      forget: (id) => removeSession(dirs, id),
+      forget: async () => {
+        throw new Error('a closed tab is removed, never merely forgotten');
+      },
+      remove: (id) => removeSession(dirs, id),
     });
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
@@ -264,6 +269,15 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     expect(state.closed.map((e) => e.id)).toEqual([SESSION_ID]);
     expect(state.closed[0]?.origin).toBe('vscode');
     expect(state.closed[0]?.project).toBe('mon-projet');
+
+    // The closed tab's process sends SessionEnd a moment later — through the
+    // real bridge. Under the "persistent sessions" policy that would grey an
+    // existing row; for a removed one it must create nothing: one click on the
+    // trash, and the row is gone for good.
+    runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir }, 'claude-vscode');
+    await drain(dirs, Date.now(), undefined, archive, 'keep');
+    expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
+    expect((await readClosed(closedPath)).closed.map((e) => e.id)).toEqual([SESSION_ID]);
   });
 
   it('archives nothing when no tab was found — the row goes, the closed list stays empty', async () => {
@@ -281,6 +295,9 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
       closeTab: async () => 'notFound',
       archive,
       forget: (id) => removeSession(dirs, id),
+      remove: async () => {
+        throw new Error('nothing was closed, nothing is removed for good');
+      },
     });
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();

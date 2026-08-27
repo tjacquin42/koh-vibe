@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
 import { branchOf, originOf, projectOf } from '../events/origin';
-import { createSession } from '../spool/persist';
+import { createSession, readSession, writeSession } from '../spool/persist';
 import type { LiveSession } from './registry';
 
 /**
@@ -32,9 +32,12 @@ async function exists(path: string): Promise<boolean> {
  * whose state file is gone — ended by a window reload before its tab was
  * resumed, or removed by hand — and returns the ids it added, sorted.
  *
- * Adds, and only adds: a session the spool already knows is left exactly as
- * it is (its status and counters come from real hooks), and nothing is ever
- * removed here: only `SessionEnd`, or the user, takes a session off the list.
+ * Adds, and revives: a session the spool already knows is left exactly as it
+ * is (its status and counters come from real hooks) — unless it is marked
+ * ended while a process still carries it. That is the same conversation open
+ * in two editors, one of which quit: its `SessionEnd` ended the row, its twin
+ * is alive, and the row comes back to life. Nothing is ever removed here:
+ * only the user takes a session off the list.
  *
  * What a recreated session carries is what the registry and the path say:
  * `idle`, no tool count, dated from the process start — nothing has happened
@@ -52,6 +55,14 @@ export async function rescanLiveSessions(
   const added: string[] = [];
   const entries = [...live.values()].sort((a, b) => (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0));
   for (const entry of entries) {
+    const known = await readSession(dirs, entry.sessionId);
+    if (known !== undefined) {
+      if (known.endedAt === undefined) continue;
+      const { endedAt: _over, ...revived } = known;
+      await writeSession(dirs, revived);
+      added.push(entry.sessionId);
+      continue;
+    }
     const session: Session = {
       id: entry.sessionId,
       cwd: entry.cwd,

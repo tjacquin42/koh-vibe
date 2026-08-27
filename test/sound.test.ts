@@ -152,13 +152,15 @@ describe('FooterTree — la vue épinglée en bas', () => {
     return f;
   };
 
-  it('expose les réglages du son, et rien d autre — la consommation a sa propre vue', () => {
-    expect(footer().getChildren().map((n) => n.kind)).toEqual(['sound', 'sound', 'volume', 'library']);
+  it('expose les deux réglages de la liste et ceux du son, et rien d autre — la consommation a sa propre vue', () => {
+    expect(footer().getChildren().map((n) => n.kind)).toEqual(['toggle', 'toggle', 'sound', 'sound', 'volume', 'library']);
   });
 
   it('rend chaque ligne cliquable, vers sa propre commande', () => {
     const f = footer();
     expect(f.getChildren().map((n) => f.getTreeItem(n).command?.command)).toEqual([
+      'kohVibe.toggleSetting',
+      'kohVibe.toggleSetting',
       'kohVibe.chooseSound',
       'kohVibe.chooseSound',
       'kohVibe.chooseVolume',
@@ -178,7 +180,7 @@ describe('FooterTree — la vue épinglée en bas', () => {
 
   it('dit à la commande de quel événement il s agit', () => {
     const f = footer();
-    const [waiting, done] = f.getChildren();
+    const [, , waiting, done] = f.getChildren();
     expect(f.getTreeItem(waiting!).command?.arguments).toEqual(['waiting']);
     expect(f.getTreeItem(done!).command?.arguments).toEqual(['done']);
   });
