@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
+import { dormantSessions, parseEditorMemento, readEditorMemento } from './claude/dormant';
+import { visibleSessions } from './store/visible';
+import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
@@ -18,9 +21,8 @@ import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sou
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { showBusy } from './ui/busy';
-import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
+import { ensureDirs, hideSession, readSession, readSessions } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
-import { pruneAssignmentsOf } from './groups/prune';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
@@ -40,7 +42,7 @@ import { sessionLabel } from './ui/labels';
 import { FocusBroker } from './focus/broker';
 import { acknowledgeClickedSession, acknowledgeVisibleSessions } from './focus/acknowledge';
 import { closeSessionHere, requestCloseSession } from './close/close';
-import { closeSessionTab, vscodeTabs } from './close/tabs';
+import { claudeTabsOf, closeSessionTab, vscodeTabs } from './close/tabs';
 import { countKohEntries } from './hooks/installer';
 import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
@@ -55,6 +57,13 @@ const REFRESH_MS = 2_000;
  * brought back a minute later.
  */
 const RESCAN_LATE_MS = 20_000;
+/**
+ * How long after a conversation leaves the list a rescan looks for it again.
+ * `SessionEnd` runs inside the dying process, which the registry still lists
+ * at that instant; a few seconds later a clean exit has removed it, and a twin
+ * in another editor — the case this exists for — is the only one left.
+ */
+const RESCAN_AFTER_VANISH_MS = 5_000;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
@@ -83,18 +92,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     progress: <T>(task: () => Promise<T>) =>
       vscode.window.withProgress({ location: { viewId: 'kohVibe.sessions' } }, task),
   };
+  // The editor's own memory of its tabs, kept next to our workspace storage:
+  // the one place that knows about a restored Claude tab nobody has opened.
+  const stateDb = context.storageUri === undefined ? undefined : join(dirname(context.storageUri.fsPath), 'state.vscdb');
+  // The dormant tabs of THIS window (see claude/dormant.ts), in memory only —
+  // and the ones the user removed from the list, which stay out until the
+  // window reloads: there is no file to mark hidden.
+  const dormant = new Map<string, Session>();
+  const dismissed = new Set<string>();
+  const refreshDormant = async (live: ReadonlyMap<string, unknown>): Promise<void> => {
+    dormant.clear();
+    const folder = workspaceFolders()[0];
+    if (stateDb === undefined || folder === undefined) return;
+    const raw = await readEditorMemento(stateDb);
+    if (raw === undefined) return;
+    const known = new Set([...live.keys(), ...(await readSessions(dirs)).keys(), ...dismissed]);
+    const labels = new Set(claudeTabsOf(vscode.window.tabGroups.all).map((t) => t.label));
+    for (const d of dormantSessions(parseEditorMemento(raw), labels, known, folder)) dormant.set(d.id, d);
+  };
   /**
    * Brings back the conversations whose process runs but whose state file is
-   * gone (see claude/rescan.ts). Never fails a refresh: the registry is a
-   * convenience over the hooks, and an unreadable one simply brings nothing
-   * back.
+   * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
+   * fails: the registry and the editor's memory are conveniences over the
+   * hooks, and an unreadable one simply brings nothing back.
    */
   const rescan = async (): Promise<string[]> => {
     try {
-      return await showBusy<string[]>(
-        async () => rescanLiveSessions(dirs, await readLiveSessions(registryDir), Date.now(), claudeRoot),
-        busy,
-      );
+      const live = await readLiveSessions(registryDir);
+      const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot);
+      await refreshDormant(live);
+      return added;
     } catch {
       return [];
     }
@@ -324,6 +351,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // title it needed before the state file disappeared. The one and only
         // cleanup path: the watcher's callback, below, does not repeat it.
         for (const id of transcripts.keys()) if (!map.has(id)) transcripts.delete(id);
+        // What the tab bar shows and the spool does not: this window's dormant
+        // tabs — unless a real session has taken their place.
+        for (const d of dormant.values()) if (!map.has(d.id)) map.set(d.id, d);
+        // A conversation leaving the list while its process still runs comes
+        // back a few seconds later (store/vanish.ts).
+        vanish.observe(map.keys());
+        // Hidden ones stay out of everything the user sees — and in everything
+        // that reasons about what is alive (the closed view, the rescan).
+        const shown = visibleSessions(map);
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
@@ -338,7 +374,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // précédent au nouveau, et `lastStatuses` doit avancer à CHAQUE rendu,
         // même silencieux — sinon la comparaison se ferait contre un état de
         // plus en plus ancien, et une bascule finirait par sonner deux fois.
-        const statuses = statusesOf(map);
+        const statuses = statusesOf(shown);
         const changed = chimeFor(lastStatuses, statuses);
         if (changed !== undefined) {
           const global = changed.event === 'waiting' ? sound.waiting : sound.done;
@@ -352,15 +388,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // while the window is open, and nothing but this loop can observe it
         // (see SessionsTree.setHooksInstalled). The cost is one small file
         // read per tick, paid only on an empty dashboard.
-        if (map.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
-        tree.setSessions(map);
+        if (shown.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
+        tree.setSessions(shown);
         tree.setGroups(groups);
         // Both, and in this order: the closed view hides an entry whose
         // conversation is alive again, so it needs the live ids as much as the
         // list itself.
         closedTree.setClosed(closed.closed);
         closedTree.setLive(map.keys());
-        status.update(map);
+        status.update(shown);
       },
       () => {
         // Filet générique : quelle que soit la cause restée hors de l'isolation
@@ -375,6 +411,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
     );
   }
+
+  /**
+   * Refresh, in full: the registry, then the screen — under the loading
+   * indicator for the whole of it, and never shorter than MIN_BUSY_MS. This
+   * is what the button, the startup passes and the vanish watch all run.
+   */
+  const refreshAll = (): Promise<string[]> =>
+    showBusy<string[]>(async () => {
+      const added = await rescan();
+      await render();
+      return added;
+    }, busy);
+
+  const vanish = new VanishWatch(
+    () => void refreshAll(),
+    (fire) => {
+      const timer = setTimeout(fire, RESCAN_AFTER_VANISH_MS);
+      return () => clearTimeout(timer);
+    },
+  );
 
   /**
    * The closed-conversation history. `s` is read straight off disk: `title`,
@@ -401,15 +457,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * if the id ever came back, and would grow the shared file without end.
    */
   const forget = async (id: string): Promise<void> => {
-    await removeSession(dirs, id);
-    await pruneAssignmentsOf(dirs, groupsPath, [id]).catch(() => undefined);
+    // Hidden, not removed: a removed file is exactly what the rescan brings
+    // back. A dormant tab has no file to mark — it leaves this window's
+    // memory instead, and stays out. Its folder assignment is kept either
+    // way: a conversation that comes back comes back where it was filed.
+    if (dormant.delete(id)) dismissed.add(id);
+    else await hideSession(dirs, id);
     await render();
   };
 
   const broker = new FocusBroker(dirs, {
     closeHere: (id) =>
       closeSessionHere(id, {
-        read: (i) => readSession(dirs, i),
+        read: async (i) => (await readSession(dirs, i)) ?? dormant.get(i),
         closeTab: (i) => closeSessionTab(i, vscodeTabs()),
         archive,
         forget,
@@ -449,11 +509,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   const ticker = setInterval(() => void render(), REFRESH_MS);
-  const lateRescan = setTimeout(() => {
-    void rescan().then((added) => {
-      if (added.length > 0) void render();
-    });
-  }, RESCAN_LATE_MS);
+  const lateRescan = setTimeout(() => void refreshAll(), RESCAN_LATE_MS);
+  // A Claude tab opened or closed changes the dormant set of this window: take
+  // stock again, but only when the count of Claude tabs moved — the event fires
+  // on every tab switch, and reading the editor's memory is not free.
+  let claudeTabCount = claudeTabsOf(vscode.window.tabGroups.all).length;
+  const onTabs = vscode.window.tabGroups.onDidChangeTabs(() => {
+    const count = claudeTabsOf(vscode.window.tabGroups.all).length;
+    if (count === claudeTabCount) return;
+    claudeTabCount = count;
+    void rescan().then(() => render());
+  });
 
   // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
   // avoir n'importe quel répertoire courant, le script n'en dépend pas.
@@ -468,12 +534,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => broker.stop() },
     { dispose: () => clearInterval(ticker) },
     { dispose: () => clearTimeout(lateRescan) },
+    { dispose: () => vanish.dispose() },
+    onTabs,
     // Refresh does two things: it brings back every live conversation the
     // spool has lost, then renders. It says so only when it found something —
     // a refresh that changes nothing has nothing to announce.
     vscode.commands.registerCommand('kohVibe.refresh', async () => {
-      const added = await rescan();
-      await render();
+      const added = await refreshAll();
       if (added.length === 0) return;
       void vscode.window.showInformationMessage(
         added.length === 1
@@ -511,7 +578,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.closeSession', async (node: unknown) => {
       const id = sessionIdOfNode(node);
       if (id === undefined) return;
-      const s = await readSession(dirs, id);
+      // A dormant tab is closable too: revealing it wakes it, then closes it.
+      const s = (await readSession(dirs, id)) ?? dormant.get(id);
       // Already gone from the spool: nothing to close, and nothing to remove.
       if (s === undefined) return;
       await requestCloseSession(s, {
@@ -782,8 +850,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Before the first render, so that a conversation lost while this window was
   // away — ended by a window reload before its tab was resumed, or removed by
   // hand — is back on screen at once.
-  await rescan();
-  await render();
+  await refreshAll();
 }
 
 export function deactivate(): void {

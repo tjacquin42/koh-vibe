@@ -72,6 +72,21 @@ export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolea
   }
 }
 
+/**
+ * Marks a session hidden, in place, and says whether there was one to mark.
+ *
+ * Hidden rather than removed: a removed file is exactly what the rescan looks
+ * for, and the row would be back on the next pass — while the process it
+ * describes still runs. The flag survives on disk until a hook clears it
+ * (`reduce`) or `SessionEnd` removes the file.
+ */
+export async function hideSession(dirs: SpoolDirs, id: string): Promise<boolean> {
+  const current = await readSession(dirs, id);
+  if (current === undefined) return false;
+  await writeSession(dirs, { ...current, hidden: true });
+  return true;
+}
+
 export async function removeSession(dirs: SpoolDirs, id: string): Promise<void> {
   try {
     await unlink(join(dirs.sessions, `${id}.json`));

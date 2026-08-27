@@ -51,4 +51,18 @@ export interface Session {
   startedAt?: number;
   lastEventAt: number;
   transcriptPath?: string;
+  /**
+   * Taken off the list by the user ("Remove from the list") while its process
+   * still runs. Kept on disk so that a rescan does not bring it straight back;
+   * cleared by the next hook, which is the activity the user removed it for
+   * lack of.
+   */
+  hidden?: true;
+  /**
+   * A tab the editor restored and nobody has opened since: no process, no
+   * registry entry, no hook — known only from the editor's own persisted
+   * state. Never written to the spool; lives in the memory of the window that
+   * holds the tab. A click wakes it, and a real session takes its place.
+   */
+  dormant?: true;
 }

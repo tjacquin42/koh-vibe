@@ -126,8 +126,12 @@ just before writing), so two windows filing at the same time do not erase each o
 A conversation leaves the list when it ends, when you close it, or when you remove it —
 never because it went quiet: a tab you left open for a day is still a conversation.
 **Refresh** reads Claude Code's own registry of running processes (`~/.claude/sessions/`)
-and brings back every live conversation the list has lost, in the folder it was filed in;
-the same pass runs when the window opens, with a spinner in place of the button while it does.
+and brings back every live conversation the list has lost, in the folder it was filed in.
+The same pass runs when the window opens, and a few seconds after a conversation vanishes
+while its process still runs — the same conversation open in two editors, one of them
+quitting — with a spinner in place of the button while it does. Tabs the editor restored
+but you have not opened since show as « tab not started »: a click wakes them. « Remove
+from the list » hides a conversation until its next activity.
 
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a
 shared file — otherwise every window would fetch exactly the same thing. The OAuth token is

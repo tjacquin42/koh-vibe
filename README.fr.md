@@ -137,8 +137,12 @@ Une conversation quitte la liste quand elle se termine, quand vous la fermez, ou
 la retirez — jamais parce qu'elle s'est tue : un onglet laissé ouvert une journée reste une
 conversation. **Rafraîchir** lit le registre des processus de Claude Code
 (`~/.claude/sessions/`) et ramène toute conversation vivante que la liste a perdue, dans le
-dossier où elle était rangée ; la même passe tourne à l'ouverture de la fenêtre, avec une
-icône qui tourne à la place du bouton pendant ce temps.
+dossier où elle était rangée. La même passe tourne à l'ouverture de la fenêtre, et quelques
+secondes après qu'une conversation a disparu alors que son processus vit encore — la même
+conversation ouverte dans deux éditeurs, dont l'un se ferme — avec une icône qui tourne à la
+place du bouton pendant ce temps. Les onglets restaurés par l'éditeur mais jamais rouverts
+s'affichent « onglet non démarré » : un clic les réveille. « Retirer de la liste » masque une
+conversation jusqu'à sa prochaine activité.
 
 La consommation vient de l'API d'Anthropic, interrogée au plus une fois toutes les cinq
 minutes et mise en cache dans un fichier partagé — sinon chaque fenêtre irait chercher de son

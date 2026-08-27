@@ -40,6 +40,9 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
   const late = ev.at < base.lastEventAt;
   const next: Session = { ...base, lastEventAt: Math.max(base.lastEventAt, ev.at) };
   if (ev.transcriptPath !== undefined) next.transcriptPath = ev.transcriptPath;
+  // A hook is the conversation living: whatever the user removed it for is
+  // over. `Ack` is our own event, and says nothing about the conversation.
+  if (isHookEvent(ev.event)) delete next.hidden;
 
   switch (ev.event) {
     case 'SessionStart':

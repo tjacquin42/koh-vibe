@@ -89,6 +89,9 @@ export function sessionDescription(s: Session, now: number): string {
     const target = s.currentAction.target;
     return target === undefined ? s.currentAction.tool : `${s.currentAction.tool} ${basename(target)}`;
   }
+  // A dormant tab has no age worth counting: nothing has happened in it since
+  // the editor restored it, and "20 000 h" would say the opposite.
+  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab not started')}`;
   // The status is NOT spelled out here: the dot on the line (ui/tree.ts) already
   // carries it, by colour. The word does not disappear for all that — it stays
   // in the tooltip and in the accessibility label, the two places where an icon
@@ -100,7 +103,7 @@ export function sessionDescription(s: Session, now: number): string {
 export function sessionTooltip(s: Session, now: number): string {
   const lines = [
     projectAndBranch(s, ' / '),
-    `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,
+    s.dormant === true ? vscode.l10n.t('tab not started') : `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,
     vscode.l10n.t('origin: {0}', s.origin),
     // Two strings rather than one with a suffix: no European language builds a
     // plural by appending a letter, and several do not build one at all.
