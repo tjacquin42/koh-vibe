@@ -24,7 +24,8 @@ and the hook bridges are zsh scripts.
   closes its Claude Code tab, which ends the conversation and files it under *Recently
   closed*. When no tab is found — a conversation running in a terminal, in the Claude desktop
   app, or in a project no window has open — the row is simply removed from the list.
-- **Your usage** over five hours and seven days, with the time until it resets.
+- **Your usage** over five hours and seven days — and per model, when your plan counts one
+  apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
 
 ## Install
@@ -116,6 +117,13 @@ Each window watches the spool on its own, reduces the events into state, and dis
 locks: shared files are merged three ways (the state read, ours, and the freshest one re-read
 just before writing), so two windows filing at the same time do not erase each other.
 
+A conversation that stays silent for a day — an editor tab you left open — emits no hook at
+all. Before forgetting it, koh-vibe asks Claude Code's own registry of running processes
+(`~/.claude/sessions/`) whether it is still alive, and keeps it if so. **Refresh** reads the
+same registry the other way round: every live conversation the list has lost comes back,
+in the folder it was filed in. Without that registry (an older Claude Code), a day of silence
+still means goodbye, as it always did.
+
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a
 shared file — otherwise every window would fetch exactly the same thing. The OAuth token is
 read from the system keychain, never logged and never written to disk.
@@ -129,7 +137,7 @@ Outside contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 ```bash
 pnpm install
 pnpm build       # compiles to out/, and stamps the build from the latest tag
-pnpm test        # builds, then runs 501 tests without an extension host
+pnpm test        # builds, then runs 663 tests without an extension host
 pnpm test:watch  # the same tests, without rebuilding on every run
 pnpm typecheck   # types across src AND test
 pnpm package     # produces the .vsix
