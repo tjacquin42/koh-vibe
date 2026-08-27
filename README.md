@@ -72,6 +72,10 @@ folder is set by hand and stays put: a session opened later lands at the end wit
 disturbing what you placed. The folders themselves are dragged the same way — drop one onto
 another to put it in front, or onto *Temporary sessions* to send it to the end.
 
+**New session.** The **+** button in the view title opens a new Claude Code tab — a fresh
+conversation in the window's folder. Right-click a folder → *New session here* does the same
+and files the conversation in that folder as soon as it shows up, so it is not a temporary one.
+
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
 setting. "None" is a chosen silence rather than an absent choice, so it does not fall through

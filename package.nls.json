@@ -8,6 +8,8 @@
   "command.kohVibe.installHooks.title": "Install hooks",
   "command.kohVibe.uninstallHooks.title": "Uninstall hooks",
   "command.kohVibe.newGroup.title": "New folder",
+  "command.kohVibe.newSession.title": "New session",
+  "command.kohVibe.newSessionInGroup.title": "New session here",
   "command.kohVibe.renameGroup.title": "Rename folder",
   "command.kohVibe.colorGroup.title": "Folder colour",
   "command.kohVibe.deleteGroup.title": "Delete folder",

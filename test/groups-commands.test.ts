@@ -9,6 +9,7 @@ import {
   colorGroupCommand,
   createGroupCommand,
   deleteGroupCommand,
+  fileSessionCommand,
   renameGroupCommand,
   runGroupAction,
 } from '../src/groups/commands';
@@ -191,5 +192,21 @@ describe('colorGroupCommand', () => {
     expect(after.groups[0]?.color).toBeUndefined();
     expect(after.groups[0]?.name).toBe('Perso');
     expect(after.assignments['sess-1']).toBe('g-1');
+  });
+});
+
+describe('fileSessionCommand — « nouvelle session ici »', () => {
+  it('range la conversation dans le dossier, en une écriture', async () => {
+    await updateGroups(file, (s) => createGroup(s, 'Perso', () => 'g1'));
+    writeFileCalls.count = 0;
+    const state = await fileSessionCommand(file, 's-new', 'g1');
+    expect(state.assignments['s-new']).toBe('g1');
+    expect((await readGroups(file)).assignments['s-new']).toBe('g1');
+    expect(writeFileCalls.count).toBe(1);
+  });
+
+  it('ne range rien dans un dossier disparu, comme un dépôt', async () => {
+    const state = await fileSessionCommand(file, 's-new', 'nope');
+    expect(state.assignments).not.toHaveProperty('s-new');
   });
 });

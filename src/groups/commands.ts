@@ -141,3 +141,12 @@ export async function runGroupAction(
     onError(err instanceof Error ? err.message : String(err));
   }
 }
+
+/**
+ * Files one conversation in a folder — the "new session here" gesture, once
+ * the conversation it opened has shown up. `assign` refuses a folder that
+ * vanished in the meantime, like everywhere else.
+ */
+export async function fileSessionCommand(groupsFilePath: string, sessionId: string, groupId: string): Promise<GroupsState> {
+  return updateGroups(groupsFilePath, (s) => assign(s, sessionId, groupId));
+}

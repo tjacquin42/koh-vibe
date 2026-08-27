@@ -80,6 +80,11 @@ se pose à la fin sans bousculer ce qui a été placé. Les dossiers eux-mêmes 
 même façon — déposez-en un sur un autre pour le placer devant, ou sur *Sessions temporaires* pour
 l'envoyer à la fin.
 
+**Nouvelle session.** Le bouton **+** du titre de la vue ouvre un nouvel onglet Claude Code —
+une conversation neuve dans le dossier de la fenêtre. Clic droit sur un dossier → *Nouvelle
+session ici* fait de même et range la conversation dans ce dossier dès qu'elle apparaît, pour
+qu'elle ne soit pas temporaire.
+
 **Sonner.** Un carillon quand une session se met à vous attendre, un autre quand elle vient
 de finir. Trois niveaux, du plus précis au plus général : le son d'une conversation l'emporte
 sur celui de son dossier, qui l'emporte sur le réglage global. « Aucun » est un choix de

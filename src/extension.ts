@@ -13,6 +13,8 @@ import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal'
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
+import { newSessionAmong } from './store/new-session';
+import { claims } from './focus/claims';
 import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
@@ -30,7 +32,7 @@ import { showBusy } from './ui/busy';
 import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
-  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand,
+  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
@@ -146,6 +148,46 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const revealSessionTab = async (id: string): Promise<boolean> => {
     const found = locateSessionTab(id);
     return found !== undefined && (await revealTabAt(found.pos));
+  };
+  /** How long a fresh conversation gets to send its first hook after the tab opened. */
+  const NEW_SESSION_WAIT_MS = 20_000;
+  const NEW_SESSION_POLL_MS = 300;
+  const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+  /**
+   * Opens a new Claude Code tab — a fresh conversation, in this window's
+   * folder — and, when the click came from a folder, files the conversation
+   * there as soon as its first hook names it: left unfiled, it would be a
+   * temporary one. The id is only known through the spool, hence the wait.
+   */
+  const newSession = async (groupId: string | undefined): Promise<void> => {
+    const before = new Set((await readSessions(dirs)).keys());
+    const since = Date.now();
+    try {
+      await vscode.commands.executeCommand('claude-vscode.editor.open');
+    } catch {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Koh-Vibe: the Claude Code extension does not expose a command to open a conversation in this version.'),
+      );
+      return;
+    }
+    if (groupId === undefined) return;
+    const folders = workspaceFolders();
+    const isMine = (s: Session): boolean => s.origin === 'vscode' && s.lastEventAt >= since - 1_000 && claims(folders, s.cwd);
+    while (Date.now() < since + NEW_SESSION_WAIT_MS) {
+      const id = newSessionAmong(before, await readSessions(dirs), isMine);
+      if (id !== undefined) {
+        await runGroupAction(
+          () => fileSessionCommand(groupsPath, id, groupId),
+          (message) => void vscode.window.showErrorMessage(message),
+        );
+        await render();
+        return;
+      }
+      await wait(NEW_SESSION_POLL_MS);
+    }
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('Koh-Vibe: the new conversation did not show up in time — drag it into the folder yourself.'),
+    );
   };
   /**
    * Whether Claude Code's session list, in this window, holds the id — i.e.
@@ -799,6 +841,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // (groups/commands.ts) transforme tout ce que la décision lève — en
     // particulier le nom vide, que createGroup/renameGroup rejettent
     // volontairement — en message affiché, jamais en trace d'appel non gérée.
+    vscode.commands.registerCommand('kohVibe.newSession', () => newSession(undefined)),
+    vscode.commands.registerCommand('kohVibe.newSessionInGroup', (node: unknown) => newSession(groupIdOfNode(node))),
     vscode.commands.registerCommand('kohVibe.newGroup', async () => {
       const label = await vscode.window.showInputBox({
         prompt: vscode.l10n.t('Folder name'),

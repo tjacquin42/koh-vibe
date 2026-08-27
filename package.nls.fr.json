@@ -7,6 +7,8 @@
   "command.kohVibe.focusSession.title": "Aller à la session",
   "command.kohVibe.installHooks.title": "Installer les hooks",
   "command.kohVibe.uninstallHooks.title": "Désinstaller les hooks",
+  "command.kohVibe.newSession.title": "Nouvelle session",
+  "command.kohVibe.newSessionInGroup.title": "Nouvelle session ici",
   "command.kohVibe.newGroup.title": "Créer un dossier",
   "command.kohVibe.renameGroup.title": "Renommer le dossier",
   "command.kohVibe.colorGroup.title": "Couleur du dossier",
