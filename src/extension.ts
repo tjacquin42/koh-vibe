@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
+import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
+import { readLiveSessions } from './claude/registry';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
@@ -53,6 +54,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
   const closedPath = closedFile(home);
+  // Claude Code's registry of running processes (`~/.claude/sessions/`): the
+  // only source saying that a conversation is alive when its hooks are silent.
+  const registryDir = claudeSessionsDir(claudeHome());
+  const liveSessionIds = async (): Promise<ReadonlySet<string>> => new Set((await readLiveSessions(registryDir)).keys());
   await ensureDirs(dirs);
   if (migrated === 'migrated') {
     void vscode.window.showInformationMessage(
@@ -386,6 +391,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // The closed-conversation history. Errors are NOT swallowed here: `drain`
     // relies on the rejection to leave the event in place and retry it.
     archive,
+    // What keeps a silent conversation out of the purge: its process is still
+    // listed in Claude Code's registry. Asked only when there is a candidate.
+    liveSessionIds,
   );
   watcher.start();
   broker.start();

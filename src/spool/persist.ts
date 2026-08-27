@@ -3,6 +3,13 @@ import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Origin, Session, Status } from '../events/types';
 
+/**
+ * The ids of the sessions whose process is running. Injected rather than
+ * imported from `claude/registry.ts`: this module knows the spool, not Claude
+ * Code's registry, and a test drives the answer without spawning anything.
+ */
+export type LiveProbe = () => Promise<ReadonlySet<string>>;
+
 // Record<Status, true> et Record<Origin, true> : si l'union gagne un membre côté
 // events/types.ts sans que ces tables soient mises à jour, la compilation échoue —
 // la garde de type ne peut pas dériver silencieusement du contrat de Session.
@@ -122,8 +129,22 @@ export async function readSessions(dirs: SpoolDirs): Promise<Map<string, Session
  * efface, contrairement à `drain()` où une erreur se corrige au tick suivant.
  * Ordre trié pour un comportement déterministe, indépendant de l'ordre de
  * `readdir`.
+ *
+ * `live` is the one thing the age cannot tell: whether the process behind the
+ * session is still running. An editor tab left open for a day emits no hook
+ * at all, and used to be purged — with its folder assignment — while its
+ * conversation was very much alive. The probe is asked ONCE, lazily, and only
+ * when at least one session is past the threshold: the drain runs every few
+ * seconds, and almost every pass has nothing to purge. A probe that fails
+ * answers "nobody known alive", which is exactly the behaviour before the
+ * probe existed — the registry can only ever keep a session, never remove one.
  */
-export async function purgeStaleSessions(dirs: SpoolDirs, now: number, maxAgeMs: number): Promise<string[]> {
+export async function purgeStaleSessions(
+  dirs: SpoolDirs,
+  now: number,
+  maxAgeMs: number,
+  live?: LiveProbe,
+): Promise<string[]> {
   let names: string[];
   try {
     names = await readdir(dirs.sessions);
@@ -136,12 +157,16 @@ export async function purgeStaleSessions(dirs: SpoolDirs, now: number, maxAgeMs:
     .sort();
 
   const purged: string[] = [];
+  let alive: ReadonlySet<string> | undefined;
   for (const id of ids) {
     const current = await readSession(dirs, id);
-    if (current !== undefined && now - current.lastEventAt > maxAgeMs) {
-      await removeSession(dirs, id);
-      purged.push(id);
+    if (current === undefined || now - current.lastEventAt <= maxAgeMs) continue;
+    if (live !== undefined) {
+      alive ??= await live().catch((): ReadonlySet<string> => new Set());
+      if (alive.has(id)) continue;
     }
+    await removeSession(dirs, id);
+    purged.push(id);
   }
   return purged;
 }

@@ -192,6 +192,43 @@ describe('persist', () => {
       expect(purged).not.toContain('s-late');
       expect((await readSessions(dirs)).has('s-late')).toBe(true);
     });
+    it("keeps a session past the threshold whose process is still alive, and purges the dead one", async () => {
+      await writeSession(dirs, { ...session('alive'), lastEventAt: 0 });
+      await writeSession(dirs, { ...session('dead'), lastEventAt: 0 });
+
+      const purged = await purgeStaleSessions(dirs, 100_000, 50_000, async () => new Set(['alive']));
+
+      expect(purged).toEqual(['dead']);
+      const back = await readSessions(dirs);
+      expect(back.has('alive')).toBe(true);
+      expect(back.has('dead')).toBe(false);
+    });
+
+    it('asks the liveness probe once, however many candidates, and never without one', async () => {
+      let asked = 0;
+      const live = async (): Promise<Set<string>> => {
+        asked += 1;
+        return new Set();
+      };
+      await writeSession(dirs, { ...session('fresh'), lastEventAt: 99_000 });
+      await purgeStaleSessions(dirs, 100_000, 50_000, live);
+      // Nothing past the threshold: the probe costs a directory listing and a
+      // signal per process, and the drain runs every few seconds.
+      expect(asked).toBe(0);
+
+      await writeSession(dirs, { ...session('old-1'), lastEventAt: 0 });
+      await writeSession(dirs, { ...session('old-2'), lastEventAt: 0 });
+      await purgeStaleSessions(dirs, 100_000, 50_000, live);
+      expect(asked).toBe(1);
+    });
+
+    it('purges as it always did when the probe fails: the registry only ever saves a session', async () => {
+      await writeSession(dirs, { ...session('old'), lastEventAt: 0 });
+      const purged = await purgeStaleSessions(dirs, 100_000, 50_000, async () => {
+        throw new Error('registry unreadable');
+      });
+      expect(purged).toEqual(['old']);
+    });
   });
 
   it('converge : deux ordres de lecture donnent le même état', () => {

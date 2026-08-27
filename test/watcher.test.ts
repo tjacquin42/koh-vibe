@@ -159,6 +159,16 @@ describe('drain', () => {
   });
 });
 
+describe('drain — sessions kept alive by their process', () => {
+  it('does not purge a silent session whose process the registry still lists', async () => {
+    await writeSession(dirs, session('silent-alive', 0));
+    await writeSession(dirs, session('silent-dead', 0));
+    const res = await drain(dirs, SESSION_PURGE_MS + 1, undefined, undefined, async () => new Set(['silent-alive']));
+    expect(res.purged).toEqual(['silent-dead']);
+    expect((await readSessions(dirs)).has('silent-alive')).toBe(true);
+  });
+});
+
 describe('drain — pannes de suppression', () => {
   it('ignore silencieusement un unlink en échec ENOENT (déjà supprimé par une autre fenêtre)', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
@@ -324,7 +334,7 @@ describe('drain — échec permanent (N3)', () => {
 
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined, async () => new Set());
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     await internal.tick();
@@ -531,7 +541,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, async () => new Set());
     const internal = watcher as unknown as { watcher?: unknown; timer?: NodeJS.Timeout };
 
     expect(() => watcher.start()).not.toThrow();
@@ -545,7 +555,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, async () => new Set());
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     // Le dossier events n'existe pas encore quand ce SpoolWatcher est
@@ -572,7 +582,7 @@ describe('SpoolWatcher', () => {
   it('stop() ferme le FSWatcher et efface le minuteur de secours ; le déclenchement est piloté par tick(), jamais par fs.watch ou un délai', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, async () => new Set());
     const internal = watcher as unknown as {
       watcher?: { close: () => void };
       timer?: NodeJS.Timeout;
@@ -612,7 +622,7 @@ describe('SpoolWatcher', () => {
   it('la garde de non-réentrance ne fait perdre aucun fichier : un événement déposé pendant une vidange finit consommé', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, async () => new Set());
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     // Simule une vidange déjà en cours.
@@ -638,7 +648,7 @@ describe('SpoolWatcher', () => {
       throw new Error('bug dans onChange');
     });
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, async () => new Set());
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));

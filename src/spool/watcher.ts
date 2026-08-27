@@ -6,7 +6,7 @@ import type { Session } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
 import { SESSION_PURGE_MS } from '../store/staleness';
-import { ensureDirs, purgeStaleSessions, readSession, removeSession, writeSession } from './persist';
+import { ensureDirs, purgeStaleSessions, readSession, removeSession, writeSession, type LiveProbe } from './persist';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
 
 export interface DrainResult {
@@ -101,12 +101,18 @@ function eventTimestamp(name: string): number | undefined {
  * écriture-puis-suppression, jamais avant : l'invariant « on écrit l'état
  * avant de supprimer l'événement » est ce qui rend cet abandon sans perte —
  * l'événement, ni appliqué ni supprimé, sera retraité par le passage frais.
+ *
+ * `live` (see `purgeStaleSessions`) keeps a silent session whose process still
+ * runs out of the purge. Optional here, like `archive`: the tests that do not
+ * care call `drain` without it, and `SpoolWatcher` — the only production path
+ * — makes it mandatory.
  */
 export async function drain(
   dirs: SpoolDirs,
   now: number,
   signal?: AbandonSignal,
   archive?: ArchiveClosed,
+  live?: LiveProbe,
 ): Promise<DrainResult> {
   let names: string[] = [];
   try {
@@ -225,7 +231,7 @@ export async function drain(
     }
   }
 
-  const purged = await purgeStaleSessions(dirs, now, SESSION_PURGE_MS);
+  const purged = await purgeStaleSessions(dirs, now, SESSION_PURGE_MS, live);
 
   return { applied, rejected, deferred, purged, rejectedPermanently };
 }
@@ -289,6 +295,10 @@ export class SpoolWatcher {
     // only place where forgetting it must be a compile error rather than a
     // silently empty history.
     private readonly archive: ArchiveClosed,
+    // Required for the same reason as `archive`: forgetting it would quietly
+    // bring back the bug it exists to fix — a conversation purged while its
+    // tab is open — and a compile error is the only way to notice that.
+    private readonly live: LiveProbe,
   ) {}
 
   start(): void {
@@ -318,7 +328,7 @@ export class SpoolWatcher {
 
   private tick(): Promise<void> {
     return this.guard.run(async (signal) => {
-      const res = await drain(this.dirs, this.now(), signal, this.archive);
+      const res = await drain(this.dirs, this.now(), signal, this.archive, this.live);
       if (res.rejectedPermanently.length > 0) {
         // Signalement dédié : drain() n'a pas échoué (les autres événements
         // se sont appliqués normalement), mais celui-ci a échoué alors qu'il
