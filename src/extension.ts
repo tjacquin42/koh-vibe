@@ -17,6 +17,7 @@ import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, clampVolume, NO_SOUND, playFile, playNamed } from './sound/player';
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
+import { showBusy } from './ui/busy';
 import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import { pruneAssignmentsOf } from './groups/prune';
@@ -68,6 +69,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // only source saying that a conversation is alive when its hooks are silent.
   const claudeRoot = claudeHome();
   const registryDir = claudeSessionsDir(claudeRoot);
+  // The loading indicator around a rescan: while the flag is raised, the
+  // title shows a spinning icon where the Refresh button was (package.json
+  // switches the two on this context key), and the view runs its progress
+  // bar. Visible at startup too, since the first rescan precedes the first
+  // render.
+  const RESCANNING = 'kohVibe.rescanning';
+  const busy = {
+    setBusy: (on: boolean) => vscode.commands.executeCommand('setContext', RESCANNING, on),
+    progress: <T>(task: () => Promise<T>) =>
+      vscode.window.withProgress({ location: { viewId: 'kohVibe.sessions' } }, task),
+  };
   /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts). Never fails a refresh: the registry is a
@@ -76,7 +88,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   const rescan = async (): Promise<string[]> => {
     try {
-      return await rescanLiveSessions(dirs, await readLiveSessions(registryDir), Date.now(), claudeRoot);
+      return await showBusy<string[]>(
+        async () => rescanLiveSessions(dirs, await readLiveSessions(registryDir), Date.now(), claudeRoot),
+        busy,
+      );
     } catch {
       return [];
     }
@@ -457,6 +472,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           : vscode.l10n.t('Koh-Vibe: {0} conversations found again', added.length),
       );
     }),
+    // The spinning icon shown in place of Refresh while a rescan runs. A
+    // command because a title button has to be one; it does nothing on
+    // purpose, and package.json keeps it disabled.
+    vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
       // Le clic acquitte inconditionnellement (spec §5 : « clic sur la
       // session »), indépendamment de claims() — qui ne gouverne que
