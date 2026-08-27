@@ -84,3 +84,24 @@ export function groupsFile(home: string): string {
 export function closedFile(home: string): string {
   return join(home, 'closed.json');
 }
+
+/**
+ * Claude Code's own configuration root — where it keeps `settings.json`, the
+ * transcripts (`projects/`) and the registry of running sessions
+ * (`sessions/`). Follows the variable Claude Code itself honours, so that a
+ * relocated configuration is read where Claude Code writes it.
+ */
+export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env['CLAUDE_CONFIG_DIR'];
+  if (override !== undefined && override.length > 0) return override;
+  return join(env['HOME'] ?? '', '.claude');
+}
+
+/**
+ * The registry of running Claude Code processes: one `<pid>.json` per
+ * interactive session, written by Claude Code 2.1.x and removed on a clean
+ * exit. Read by `claude/registry.ts`; koh-vibe never writes here.
+ */
+export function claudeSessionsDir(home: string): string {
+  return join(home, 'sessions');
+}

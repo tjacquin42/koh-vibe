@@ -1,3 +1,4 @@
+import { isRecord } from '../lib/json';
 /**
  * Ce que Claude Code passe à la statusline, et que le pont dépose tel quel.
  *
@@ -14,13 +15,20 @@ export interface UsageWindow {
   resetsAt: number | undefined;
 }
 
+/** A weekly window that counts one model only, named after that model. */
+export interface ScopedWindow extends UsageWindow {
+  name: string;
+}
+
 export interface Usage {
   fiveHour: UsageWindow | undefined;
   sevenDay: UsageWindow | undefined;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
+  /**
+   * The per-model weekly windows, in the order the source lists them. Empty
+   * for the statusline, which carries none, and for an account with no
+   * scoped limit.
+   */
+  models: readonly ScopedWindow[];
 }
 
 /**
@@ -53,6 +61,45 @@ function windowOf(v: unknown): UsageWindow | undefined {
 }
 
 /**
+ * The older per-model fields, still emitted by the API (as `null` on an
+ * account without them). Read BEFORE `limits`, so that the newer list wins
+ * whenever both name the same model.
+ */
+const LEGACY_MODEL_FIELDS = [
+  ['seven_day_opus', 'Opus'],
+  ['seven_day_sonnet', 'Sonnet'],
+] as const;
+
+/**
+ * The windows scoped to one model. Two vocabularies again: the `limits` list
+ * carries them as `weekly_scoped` entries whose `scope.model.display_name` is
+ * the model, with `percent` where a window says `utilization` — hence the
+ * record rebuilt for `windowOf`, so that the percentage and deadline obey the
+ * one rule everything else obeys. An entry that names no model, or whose
+ * percentage is unusable, is dropped rather than shown as a nameless row.
+ */
+function modelsOf(raw: Record<string, unknown>): ScopedWindow[] {
+  const byName = new Map<string, ScopedWindow>();
+  for (const [field, name] of LEGACY_MODEL_FIELDS) {
+    const w = windowOf(raw[field]);
+    if (w !== undefined) byName.set(name, { name, ...w });
+  }
+  const limits = raw['limits'];
+  if (Array.isArray(limits)) {
+    for (const limit of limits) {
+      if (!isRecord(limit) || limit['kind'] !== 'weekly_scoped') continue;
+      const scope = limit['scope'];
+      const model = isRecord(scope) ? scope['model'] : undefined;
+      const name = isRecord(model) ? model['display_name'] : undefined;
+      if (typeof name !== 'string' || name.length === 0) continue;
+      const w = windowOf({ utilization: limit['percent'], resets_at: limit['resets_at'] });
+      if (w !== undefined) byName.set(name, { name, ...w });
+    }
+  }
+  return [...byName.values()];
+}
+
+/**
  * `undefined` quand l'instantané ne porte aucune fenêtre exploitable — la vue
  * n'affiche alors rien du tout, plutôt qu'une ligne vide qui laisserait croire
  * à une consommation nulle.
@@ -67,6 +114,8 @@ export function parseUsage(raw: unknown): Usage | undefined {
   const limits = isRecord(nested) ? nested : raw;
   const fiveHour = windowOf(limits['five_hour']);
   const sevenDay = windowOf(limits['seven_day']);
-  if (fiveHour === undefined && sevenDay === undefined) return undefined;
-  return { fiveHour, sevenDay };
+  // The model windows only ever sit at the root: the statusline has none.
+  const models = modelsOf(raw);
+  if (fiveHour === undefined && sevenDay === undefined && models.length === 0) return undefined;
+  return { fiveHour, sevenDay, models };
 }

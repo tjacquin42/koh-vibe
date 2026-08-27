@@ -12,19 +12,31 @@ function entry(over: Partial<ClosedEntry> = {}): ClosedEntry {
 
 describe('reopenPlan', () => {
   it('reopens an editor conversation through the Claude Code command', () => {
-    expect(reopenPlan('vscode', 's1', CWD, 'projet')).toEqual({
+    expect(reopenPlan('vscode', 's1', CWD, 'projet', true)).toEqual({
       kind: 'command',
       command: 'claude-vscode.editor.open',
       args: ['s1'],
     });
   });
 
+  it('falls back to a terminal for an editor conversation the window\'s session list does not hold — never the command, which would start a blank one', () => {
+    expect(reopenPlan('vscode', 's1', CWD, 'projet', false)).toEqual({
+      kind: 'terminal',
+      cwd: CWD,
+      name: 'projet',
+      command: 'claude --resume s1',
+    });
+    expect(reopenPlan('desktop', 's1', CWD, 'projet', false)).toMatchObject({ kind: 'terminal' });
+    // A terminal conversation never asked the question.
+    expect(reopenPlan('terminal', 's1', CWD, 'projet', false)).toMatchObject({ kind: 'terminal' });
+  });
+
   it('treats a desktop conversation like an editor one', () => {
-    expect(reopenPlan('desktop', 's1', CWD, 'projet')).toMatchObject({ kind: 'command' });
+    expect(reopenPlan('desktop', 's1', CWD, 'projet', true)).toMatchObject({ kind: 'command' });
   });
 
   it('reopens a terminal conversation in a terminal, on its own folder', () => {
-    expect(reopenPlan('terminal', 's1', CWD, 'projet')).toEqual({
+    expect(reopenPlan('terminal', 's1', CWD, 'projet', true)).toEqual({
       kind: 'terminal',
       cwd: CWD,
       name: 'projet',
@@ -33,14 +45,14 @@ describe('reopenPlan', () => {
   });
 
   it('explains rather than guesses for an origin it cannot reopen', () => {
-    const plan = reopenPlan('sdk', 's1', CWD, 'projet');
+    const plan = reopenPlan('sdk', 's1', CWD, 'projet', true);
     expect(plan.kind).toBe('explain');
     if (plan.kind === 'explain') expect(plan.message).toContain('sdk');
   });
 
   it('explains for a missing or wrongly typed origin, and names no origin', () => {
     for (const origin of [undefined, null, 42, {}]) {
-      const plan = reopenPlan(origin, 's1', CWD, 'projet');
+      const plan = reopenPlan(origin, 's1', CWD, 'projet', true);
       expect(plan.kind).toBe('explain');
       if (plan.kind === 'explain') expect(plan.message).toContain('projet');
     }
@@ -70,7 +82,7 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockResolvedValue(undefined);
     const e = entry({ id: 's9', cwd: '/Users/dev/autre-projet', project: 'autre-projet', origin: 'terminal' });
 
-    await reopenClosedSession(e, requestReopen);
+    await expect(reopenClosedSession(e, requestReopen)).resolves.toBe('terminal');
 
     expect(createTerminal).toHaveBeenCalledWith({ cwd: '/Users/dev/autre-projet', name: 'autre-projet' });
     expect(sendText).toHaveBeenCalledWith('claude --resume s9');
@@ -83,7 +95,7 @@ describe('reopenClosedSession', () => {
     const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const requestReopen = vi.fn().mockResolvedValue(undefined);
 
-    await reopenClosedSession(entry({ origin: 'sdk' }), requestReopen);
+    await expect(reopenClosedSession(entry({ origin: 'sdk' }), requestReopen)).resolves.toBe('explain');
 
     expect(info).toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
@@ -95,7 +107,7 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockResolvedValue(undefined);
     const e = entry({ origin: 'vscode' });
 
-    await reopenClosedSession(e, requestReopen);
+    await expect(reopenClosedSession(e, requestReopen)).resolves.toBe('editor');
 
     expect(requestReopen).toHaveBeenCalledWith(e);
     expect(createTerminal).not.toHaveBeenCalled();
@@ -105,7 +117,8 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockRejectedValue(new Error('boom'));
     const error = vi.spyOn(vscode.window, 'showErrorMessage').mockResolvedValue(undefined);
 
-    await expect(reopenClosedSession(entry({ origin: 'vscode' }), requestReopen)).resolves.toBeUndefined();
+    // `failed`, so the caller shows no wait for a reopen that never started.
+    await expect(reopenClosedSession(entry({ origin: 'vscode' }), requestReopen)).resolves.toBe('failed');
 
     // Otherwise the row's only gesture does nothing and says nothing (Important 6).
     expect(error).toHaveBeenCalled();

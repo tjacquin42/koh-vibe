@@ -1,4 +1,6 @@
+import * as vscode from 'vscode';
 import type { ChimeEvent } from '../sound/model';
+import { isRecord } from '../lib/json';
 
 /** Les deux événements qui sonnent, dans l'ordre où ils s'affichent. */
 export const CHIME_EVENTS: readonly ChimeEvent[] = ['waiting', 'done'];
@@ -80,10 +82,6 @@ export function orderKey(groupId: string | undefined): string {
   return groupId ?? UNFILED;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 function name(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
@@ -137,8 +135,9 @@ export function parseGroups(raw: string): GroupsState {
   // mal formée est ignorée plutôt que de faire tomber toute la lecture. Les
   // identifiants qui ne correspondent à rien ne sont PAS filtrés ici — une
   // session peut être momentanément absente (fenêtre qui n'a pas encore lu le
-  // spool) et retrouver sa place ensuite. Le nettoyage est le travail de
-  // `pruneAssignments`, qui sait ce qui vit vraiment.
+  // spool, éditeur en train de la reprendre) et retrouver sa place ensuite.
+  // Rien ne balaie jamais ces entrées : une conversation rouverte des mois
+  // plus tard revient dans son dossier, et une entrée pèse quelques octets.
   const sessionOrder: Record<string, readonly string[]> = {};
   const rawOrder = root['sessionOrder'];
   if (isRecord(rawOrder)) {
@@ -178,7 +177,7 @@ export function serializeGroups(s: GroupsState): string {
 
 export function createGroup(s: GroupsState, label: string, newId: () => string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error('Un dossier ne peut pas avoir un nom vide.');
+  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
   return { ...s, groups: [...s.groups, { id: newId(), name: clean, order: s.groups.length }] };
 }
 
@@ -216,7 +215,7 @@ export function reorderGroups(
 
 export function renameGroup(s: GroupsState, id: string, label: string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error('Un dossier ne peut pas avoir un nom vide.');
+  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
   return { ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, name: clean } : g)) };
 }
 
@@ -360,33 +359,4 @@ export function reorder(
   const removedBefore = current.slice(0, target).filter((id) => movedSet.has(id)).length;
   const at = target - removedBefore;
   return [...rest.slice(0, at), ...moved, ...rest.slice(at)];
-}
-
-export function pruneAssignments(s: GroupsState, live: ReadonlySet<string>): GroupsState {
-  const kept = Object.entries(s.assignments).filter(([sessionId]) => live.has(sessionId));
-  const soundEntries = CHIME_EVENTS.map(
-    (event) => [event, Object.entries(s.sessionSounds[event]).filter(([sessionId]) => live.has(sessionId))] as const,
-  );
-  const orderEntries = Object.entries(s.sessionOrder)
-    .map(([key, ids]) => [key, ids.filter((id) => live.has(id))] as const)
-    .filter(([, ids]) => ids.length > 0);
-  const assignmentsUnchanged = kept.length === Object.keys(s.assignments).length;
-  const orderUnchanged =
-    orderEntries.length === Object.keys(s.sessionOrder).length &&
-    orderEntries.every(([key, ids]) => ids.length === (s.sessionOrder[key]?.length ?? -1));
-  // Même identité renvoyée quand il n'y a rien à retirer : l'appelant s'en sert
-  // pour éviter une écriture inutile (groups/purge.ts).
-  const soundsUnchanged = soundEntries.every(
-    ([event, kept]) => kept.length === Object.keys(s.sessionSounds[event]).length,
-  );
-  if (assignmentsUnchanged && orderUnchanged && soundsUnchanged) return s;
-  return {
-    ...s,
-    assignments: Object.fromEntries(kept),
-    sessionOrder: Object.fromEntries(orderEntries),
-    sessionSounds: {
-      waiting: Object.fromEntries(soundEntries.find(([e]) => e === 'waiting')?.[1] ?? []),
-      done: Object.fromEntries(soundEntries.find(([e]) => e === 'done')?.[1] ?? []),
-    },
-  };
 }

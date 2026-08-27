@@ -27,7 +27,13 @@ export const STATUS_ICON_DIR = 'status';
  * Les valeurs vivent dans scripts/make-status-icons.cjs, qui dit d'où vient
  * chacune — et pourquoi `waiting` est le seul à ne pas venir de VSCode.
  */
-export function statusIconPath(extensionPath: string, status: Status): { light: string; dark: string } {
+/**
+ * The muted dot: an ended conversation, or a tab nobody has woken. Not a
+ * status — the row's status is `idle` — but a tone, hence its own name.
+ */
+export type IconTone = Status | 'ended';
+
+export function statusIconPath(extensionPath: string, status: IconTone): { light: string; dark: string } {
   const file = (theme: 'light' | 'dark'): string =>
     join(extensionPath, 'resources', STATUS_ICON_DIR, `${status.replace('_', '-')}-${theme}.svg`);
   return { light: file('light'), dark: file('dark') };

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { request } from 'node:https';
+import { isRecord } from '../lib/json';
 
 /**
  * La consommation, demandée directement à Anthropic.
@@ -17,10 +18,6 @@ import { request } from 'node:https';
 const SERVICE = 'Claude Code-credentials';
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const TIMEOUT_MS = 8_000;
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 /**
  * Le jeton d'accès, ou `undefined` si on ne peut pas l'obtenir — trousseau

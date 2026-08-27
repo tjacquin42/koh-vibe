@@ -9,13 +9,14 @@ import {
   colorGroupCommand,
   createGroupCommand,
   deleteGroupCommand,
+  fileSessionCommand,
   renameGroupCommand,
   runGroupAction,
 } from '../src/groups/commands';
 
 // Compte les écritures RÉELLES sur disque (writeFile, appelé par updateGroups avant chaque
 // rename) : seul moyen de prouver qu'un dépôt de plusieurs sessions tient dans UNE SEULE
-// écriture, jamais une par session — même convention que test/groups-purge.test.ts.
+// écriture, jamais une par session — même convention que test/groups-store.test.ts.
 const { writeFileCalls } = vi.hoisted(() => ({ writeFileCalls: { count: 0 } }));
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -33,7 +34,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 // (SessionsTree.onDrop) ou les trois commandes de dossier (package.json) et
 // le fichier de classement. Chacune est ici exercée directement, sans vscode,
 // sur un fichier jetable — même convention que test/groups-store.test.ts et
-// test/groups-purge.test.ts : jamais le ~/.koh-vibe réel.
+// test/groups-store.test.ts : jamais le ~/.koh-vibe réel.
 let dir: string;
 let file: string;
 
@@ -68,14 +69,14 @@ describe('createGroupCommand', () => {
   // qu'en trace d'appel non gérée, jamais cette fonction-ci.
   it('lève quand le nom est vide plutôt que de créer un dossier sans nom', async () => {
     await expect(createGroupCommand(file, '', () => 'g1')).rejects.toThrow(
-      'Un dossier ne peut pas avoir un nom vide.',
+      'A folder cannot have an empty name.',
     );
     expect((await readGroups(file)).groups).toEqual([]);
   });
 
   it('lève aussi quand le nom ne contient que des blancs', async () => {
     await expect(createGroupCommand(file, '   ', () => 'g1')).rejects.toThrow(
-      'Un dossier ne peut pas avoir un nom vide.',
+      'A folder cannot have an empty name.',
     );
   });
 });
@@ -101,7 +102,7 @@ describe('renameGroupCommand', () => {
   it('lève quand le nom est vide plutôt que de renommer vers un nom vide', async () => {
     await updateGroups(file, (s) => createGroup(s, 'ancien', () => 'g1'));
 
-    await expect(renameGroupCommand(file, 'g1', '')).rejects.toThrow('Un dossier ne peut pas avoir un nom vide.');
+    await expect(renameGroupCommand(file, 'g1', '')).rejects.toThrow('A folder cannot have an empty name.');
     expect((await readGroups(file)).groups).toEqual([{ id: 'g1', name: 'ancien', order: 0 }]);
   });
 });
@@ -159,9 +160,9 @@ describe('runGroupAction', () => {
   it('capture ce que l action lève et le relaie comme message, sans laisser filer le rejet', async () => {
     const onError = vi.fn();
 
-    await runGroupAction(() => Promise.reject(new Error('Un dossier ne peut pas avoir un nom vide.')), onError);
+    await runGroupAction(() => Promise.reject(new Error('A folder cannot have an empty name.')), onError);
 
-    expect(onError).toHaveBeenCalledWith('Un dossier ne peut pas avoir un nom vide.');
+    expect(onError).toHaveBeenCalledWith('A folder cannot have an empty name.');
   });
 
   it('relaie aussi un rejet qui ne porte pas une vraie Error', async () => {
@@ -191,5 +192,21 @@ describe('colorGroupCommand', () => {
     expect(after.groups[0]?.color).toBeUndefined();
     expect(after.groups[0]?.name).toBe('Perso');
     expect(after.assignments['sess-1']).toBe('g-1');
+  });
+});
+
+describe('fileSessionCommand — « nouvelle session ici »', () => {
+  it('range la conversation dans le dossier, en une écriture', async () => {
+    await updateGroups(file, (s) => createGroup(s, 'Perso', () => 'g1'));
+    writeFileCalls.count = 0;
+    const state = await fileSessionCommand(file, 's-new', 'g1');
+    expect(state.assignments['s-new']).toBe('g1');
+    expect((await readGroups(file)).assignments['s-new']).toBe('g1');
+    expect(writeFileCalls.count).toBe(1);
+  });
+
+  it('ne range rien dans un dossier disparu, comme un dépôt', async () => {
+    const state = await fileSessionCommand(file, 's-new', 'nope');
+    expect(state.assignments).not.toHaveProperty('s-new');
   });
 });

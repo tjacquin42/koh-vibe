@@ -2,7 +2,7 @@
   "name": "koh-vibe",
   "displayName": "Koh-Vibe",
   "description": "%extension.description%",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "tjacquin42",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/tjacquin42/koh-vibe.git" },
@@ -33,11 +33,15 @@
     },
     "commands": [
       { "command": "kohVibe.refresh", "title": "%command.kohVibe.refresh.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
+      { "command": "kohVibe.rescanning", "title": "%command.kohVibe.rescanning.title%", "category": "Koh-Vibe", "icon": "$(sync~spin)", "enablement": "false" },
       { "command": "kohVibe.focusSession", "title": "%command.kohVibe.focusSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.reopenSession", "title": "%command.kohVibe.reopenSession.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.toggleSetting", "title": "%command.kohVibe.toggleSetting.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.installHooks", "title": "%command.kohVibe.installHooks.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.uninstallHooks", "title": "%command.kohVibe.uninstallHooks.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.newGroup", "title": "%command.kohVibe.newGroup.title%", "category": "Koh-Vibe", "icon": "$(new-folder)" },
+      { "command": "kohVibe.newSession", "title": "%command.kohVibe.newSession.title%", "category": "Koh-Vibe", "icon": "$(add)" },
+      { "command": "kohVibe.newSessionInGroup", "title": "%command.kohVibe.newSessionInGroup.title%", "category": "Koh-Vibe", "icon": "$(add)" },
       { "command": "kohVibe.renameGroup", "title": "%command.kohVibe.renameGroup.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.colorGroup", "title": "%command.kohVibe.colorGroup.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.deleteGroup", "title": "%command.kohVibe.deleteGroup.title%", "category": "Koh-Vibe" },
@@ -60,10 +64,14 @@
     ],
     "menus": {
       "view/title": [
-        { "command": "kohVibe.refresh", "when": "view == kohVibe.sessions", "group": "navigation" },
+        { "command": "kohVibe.refresh", "when": "view == kohVibe.sessions && !kohVibe.rescanning", "group": "navigation" },
+        { "command": "kohVibe.rescanning", "when": "view == kohVibe.sessions && kohVibe.rescanning", "group": "navigation" },
+        { "command": "kohVibe.newSession", "when": "view == kohVibe.sessions", "group": "navigation@0" },
         { "command": "kohVibe.newGroup", "when": "view == kohVibe.sessions", "group": "navigation" }
       ],
       "view/item/context": [
+        { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "new@1" },
+        { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "inline" },
         { "command": "kohVibe.renameGroup", "when": "view == kohVibe.sessions && viewItem == group" },
         { "command": "kohVibe.colorGroup", "when": "view == kohVibe.sessions && viewItem == group" },
         { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },
@@ -75,8 +83,11 @@
         { "command": "kohVibe.closeSession", "when": "view == kohVibe.sessions && viewItem == session", "group": "inline" }
       ],
       "commandPalette": [
-        { "command": "kohVibe.reopenSession", "when": "false" },
+        { "command": "kohVibe.rescanning", "when": "false" },
         { "command": "kohVibe.focusSession", "when": "false" },
+        { "command": "kohVibe.reopenSession", "when": "false" },
+        { "command": "kohVibe.newSessionInGroup", "when": "false" },
+        { "command": "kohVibe.toggleSetting", "when": "false" },
         { "command": "kohVibe.closeSession", "when": "false" }
       ]
     }

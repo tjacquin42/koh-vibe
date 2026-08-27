@@ -45,6 +45,9 @@ const PALETTE = {
   done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1] },
   idle: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1] },
   stale: { dark: ['#CCCCCC', 0.5], light: ['#616161', 0.5] },
+  // Not a status but a tone: an ended conversation, or a tab nobody has
+  // woken. Dimmer than `stale`, which still describes a live process.
+  ended: { dark: ['#CCCCCC', 0.3], light: ['#616161', 0.3] },
 };
 
 // 16 px est la taille à laquelle VSCode affiche l'icône d'une ligne d'arbre

@@ -23,6 +23,13 @@ export const SETTLE_MS = 300;
  * something `activeClaude()` never produced.
  */
 export interface ClaudeTabs<T> {
+  /**
+   * The tab of `sessionId`, when this window can tell which one it is (a
+   * restored tab, located through the editor's memento — claude/reveal.ts).
+   * Closed directly then: no reveal, so nothing is created, nothing changes
+   * focus, and a dormant tab stays dormant to the end.
+   */
+  locate?(sessionId: string): T | undefined;
   /** How many Claude Code tabs this window currently holds, all groups included. */
   count(): number;
   /** The active tab of the active group, but ONLY if it is a Claude Code tab. */
@@ -55,6 +62,8 @@ export interface ClaudeTabs<T> {
  * `notFound`, exactly like a tab that was never there.
  */
 export async function closeSessionTab<T>(sessionId: string, tabs: ClaudeTabs<T>): Promise<CloseOutcome> {
+  const located = tabs.locate?.(sessionId);
+  if (located !== undefined) return (await tabs.close(located)) ? 'closed' : 'notFound';
   const before = tabs.count();
   try {
     await tabs.reveal(sessionId);

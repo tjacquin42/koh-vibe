@@ -24,11 +24,12 @@ interface Calls {
   confirmed: string[];
   routed: string[];
   forgotten: string[];
+  removed: string[];
   archived: string[];
 }
 
 function calls(): Calls {
-  return { log: [], confirmed: [], routed: [], forgotten: [], archived: [] };
+  return { log: [], confirmed: [], routed: [], forgotten: [], removed: [], archived: [] };
 }
 
 function requestDeps(c: Calls, answer = true): RequestCloseDeps {
@@ -63,6 +64,10 @@ function hereDeps(c: Calls, over: Partial<CloseHereDeps> = {}): CloseHereDeps {
     forget: async (id: string) => {
       c.log.push('forget');
       c.forgotten.push(id);
+    },
+    remove: async (id: string) => {
+      c.log.push('remove');
+      c.removed.push(id);
     },
     ...over,
   };
@@ -118,12 +123,16 @@ describe('requestCloseSession', () => {
 });
 
 describe('closeSessionHere', () => {
-  it('archives the conversation before removing its row when a tab was really closed', async () => {
+  it('archives the conversation, then REMOVES its row — never merely hides it — when a tab was really closed', async () => {
     const c = calls();
     await closeSessionHere('s1', hereDeps(c));
 
-    expect(c.log).toEqual(['closeTab', 'archive', 'forget']);
+    // `forget` would only hide an open row, and the SessionEnd the closed tab
+    // sends a moment later lifts a hiding: the row would come back, greyed.
+    expect(c.log).toEqual(['closeTab', 'archive', 'remove']);
     expect(c.archived).toEqual(['s1']);
+    expect(c.removed).toEqual(['s1']);
+    expect(c.forgotten).toEqual([]);
   });
 
   it('removes the row WITHOUT archiving when no tab was found — nothing was closed', async () => {
@@ -132,6 +141,7 @@ describe('closeSessionHere', () => {
 
     expect(c.archived).toEqual([]);
     expect(c.forgotten).toEqual(['s1']);
+    expect(c.removed).toEqual([]);
   });
 
   it('only forgets when the session state has already vanished, and touches no tab', async () => {

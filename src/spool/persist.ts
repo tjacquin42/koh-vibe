@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Origin, Session, Status } from '../events/types';
@@ -43,6 +43,70 @@ export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
   await writeFile(tmp, JSON.stringify(s), 'utf8');
   await rename(tmp, target);
+}
+
+/**
+ * Writes a session ONLY if none exists under that id, and says whether it did.
+ *
+ * `writeSession` replaces; this one refuses. It is what a rescan needs: the
+ * file may appear between "is it there?" and "then write it" — a drain in
+ * another window reducing a hook of that very session — and replacing it
+ * would trade a real state (running, seven tools in) for an idle skeleton.
+ * `link` is the atomic exclusive create: the target either appears complete
+ * or not at all, and EEXIST is the honest answer rather than an error. The
+ * temporary file is removed either way.
+ */
+export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolean> {
+  const seq = (writeSessionSeq += 1);
+  const target = join(dirs.sessions, `${s.id}.json`);
+  const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
+  await writeFile(tmp, JSON.stringify(s), 'utf8');
+  try {
+    await link(tmp, target);
+    return true;
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return false;
+    throw err;
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
+}
+
+/**
+ * Marks a session hidden, in place, and says whether there was one to mark.
+ *
+ * Hidden rather than removed: a removed file is exactly what the rescan looks
+ * for, and the row would be back on the next pass — while the process it
+ * describes still runs. The flag survives on disk until a hook clears it
+ * (`reduce`) or `SessionEnd` removes the file.
+ */
+export async function hideSession(dirs: SpoolDirs, id: string): Promise<boolean> {
+  const current = await readSession(dirs, id);
+  if (current === undefined) return false;
+  await writeSession(dirs, { ...current, hidden: true });
+  return true;
+}
+
+/**
+ * Keeps at most `max` ended conversations — the most recently ended ones —
+ * and removes the rest. Open conversations are never candidates. Each
+ * candidate is re-read just before removal, like every decision in this
+ * module: an entry brought back to life meanwhile is not an ended one any
+ * more. Returns the ids removed.
+ */
+export async function capEndedSessions(dirs: SpoolDirs, max: number): Promise<string[]> {
+  const all = await readSessions(dirs);
+  const ended = [...all.values()]
+    .filter((s): s is Session & { endedAt: number } => s.endedAt !== undefined)
+    .sort((a, b) => b.endedAt - a.endedAt || (a.id < b.id ? -1 : 1));
+  const removed: string[] = [];
+  for (const s of ended.slice(max)) {
+    const current = await readSession(dirs, s.id);
+    if (current === undefined || current.endedAt === undefined) continue;
+    await removeSession(dirs, s.id);
+    removed.push(s.id);
+  }
+  return removed;
 }
 
 export async function removeSession(dirs: SpoolDirs, id: string): Promise<void> {
@@ -102,46 +166,4 @@ export async function readSessions(dirs: SpoolDirs): Promise<Map<string, Session
     }
   }
   return out;
-}
-
-/**
- * Purge `sessions/<id>.json` dont `lastEventAt` dépasse `maxAgeMs` (spec §5,
- * ligne 206 : 24 h sans événement). Idempotente et tolérante à la
- * concurrence : `removeSession` avale déjà un fichier absent (une autre
- * fenêtre qui a purgé la même session au même instant n'est pas une erreur —
- * la suppression est le seul acquittement, exactement comme pour un événement
- * consommé). Retourne les ids purgés pour que l'appelant puisse aussi retirer
- * l'entrée correspondante d'un cache en mémoire (ex : la `Map` de transcripts).
- *
- * Même principe qu'I1 dans `drain()` : la liste des ids candidats sert
- * seulement à savoir qui regarder, jamais à décider. Chaque id est relu
- * individuellement (`readSession`) juste avant la suppression, et seul le
- * verdict de cette lecture-là compte — pas un instantané pris avant les
- * `await` de cette boucle. Une session ravivée par une autre fenêtre pendant
- * qu'on en traite une autre survit donc à ce passage : la purge qui se trompe
- * efface, contrairement à `drain()` où une erreur se corrige au tick suivant.
- * Ordre trié pour un comportement déterministe, indépendant de l'ordre de
- * `readdir`.
- */
-export async function purgeStaleSessions(dirs: SpoolDirs, now: number, maxAgeMs: number): Promise<string[]> {
-  let names: string[];
-  try {
-    names = await readdir(dirs.sessions);
-  } catch {
-    return [];
-  }
-  const ids = names
-    .filter((n) => n.endsWith('.json'))
-    .map((n) => n.slice(0, -'.json'.length))
-    .sort();
-
-  const purged: string[] = [];
-  for (const id of ids) {
-    const current = await readSession(dirs, id);
-    if (current !== undefined && now - current.lastEventAt > maxAgeMs) {
-      await removeSession(dirs, id);
-      purged.push(id);
-    }
-  }
-  return purged;
 }

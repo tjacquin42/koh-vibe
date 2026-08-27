@@ -5,8 +5,8 @@ import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
-import { SESSION_PURGE_MS } from '../store/staleness';
-import { ensureDirs, purgeStaleSessions, readSession, removeSession, writeSession } from './persist';
+import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession } from './persist';
+import { MAX_ENDED } from '../store/open';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
 
 export interface DrainResult {
@@ -16,9 +16,6 @@ export interface DrainResult {
    * place dans events/ pour un prochain drain, ni perdu ni classé invalide —
    * sauf s'il a dépassé MAX_EVENT_AGE_MS, voir `rejectedPermanently`. */
   deferred: number;
-  /** Sessions supprimées pour n'avoir reçu aucun événement depuis plus de
-   * `SESSION_PURGE_MS` (spec §5). */
-  purged: string[];
   /** Noms des événements écartés vers rejected/ pour avoir échoué alors
    * qu'ils avaient déjà dépassé MAX_EVENT_AGE_MS (N3) : sous-ensemble de ce
    * qui compte dans `rejected`, distingué pour que l'appelant puisse
@@ -33,6 +30,13 @@ export interface DrainResult {
  * archiving keep calling `drain` without it.
  */
 export type ArchiveClosed = (s: Session) => Promise<void>;
+
+/**
+ * What `SessionEnd` does to the row: `'keep'` marks it ended and leaves it in
+ * the list, greyed out; `'remove'` takes it away, as closing the tab used to.
+ * The user's "persistent sessions" setting, read by the watcher at every pass.
+ */
+export type EndPolicy = 'keep' | 'remove';
 
 /**
  * Au-delà de cet âge, un événement qui échoue encore n'est plus considéré
@@ -52,9 +56,7 @@ export type ArchiveClosed = (s: Session) => Promise<void>;
  * 5 minutes : très généreux comparé au temps d'un tick, même chargé (~30 s
  * au pire pour ~660 événements, voir GUARD_TIMEOUT_MS) — un événement qui
  * échoue encore après 5 minutes a déjà survécu à des dizaines de passages,
- * pas juste à un pic de charge. Et très en-dessous de l'échelle « oublié
- * pendant des heures » : rien à voir avec SESSION_PURGE_MS (24 h), qui
- * concerne l'absence totale d'événement, pas un échec actif et répété.
+ * pas juste à un pic de charge.
  */
 export const MAX_EVENT_AGE_MS = 5 * 60_000;
 
@@ -77,8 +79,11 @@ function eventTimestamp(name: string): number | undefined {
 }
 
 /**
- * Consomme tout le spool une fois, puis purge les sessions mortes depuis plus
- * de `SESSION_PURGE_MS`.
+ * Consomme tout le spool une fois. Rien ici ne retire une session pour son
+ * silence : un onglet laissé ouvert une journée reste une conversation. Seul
+ * l'utilisateur, qui ferme ou retire, la sort de la liste — et `SessionEnd`
+ * quand `endPolicy` vaut `'remove'` (réglage « sessions persistantes »
+ * décoché) ; sinon la conversation terminée reste, marquée `endedAt`.
  *
  * L'ordre est essentiel : on écrit l'état AVANT de supprimer l'événement. Une
  * autre fenêtre qui rate l'événement supprimé retrouve l'état dans sessions/ ;
@@ -107,6 +112,12 @@ export async function drain(
   now: number,
   signal?: AbandonSignal,
   archive?: ArchiveClosed,
+  endPolicy: EndPolicy = 'keep',
+  // Whether a conversation ever got a message. One that ends without a
+  // transcript never was one — Claude Code starts such a session for every
+  // panel it opens, and drops it moments later — so its row goes, whatever
+  // the policy, and the history never hears of it. Absent, every end counts.
+  hasTranscript?: (s: Session) => Promise<boolean>,
 ): Promise<DrainResult> {
   let names: string[] = [];
   try {
@@ -126,6 +137,7 @@ export async function drain(
   let applied = 0;
   let rejected = 0;
   let deferred = 0;
+  let endedOne = false;
   const rejectedPermanently: string[] = [];
 
   for (const name of files) {
@@ -157,26 +169,28 @@ export async function drain(
         // sera retraité. Rien d'autre ne peut plus être fait de sûr par
         // cette exécution : on arrête tout le drain, pas seulement cet
         // événement.
-        return { applied, rejected, deferred, purged: [], rejectedPermanently };
+        return { applied, rejected, deferred, rejectedPermanently };
       }
 
-      if (next === undefined) {
-        // Archive BEFORE deleting, for the same reason the state is written
-        // before the event is removed: whatever fails here leaves the event in
-        // place (it comes back through `deferred`, below), so nothing is lost.
-        // The other order would drop the conversation out of the view without
-        // it ever entering the history.
-        //
-        // `SessionEnd` only: it is the one event that means "this conversation
-        // is over". A session purged for staleness (`purgeStaleSessions`,
-        // below) was not closed, it was forgotten — and it does not come
-        // through here.
-        if (ev.event === 'SessionEnd' && current !== undefined && archive !== undefined) {
-          await archive(current);
-        }
+      // Archive BEFORE writing, for the same reason the state is written
+      // before the event is removed: whatever fails here leaves the event in
+      // place (it comes back through `deferred`, below), so nothing is lost.
+      //
+      // `SessionEnd` only: it is the one event that means "this conversation
+      // is over". Archived under both policies: the history is what the
+      // "Recently closed" view shows once the setting is turned off.
+      const ended = ev.event === 'SessionEnd';
+      const blank = ended && current !== undefined && hasTranscript !== undefined && !(await hasTranscript(current));
+      if (ended && current !== undefined && archive !== undefined && !blank) {
+        await archive(current);
+      }
+      if (next === undefined || blank || (ended && endPolicy === 'remove')) {
+        // `'remove'` takes the end at face value, late or not: the policy is
+        // "closing the tab takes the row away", and that is what it does.
         await removeSession(dirs, ev.sessionId);
       } else {
         await writeSession(dirs, next);
+        if (ended) endedOne = true;
       }
     } catch (err) {
       // Échec externe à cet événement précis (disque plein, sessions/ non
@@ -225,9 +239,11 @@ export async function drain(
     }
   }
 
-  const purged = await purgeStaleSessions(dirs, now, SESSION_PURGE_MS);
+  // Ended conversations are kept, up to a point: past MAX_ENDED the oldest
+  // goes. Only worth a look when this pass ended one.
+  if (endedOne) await capEndedSessions(dirs, MAX_ENDED);
 
-  return { applied, rejected, deferred, purged, rejectedPermanently };
+  return { applied, rejected, deferred, rejectedPermanently };
 }
 
 export interface LocalEventInput {
@@ -280,15 +296,18 @@ export class SpoolWatcher {
     private readonly dirs: SpoolDirs,
     private readonly onChange: (result: DrainResult) => void,
     private readonly onError: (err: unknown) => void,
-    // Horloge injectable : un test pilote le seuil de purge sans dépendre du
-    // vrai Date.now() (qui purgerait aussitôt des sessions de test dont les
-    // `at` sont de petits entiers). Le process long de l'extension garde le
+    // Horloge injectable : un test date ses événements de petits entiers sans
+    // dépendre du vrai Date.now(). Le process long de l'extension garde le
     // comportement par défaut.
     private readonly now: () => number = Date.now,
     // Required: this is the only production path into `drain`, so it is the
     // only place where forgetting it must be a compile error rather than a
     // silently empty history.
     private readonly archive: ArchiveClosed,
+    // Read at every pass, never captured: the setting is a shared file the
+    // user can flip at any time, in any window.
+    private readonly endPolicy: () => EndPolicy,
+    private readonly hasTranscript: (s: Session) => Promise<boolean>,
   ) {}
 
   start(): void {
@@ -318,7 +337,7 @@ export class SpoolWatcher {
 
   private tick(): Promise<void> {
     return this.guard.run(async (signal) => {
-      const res = await drain(this.dirs, this.now(), signal, this.archive);
+      const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy(), this.hasTranscript);
       if (res.rejectedPermanently.length > 0) {
         // Signalement dédié : drain() n'a pas échoué (les autres événements
         // se sont appliqués normalement), mais celui-ci a échoué alors qu'il
@@ -330,7 +349,7 @@ export class SpoolWatcher {
           ),
         );
       }
-      if (res.applied > 0 || res.purged.length > 0) this.onChange(res);
+      if (res.applied > 0) this.onChange(res);
     }, this.onError);
   }
 }

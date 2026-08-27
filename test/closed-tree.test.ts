@@ -14,6 +14,17 @@ const closed = (id: string, over: Partial<ClosedEntry> = {}): ClosedEntry => ({
 const ids = (tree: ClosedTree): string[] => tree.getChildren().map((n) => closedNodeId(n));
 
 describe('the recently closed view', () => {
+  it('shows a loading row until the first list arrives — an empty claim before that would be a guess', () => {
+    const tree = new ClosedTree();
+    expect(tree.getChildren().map((n) => n.kind)).toEqual(['loading']);
+    const item = tree.getTreeItem(tree.getChildren()[0]!);
+    expect(item.label).toBe('Loading…');
+    expect(item.iconPath).toMatchObject({ id: 'loading~spin' });
+    expect(item.command).toBeUndefined();
+    tree.setClosed([]);
+    expect(tree.getChildren().map((n) => n.kind)).toEqual(['empty']);
+  });
+
   it('says so, rather than showing nothing, while nothing has been closed', () => {
     const tree = new ClosedTree();
     tree.setClosed([]);
@@ -109,5 +120,31 @@ describe('the recently closed view', () => {
     expect(fired).toBe(1);
     tree.setClosed([closed('a', { title: 'Titre deux' })]);
     expect(fired).toBe(2);
+  });
+
+  it('spins on the row being brought back, takes no second click there, and redraws for it', () => {
+    const tree = new ClosedTree();
+    tree.setClosed([closed('a', { title: 'Titre' }), closed('b')]);
+    let fired = 0;
+    tree.onDidChangeTreeData(() => {
+      fired += 1;
+    });
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    const [a, b] = tree.getChildren();
+    const waiting = tree.getTreeItem(a!);
+    expect(waiting.iconPath).toMatchObject({ id: 'loading~spin' });
+    expect(waiting.description).toBe('reopening…');
+    // A second click started a second reopen — and a second tab.
+    expect(waiting.command).toBeUndefined();
+    const other = tree.getTreeItem(b!);
+    expect(other.iconPath).toMatchObject({ id: 'history' });
+    expect(other.command?.command).toBe('kohVibe.reopenSession');
+    // The same set again: nothing moved, nothing announced.
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    tree.setReopening(new Set());
+    expect(fired).toBe(2);
+    expect(tree.getTreeItem(tree.getChildren()[0]!).command?.command).toBe('kohVibe.reopenSession');
   });
 });

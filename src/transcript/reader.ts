@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises';
+import { isRecord } from '../lib/json';
 
 export interface TranscriptStats {
   offset: number;
@@ -9,8 +10,45 @@ export interface TranscriptStats {
   customTitle?: string;
   /** Dernier titre engendré par Claude. */
   aiTitle?: string;
-  /** Dérivé : `customTitle ?? aiTitle`. Le seul champ que l'affichage consomme. */
+  /** Le dernier prompt, tel que Claude Code le note (`last-prompt`). */
+  lastPrompt?: string;
+  /** Le dernier résumé de compaction (`summary`). */
+  summary?: string;
+  /** Le premier message de l'utilisateur, faute de tout le reste. */
+  firstPrompt?: string;
+  /**
+   * Dérivé — le seul champ que l'affichage consomme — par la règle de
+   * l'extension Claude Code elle-même pour nommer un onglet et lister les
+   * sessions : `customTitle ?? aiTitle ?? lastPrompt ?? summary ?? firstPrompt`.
+   * Un titre IA n'est pas engendré pour un échange trop court (« bonjour »),
+   * et l'onglet porte alors le prompt : la liste doit dire la même chose.
+   */
   title?: string;
+}
+
+/** What the tab shows of a prompt: its first line, whitespace folded, cut short. */
+const PROMPT_TITLE_MAX = 80;
+function promptTitle(v: unknown): string | undefined {
+  const t = text(v);
+  if (t === undefined) return undefined;
+  const line = (t.split('\n').find((l) => l.trim().length > 0) ?? '').replace(/\s+/g, ' ').trim();
+  if (line.length === 0) return undefined;
+  return line.length > PROMPT_TITLE_MAX ? `${line.slice(0, PROMPT_TITLE_MAX - 1)}…` : line;
+}
+
+/** The text of a user record's message — a string, or the text blocks of an array; never a tool result. */
+function userText(message: unknown): string | undefined {
+  if (!isRecord(message)) return undefined;
+  const content = message['content'];
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!isRecord(block)) continue;
+    if (block['type'] === 'tool_result') return undefined;
+    if (block['type'] === 'text' && typeof block['text'] === 'string') parts.push(block['text']);
+  }
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 const EMPTY: TranscriptStats = { offset: 0, input: 0, output: 0 };
@@ -23,10 +61,6 @@ function text(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
   return t.length > 0 ? t : undefined;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 /**
@@ -92,6 +126,15 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       } else if (type === 'ai-title') {
         const t = text(entry['aiTitle']);
         if (t !== undefined) stats.aiTitle = t;
+      } else if (type === 'last-prompt') {
+        const t = promptTitle(entry['lastPrompt']);
+        if (t !== undefined) stats.lastPrompt = t;
+      } else if (type === 'summary') {
+        const t = promptTitle(entry['summary']);
+        if (t !== undefined) stats.summary = t;
+      } else if (type === 'user' && stats.firstPrompt === undefined && entry['isMeta'] !== true && entry['isSidechain'] !== true) {
+        const t = promptTitle(userText(entry['message']));
+        if (t !== undefined) stats.firstPrompt = t;
       }
 
       if (type !== 'assistant') continue;
@@ -104,7 +147,7 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       stats.output += num(usage['output_tokens']);
     }
 
-    stats.title = stats.customTitle ?? stats.aiTitle;
+    stats.title = stats.customTitle ?? stats.aiTitle ?? stats.lastPrompt ?? stats.summary ?? stats.firstPrompt;
     return stats;
   } finally {
     await handle.close();

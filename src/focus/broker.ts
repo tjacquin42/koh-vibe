@@ -8,7 +8,7 @@ import type { Session } from '../events/types';
 import type { ClosedEntry } from '../closed/model';
 import { claims } from './claims';
 import { focusPlan, focusPlanFor, type FocusPlan } from './plan';
-import { reopenPlan } from '../closed/reopen';
+import { openResumeTerminal, reopenPlan } from '../closed/reopen';
 import { closePlan } from '../close/plan';
 import { sessionLabel } from '../ui/labels';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
@@ -54,10 +54,67 @@ export class FocusBroker {
   constructor(
     private readonly dirs: SpoolDirs,
     private readonly close: CloseHandlers,
+    // Whether Claude Code's session list, in THIS window, holds an id — see
+    // claude/listed.ts. Asked right before the editor command runs, here or in
+    // the window a request travels to: the answer depends on the window.
+    private readonly listed: (sessionId: string) => Promise<boolean>,
   ) {}
 
   private folders(): string[] {
     return (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  }
+
+  /**
+   * Writes one request file for another window to consume, and arms its
+   * fallback. The mechanism was inlined three times (focus, reopen, close);
+   * only the request PREFIX and what to do when NOBODY consumed it differ —
+   * each caller keeps that decision, documented at its call site.
+   *
+   * Temporary file then rename: another window woken by the same fs.watch
+   * must never read a partial file.
+   *
+   * A second click on the same session before the first fallback expires must
+   * not leave the first timer running untracked in `fallbacks`: `stop()`
+   * would only see the second, and the first could fire after the extension
+   * is disposed.
+   *
+   * Key: the request file name, never the session id alone. A focused session
+   * and a reopened conversation can share the same id — the file already
+   * tells them apart (`focus-` versus `reopen-`), and a `set` keyed by id
+   * would overwrite the other's entry.
+   */
+  private async postRequest(
+    prefix: 'focus' | 'reopen' | 'close',
+    s: { id: string; cwd: string; origin: unknown; label: string },
+    onUnconsumed: () => void | Promise<void>,
+  ): Promise<void> {
+    const seq = (this.requestSeq += 1);
+    const name = join(this.dirs.requests, `${prefix}-${s.id}.json`);
+    const tmp = join(this.dirs.requests, `.tmp-${prefix}-${s.id}-${process.pid}-${seq}`);
+    const body = JSON.stringify({
+      sessionId: s.id,
+      cwd: s.cwd,
+      label: s.label,
+      origin: s.origin,
+      at: Date.now(),
+    });
+    await writeFile(tmp, body, 'utf8');
+    await rename(tmp, name);
+
+    const existing = this.fallbacks.get(name);
+    if (existing !== undefined) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.fallbacks.delete(name);
+      void readFile(name, 'utf8').then(
+        async () => {
+          await unlink(name).catch(() => undefined);
+          await onUnconsumed();
+        },
+        () => undefined, // consommée : rien à faire
+      );
+    }, 2_000);
+    this.fallbacks.set(name, timer);
   }
 
   /** Demande le focus d'une session, où qu'elle vive. */
@@ -66,45 +123,10 @@ export class FocusBroker {
       await this.focusSession(focusPlanFor(s), 'focus');
       return;
     }
-    const seq = (this.requestSeq += 1);
-    const name = join(this.dirs.requests, `focus-${s.id}.json`);
-    const tmp = join(this.dirs.requests, `.tmp-${s.id}-${process.pid}-${seq}`);
-    const body = JSON.stringify({
-      sessionId: s.id,
-      cwd: s.cwd,
-      label: sessionLabel(s),
-      origin: s.origin,
-      at: Date.now(),
-    });
-    // Fichier temporaire puis renommage : une autre fenêtre réveillée par le
-    // même fs.watch ne doit jamais lire un fichier partiel.
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, name);
-
-    // Un second clic sur la même session avant l'expiration du premier repli
-    // ne doit pas laisser le premier minuteur courir sans plus être suivi
-    // dans `fallbacks` : `stop()` ne verrait plus que le second, et le
-    // premier pourrait lancer `code -r` après la libération de l'extension.
-    //
-    // Clé : le nom du fichier de requête, pas `s.id`. Une session focalisée
-    // et une conversation rouverte peuvent partager le même id — le fichier
-    // les distingue déjà (`focus-` contre `reopen-`), l'id seul ne le ferait
-    // pas et un `set` écraserait l'entrée de l'autre.
-    const existing = this.fallbacks.get(name);
-    if (existing !== undefined) clearTimeout(existing);
-
     // Si personne ne l'a consommée, aucune fenêtre ne détient ce projet : on l'ouvre.
-    const timer = setTimeout(() => {
-      this.fallbacks.delete(name);
-      void readFile(name, 'utf8').then(
-        async () => {
-          await unlink(name).catch(() => undefined);
-          execFile('code', ['-r', s.cwd], () => undefined);
-        },
-        () => undefined, // consommée : rien à faire
-      );
-    }, 2_000);
-    this.fallbacks.set(name, timer);
+    await this.postRequest('focus', { ...s, label: sessionLabel(s) }, () => {
+      execFile('code', ['-r', s.cwd], () => undefined);
+    });
   }
 
   /**
@@ -118,7 +140,9 @@ export class FocusBroker {
    * explicitly — and is handled by the caller, locally, before we are reached.
    */
   async requestReopen(entry: ClosedEntry): Promise<void> {
-    const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry));
+    const label = sessionLabel(entry);
+    // Sorting the origins only (`listed` is asked below, where it matters).
+    const plan = reopenPlan(entry.origin, entry.id, entry.cwd, label, true);
     if (plan.kind === 'terminal') {
       // The caller opens the terminal locally, before requestReopen is even
       // called: createTerminal takes the folder explicitly, so this branch
@@ -135,43 +159,23 @@ export class FocusBroker {
       return;
     }
     if (claims(this.folders(), entry.cwd)) {
-      // Only `command` reaches here now. Going through `focusSession` rather
-      // than calling `executeCommand` directly gives this local path the same
-      // one-time missing-command warning as the remote one below.
-      await this.focusSession(plan, 'reopen');
+      // The editor command only when this window's list holds the id: it
+      // would otherwise open a blank conversation. A terminal resumes it
+      // from anywhere. Going through `focusSession` rather than calling
+      // `executeCommand` directly gives this local path the same one-time
+      // missing-command warning as the remote one below.
+      const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, await this.listed(entry.id));
+      if (local.kind === 'terminal') openResumeTerminal(local);
+      else await this.focusSession(local, 'reopen');
       return;
     }
-    const seq = (this.requestSeq += 1);
-    const name = join(this.dirs.requests, `reopen-${entry.id}.json`);
-    const tmp = join(this.dirs.requests, `.tmp-reopen-${entry.id}-${process.pid}-${seq}`);
-    const body = JSON.stringify({
-      sessionId: entry.id,
-      cwd: entry.cwd,
-      label: sessionLabel(entry),
-      origin: entry.origin,
-      at: Date.now(),
+    // Fallback deliberately different from the focus one: NO `code -r`, which
+    // would lose the reopen itself. No window holds the project, so no tab
+    // can come back — but a terminal can, from here: `claude --resume` finds
+    // the conversation by its id whatever the folder.
+    await this.postRequest('reopen', { ...entry, label }, () => {
+      openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
     });
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, name);
-
-    // Fallback deliberately different from the focus one: NO `code -r`.
-    // Opening the window would lose the reopen itself — we say so, and do
-    // nothing else.
-    const existing = this.fallbacks.get(name);
-    if (existing !== undefined) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      this.fallbacks.delete(name);
-      void readFile(name, 'utf8').then(
-        async () => {
-          await unlink(name).catch(() => undefined);
-          void vscode.window.showInformationMessage(
-            vscode.l10n.t('Koh-Vibe: no window has {0} open — open it, then reopen the conversation.', entry.cwd),
-          );
-        },
-        () => undefined, // consommée : rien à faire
-      );
-    }, 2_000);
-    this.fallbacks.set(name, timer);
   }
 
   /**
@@ -189,36 +193,13 @@ export class FocusBroker {
       await this.close.closeHere(s.id);
       return;
     }
-    const seq = (this.requestSeq += 1);
-    const name = join(this.dirs.requests, `close-${s.id}.json`);
-    const tmp = join(this.dirs.requests, `.tmp-close-${s.id}-${process.pid}-${seq}`);
-    const body = JSON.stringify({
-      sessionId: s.id,
-      cwd: s.cwd,
-      label: sessionLabel(s),
-      origin: s.origin,
-      at: Date.now(),
-    });
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, name);
-
-    const existing = this.fallbacks.get(name);
-    if (existing !== undefined) clearTimeout(existing);
     // Fallback different from both others: no `code -r` (opening a window to
     // close a tab in it makes no sense) and no message. Nobody consumed the
     // request, so no window holds the project, so no tab can exist — which is
     // exactly the "no tab found" case, and its rule is to remove the row.
-    const timer = setTimeout(() => {
-      this.fallbacks.delete(name);
-      void readFile(name, 'utf8').then(
-        async () => {
-          await unlink(name).catch(() => undefined);
-          await this.close.forget(s.id).catch(() => undefined);
-        },
-        () => undefined, // consommée : rien à faire
-      );
-    }, 2_000);
-    this.fallbacks.set(name, timer);
+    await this.postRequest('close', { ...s, label: sessionLabel(s) }, () =>
+      this.close.forget(s.id).catch(() => undefined),
+    );
   }
 
   private async focusSession(plan: FocusPlan, gesture: 'focus' | 'reopen'): Promise<void> {
@@ -280,7 +261,7 @@ export class FocusBroker {
         if (this.consumeFailureWarned) return;
         this.consumeFailureWarned = true;
         void vscode.window.showWarningMessage(
-          'Koh-Vibe : la consommation des requêtes de focus a échoué — nouvelle tentative automatique.',
+          vscode.l10n.t('Koh-Vibe: consuming the focus requests failed — it will be retried.'),
         );
       },
     );
@@ -345,12 +326,18 @@ export class FocusBroker {
           continue;
         }
         const isReopen = name.startsWith('reopen-');
-        const plan = isReopen ? reopenPlan(origin, sessionId, cwd, label) : focusPlan(sessionId, origin, label);
+        const plan = isReopen
+          ? reopenPlan(origin, sessionId, cwd, label, await this.listed(sessionId))
+          : focusPlan(sessionId, origin, label);
         if (plan.kind === 'terminal') {
-          // A reopen request should never carry a terminal origin: that case
-          // is handled locally, without going through a file. Honouring this
-          // one would open a terminal in a window where the user asked for
-          // nothing.
+          // A reopen request never carries a terminal origin — that case is
+          // handled where the click happened, without a file — and a request
+          // that does is not honoured: it would open a terminal in a window
+          // where the user asked for nothing. An EDITOR conversation this
+          // window's list does not hold is different: this window holds its
+          // project, the user asked for it back, and the terminal is the only
+          // way to bring it back without starting a blank one.
+          if (isReopen && (origin === 'vscode' || origin === 'desktop')) openResumeTerminal(plan);
           continue;
         }
         // Une seule annonce, jamais deux qui se contrediraient : « demandée »

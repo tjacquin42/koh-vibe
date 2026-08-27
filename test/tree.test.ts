@@ -90,6 +90,29 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     expect(checkHooksInstalled).toHaveBeenCalledTimes(2);
   });
 
+  it("setHooksInstalled fait redessiner la ligne vide : une installation observée par le rendu se voit sans rechargement, même quand rien d'autre ne change", async () => {
+    const checkHooksInstalled = vi.fn().mockResolvedValue(false);
+    const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
+    let fired = 0;
+    tree.onDidChangeTreeData(() => {
+      fired += 1;
+    });
+
+    tree.setSessions(new Map());
+    expect(await bodyOf(tree)).toEqual([
+      { kind: 'empty', message: 'Hooks not installed — click to install them', action: 'install' },
+    ]);
+
+    const before = fired;
+    tree.setHooksInstalled(true);
+
+    // La valeur observée participe à la signature : le changement déclenche un
+    // redessin, et getChildren la consulte sans repasser par le vérificateur.
+    expect(fired).toBe(before + 1);
+    expect(await bodyOf(tree)).toEqual([{ kind: 'empty', message: 'No active Claude Code session' }]);
+    expect(checkHooksInstalled).toHaveBeenCalledTimes(1);
+  });
+
   it('ne consulte plus jamais les hooks une fois que des sessions apparaissent (le symptôme I5 disparaît par construction)', async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
@@ -144,7 +167,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
       }),
     );
 
-    expect(await labelsOf(tree)).toEqual(['Dossier unique', '', 'Unfiled']);
+    expect(await labelsOf(tree)).toEqual(['Dossier unique', '', 'Temporary sessions']);
   });
 
   it('« Sans dossier » disparaît quand toutes les sessions sont rangées', async () => {
@@ -169,7 +192,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
       }),
     );
 
-    expect(await labelsOf(tree)).toEqual(['Dossier vide', '', 'Unfiled']);
+    expect(await labelsOf(tree)).toEqual(['Dossier vide', '', 'Temporary sessions']);
 
     const [emptyGroupNode] = await tree.getChildren();
     expect(await labelsOf(tree, emptyGroupNode)).toEqual([]);
@@ -625,5 +648,38 @@ describe('identité des lignes — ce qui permet à une infobulle de survivre', 
     });
     const icon = item.iconPath as { id: string };
     expect(['folder', 'file']).not.toContain(icon.id);
+  });
+});
+
+// A greyed row a click is bringing back: the render loop settles it once the
+// conversation is open again; meanwhile the row must show the wait and take
+// no second click — a second click meant a second tab.
+describe('SessionsTree — a row being brought back', () => {
+  const checkHooksInstalled = vi.fn().mockResolvedValue(true);
+
+  it('spins in place of its dot, says so, takes no click, and redraws only when the set moves', async () => {
+    const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
+    tree.setSessions(new Map([['a', session('a', { endedAt: 1 })], ['b', session('b', { endedAt: 1 })]]));
+    let fired = 0;
+    tree.onDidChangeTreeData(() => {
+      fired += 1;
+    });
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    const [group] = await bodyOf(tree);
+    const rows = await tree.getChildren(group);
+    const items = rows.map((row) => tree.getTreeItem(row));
+    const byId = new Map(rows.map((row, i) => [nodeId(row), items[i]!]));
+    const a = byId.get('session:a')!;
+    const b = byId.get('session:b')!;
+    expect(a.iconPath).toMatchObject({ id: 'loading~spin' });
+    expect(a.description).toBe('reopening…');
+    expect(a.command).toBeUndefined();
+    expect(b.iconPath).not.toMatchObject({ id: 'loading~spin' });
+    expect(b.command?.command).toBe('kohVibe.focusSession');
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    tree.setReopening(new Set());
+    expect(fired).toBe(2);
   });
 });

@@ -1,4 +1,5 @@
 import { isValidSessionId } from '../events/parse';
+import { isRecord } from '../lib/json';
 import type { Origin } from '../events/types';
 
 /**
@@ -124,10 +125,6 @@ function cap(entries: readonly ClosedEntry[]): ClosedEntry[] {
     if (seen === undefined || e.closedAt > seen.closedAt) byId.set(e.id, e);
   }
   return [...byId.values()].sort((a, b) => b.closedAt - a.closedAt).slice(0, MAX_CLOSED);
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function text(v: unknown): string | undefined {

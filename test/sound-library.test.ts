@@ -72,10 +72,11 @@ describe('la bibliothèque proposée', () => {
     expect(librarySoundsDir('/racine')).not.toContain('Library');
   });
 
-  it('est cherchée en DERNIER, pour ne jamais supplanter un son de l utilisateur', () => {
-    const dirs = soundDirs('/racine');
-    expect(dirs[dirs.length - 1]).toBe(librarySoundsDir('/racine'));
-    expect(dirs.indexOf(join('/racine', 'sounds'))).toBeGreaterThan(dirs.findIndex((d) => d.includes('Library')));
+  it('passe APRÈS les dossiers de l utilisateur, pour ne jamais supplanter un de ses sons', () => {
+    // Elle ne ferme plus la marche : les deux sons du paquet la suivent, parce
+    // qu installer la bibliothèque est encore un choix, embarquer non.
+    const dirs = soundDirs('/racine', '/ext');
+    expect(dirs.indexOf(librarySoundsDir('/racine'))).toBeGreaterThan(dirs.findIndex((d) => d.includes('Library')));
   });
 });
 
@@ -155,3 +156,4 @@ describe('installedCount et removeLibrary', () => {
     expect(await removeLibrary(target)).toBe(0);
   });
 });
+

@@ -64,6 +64,36 @@ describe('resetText', () => {
 describe('usageHtml', () => {
   const now = 1_700_000_000_000;
 
+  const withModel = (name: string, percent: number, resetsAt?: number): UsageReading => ({
+    usage: parseUsage({
+      five_hour: { utilization: 30 },
+      seven_day: { utilization: 5 },
+      limits: [{ kind: 'weekly_scoped', percent, resets_at: resetsAt, scope: { model: { display_name: name } } }],
+    })!,
+    source: 'api',
+    at: now,
+  });
+
+  it('gives a model its own weekly row, under the two shared ones', () => {
+    const html = usageHtml(withModel('Fable', 13, Math.floor(now / 1000) + 86_400), now);
+    expect(html).toContain('<span class="kind">7 d Fable</span>');
+    expect(html).toContain(`<span class="pct" style="color:${percentColor(13)}">13 %</span>`);
+    expect(html).toContain('in 1 d');
+    expect(html.indexOf('7 d Fable')).toBeGreaterThan(html.indexOf('<span class="kind">7 d</span>'));
+  });
+
+  it('escapes the model name: it is data from the API, not a label of ours', () => {
+    expect(usageHtml(withModel('<b>x</b>', 1), now)).not.toContain('<b>x</b>');
+  });
+
+  it('gives every row the same three cells, so the grid stays aligned with or without a deadline', () => {
+    const html = usageHtml(withModel('Fable', 13), now);
+    const cells = (cls: string): number => html.split(`<span class="${cls}"`).length - 1;
+    expect(cells('kind')).toBe(3);
+    expect(cells('pct')).toBe(3);
+    expect(cells('reset')).toBe(3);
+  });
+
   it('donne à chaque fenêtre son nom, son pourcentage et son échéance', () => {
     const html = usageHtml(reading(30, 5, Math.floor(now / 1000) + 7200), now);
     expect(html).toContain('5 h');
@@ -97,9 +127,11 @@ describe('usageHtml', () => {
   });
 
   it('reste affichable sans aucune mesure, et propose de rafraîchir', () => {
+    // La source est l'anglais, comme partout : le message passe par
+    // vscode.l10n.t, et le bouchon de test rend la chaîne source telle quelle.
     const html = usageHtml(undefined, now);
-    expect(html).toContain('inconnue');
-    expect(html).toContain('rafraîchir');
+    expect(html).toContain('unknown');
+    expect(html).toContain('refresh');
   });
 
   it('échappe ce qui vient de l extérieur', () => {

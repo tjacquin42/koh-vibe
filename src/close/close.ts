@@ -43,7 +43,14 @@ export interface CloseHereDeps {
   read: (id: string) => Promise<Session | undefined>;
   closeTab: (id: string) => Promise<CloseOutcome>;
   archive: (s: Session) => Promise<void>;
+  /** Removes the row, closing nothing and archiving nothing — it may still run elsewhere. */
   forget: (id: string) => Promise<void>;
+  /**
+   * Removes the row for good: its tab was just closed. Not `forget`, which
+   * only hides an open row — and the `SessionEnd` the closed tab sends a
+   * moment later would lift that hiding, and the row would come back greyed.
+   */
+  remove: (id: string) => Promise<void>;
 }
 
 /**
@@ -71,6 +78,10 @@ export async function closeSessionHere(sessionId: string, deps: CloseHereDeps): 
     return;
   }
   const outcome = await deps.closeTab(sessionId);
-  if (outcome === 'closed') await deps.archive(s);
+  if (outcome === 'closed') {
+    await deps.archive(s);
+    await deps.remove(sessionId);
+    return;
+  }
   await deps.forget(sessionId);
 }

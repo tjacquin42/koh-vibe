@@ -78,9 +78,27 @@ describe('reduce', () => {
     expect(reduce(a, ev('Ack'))?.status).toBe('running');
   });
 
-  it('SessionEnd retire la session', () => {
+  it('SessionEnd garde la session, marquée terminée et à l arrêt', () => {
     const a = reduce(undefined, ev('SessionStart'));
-    expect(reduce(a, ev('SessionEnd'))).toBeUndefined();
+    const b = reduce(a, ev('SessionEnd'));
+    expect(b?.endedAt).toBe(b?.lastEventAt);
+    expect(b?.status).toBe('idle');
+  });
+
+  it('un hook en retard ne ressuscite pas une conversation terminée, mais garde ses effets cumulatifs', () => {
+    const a = reduce(undefined, ev('SessionStart'));
+    const ended = reduce(a, ev('SessionEnd'));
+    const stale = reduce(ended, ev('PostToolUse', { at: (ended?.lastEventAt ?? 0) - 5 }));
+    expect(stale?.endedAt).toBe(ended?.endedAt);
+    expect(stale?.toolCount).toBe(1);
+  });
+
+  it('un SessionEnd en retard ne termine pas une conversation qui a parlé depuis (jumeau dans un autre éditeur)', () => {
+    const a = reduce(undefined, ev('SessionStart'));
+    const b = reduce(a, ev('UserPromptSubmit'));
+    const c = reduce(b, ev('SessionEnd', { at: (b?.lastEventAt ?? 0) - 5 }));
+    expect(c).not.toHaveProperty('endedAt');
+    expect(c?.status).toBe('running');
   });
 
   it('un Ack sur une session absente ne crée rien : seul un événement de hook fait naître une session', () => {
