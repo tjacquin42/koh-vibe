@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { spoolDirs, type SpoolDirs } from '../src/paths';
 import {
+  createSession,
   ensureDirs,
   purgeStaleSessions,
   readSession,
@@ -118,6 +119,21 @@ describe('persist', () => {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(join(dirs.sessions, 'casse.json'), '{ pas du json');
       expect(await readSession(dirs, 'casse')).toBeUndefined();
+    });
+  });
+
+  describe('createSession', () => {
+    it('writes a session that was absent, and says so', async () => {
+      expect(await createSession(dirs, session('a'))).toBe(true);
+      expect(await readSession(dirs, 'a')).toEqual(session('a'));
+      expect(readdirSync(dirs.sessions).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
+    });
+
+    it('never overwrites a session that exists, however it got there', async () => {
+      await writeSession(dirs, { ...session('a'), toolCount: 9 });
+      expect(await createSession(dirs, session('a'))).toBe(false);
+      expect((await readSession(dirs, 'a'))?.toolCount).toBe(9);
+      expect(readdirSync(dirs.sessions).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
     });
   });
 

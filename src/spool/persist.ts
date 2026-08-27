@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Origin, Session, Status } from '../events/types';
@@ -50,6 +50,33 @@ export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
   await writeFile(tmp, JSON.stringify(s), 'utf8');
   await rename(tmp, target);
+}
+
+/**
+ * Writes a session ONLY if none exists under that id, and says whether it did.
+ *
+ * `writeSession` replaces; this one refuses. It is what a rescan needs: the
+ * file may appear between "is it there?" and "then write it" — a drain in
+ * another window reducing a hook of that very session — and replacing it
+ * would trade a real state (running, seven tools in) for an idle skeleton.
+ * `link` is the atomic exclusive create: the target either appears complete
+ * or not at all, and EEXIST is the honest answer rather than an error. The
+ * temporary file is removed either way.
+ */
+export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolean> {
+  const seq = (writeSessionSeq += 1);
+  const target = join(dirs.sessions, `${s.id}.json`);
+  const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
+  await writeFile(tmp, JSON.stringify(s), 'utf8');
+  try {
+    await link(tmp, target);
+    return true;
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return false;
+    throw err;
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
 }
 
 export async function removeSession(dirs: SpoolDirs, id: string): Promise<void> {

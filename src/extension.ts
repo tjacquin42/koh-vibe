@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
+import { rescanLiveSessions } from './claude/rescan';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
@@ -44,6 +45,15 @@ import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
 
 const REFRESH_MS = 2_000;
+/**
+ * A second look at the registry after activation. When the editor starts,
+ * Claude Code restores its tabs and spawns their processes over several
+ * seconds, and the first look — taken before the first render — may run
+ * before the last of them is listed. Long enough to cover a slow start,
+ * short enough that a conversation removed from the list on purpose is not
+ * brought back a minute later.
+ */
+const RESCAN_LATE_MS = 20_000;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
@@ -56,8 +66,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const closedPath = closedFile(home);
   // Claude Code's registry of running processes (`~/.claude/sessions/`): the
   // only source saying that a conversation is alive when its hooks are silent.
-  const registryDir = claudeSessionsDir(claudeHome());
+  const claudeRoot = claudeHome();
+  const registryDir = claudeSessionsDir(claudeRoot);
   const liveSessionIds = async (): Promise<ReadonlySet<string>> => new Set((await readLiveSessions(registryDir)).keys());
+  /**
+   * Brings back the conversations whose process runs but whose state file is
+   * gone (see claude/rescan.ts). Never fails a refresh: the registry is a
+   * convenience over the hooks, and an unreadable one simply brings nothing
+   * back.
+   */
+  const rescan = async (): Promise<string[]> => {
+    try {
+      return await rescanLiveSessions(dirs, await readLiveSessions(registryDir), Date.now(), claudeRoot);
+    } catch {
+      return [];
+    }
+  };
   await ensureDirs(dirs);
   if (migrated === 'migrated') {
     void vscode.window.showInformationMessage(
@@ -412,6 +436,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   const ticker = setInterval(() => void render(), REFRESH_MS);
+  const lateRescan = setTimeout(() => {
+    void rescan().then((added) => {
+      if (added.length > 0) void render();
+    });
+  }, RESCAN_LATE_MS);
 
   // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
   // avoir n'importe quel répertoire courant, le script n'en dépend pas.
@@ -425,7 +454,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => watcher.stop() },
     { dispose: () => broker.stop() },
     { dispose: () => clearInterval(ticker) },
-    vscode.commands.registerCommand('kohVibe.refresh', () => void render()),
+    { dispose: () => clearTimeout(lateRescan) },
+    // Refresh does two things: it brings back every live conversation the
+    // spool has lost, then renders. It says so only when it found something —
+    // a refresh that changes nothing has nothing to announce.
+    vscode.commands.registerCommand('kohVibe.refresh', async () => {
+      const added = await rescan();
+      await render();
+      if (added.length === 0) return;
+      void vscode.window.showInformationMessage(
+        added.length === 1
+          ? vscode.l10n.t('Koh-Vibe: one conversation found again')
+          : vscode.l10n.t('Koh-Vibe: {0} conversations found again', added.length),
+      );
+    }),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
       // Le clic acquitte inconditionnellement (spec §5 : « clic sur la
       // session »), indépendamment de claims() — qui ne gouverne que
@@ -674,7 +716,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      *
      * Ne tue rien : Claude Code tourne dans son terminal, et cette extension
      * n'en connaît que les traces. Une session ENCORE VIVANTE réapparaîtra donc
-     * à son prochain événement — c'est voulu, et le libellé du menu le dit
+     * à son prochain événement — ou au prochain Rafraîchir, qui relit le
+     * registre des processus. C'est voulu, et le libellé du menu le dit
      * (« retirer de la liste », pas « fermer »), plutôt que de laisser croire à
      * un arrêt qui n'a pas eu lieu.
      */
@@ -719,6 +762,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ses propres réglages. Le premier démarré fixe la valeur ; les suivants la
   // lisent — voir seedSettings, qui ne réécrit jamais un fichier présent.
   await seedSettings(settingsPath, legacySettings);
+  // Before the first render, so that a conversation lost while this window was
+  // away — purged, or the extension reloaded — is back on screen at once.
+  await rescan();
   await render();
 }
 
