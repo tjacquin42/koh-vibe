@@ -1,5 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { isRecord } from '../lib/json';
 import { isValidSessionId } from '../events/parse';
 import { transcriptPathFor } from './rescan';
@@ -41,6 +43,28 @@ export function listingFolder(folders: readonly string[], home: string = homedir
     // Keep the path as given: a folder that cannot be resolved lists nothing anyway.
   }
   return real.normalize('NFC');
+}
+
+/**
+ * The transcript of a conversation, wherever Claude Code filed it — under the
+ * project it was launched from, or wherever it was moved since. `undefined`
+ * when none exists: a session that never got a message writes no transcript,
+ * and there is nothing to resume in it. Never throws.
+ */
+export async function findTranscript(claudeHome: string, sessionId: string): Promise<string | undefined> {
+  if (!isValidSessionId(sessionId)) return undefined;
+  const projects = join(claudeHome, 'projects');
+  let dirs: string[];
+  try {
+    dirs = await readdir(projects);
+  } catch {
+    return undefined;
+  }
+  for (const dir of dirs) {
+    const path = join(projects, dir, `${sessionId}.jsonl`);
+    if (existsSync(path)) return path;
+  }
+  return undefined;
 }
 
 /**

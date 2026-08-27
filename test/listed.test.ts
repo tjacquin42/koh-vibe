@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CLAUDE_STATE_KEY, listingFolder, parseHiddenSessionIds, sessionListedIn } from '../src/claude/listed';
+import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from '../src/claude/listed';
 import { transcriptPathFor } from '../src/claude/rescan';
 
 const ID = '9734f15a-0f40-47b1-aca4-290f307cfe0f';
@@ -70,5 +70,29 @@ describe('sessionListedIn — would the editor command resume it, or start a bla
 
   it('is false for an id the user hid, transcript or not', () => {
     expect(sessionListedIn(home, '/Users/dev/projet', ID, new Set([ID]), () => true)).toBe(false);
+  });
+});
+
+describe('findTranscript — wherever Claude Code filed the conversation', () => {
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'koh-claude-'));
+  });
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('finds it under any project directory, and not at all when it was never written', async () => {
+    mkdirSync(join(home, 'projects', '-Users-dev-projet'), { recursive: true });
+    mkdirSync(join(home, 'projects', '-Users-dev-autre'), { recursive: true });
+    const path = join(home, 'projects', '-Users-dev-autre', `${ID}.jsonl`);
+    writeFileSync(path, '', 'utf8');
+    expect(await findTranscript(home, ID)).toBe(path);
+    expect(await findTranscript(home, OTHER)).toBeUndefined();
+  });
+
+  it('answers nothing for a home without projects, and for an id that is no id', async () => {
+    expect(await findTranscript(join(home, 'absent'), ID)).toBeUndefined();
+    expect(await findTranscript(home, '../etc')).toBeUndefined();
   });
 });

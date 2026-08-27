@@ -30,7 +30,8 @@ and the hook bridges are zsh scripts.
   you close yourself. A restored tab is closed in place, without being opened. When no tab is
   found — a conversation running in a terminal, in the Claude desktop app, or in a project no
   window has open — the row is simply removed from the list. On a greyed row, the icon removes
-  it for good.
+  it for good. A conversation that ends before its first message — Claude Code starts one for
+  every panel it opens — leaves no row and no history: there is nothing to come back to.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.

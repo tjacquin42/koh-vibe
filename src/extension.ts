@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -7,7 +8,7 @@ import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, leg
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
-import { CLAUDE_STATE_KEY, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
+import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
 import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
@@ -163,10 +164,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * fails: the registry and the editor's memory are conveniences over the
    * hooks, and an unreadable one simply brings nothing back.
    */
+  /**
+   * Whether a conversation ever got a message. Claude Code writes the
+   * transcript on the first one; a session that ends without it never was a
+   * conversation — it starts one for every panel it opens, and drops it
+   * moments later. The hook's path first, then wherever the file was moved.
+   */
+  const hasTranscript = async (s: Session): Promise<boolean> =>
+    (s.transcriptPath !== undefined && existsSync(s.transcriptPath)) || (await findTranscript(claudeRoot, s.id)) !== undefined;
   const rescan = async (): Promise<string[]> => {
     try {
       const live = await readLiveSessions(registryDir);
       const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot);
+      // An ended row with nothing to resume — a conversation that never got a
+      // message — has no business on screen (see the watcher's `hasTranscript`).
+      for (const s of (await readSessions(dirs)).values()) {
+        if (s.endedAt !== undefined && !(await hasTranscript(s))) await removeSession(dirs, s.id);
+      }
       await refreshDormant(live);
       return added;
     } catch {
@@ -527,7 +541,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * the trash: two divergent archiving paths would silently lose the title on
    * one of them.
    */
-  const archive = (s: Session): Promise<void> => {
+  const archive = async (s: Session): Promise<void> => {
+    // A conversation that never got a message has nothing to come back to.
+    if (!(await hasTranscript(s))) return;
     const stats = transcripts.get(s.id);
     const source = { ...s, title: s.title ?? stats?.title, branch: s.branch ?? stats?.branch };
     return rememberClosed(closedPath, toClosedEntry(source, Date.now())).then(() => undefined);
@@ -606,6 +622,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     archive,
     // What `SessionEnd` does to the row, per the setting as last read.
     () => (sound.persistent ? 'keep' : 'remove'),
+    hasTranscript,
   );
   watcher.start();
   broker.start();
@@ -688,7 +705,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // decision the closed history used (closed/reopen.ts) — a tab in the
       // window that holds the project, a terminal, or an explanation.
       if (s.endedAt !== undefined) {
-        void reopenClosedSession(toClosedEntry(s, s.endedAt), (e) => broker.requestReopen(e));
+        const endedAt = s.endedAt;
+        void hasTranscript(s).then((has) => {
+          if (has) return reopenClosedSession(toClosedEntry(s, endedAt), (e) => broker.requestReopen(e));
+          // Nothing to resume: the row should not even be here (rescan drops such rows).
+          void vscode.window.showInformationMessage(
+            vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
+          );
+          return remove(s.id);
+        });
         return;
       }
       // Le clic acquitte inconditionnellement (spec §5 : « clic sur la

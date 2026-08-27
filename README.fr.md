@@ -31,7 +31,9 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
   les onglets que vous fermez vous-même. Un onglet restauré est fermé sur place, sans être
   ouvert. Quand aucun onglet n'est trouvé — une conversation dans un terminal, dans
   l'application de bureau Claude, ou dans un projet qu'aucune fenêtre n'a ouvert — la ligne
-  est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon.
+  est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon. Une
+  conversation qui se termine avant son premier message — Claude Code en démarre une pour chaque
+  panneau qu'il ouvre — ne laisse ni ligne ni historique : il n'y a rien où revenir.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une

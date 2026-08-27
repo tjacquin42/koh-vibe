@@ -113,6 +113,11 @@ export async function drain(
   signal?: AbandonSignal,
   archive?: ArchiveClosed,
   endPolicy: EndPolicy = 'keep',
+  // Whether a conversation ever got a message. One that ends without a
+  // transcript never was one — Claude Code starts such a session for every
+  // panel it opens, and drops it moments later — so its row goes, whatever
+  // the policy, and the history never hears of it. Absent, every end counts.
+  hasTranscript?: (s: Session) => Promise<boolean>,
 ): Promise<DrainResult> {
   let names: string[] = [];
   try {
@@ -175,10 +180,11 @@ export async function drain(
       // is over". Archived under both policies: the history is what the
       // "Recently closed" view shows once the setting is turned off.
       const ended = ev.event === 'SessionEnd';
-      if (ended && current !== undefined && archive !== undefined) {
+      const blank = ended && current !== undefined && hasTranscript !== undefined && !(await hasTranscript(current));
+      if (ended && current !== undefined && archive !== undefined && !blank) {
         await archive(current);
       }
-      if (next === undefined || (ended && endPolicy === 'remove')) {
+      if (next === undefined || blank || (ended && endPolicy === 'remove')) {
         // `'remove'` takes the end at face value, late or not: the policy is
         // "closing the tab takes the row away", and that is what it does.
         await removeSession(dirs, ev.sessionId);
@@ -301,6 +307,7 @@ export class SpoolWatcher {
     // Read at every pass, never captured: the setting is a shared file the
     // user can flip at any time, in any window.
     private readonly endPolicy: () => EndPolicy,
+    private readonly hasTranscript: (s: Session) => Promise<boolean>,
   ) {}
 
   start(): void {
@@ -330,7 +337,7 @@ export class SpoolWatcher {
 
   private tick(): Promise<void> {
     return this.guard.run(async (signal) => {
-      const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy());
+      const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy(), this.hasTranscript);
       if (res.rejectedPermanently.length > 0) {
         // Signalement dédié : drain() n'a pas échoué (les autres événements
         // se sont appliqués normalement), mais celui-ci a échoué alors qu'il
