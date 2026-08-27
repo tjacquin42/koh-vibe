@@ -163,7 +163,7 @@ dossier où elle était rangée. La même passe tourne à l'ouverture de la fen�
 secondes après qu'une conversation a disparu alors que son processus vit encore — la même
 conversation ouverte dans deux éditeurs, dont l'un se ferme — avec une icône qui tourne à la
 place du bouton pendant ce temps. Les onglets restaurés par l'éditeur mais jamais rouverts
-s'affichent « onglet non démarré » : un clic les réveille. « Retirer de la liste » masque une
+s'affichent « onglet en veille » : l'éditeur ne résout que l'onglet actif, donc aucun processus Claude Code ne tourne derrière les autres tant qu'ils ne sont pas affichés. Un clic en réveille un ; le bouton ▷ du titre de la vue les réveille tous, en fermant au passage les onglets en double d'une même conversation. « Retirer de la liste » masque une
 conversation jusqu'à sa prochaine activité.
 
 La consommation vient de l'API d'Anthropic, interrogée au plus une fois toutes les cinq

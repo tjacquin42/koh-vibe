@@ -8,7 +8,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal';
+import { locateClaudeTab, positionsOf, revealTabAt, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
@@ -107,6 +107,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Every Claude tab of the memento, by session: where a restored tab sits,
   // so that a click brings THAT tab to the front (claude/reveal.ts).
   const dormantTabs = new Map<string, ClaudeTab>();
+  let hasDormant: boolean | undefined;
   const refreshDormant = async (live: ReadonlyMap<string, unknown>): Promise<void> => {
     dormant.clear();
     dormantTabs.clear();
@@ -145,6 +146,57 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const revealSessionTab = async (id: string): Promise<boolean> => {
     const found = locateSessionTab(id);
     return found !== undefined && (await revealTabAt(found.pos));
+  };
+  /** Long enough for a revealed webview to resolve before the next one takes the front. */
+  const WAKE_STEP_MS = 400;
+  const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+  /**
+   * Wakes every tab asleep in this window: each is brought to the front once,
+   * which is what makes the editor resolve its webview and Claude Code resume
+   * its conversation — the only way, after a window reload, to get the
+   * sessions back as they were: the editor resolves the active tab alone.
+   * The duplicates of one conversation (the tabs the editor command used to
+   * open) are closed first, the first one kept: waking two would start two
+   * processes on one conversation. Ends back on the tab the user was on.
+   */
+  const wakeTabs = async (): Promise<void> => {
+    const groups = (): readonly vscode.TabGroup[] => vscode.window.tabGroups.all;
+    const activeGroup = groups().indexOf(vscode.window.tabGroups.activeTabGroup);
+    const activeLabel = vscode.window.tabGroups.activeTabGroup.activeTab?.label;
+    if (dormant.size === 0) {
+      void vscode.window.showInformationMessage(vscode.l10n.t('Koh-Vibe: no tab asleep in this window'));
+      return;
+    }
+    let woken = 0;
+    let closed = 0;
+    let missed = 0;
+    for (const id of [...dormant.keys()]) {
+      const [, ...extras] = positionsOf(groups(), mementoTabs, id);
+      // Highest positions first: closing one shifts everything after it.
+      for (const pos of extras.reverse()) {
+        const tab = groups()[pos.group]?.tabs[pos.index];
+        if (tab !== undefined && (await vscode.window.tabGroups.close(tab))) closed += 1;
+      }
+      // Located again: the closes above moved the survivor.
+      const first = positionsOf(groups(), mementoTabs, id)[0];
+      if (first === undefined) {
+        missed += 1;
+        continue;
+      }
+      if (await revealTabAt(first)) {
+        woken += 1;
+        await wait(WAKE_STEP_MS);
+      }
+    }
+    const back = groups()[activeGroup];
+    const index = back === undefined || activeLabel === undefined ? -1 : back.tabs.findIndex((t) => t.label === activeLabel);
+    if (index >= 0) await revealTabAt({ group: activeGroup, index });
+    void vscode.window.showInformationMessage(
+      missed > 0
+        ? vscode.l10n.t('Koh-Vibe: {0} tabs woken, {1} duplicate tabs closed, {2} not found', woken, closed, missed)
+        : vscode.l10n.t('Koh-Vibe: {0} tabs woken, {1} duplicate tabs closed', woken, closed),
+    );
+    await refreshAll();
   };
   /**
    * Whether Claude Code's session list, in this window, holds the id — i.e.
@@ -421,6 +473,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // What the tab bar shows and the spool does not: this window's dormant
         // tabs — over an ended row, never over an open one (mergeDormant).
         mergeDormant(map, dormant.values());
+        // The wake button shows only while there is something to wake.
+        if (hasDormant !== dormant.size > 0) {
+          hasDormant = dormant.size > 0;
+          void vscode.commands.executeCommand('setContext', 'kohVibe.hasDormant', hasDormant);
+        }
         // A conversation leaving the list while its process still runs comes
         // back a few seconds later (store/vanish.ts).
         vanish.observe(openSessions(map).keys());
@@ -667,6 +724,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // command because a title button has to be one; it does nothing on
     // purpose, and package.json keeps it disabled.
     vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
+    vscode.commands.registerCommand('kohVibe.wakeTabs', () => wakeTabs()),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
       // A restored tab is right there in the tab bar: bring it to the front.
       // Only when it cannot be told apart does the Claude Code command take

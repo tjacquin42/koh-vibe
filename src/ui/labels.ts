@@ -84,7 +84,7 @@ export function sessionLabel(s: Pick<Session, 'title' | 'branch' | 'project'>): 
 export function sessionDescription(s: Session, now: number): string {
   // A dormant tab has no age worth counting: nothing has happened in it since
   // the editor restored it, and "20 000 h" would say the opposite.
-  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab not started')}`;
+  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab asleep')}`;
   // An ended one says when it closed, as the closed history always did —
   // before anything else: nothing runs behind it, whatever the row still
   // carries from before its end.
@@ -108,7 +108,9 @@ export function sessionTooltip(s: Session, now: number): string {
   if (s.endedAt !== undefined) return closedTooltip(toClosedEntry(s, s.endedAt), now);
   const lines = [
     projectAndBranch(s, ' / '),
-    s.dormant === true ? vscode.l10n.t('tab not started') : `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,
+    s.dormant === true
+      ? vscode.l10n.t('tab asleep: restored by the editor, no Claude Code process until it is shown — click to wake it')
+      : `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,
     vscode.l10n.t('origin: {0}', s.origin),
     // Two strings rather than one with a suffix: no European language builds a
     // plural by appending a letter, and several do not build one at all.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locateClaudeTab, revealTabAt, type GroupLike, type MementoTab } from '../src/claude/reveal';
+import { locateClaudeTab, positionsOf, revealTabAt, type GroupLike, type MementoTab } from '../src/claude/reveal';
 import { TabInputWebview } from './stubs/vscode';
 
 const claude = (label: string): { label: string; input: unknown } => ({ label, input: new TabInputWebview('mainThreadWebview-claudeVSCodePanel') });
@@ -63,5 +63,31 @@ describe('revealTabAt — the workbench commands that bring a tab to the front',
     const calls: unknown[][] = [];
     expect(await revealTabAt({ group: 8, index: 0 }, async (...a) => void calls.push(a))).toBe(false);
     expect(calls).toEqual([]);
+  });
+});
+
+describe('positionsOf — every tab of one session, duplicates included', () => {
+  const groups: GroupLike[] = [
+    { tabs: [file('a.ts'), claude('Telegram Alert'), claude('Claude Code'), claude('Telegram Alert')] },
+    { tabs: [claude('Claude Code')] },
+  ];
+
+  it('finds every live tab of a title the memento gives to this session alone, wherever they moved', () => {
+    const memento: MementoTab[] = [{ sessionId: 'S', group: 0, index: 1, title: 'Telegram Alert' }];
+    expect(positionsOf(groups, memento, 'S')).toEqual([{ group: 0, index: 1 }, { group: 0, index: 3 }]);
+  });
+
+  it('trusts only the memento positions for a title two sessions share', () => {
+    const memento: MementoTab[] = [
+      { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' },
+      { sessionId: 'T', group: 1, index: 0, title: 'Claude Code' },
+      { sessionId: 'S', group: 1, index: 5, title: 'Claude Code' },
+    ];
+    expect(positionsOf(groups, memento, 'S')).toEqual([{ group: 0, index: 2 }]);
+    expect(positionsOf(groups, memento, 'T')).toEqual([{ group: 1, index: 0 }]);
+  });
+
+  it('knows nothing of a session the memento never saw', () => {
+    expect(positionsOf(groups, [], 'S')).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@
   "command.kohVibe.rescanning.title": "Rafraîchissement…",
   "command.kohVibe.reopenSession.title": "Rouvrir la conversation",
   "command.kohVibe.toggleSetting.title": "Basculer un réglage",
+  "command.kohVibe.wakeTabs.title": "Réveiller les onglets en veille",
   "command.kohVibe.focusSession.title": "Aller à la session",
   "command.kohVibe.installHooks.title": "Installer les hooks",
   "command.kohVibe.uninstallHooks.title": "Désinstaller les hooks",
