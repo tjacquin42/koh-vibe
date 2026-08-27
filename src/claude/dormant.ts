@@ -7,6 +7,10 @@ import { isValidSessionId } from '../events/parse';
 export interface ClaudeTab {
   sessionId: string;
   title: string;
+  /** The editor group's rank in the grid — left to right, top to bottom — as `tabGroups.all` orders them. */
+  group: number;
+  /** The tab's index in that group. */
+  index: number;
 }
 
 const WEBVIEW_INPUT = 'workbench.editors.webviewInput';
@@ -40,15 +44,24 @@ function parseJson(raw: unknown): unknown {
 export function parseEditorMemento(raw: string): ClaudeTab[] {
   const root = parseJson(raw);
   const out: ClaudeTab[] = [];
+  // Leaves are met in grid order, which is the order of `tabGroups.all` and
+  // of the view columns: the rank is what lets a tab be found again.
+  let group = 0;
   const walk = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (const item of node) walk(item);
       return;
     }
     if (!isRecord(node)) return;
-    if (node['id'] === WEBVIEW_INPUT) {
-      const tab = claudeTabOf(parseJson(node['value']));
-      if (tab !== undefined) out.push(tab);
+    const data = node['data'];
+    if (node['type'] === 'leaf' && isRecord(data) && Array.isArray(data['editors'])) {
+      const rank = group;
+      group += 1;
+      data['editors'].forEach((editor: unknown, index: number) => {
+        if (!isRecord(editor) || editor['id'] !== WEBVIEW_INPUT) return;
+        const tab = claudeTabOf(parseJson(editor['value']), rank, index);
+        if (tab !== undefined) out.push(tab);
+      });
       return;
     }
     for (const value of Object.values(node)) walk(value);
@@ -57,14 +70,14 @@ export function parseEditorMemento(raw: string): ClaudeTab[] {
   return out;
 }
 
-function claudeTabOf(value: unknown): ClaudeTab | undefined {
+function claudeTabOf(value: unknown, group: number, index: number): ClaudeTab | undefined {
   if (!isRecord(value) || value['providedId'] !== CLAUDE_PANEL) return undefined;
   const state = parseJson(value['state']);
   if (!isRecord(state)) return undefined;
   const sessionId = state['sessionID'];
   const title = value['title'];
   if (typeof sessionId !== 'string' || !isValidSessionId(sessionId)) return undefined;
-  return { sessionId, title: typeof title === 'string' ? title : '' };
+  return { sessionId, title: typeof title === 'string' ? title : '', group, index };
 }
 
 /**
@@ -75,10 +88,20 @@ function claudeTabOf(value: unknown): ClaudeTab | undefined {
  * nothing to report. `execFile`, never `exec`: the path never crosses a shell.
  */
 export function readEditorMemento(stateDb: string): Promise<string | undefined> {
+  return readStateItem(stateDb, MEMENTO_KEY);
+}
+
+/**
+ * One value of the editor's state database, by key — the memento above, or an
+ * extension's global state (`claude/listed.ts`). Keys come from this code,
+ * never from the outside, and are checked all the same before they meet SQL.
+ */
+export function readStateItem(stateDb: string, key: string): Promise<string | undefined> {
+  if (!/^[A-Za-z0-9./_-]+$/.test(key)) return Promise.resolve(undefined);
   return new Promise((resolve) => {
     execFile(
       '/usr/bin/sqlite3',
-      ['-readonly', stateDb, `select value from ItemTable where key='${MEMENTO_KEY}'`],
+      ['-readonly', stateDb, `select value from ItemTable where key='${key}'`],
       { maxBuffer: 64 * 1024 * 1024 },
       (err, stdout) => {
         if (err) return resolve(undefined);
@@ -103,6 +126,30 @@ export function readEditorMemento(stateDb: string): Promise<string | undefined> 
  * Dated zero on purpose: nothing has happened, and the labels say "tab not
  * started" instead of an age. It also sorts the dormant rows last.
  */
+/**
+ * Lays this window's dormant tabs over the sessions on disk. An unknown one is
+ * added. A known one that has ENDED is shown as dormant instead: its tab is
+ * right there in the tab bar — the editor restored it and nobody has opened it
+ * since — so it is a conversation to wake, not a closed one. The row keeps
+ * everything the file knows (folder, title, counters); only its end goes,
+ * for this window and this render. An open one is left alone: a process is
+ * the truth about a conversation, a tab is only its promise.
+ */
+export function mergeDormant(map: Map<string, Session>, dormant: Iterable<Session>): void {
+  for (const d of dormant) {
+    const cur = map.get(d.id);
+    if (cur === undefined) {
+      map.set(d.id, d);
+      continue;
+    }
+    if (cur.endedAt === undefined) continue;
+    const { endedAt: _over, ...rest } = cur;
+    const next: Session = { ...rest, status: 'idle', dormant: true };
+    if (next.title === undefined && d.title !== undefined) next.title = d.title;
+    map.set(d.id, next);
+  }
+}
+
 export function dormantSessions(
   tabs: readonly ClaudeTab[],
   liveLabels: ReadonlySet<string>,

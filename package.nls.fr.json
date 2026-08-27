@@ -3,7 +3,7 @@
   "command.kohVibe.refresh.title": "Rafraîchir",
   "command.kohVibe.rescanning.title": "Rafraîchissement…",
   "command.kohVibe.reopenSession.title": "Rouvrir la conversation",
-  "command.kohVibe.togglePersistentSessions.title": "Basculer les sessions persistantes",
+  "command.kohVibe.toggleSetting.title": "Basculer un réglage",
   "command.kohVibe.focusSession.title": "Aller à la session",
   "command.kohVibe.installHooks.title": "Installer les hooks",
   "command.kohVibe.uninstallHooks.title": "Désinstaller les hooks",

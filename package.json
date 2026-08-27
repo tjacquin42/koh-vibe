@@ -26,7 +26,7 @@
     "views": {
       "koh-vibe": [
         { "id": "kohVibe.sessions", "name": "%view.kohVibe.sessions.name%", "icon": "resources/logo-mono.svg", "initialSize": 20 },
-        { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed", "when": "!kohVibe.persistentSessions" },
+        { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
         { "id": "kohVibe.usage", "name": "%view.kohVibe.usage.name%", "type": "webview", "icon": "resources/logo-mono.svg", "initialSize": 3 },
         { "id": "kohVibe.settings", "name": "%view.kohVibe.settings.name%", "icon": "resources/logo-mono.svg", "initialSize": 4 }
       ]
@@ -36,7 +36,7 @@
       { "command": "kohVibe.rescanning", "title": "%command.kohVibe.rescanning.title%", "category": "Koh-Vibe", "icon": "$(sync~spin)", "enablement": "false" },
       { "command": "kohVibe.focusSession", "title": "%command.kohVibe.focusSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.reopenSession", "title": "%command.kohVibe.reopenSession.title%", "category": "Koh-Vibe" },
-      { "command": "kohVibe.togglePersistentSessions", "title": "%command.kohVibe.togglePersistentSessions.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.toggleSetting", "title": "%command.kohVibe.toggleSetting.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.installHooks", "title": "%command.kohVibe.installHooks.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.uninstallHooks", "title": "%command.kohVibe.uninstallHooks.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.newGroup", "title": "%command.kohVibe.newGroup.title%", "category": "Koh-Vibe", "icon": "$(new-folder)" },
@@ -81,6 +81,7 @@
         { "command": "kohVibe.rescanning", "when": "false" },
         { "command": "kohVibe.focusSession", "when": "false" },
         { "command": "kohVibe.reopenSession", "when": "false" },
+        { "command": "kohVibe.toggleSetting", "when": "false" },
         { "command": "kohVibe.closeSession", "when": "false" }
       ]
     }

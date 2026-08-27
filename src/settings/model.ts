@@ -29,6 +29,11 @@ export interface AppSettings {
    * policies to the same file would fight over it.
    */
   persistent: boolean;
+  /**
+   * Whether a conversation left out of every folder — a temporary one —
+   * leaves the list after a day without activity (store/temporary.ts).
+   */
+  expireTemporary: boolean;
 }
 
 /**
@@ -43,7 +48,7 @@ export interface AppSettings {
  * is never replaced by a default: see `parseSettings` and `seedSettings`.
  */
 export function defaultSettings(): AppSettings {
-  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME, persistent: true };
+  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME, persistent: true, expireTemporary: true };
 }
 
 function sound(v: unknown, fallback: string): string {
@@ -78,12 +83,13 @@ export function parseSettings(raw: string): AppSettings {
     // plus », qui enverrait chercher la panne ailleurs.
     volume: clampVolume(root['volume']),
     persistent: flag(root['persistent'], base.persistent),
+    expireTemporary: flag(root['expireTemporary'], base.expireTemporary),
   };
 }
 
 export function serializeSettings(s: AppSettings): string {
   return `${JSON.stringify(
-    { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent },
+    { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent, expireTemporary: s.expireTemporary },
     null,
     2,
   )}\n`;
@@ -106,5 +112,6 @@ export function settingsFromEditor(read: (key: string) => unknown): AppSettings 
     volume: clampVolume(read('sound.volume')),
     // Never an editor setting: nothing to migrate, the default applies.
     persistent: base.persistent,
+    expireTemporary: base.expireTemporary,
   };
 }

@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dormantSessions, parseEditorMemento, readEditorMemento, type ClaudeTab } from '../src/claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, type ClaudeTab } from '../src/claude/dormant';
+import type { Session } from '../src/events/types';
 
 /**
  * The editor's memento, as VSCode persists it: the grid of editor groups, each
@@ -42,8 +43,29 @@ describe('parseEditorMemento', () => {
   it('finds every Claude panel with its session id and title, and nothing else', () => {
     const raw = memento([claudeTab('#EDN monitoring', ID_A), fileTab, claudeTab('Telegram Alert', ID_B)]);
     expect(parseEditorMemento(raw)).toEqual<ClaudeTab[]>([
-      { sessionId: ID_A, title: '#EDN monitoring' },
-      { sessionId: ID_B, title: 'Telegram Alert' },
+      { sessionId: ID_A, title: '#EDN monitoring', group: 0, index: 0 },
+      // Index 2: the file tab in between counts, it is a tab of the group too.
+      { sessionId: ID_B, title: 'Telegram Alert', group: 0, index: 2 },
+    ]);
+  });
+
+  it('ranks the groups in grid order, so a tab can be found again in `tabGroups.all`', () => {
+    const raw = JSON.stringify({
+      'editorpart.state': {
+        serializedGrid: {
+          root: {
+            type: 'branch',
+            data: [
+              { type: 'leaf', data: { id: 1, editors: [fileTab, claudeTab('left', ID_A)] } },
+              { type: 'branch', data: [{ type: 'leaf', data: { id: 2, editors: [claudeTab('right', ID_B)] } }] },
+            ],
+          },
+        },
+      },
+    });
+    expect(parseEditorMemento(raw)).toEqual<ClaudeTab[]>([
+      { sessionId: ID_A, title: 'left', group: 0, index: 1 },
+      { sessionId: ID_B, title: 'right', group: 1, index: 0 },
     ]);
   });
 
@@ -61,8 +83,8 @@ describe('parseEditorMemento', () => {
 
 describe('dormantSessions', () => {
   const tabs: ClaudeTab[] = [
-    { sessionId: ID_A, title: '#EDN monitoring' },
-    { sessionId: ID_B, title: 'Telegram Alert' },
+    { sessionId: ID_A, title: '#EDN monitoring', group: 0, index: 0 },
+    { sessionId: ID_B, title: 'Telegram Alert', group: 0, index: 1 },
   ];
 
   it('turns a restored tab that nobody has woken into a dormant session, filed by id', () => {
@@ -111,5 +133,39 @@ describe('readEditorMemento', () => {
     const db = join(dir, 'empty.vscdb');
     execFileSync('/usr/bin/sqlite3', [db, 'create table ItemTable(key text primary key, value blob);']);
     expect(await readEditorMemento(db)).toBeUndefined();
+  });
+});
+
+describe('mergeDormant — a restored tab over the sessions on disk', () => {
+  const base: Session = {
+    id: ID_A, cwd: '/Users/dev/projet', project: 'projet', origin: 'vscode', status: 'idle', toolCount: 4, lastEventAt: 500,
+  };
+  const dormant: Session = { ...base, status: 'idle', toolCount: 0, lastEventAt: 0, dormant: true, title: 'from the tab' };
+
+  it('adds a tab the spool does not know', () => {
+    const map = new Map<string, Session>();
+    mergeDormant(map, [dormant]);
+    expect(map.get(ID_A)).toBe(dormant);
+  });
+
+  it('turns an ENDED row into a dormant one — the tab is right there — keeping what the file knows', () => {
+    const map = new Map<string, Session>([[ID_A, { ...base, endedAt: 900, title: 'from the transcript' }]]);
+    mergeDormant(map, [dormant]);
+    const row = map.get(ID_A);
+    expect(row).toMatchObject({ dormant: true, status: 'idle', toolCount: 4, lastEventAt: 500, title: 'from the transcript' });
+    expect(row).not.toHaveProperty('endedAt');
+  });
+
+  it('takes the tab\'s title when the file has none', () => {
+    const map = new Map<string, Session>([[ID_A, { ...base, endedAt: 900 }]]);
+    mergeDormant(map, [dormant]);
+    expect(map.get(ID_A)?.title).toBe('from the tab');
+  });
+
+  it('leaves an OPEN row alone: a process is the truth, a tab only its promise', () => {
+    const open: Session = { ...base, status: 'running' };
+    const map = new Map<string, Session>([[ID_A, open]]);
+    mergeDormant(map, [dormant]);
+    expect(map.get(ID_A)).toBe(open);
   });
 });

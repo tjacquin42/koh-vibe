@@ -7,7 +7,10 @@ import type { Session } from '../events/types';
  * a history rather than a heap. Beyond it the oldest ended one goes
  * (`capEndedSessions`); an open conversation is never touched by this.
  */
-export const MAX_ENDED = 20;
+// Generous on purpose: quitting the editor ends every tab at once, and a
+// user who keeps twenty tabs open must find all twenty greyed out — not the
+// oldest gone — when the editor comes back.
+export const MAX_ENDED = 50;
 
 /** Open: a process behind it — neither ended nor a tab nobody has woken. */
 export function isOpen(s: Session): boolean {

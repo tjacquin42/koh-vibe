@@ -19,9 +19,12 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
 - **Une pastille de statut** par session — même glyphe, cinq couleurs — et, à côté, le projet,
   la branche et l'outil en cours d'exécution.
 - **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
-  que *Sessions persistantes* est coché dans les réglages (il l'est par défaut) — les vingt
-  plus récentes. Décoché, fermer un onglet retire la ligne ; *Fermé récemment*, une vue à
-  part, retient alors les dix conversations terminées le plus récemment.
+  que *Sessions persistantes* est coché dans les réglages (il l'est par défaut). Décoché,
+  fermer un onglet retire la ligne. *Fermé récemment*, une vue à part, retient dans les deux
+  cas les dix conversations terminées le plus récemment.
+- **Sessions temporaires** est le dossier où une conversation atterrit tant qu'on ne l'a pas
+  glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
+  réglage désactive ce comportement.
 - **Fermer une conversation** avec l'icône corbeille qui apparaît au survol d'une ligne
   vivante. Elle ferme son onglet Claude Code, ce qui met fin à la conversation : la ligne se
   grise, ou part dans *Fermé récemment*, selon le réglage. Quand aucun onglet n'est trouvé —
@@ -70,7 +73,7 @@ rien. **Koh-Vibe: Désinstaller les hooks** défait exactement cela.
 **Ranger.** Créez des dossiers, glissez-y des sessions, donnez-leur une couleur. L'ordre à
 l'intérieur d'un dossier se fixe à la main et ne bouge plus : une session ouverte plus tard
 se pose à la fin sans bousculer ce qui a été placé. Les dossiers eux-mêmes se glissent de la
-même façon — déposez-en un sur un autre pour le placer devant, ou sur *Sans dossier* pour
+même façon — déposez-en un sur un autre pour le placer devant, ou sur *Sessions temporaires* pour
 l'envoyer à la fin.
 
 **Sonner.** Un carillon quand une session se met à vous attendre, un autre quand elle vient
@@ -97,14 +100,23 @@ Code tourne dans son terminal, et une session encore vivante réapparaîtra à s
 
 **Sessions persistantes.** La première ligne des réglages, une case à cocher, décide de ce que
 fermer un onglet fait à sa ligne. Cochée — le défaut — la conversation reste dans la liste,
-grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les vingt plus
-récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée, fermer
-l'onglet retire la ligne, et décocher retire aussi les lignes déjà terminées. Le survol de la
-ligne donne la même explication.
+grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les cinquante
+plus récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée,
+fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux cas. Le survol
+de la ligne donne la même explication.
+
+**Sessions temporaires.** La seconde case. Une conversation rangée dans aucun dossier est
+temporaire : après 24 heures sans activité, elle quitte la liste — masquée, pas oubliée : toute
+activité la ramène, et la ranger dans un dossier la garde pour de bon. Décochée, les
+conversations temporaires restent jusqu'à ce que vous les retiriez.
 
 **Rouvrir.** Un clic sur une conversation terminée — ligne grisée, ou entrée de *Fermé
 récemment* — la ramène : dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf
-posé sur son dossier, selon d'où elle venait.
+posé sur son dossier, selon d'où elle venait. L'onglet d'éditeur seulement si Claude Code
+retrouvera la conversation depuis cette fenêtre — son transcript sous le projet de la fenêtre,
+et non masqué de sa liste de sessions ; sinon un terminal la reprend, ce qui marche de partout.
+Un onglet restauré que personne n'a encore ouvert est simplement ramené devant, jamais ouvert
+une seconde fois.
 
 ## Où vivent les données
 
@@ -120,7 +132,7 @@ Tout tient dans `~/.koh-vibe/` :
 | `backups/` | les copies de `settings.json` prises avant chaque pose de hooks |
 | `groups.json` | les dossiers, leurs couleurs, l'ordre choisi et les sons |
 | `closed.json` | les dix conversations fermées le plus récemment |
-| `settings.json` | les sons globaux, le volume, et si les sessions persistent |
+| `settings.json` | les sons globaux, le volume, et les deux réglages de la liste |
 | `usage.json` | le dernier relevé de consommation, mis en cache |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |

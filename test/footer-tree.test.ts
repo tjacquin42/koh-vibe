@@ -1,34 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
-import { FooterTree, persistentTooltip } from '../src/ui/footer-tree';
+import { FooterTree, SETTING_TOGGLES, toggleLabel, toggleTooltip } from '../src/ui/footer-tree';
 
-describe('the settings view — persistent sessions', () => {
-  it('puts the checkbox first, checked until someone turns it off', () => {
+describe('the settings view — the two checkboxes', () => {
+  it('puts them first, both checked until someone turns one off', () => {
     const tree = new FooterTree();
-    expect(tree.getChildren()[0]).toEqual({ kind: 'persistent', on: true });
-    const item = tree.getTreeItem({ kind: 'persistent', on: true });
+    expect(tree.getChildren().slice(0, 2)).toEqual([
+      { kind: 'toggle', key: 'persistent', on: true },
+      { kind: 'toggle', key: 'expireTemporary', on: true },
+    ]);
+    const item = tree.getTreeItem({ kind: 'toggle', key: 'persistent', on: true });
     expect(item.label).toBe('Persistent sessions');
     expect(item.checkboxState).toBe(vscode.TreeItemCheckboxState.Checked);
-    expect(item.command?.command).toBe('kohVibe.togglePersistentSessions');
+    expect(item.command).toEqual({ command: 'kohVibe.toggleSetting', title: 'Toggle this setting', arguments: ['persistent'] });
   });
 
-  it('explains itself where the mouse rests, both ways round', () => {
-    const item = new FooterTree().getTreeItem({ kind: 'persistent', on: false });
-    expect(item.checkboxState).toBe(vscode.TreeItemCheckboxState.Unchecked);
-    expect(item.tooltip).toBe(persistentTooltip());
-    expect(persistentTooltip()).toContain('greyed out');
-    expect(persistentTooltip()).toContain('Recently closed');
+  it('explains each one where the mouse rests, both ways round', () => {
+    for (const key of SETTING_TOGGLES) {
+      const item = new FooterTree().getTreeItem({ kind: 'toggle', key, on: false });
+      expect(item.checkboxState).toBe(vscode.TreeItemCheckboxState.Unchecked);
+      expect(item.label).toBe(toggleLabel(key));
+      expect(item.tooltip).toBe(toggleTooltip(key));
+      expect(toggleTooltip(key)).toContain('Unchecked');
+    }
+    expect(toggleTooltip('persistent')).toContain('greyed');
+    expect(toggleTooltip('persistent')).toContain('already greyed stay');
+    expect(toggleTooltip('expireTemporary')).toContain('24 hours');
+    expect(toggleTooltip('expireTemporary')).toContain('folder');
   });
 
-  it('follows the setting, and redraws only when it changes', () => {
+  it('follows the settings, and redraws only when one changes', () => {
     const tree = new FooterTree();
     let fired = 0;
     tree.onDidChangeTreeData(() => {
       fired += 1;
     });
-    tree.setPersistent(false);
-    tree.setPersistent(false);
+    tree.setToggles({ persistent: false, expireTemporary: true });
+    tree.setToggles({ persistent: false, expireTemporary: true });
     expect(fired).toBe(1);
-    expect(tree.getChildren()[0]).toEqual({ kind: 'persistent', on: false });
+    expect(tree.getChildren()[0]).toEqual({ kind: 'toggle', key: 'persistent', on: false });
+    expect(tree.getChildren()[1]).toEqual({ kind: 'toggle', key: 'expireTemporary', on: true });
   });
 });

@@ -19,9 +19,11 @@ and the hook bridges are zsh scripts.
 - **A status dot** per session — one glyph, five colours — next to the project, the branch and
   the tool currently running.
 - **Ended conversations** stay in the list, greyed out and in their folder, for as long as
-  *Persistent sessions* is on in the settings (it is by default) — the twenty most recent.
-  Turn it off and closing a tab takes the row away; *Recently closed*, a view of its own,
-  then keeps the ten conversations that ended most recently.
+  *Persistent sessions* is on in the settings (it is by default). Turn it off and closing a
+  tab takes the row away instead. *Recently closed*, a view of its own, keeps the ten
+  conversations that ended most recently either way.
+- **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
+  there for 24 hours without activity, it leaves the list — a setting turns that off.
 - **Close a conversation** with the trash icon that appears when you hover a live row. It
   closes its Claude Code tab, which ends the conversation: the row greys out, or leaves for
   *Recently closed*, depending on the setting. When no tab is found — a conversation running
@@ -64,7 +66,7 @@ you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing
 **Filing.** Create folders, drag sessions into them, give them a colour. The order inside a
 folder is set by hand and stays put: a session opened later lands at the end without
 disturbing what you placed. The folders themselves are dragged the same way — drop one onto
-another to put it in front, or onto *Unfiled* to send it to the end.
+another to put it in front, or onto *Temporary sessions* to send it to the end.
 
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
@@ -89,13 +91,21 @@ runs in its own terminal, and a session still alive reappears on its next event.
 
 **Persistent sessions.** The first row of the settings, a checkbox, decides what closing a tab
 does to its row. Checked — the default — the conversation stays in the list, greyed out, in
-its folder, with a muted dot and the time it closed; the twenty most recent are kept, and
-*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row,
-and unchecking also removes the rows already ended. Hover the row for the same explanation.
+its folder, with a muted dot and the time it closed; the fifty most recent are kept, and
+*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row
+instead; the rows already greyed stay either way. Hover the row for the same explanation.
+
+**Temporary sessions.** The second checkbox. A conversation filed in no folder is temporary:
+after 24 hours without activity it leaves the list — hidden, not forgotten, so any activity in
+it brings it back, and filing it in a folder keeps it for good. Unchecked, temporary
+conversations stay until you remove them.
 
 **Reopening.** One click on an ended conversation — a greyed row, or an entry of *Recently
 closed* — brings it back: in the editor tab it ran in, or a fresh terminal on its folder,
-whichever it came from.
+whichever it came from. The editor tab only when Claude Code will find the conversation from
+this window — its transcript under the window's own project, and not hidden from its session
+list; otherwise a terminal resumes it, which works from anywhere. A restored tab nobody has
+opened yet is simply brought to the front, never opened a second time.
 
 ## Where the data lives
 
@@ -111,7 +121,7 @@ Everything sits under `~/.koh-vibe/`:
 | `backups/` | copies of `settings.json` taken before each hook install |
 | `groups.json` | folders, their colours, the chosen order and the sounds |
 | `closed.json` | the ten most recently closed conversations |
-| `settings.json` | global sounds, volume, and whether sessions persist |
+| `settings.json` | global sounds, volume, and the two list settings |
 | `usage.json` | the last usage reading, cached |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |

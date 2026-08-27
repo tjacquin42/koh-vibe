@@ -189,7 +189,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     // The real bridge announces CLAUDE_CODE_ENTRYPOINT=cli: this conversation
     // ran in a terminal, and that is where it must come back.
     expect(state.closed[0]?.origin).toBe('terminal');
-    expect(reopenPlan(state.closed[0]?.origin, SESSION_ID, projectDir, 'mon-projet')).toEqual({
+    expect(reopenPlan(state.closed[0]?.origin, SESSION_ID, projectDir, 'mon-projet', true)).toEqual({
       kind: 'terminal',
       cwd: projectDir,
       name: 'mon-projet',

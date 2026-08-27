@@ -21,13 +21,17 @@ export type ReopenPlan =
  * because every id has passed `isValidSessionId` twice: once at the spool
  * boundary, once when `closed.json` was read back.
  */
-export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string): ReopenPlan {
+export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string, listed: boolean): ReopenPlan {
+  const terminal: ReopenPlan = { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
   if (origin === 'vscode' || origin === 'desktop') {
-    return { kind: 'command', command: 'claude-vscode.editor.open', args: [sessionId] };
+    // `listed`: whether Claude Code's session list, in the window that runs
+    // the command, holds this id (claude/listed.ts). When it does not, the
+    // command starts a BLANK conversation — observed — and a terminal is the
+    // only way back: `claude --resume` finds a conversation by its id across
+    // every project.
+    return listed ? { kind: 'command', command: 'claude-vscode.editor.open', args: [sessionId] } : terminal;
   }
-  if (origin === 'terminal') {
-    return { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
-  }
+  if (origin === 'terminal') return terminal;
   const suffix = typeof origin === 'string' && origin.length > 0 ? ` (${origin})` : '';
   return {
     kind: 'explain',
@@ -56,21 +60,30 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
  * `FocusBroker.requestReopen` deliberately does nothing for it — the caller
  * opens the terminal locally, before `requestReopen` is even invoked.
  */
+/**
+ * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
+ * one is gone, and koh-vibe does not know which one it was.
+ */
+export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
+  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
+  terminal.sendText(plan.command);
+  terminal.show();
+}
+
 export async function reopenClosedSession(
   entry: ClosedEntry,
   requestReopen: (e: ClosedEntry) => Promise<void>,
 ): Promise<void> {
-  const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry));
+  // `listed` is the broker's question, asked in the window that will run the
+  // command; here it only sorts the origins, so `true` keeps the editor ones
+  // on the editor path.
+  const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry), true);
   if (plan.kind === 'explain') {
     void vscode.window.showInformationMessage(plan.message);
     return;
   }
   if (plan.kind === 'terminal') {
-    // A fresh terminal, on the conversation's folder: the old one is gone,
-    // and koh-vibe does not yet know which one it was.
-    const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
-    terminal.sendText(plan.command);
-    terminal.show();
+    openResumeTerminal(plan);
     return;
   }
   // The tab can only come back in a window that holds the project: the

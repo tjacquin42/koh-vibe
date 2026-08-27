@@ -167,7 +167,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
       }),
     );
 
-    expect(await labelsOf(tree)).toEqual(['Dossier unique', '', 'Unfiled']);
+    expect(await labelsOf(tree)).toEqual(['Dossier unique', '', 'Temporary sessions']);
   });
 
   it('« Sans dossier » disparaît quand toutes les sessions sont rangées', async () => {
@@ -192,7 +192,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
       }),
     );
 
-    expect(await labelsOf(tree)).toEqual(['Dossier vide', '', 'Unfiled']);
+    expect(await labelsOf(tree)).toEqual(['Dossier vide', '', 'Temporary sessions']);
 
     const [emptyGroupNode] = await tree.getChildren();
     expect(await labelsOf(tree, emptyGroupNode)).toEqual([]);

@@ -6,7 +6,10 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { dormantSessions, parseEditorMemento, readEditorMemento } from './claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
+import { CLAUDE_STATE_KEY, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
+import { locateClaudeTab, revealTabAt } from './claude/reveal';
+import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
 import { VanishWatch } from './store/vanish';
@@ -19,7 +22,7 @@ import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
-import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
+import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { ClosedTree } from './ui/closed-tree';
 import { showBusy } from './ui/busy';
@@ -31,7 +34,7 @@ import {
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
-import { CHIME_EVENTS, soundFor } from './groups/model';
+import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
 import type { TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
@@ -101,15 +104,46 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // window reloads: there is no file to mark hidden.
   const dormant = new Map<string, Session>();
   const dismissed = new Set<string>();
+  // Every Claude tab of the memento, by session: where a restored tab sits,
+  // so that a click brings THAT tab to the front (claude/reveal.ts).
+  const dormantTabs = new Map<string, ClaudeTab>();
   const refreshDormant = async (live: ReadonlyMap<string, unknown>): Promise<void> => {
     dormant.clear();
+    dormantTabs.clear();
     const folder = workspaceFolders()[0];
     if (stateDb === undefined || folder === undefined) return;
     const raw = await readEditorMemento(stateDb);
     if (raw === undefined) return;
-    const known = new Set([...live.keys(), ...(await readSessions(dirs)).keys(), ...dismissed]);
+    // Known: what has a process, or an OPEN state file. An ended one does not
+    // count — its restored tab makes it dormant, not closed (mergeDormant).
+    const open = [...(await readSessions(dirs)).values()].filter((s) => s.endedAt === undefined).map((s) => s.id);
+    const known = new Set([...live.keys(), ...open, ...dismissed]);
     const labels = new Set(claudeTabsOf(vscode.window.tabGroups.all).map((t) => t.label));
-    for (const d of dormantSessions(parseEditorMemento(raw), labels, known, folder)) dormant.set(d.id, d);
+    const tabs = parseEditorMemento(raw);
+    for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
+    for (const d of dormantSessions(tabs, labels, known, folder)) dormant.set(d.id, d);
+  };
+  /**
+   * Brings a restored tab to the front, by its position — never through the
+   * Claude Code command, which opens a second tab for a conversation it has
+   * not registered yet. `false` when the tab cannot be told apart.
+   */
+  const revealSessionTab = async (id: string): Promise<boolean> => {
+    const tab = dormantTabs.get(id);
+    if (tab === undefined) return false;
+    const pos = locateClaudeTab(vscode.window.tabGroups.all, tab);
+    return pos !== undefined && (await revealTabAt(pos));
+  };
+  /**
+   * Whether Claude Code's session list, in this window, holds the id — i.e.
+   * whether its command would resume the conversation rather than start a
+   * blank one (claude/listed.ts). The hidden ids live in the editor's global
+   * state, next to our own global storage.
+   */
+  const globalStateDb = join(dirname(context.globalStorageUri.fsPath), 'state.vscdb');
+  const listed = async (id: string): Promise<boolean> => {
+    const hidden = parseHiddenSessionIds(await readStateItem(globalStateDb, CLAUDE_STATE_KEY));
+    return sessionListedIn(claudeRoot, listingFolder(workspaceFolders()), id, hidden);
   };
   /**
    * Brings back the conversations whose process runs but whose state file is
@@ -184,34 +218,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   /**
-   * The "persistent sessions" setting, as a context key: package.json shows
-   * the "Recently closed" view only while it is off — with it on, an ended
-   * conversation is a greyed row in the list, and the view would sit empty.
+   * Flip one of the on/off settings. Nothing else moves: turning "persistent
+   * sessions" off changes what the NEXT closed tab does, and the rows already
+   * greyed stay where they are.
    */
-  const PERSISTENT = 'kohVibe.persistentSessions';
-  let persistentContext: boolean | undefined;
-  async function syncPersistentContext(on: boolean): Promise<void> {
-    if (persistentContext === on) return;
-    persistentContext = on;
-    await vscode.commands.executeCommand('setContext', PERSISTENT, on);
-  }
-  // Before the views exist: the key is unset until then, and `!unset` would
-  // show the closed view for a moment on every start.
-  await syncPersistentContext((await readSettings(settingsPath)).persistent);
-
-  /**
-   * Flip the setting. Turning it off also takes away the rows already ended:
-   * that is where closing their tab would have sent them under this policy,
-   * and they are in the closed history either way.
-   */
-  async function setPersistent(on: boolean): Promise<void> {
-    if (sound.persistent === on) return;
-    sound = await writeSettings(settingsPath, { persistent: on });
-    if (!on) {
-      for (const s of (await readSessions(dirs)).values()) {
-        if (s.endedAt !== undefined) await removeSession(dirs, s.id);
-      }
-    }
+  async function toggleSetting(key: SettingToggle, on: boolean): Promise<void> {
+    if (sound[key] === on) return;
+    sound = await writeSettings(settingsPath, key === 'persistent' ? { persistent: on } : { expireTemporary: on });
     await render();
   }
 
@@ -340,7 +353,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // The checkbox itself; the rest of the row goes through the command.
     settingsView.onDidChangeCheckboxState((e) => {
       for (const [node, state] of e.items) {
-        if (node.kind === 'persistent') void setPersistent(state === vscode.TreeItemCheckboxState.Checked);
+        if (node.kind === 'toggle') void toggleSetting(node.key, state === vscode.TreeItemCheckboxState.Checked);
       }
     }),
   );
@@ -376,8 +389,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         usageView.setUsage(await readUsage(home));
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
-        footer.setPersistent(sound.persistent);
-        await syncPersistentContext(sound.persistent);
+        footer.setToggles({ persistent: sound.persistent, expireTemporary: sound.expireTemporary });
         footer.setLibrary(await installedCount(librarySoundsDir(home)));
         const map = await withTokens(await readSessions(dirs), transcripts, () => {
           if (transcriptFailureWarned) return;
@@ -395,8 +407,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // cleanup path: the watcher's callback, below, does not repeat it.
         for (const id of transcripts.keys()) if (!map.has(id)) transcripts.delete(id);
         // What the tab bar shows and the spool does not: this window's dormant
-        // tabs — unless a real session has taken their place.
-        for (const d of dormant.values()) if (!map.has(d.id)) map.set(d.id, d);
+        // tabs — over an ended row, never over an open one (mergeDormant).
+        mergeDormant(map, dormant.values());
         // A conversation leaving the list while its process still runs comes
         // back a few seconds later (store/vanish.ts).
         vanish.observe(openSessions(map).keys());
@@ -417,6 +429,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // vaut « classement vide », voir groups/store.ts) : aucune garde de
         // type `*FailureWarned` n'est nécessaire ici.
         const groups = await readGroups(groupsPath);
+        // Temporary conversations — filed nowhere — leave after a day without
+        // activity (store/temporary.ts), when the setting says so. An open one
+        // is hidden (the next hook lifts it), an ended one removed for good.
+        if (sound.expireTemporary) {
+          const filed = (id: string): boolean => {
+            const g = groupIdOf(groups, id);
+            return g !== undefined && g.length > 0;
+          };
+          for (const s of temporaryToForget(shown.values(), filed, Date.now())) {
+            if (s.endedAt !== undefined) await removeSession(dirs, s.id);
+            else await hideSession(dirs, s.id);
+            shown.delete(s.id);
+          }
+        }
         // Le carillon avant l'affichage : `shouldChime` compare l'état du tour
         // précédent au nouveau, et `lastStatuses` doit avancer à CHAQUE rendu,
         // même silencieux — sinon la comparaison se ferait contre un état de
@@ -507,25 +533,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // at all: it leaves this window's memory, and stays out. The folder
     // assignment is kept either way: a conversation that comes back comes
     // back where it was filed.
-    if (dormant.delete(id)) dismissed.add(id);
-    else {
-      const s = await readSession(dirs, id);
-      if (s?.endedAt !== undefined) await removeSession(dirs, id);
-      else await hideSession(dirs, id);
+    const wasDormant = dormant.delete(id);
+    if (wasDormant) dismissed.add(id);
+    const s = await readSession(dirs, id);
+    if (s !== undefined) {
+      // A dormant row over an ended file: the file goes with it.
+      if (s.endedAt !== undefined) await removeSession(dirs, id);
+      else if (!wasDormant) await hideSession(dirs, id);
     }
     await render();
   };
 
-  const broker = new FocusBroker(dirs, {
-    closeHere: (id) =>
-      closeSessionHere(id, {
-        read: async (i) => (await readSession(dirs, i)) ?? dormant.get(i),
-        closeTab: (i) => closeSessionTab(i, vscodeTabs()),
-        archive,
-        forget,
-      }),
-    forget,
-  });
+  const broker = new FocusBroker(
+    dirs,
+    {
+      closeHere: (id) =>
+        closeSessionHere(id, {
+          read: async (i) => (await readSession(dirs, i)) ?? dormant.get(i),
+          closeTab: (i) =>
+            closeSessionTab(i, {
+              ...vscodeTabs(),
+              // A restored tab is brought to the front by position; only when
+              // none can be told apart does the command take over.
+              reveal: async (sessionId) => {
+                if (await revealSessionTab(sessionId)) return;
+                await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
+              },
+            }),
+          archive,
+          forget,
+        }),
+      forget,
+    },
+    listed,
+  );
 
   const watcher = new SpoolWatcher(
     dirs,
@@ -605,6 +646,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // purpose, and package.json keeps it disabled.
     vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
+      // A restored tab is right there in the tab bar: bring it to the front.
+      // Only when it cannot be told apart does the Claude Code command take
+      // over — which, at worst, resumes the conversation in a second tab.
+      if (s.dormant === true) {
+        void revealSessionTab(s.id)
+          .then((done) => (done ? undefined : broker.request(s)))
+          .catch(() => undefined);
+        return;
+      }
       // An ended conversation is brought back, not focused: the same three-way
       // decision the closed history used (closed/reopen.ts) — a tab in the
       // window that holds the project, a terminal, or an explanation.
@@ -743,7 +793,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.reopenSession', (entry: ClosedEntry) =>
       reopenClosedSession(entry, (e) => broker.requestReopen(e)),
     ),
-    vscode.commands.registerCommand('kohVibe.togglePersistentSessions', () => setPersistent(!sound.persistent)),
+    vscode.commands.registerCommand('kohVibe.toggleSetting', (key: unknown) => {
+      const toggle = SETTING_TOGGLES.find((k) => k === key);
+      return toggle === undefined ? undefined : toggleSetting(toggle, !sound[toggle]);
+    }),
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();
       const steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];

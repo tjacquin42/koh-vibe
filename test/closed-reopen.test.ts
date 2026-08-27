@@ -12,19 +12,31 @@ function entry(over: Partial<ClosedEntry> = {}): ClosedEntry {
 
 describe('reopenPlan', () => {
   it('reopens an editor conversation through the Claude Code command', () => {
-    expect(reopenPlan('vscode', 's1', CWD, 'projet')).toEqual({
+    expect(reopenPlan('vscode', 's1', CWD, 'projet', true)).toEqual({
       kind: 'command',
       command: 'claude-vscode.editor.open',
       args: ['s1'],
     });
   });
 
+  it('falls back to a terminal for an editor conversation the window\'s session list does not hold — never the command, which would start a blank one', () => {
+    expect(reopenPlan('vscode', 's1', CWD, 'projet', false)).toEqual({
+      kind: 'terminal',
+      cwd: CWD,
+      name: 'projet',
+      command: 'claude --resume s1',
+    });
+    expect(reopenPlan('desktop', 's1', CWD, 'projet', false)).toMatchObject({ kind: 'terminal' });
+    // A terminal conversation never asked the question.
+    expect(reopenPlan('terminal', 's1', CWD, 'projet', false)).toMatchObject({ kind: 'terminal' });
+  });
+
   it('treats a desktop conversation like an editor one', () => {
-    expect(reopenPlan('desktop', 's1', CWD, 'projet')).toMatchObject({ kind: 'command' });
+    expect(reopenPlan('desktop', 's1', CWD, 'projet', true)).toMatchObject({ kind: 'command' });
   });
 
   it('reopens a terminal conversation in a terminal, on its own folder', () => {
-    expect(reopenPlan('terminal', 's1', CWD, 'projet')).toEqual({
+    expect(reopenPlan('terminal', 's1', CWD, 'projet', true)).toEqual({
       kind: 'terminal',
       cwd: CWD,
       name: 'projet',
@@ -33,14 +45,14 @@ describe('reopenPlan', () => {
   });
 
   it('explains rather than guesses for an origin it cannot reopen', () => {
-    const plan = reopenPlan('sdk', 's1', CWD, 'projet');
+    const plan = reopenPlan('sdk', 's1', CWD, 'projet', true);
     expect(plan.kind).toBe('explain');
     if (plan.kind === 'explain') expect(plan.message).toContain('sdk');
   });
 
   it('explains for a missing or wrongly typed origin, and names no origin', () => {
     for (const origin of [undefined, null, 42, {}]) {
-      const plan = reopenPlan(origin, 's1', CWD, 'projet');
+      const plan = reopenPlan(origin, 's1', CWD, 'projet', true);
       expect(plan.kind).toBe('explain');
       if (plan.kind === 'explain') expect(plan.message).toContain('projet');
     }

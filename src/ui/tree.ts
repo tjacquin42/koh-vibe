@@ -390,8 +390,13 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       return item;
     }
     if (node.kind === 'group') {
-      const item = new vscode.TreeItem(node.group?.name ?? vscode.l10n.t('Unfiled'), vscode.TreeItemCollapsibleState.Expanded);
+      const item = new vscode.TreeItem(node.group?.name ?? vscode.l10n.t('Temporary sessions'), vscode.TreeItemCollapsibleState.Expanded);
       item.id = nodeId(node);
+      if (node.group === undefined) {
+        item.tooltip = vscode.l10n.t(
+          'Conversations not filed in a folder. Drag one into a folder to keep it: left here, it leaves the list after 24 hours without activity (see the settings).',
+        );
+      }
       item.description =
         node.sessions.length > 1
           ? vscode.l10n.t('{0} sessions', node.sessions.length)
