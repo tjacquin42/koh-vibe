@@ -25,7 +25,8 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
   dans *Fermé récemment*. Quand aucun onglet n'est trouvé — une conversation dans un
   terminal, dans l'application de bureau Claude, ou dans un projet qu'aucune fenêtre n'a
   ouvert — la ligne est simplement retirée de la liste.
-- **Votre consommation** sur cinq heures et sept jours, avec l'échéance de remise à zéro.
+- **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
+  compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
   session fermée.
 
@@ -126,6 +127,13 @@ Aucun verrou : les fichiers partagés sont fusionnés à trois voies (l'état lu
 le plus frais relu juste avant d'écrire), pour que deux fenêtres qui rangent en même temps ne
 s'effacent pas l'une l'autre.
 
+Une conversation quitte la liste quand elle se termine, quand vous la fermez, ou quand vous
+la retirez — jamais parce qu'elle s'est tue : un onglet laissé ouvert une journée reste une
+conversation. **Rafraîchir** lit le registre des processus de Claude Code
+(`~/.claude/sessions/`) et ramène toute conversation vivante que la liste a perdue, dans le
+dossier où elle était rangée ; la même passe tourne à l'ouverture de la fenêtre, avec une
+icône qui tourne à la place du bouton pendant ce temps.
+
 La consommation vient de l'API d'Anthropic, interrogée au plus une fois toutes les cinq
 minutes et mise en cache dans un fichier partagé — sinon chaque fenêtre irait chercher de son
 côté exactement la même chose. Le jeton OAuth est lu dans le trousseau du système, jamais
@@ -140,7 +148,7 @@ Les contributions extérieures sont bienvenues — voir [CONTRIBUTING.fr.md](CON
 ```bash
 pnpm install
 pnpm build       # compile vers out/, et date le paquet depuis le dernier tag
-pnpm test        # compile, puis lance 501 tests sans hôte d'extensions
+pnpm test        # compile, puis lance 663 tests sans hôte d'extensions
 pnpm test:watch  # les mêmes tests, sans recompiler à chaque fois
 pnpm typecheck   # types de src ET de test
 pnpm package     # produit le .vsix

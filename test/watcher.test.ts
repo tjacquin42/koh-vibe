@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { spoolDirs, type SpoolDirs } from '../src/paths';
 import { ensureDirs, readSessions, writeSession } from '../src/spool/persist';
 import { appendLocalEvent, drain, MAX_EVENT_AGE_MS, SpoolWatcher } from '../src/spool/watcher';
-import { SESSION_PURGE_MS } from '../src/store/staleness';
 import type { Session } from '../src/events/types';
 
 // `node:fs/promises` est un module natif : ses exports ne sont pas
@@ -55,9 +54,7 @@ let dirs: SpoolDirs;
 // restent de petits entiers lisibles (1, 2, 3…). NOW leur est légèrement
 // postérieur (l'âge de ces événements reste sous MAX_EVENT_AGE_MS, sans quoi
 // un échec induit dans ces tests serait immédiatement écarté au lieu d'être
-// différé), tout en restant à des années-lumière du seuil de purge de 24 h
-// (SESSION_PURGE_MS = 86 400 000 ms) — aucun de ces tests ne doit purger une
-// session par accident.
+// différé).
 const NOW = 1_000;
 
 async function dropEvent(name: string, body: unknown): Promise<void> {
@@ -156,6 +153,17 @@ describe('drain', () => {
       sessionIds.add(parsed.payload.session_id);
     }
     expect(sessionIds).toEqual(new Set(['s1', 's2', 's3']));
+  });
+});
+
+describe('drain — a silent conversation stays', () => {
+  it('removes nothing for silence alone, however long it lasts', async () => {
+    // A tab left open for a week is still a conversation. Only `SessionEnd`,
+    // or the user closing or removing it, takes a session off the list.
+    await writeSession(dirs, session('quiet-for-a-week', 0));
+    const res = await drain(dirs, 7 * 24 * 3_600_000);
+    expect((await readSessions(dirs)).has('quiet-for-a-week')).toBe(true);
+    expect(res).not.toHaveProperty('purged');
   });
 });
 
@@ -332,31 +340,6 @@ describe('drain — échec permanent (N3)', () => {
 
     expect(onError).toHaveBeenCalledTimes(1);
     expect(readdirSync(dirs.rejected)).toContain(`${createdAt}-1-SessionStart.json`);
-  });
-});
-
-describe('drain — purge des sessions mortes (C1)', () => {
-  it('purge une session dont lastEventAt dépasse 24h et le rapporte dans purged', async () => {
-    const TWENTY_FIVE_HOURS = 25 * 60 * 60_000;
-    await writeSession(dirs, session('morte', 0));
-    const res = await drain(dirs, TWENTY_FIVE_HOURS);
-    expect(res.purged).toEqual(['morte']);
-    expect((await readSessions(dirs)).has('morte')).toBe(false);
-  });
-
-  it('ne purge pas une session récente', async () => {
-    await writeSession(dirs, session('fraiche', NOW));
-    const res = await drain(dirs, NOW + 1000);
-    expect(res.purged).toEqual([]);
-    expect((await readSessions(dirs)).has('fraiche')).toBe(true);
-  });
-
-  it('purge même quand il n y a aucun événement à traiter', async () => {
-    const TWENTY_FIVE_HOURS = 25 * 60 * 60_000;
-    await writeSession(dirs, session('morte', 0));
-    const res = await drain(dirs, TWENTY_FIVE_HOURS);
-    expect(res.applied).toBe(0);
-    expect(res.purged).toEqual(['morte']);
   });
 });
 
@@ -680,13 +663,6 @@ describe('archiving a closed conversation', () => {
     expect(archive).not.toHaveBeenCalled();
   });
 
-  it('archives nothing when a session is purged for staleness', async () => {
-    const archive = vi.fn(async () => undefined);
-    await writeSession(dirs, session('s1', 0));
-    const res = await drain(dirs, SESSION_PURGE_MS + 1, undefined, archive);
-    expect(res.purged).toEqual(['s1']);
-    expect(archive).not.toHaveBeenCalled();
-  });
 
   it('leaves the event in place when archiving fails, so it is retried', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
