@@ -6,6 +6,7 @@ import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type Group
 import { themeColorOf } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
+import { isOpen } from '../store/open';
 
 export type TreeNode =
   // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
@@ -42,6 +43,26 @@ export type TreeNode =
  */
 
 const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3, stale: 4 };
+
+/**
+ * Three tiers before any status: what runs, then the tabs nobody has woken,
+ * then what ended — the most recently ended first. Within the first tier the
+ * status decides, then recency, as the dashboard always sorted.
+ */
+function tierOf(s: Session): number {
+  if (s.endedAt !== undefined) return 2;
+  if (s.dormant === true) return 1;
+  return 0;
+}
+
+export function compareSessions(a: Session, b: Session): number {
+  return (
+    tierOf(a) - tierOf(b) ||
+    (b.endedAt ?? 0) - (a.endedAt ?? 0) ||
+    ORDER[a.status] - ORDER[b.status] ||
+    b.lastEventAt - a.lastEventAt
+  );
+}
 
 /**
  * Le glyphe des dossiers : `symbol-folder`, qui est un dossier FERMÉ.
@@ -207,7 +228,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     const now = Date.now();
     this.sessions = [...map.values()]
       .map((s) => withStaleness(s, now))
-      .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.lastEventAt - a.lastEventAt);
+      .sort(compareSessions);
     this.refresh();
   }
 
@@ -250,6 +271,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       this.sessions.map((s) => [
         s.id,
         s.status,
+        isOpen(s),
         sessionLabel(s),
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
@@ -399,12 +421,15 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
     // chemins. La conversion reste ici pour que statusIconPath() n'ait pas
     // besoin de l'API de VSCode, et se teste donc sans elle.
-    const pastille = statusIconPath(this.extensionPath, s.status);
+    // A muted dot for what is not open — ended, or a tab nobody has woken —
+    // and the label greyed with it, through the same decoration provider the
+    // folders use: the only way VSCode offers to colour a row's text.
+    const pastille = statusIconPath(this.extensionPath, isOpen(s) ? s.status : 'ended');
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
-    // Volontairement AUCUNE couleur sur une session : la teinte du dossier
-    // descendue sur ses conversations noyait la lecture, et posait en plus un
-    // resourceUri qui décale le libellé. Le dossier porte la couleur, ses
-    // sessions portent leur statut.
+    if (!isOpen(s)) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
+    // Volontairement AUCUNE couleur sur une session ouverte : la teinte du
+    // dossier descendue sur ses conversations noyait la lecture. Le dossier
+    // porte la couleur, ses sessions portent leur statut.
     item.command = { command: 'kohVibe.focusSession', title: vscode.l10n.t('Go to session'), arguments: [s] };
     return item;
   }

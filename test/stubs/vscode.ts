@@ -79,6 +79,11 @@ export class ThemeIcon {
   ) {}
 }
 
+export enum TreeItemCheckboxState {
+  Unchecked = 0,
+  Checked = 1,
+}
+
 export interface TreeItemCommand {
   command: string;
   title: string;
@@ -92,6 +97,7 @@ export class TreeItem {
   accessibilityInformation?: { label: string };
   iconPath?: unknown;
   command?: TreeItemCommand;
+  checkboxState?: TreeItemCheckboxState;
 
   constructor(
     public readonly label: string,

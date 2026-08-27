@@ -18,12 +18,15 @@ and the hook bridges are zsh scripts.
   the ones working, then the ones that just finished.
 - **A status dot** per session — one glyph, five colours — next to the project, the branch and
   the tool currently running.
-- **Recently closed**, a view of its own holding the ten conversations that ended most
-  recently, so a session you just finished with is not gone the instant it disappears.
+- **Ended conversations** stay in the list, greyed out and in their folder, for as long as
+  *Persistent sessions* is on in the settings (it is by default) — the twenty most recent.
+  Turn it off and closing a tab takes the row away; *Recently closed*, a view of its own,
+  then keeps the ten conversations that ended most recently.
 - **Close a conversation** with the trash icon that appears when you hover a live row. It
-  closes its Claude Code tab, which ends the conversation and files it under *Recently
-  closed*. When no tab is found — a conversation running in a terminal, in the Claude desktop
-  app, or in a project no window has open — the row is simply removed from the list.
+  closes its Claude Code tab, which ends the conversation: the row greys out, or leaves for
+  *Recently closed*, depending on the setting. When no tab is found — a conversation running
+  in a terminal, in the Claude desktop app, or in a project no window has open — the row is
+  simply removed from the list. On an ended row, the icon removes it for good.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
@@ -84,10 +87,15 @@ In the picker, the arrow keys play each sound; **→** replays the highlighted o
 **Removing.** Right-click a session → *Remove from the list*. Nothing is stopped: Claude Code
 runs in its own terminal, and a session still alive reappears on its next event.
 
-**Reopening.** A conversation that just ended does not vanish: it moves into *Recently
-closed*, below the live sessions, for as long as four more have not pushed it out. One click
-brings it back — in the editor tab it ran in, or a fresh terminal on its folder, whichever it
-came from.
+**Persistent sessions.** The first row of the settings, a checkbox, decides what closing a tab
+does to its row. Checked — the default — the conversation stays in the list, greyed out, in
+its folder, with a muted dot and the time it closed; the twenty most recent are kept, and
+*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row,
+and unchecking also removes the rows already ended. Hover the row for the same explanation.
+
+**Reopening.** One click on an ended conversation — a greyed row, or an entry of *Recently
+closed* — brings it back: in the editor tab it ran in, or a fresh terminal on its folder,
+whichever it came from.
 
 ## Where the data lives
 
@@ -103,7 +111,7 @@ Everything sits under `~/.koh-vibe/`:
 | `backups/` | copies of `settings.json` taken before each hook install |
 | `groups.json` | folders, their colours, the chosen order and the sounds |
 | `closed.json` | the ten most recently closed conversations |
-| `settings.json` | global sounds and volume |
+| `settings.json` | global sounds, volume, and whether sessions persist |
 | `usage.json` | the last usage reading, cached |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |

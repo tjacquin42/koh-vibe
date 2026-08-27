@@ -19,6 +19,16 @@ export interface AppSettings {
   waiting: string;
   done: string;
   volume: number;
+  /**
+   * What closing a tab does to its conversation. `true`: the row stays in the
+   * list, greyed out, in its folder, and a click reopens it. `false`: the row
+   * goes, and the conversation is only kept in the "Recently closed" history.
+   *
+   * Shared like the sounds, and for a stronger reason: the drain that applies
+   * `SessionEnd` runs in every window, and two windows applying two different
+   * policies to the same file would fight over it.
+   */
+  persistent: boolean;
 }
 
 /**
@@ -33,11 +43,15 @@ export interface AppSettings {
  * is never replaced by a default: see `parseSettings` and `seedSettings`.
  */
 export function defaultSettings(): AppSettings {
-  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME };
+  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME, persistent: true };
 }
 
 function sound(v: unknown, fallback: string): string {
   return typeof v === 'string' ? v : fallback;
+}
+
+function flag(v: unknown, fallback: boolean): boolean {
+  return typeof v === 'boolean' ? v : fallback;
 }
 
 /**
@@ -63,11 +77,16 @@ export function parseSettings(raw: string): AppSettings {
     // silence : un réglage abîmé ne doit pas se traduire par « le son ne marche
     // plus », qui enverrait chercher la panne ailleurs.
     volume: clampVolume(root['volume']),
+    persistent: flag(root['persistent'], base.persistent),
   };
 }
 
 export function serializeSettings(s: AppSettings): string {
-  return `${JSON.stringify({ version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume) }, null, 2)}\n`;
+  return `${JSON.stringify(
+    { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent },
+    null,
+    2,
+  )}\n`;
 }
 
 /**
@@ -85,5 +104,7 @@ export function settingsFromEditor(read: (key: string) => unknown): AppSettings 
     waiting: sound(read('sound.waiting'), base.waiting),
     done: sound(read('sound.done'), base.done),
     volume: clampVolume(read('sound.volume')),
+    // Never an editor setting: nothing to migrate, the default applies.
+    persistent: base.persistent,
   };
 }

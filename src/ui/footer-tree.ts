@@ -17,9 +17,20 @@ export interface SoundSettings {
 }
 
 export type FooterNode =
+  | { kind: 'persistent'; on: boolean }
   | { kind: 'sound'; event: ChimeEvent; name: string }
   | { kind: 'volume'; volume: number }
   | { kind: 'library'; count: number };
+
+/**
+ * What the checkbox means, spelled out where the mouse rests: the word
+ * "persistent" alone says nothing about tabs, folders, or how to come back.
+ */
+export function persistentTooltip(): string {
+  return vscode.l10n.t(
+    'Keep a conversation in the list after its tab is closed: greyed out, in its folder, a click reopens it (the 20 most recent).\nUnchecked, closing the tab removes it from the list; it is then kept under “Recently closed”.',
+  );
+}
 
 /**
  * The title of a sound picker. It names the EVENT, not the level: "sound of
@@ -55,6 +66,7 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   readonly onDidChangeTreeData = this.emitter.event;
   private sound: SoundSettings = { waiting: NO_SOUND, done: NO_SOUND, volume: 0.5 };
   private library = 0;
+  private persistent = true;
   // Même règle que l'arbre des sessions : ne rien annoncer quand rien n'a
   // changé, sinon l'infobulle s'escamote sous la souris.
   private rendered: string | undefined;
@@ -69,8 +81,13 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
     this.refresh();
   }
 
+  setPersistent(on: boolean): void {
+    this.persistent = on;
+    this.refresh();
+  }
+
   private refresh(): void {
-    const next = JSON.stringify([this.sound, this.library]);
+    const next = JSON.stringify([this.sound, this.library, this.persistent]);
     if (next === this.rendered) return;
     this.rendered = next;
     this.emitter.fire();
@@ -79,6 +96,8 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   getChildren(node?: FooterNode): FooterNode[] {
     if (node !== undefined) return [];
     return [
+      // First: it is about the list itself, the sounds only comment on it.
+      { kind: 'persistent', on: this.persistent },
       { kind: 'sound', event: 'waiting', name: this.sound.waiting },
       { kind: 'sound', event: 'done', name: this.sound.done },
       { kind: 'volume', volume: this.sound.volume },
@@ -87,6 +106,17 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   }
 
   getTreeItem(node: FooterNode): vscode.TreeItem {
+    if (node.kind === 'persistent') {
+      const item = new vscode.TreeItem(vscode.l10n.t('Persistent sessions'));
+      item.tooltip = persistentTooltip();
+      // A real checkbox, not a word: the state is read at a glance, and the box
+      // itself is a target. The row is one too — `onDidChangeCheckboxState`
+      // and the command both land on the same toggle.
+      item.checkboxState = node.on ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
+      item.iconPath = new vscode.ThemeIcon('pin', new vscode.ThemeColor('descriptionForeground'));
+      item.command = { command: 'kohVibe.togglePersistentSessions', title: vscode.l10n.t('Toggle persistent sessions') };
+      return item;
+    }
     if (node.kind === 'sound') {
       const item = new vscode.TreeItem(soundRowLabel(node.event, node.name));
       item.tooltip =

@@ -20,6 +20,7 @@ describe('parseSettings', () => {
       waiting: 'Clic 1',
       done: 'Verre 2',
       volume: 0.3,
+      persistent: true,
     });
   });
 
@@ -41,7 +42,7 @@ describe('parseSettings', () => {
   });
 
   it('fait le tour du fichier', () => {
-    const s = { waiting: 'Clic 1', done: '', volume: 0.9 };
+    const s = { waiting: 'Clic 1', done: '', volume: 0.9, persistent: false };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 });
@@ -61,14 +62,14 @@ describe('le fichier de réglages partagé', () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.4 });
     await writeSettings(file, { volume: 0.8 });
-    expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8 });
+    expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8, persistent: true });
   });
 
   it('relit avant d écrire : régler le volume n écrase pas un son choisi entre-temps', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1' });
     // Une autre fenêtre écrit pendant qu on tient encore l ancien état en main.
-    writeFileSync(file, serializeSettings({ waiting: 'Erreur 3', done: '', volume: 0.5 }), 'utf8');
+    writeFileSync(file, serializeSettings({ waiting: 'Erreur 3', done: '', volume: 0.5, persistent: true }), 'utf8');
     await writeSettings(file, { volume: 0.2 });
     expect((await readSettings(file)).waiting).toBe('Erreur 3');
   });
@@ -86,7 +87,7 @@ describe('le fichier de réglages partagé', () => {
 describe('seedSettings — la migration depuis les réglages de chaque éditeur', () => {
   it('verse les réglages locaux quand le fichier partagé n existe pas encore', async () => {
     const file = join(scratch(), 'settings.json');
-    const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7 }));
+    const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true }));
     expect(seeded.waiting).toBe('Funk');
     expect(JSON.parse(readFileSync(file, 'utf8')).done).toBe('Hero');
   });
@@ -96,13 +97,13 @@ describe('seedSettings — la migration depuis les réglages de chaque éditeur'
     // éditeur : les deux ne se contrediraient plus seulement, ils se battraient.
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.3 });
-    const kept = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7 }));
-    expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3 });
+    const kept = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true }));
+    expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3, persistent: true });
   });
 
   it('sème même un silence choisi, qui est un réglage comme un autre', async () => {
     const file = join(scratch(), 'settings.json');
-    expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5 }))).waiting).toBe('');
+    expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5, persistent: true }))).waiting).toBe('');
     expect((await readSettings(file)).waiting).toBe('');
   });
 });
@@ -124,6 +125,7 @@ describe('the sounds a fresh install starts with', () => {
       waiting: 'Funk',
       done: 'Hero',
       volume: 0.3,
+      persistent: true,
     });
   });
 
@@ -154,6 +156,7 @@ describe('settingsFromEditor — what the migration reads from this editor', () 
       waiting: 'Funk',
       done: '',
       volume: 0.7,
+      persistent: true,
     });
   });
 
@@ -184,6 +187,33 @@ describe('a fresh install, end to end', () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Funk', done: '', volume: 0.2 });
     const kept = await seedSettings(file, () => settingsFromEditor(() => undefined));
-    expect(kept).toEqual({ waiting: 'Funk', done: '', volume: 0.2 });
+    expect(kept).toEqual({ waiting: 'Funk', done: '', volume: 0.2, persistent: true });
+  });
+});
+
+describe('persistent sessions — the setting behind the checkbox', () => {
+  it('is on until someone turns it off: a file that never mentions it, a fresh editor', () => {
+    expect(defaultSettings().persistent).toBe(true);
+    expect(parseSettings('{"waiting":"Funk"}').persistent).toBe(true);
+    expect(settingsFromEditor(() => undefined).persistent).toBe(true);
+  });
+
+  it('keeps a chosen off, and makes the round trip', () => {
+    expect(parseSettings('{"persistent":false}').persistent).toBe(false);
+    const s = { ...defaultSettings(), persistent: false };
+    expect(parseSettings(serializeSettings(s)).persistent).toBe(false);
+  });
+
+  it('reads anything but a boolean as the default, without touching the sounds', () => {
+    const s = parseSettings('{"waiting":"Funk","persistent":"non"}');
+    expect(s.persistent).toBe(true);
+    expect(s.waiting).toBe('Funk');
+  });
+
+  it('is written like any other field, and survives a volume change', async () => {
+    const file = join(scratch(), 'settings.json');
+    await writeSettings(file, { persistent: false });
+    await writeSettings(file, { volume: 0.2 });
+    expect((await readSettings(file)).persistent).toBe(false);
   });
 });

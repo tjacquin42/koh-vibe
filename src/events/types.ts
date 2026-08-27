@@ -52,6 +52,13 @@ export interface Session {
   lastEventAt: number;
   transcriptPath?: string;
   /**
+   * When the conversation ended — its tab closed, its process gone
+   * (`SessionEnd`). An ended conversation stays on the list, greyed and in its
+   * folder, until the user removes it or the cap on ended ones drops it; a
+   * click brings it back, and any hook clears the mark.
+   */
+  endedAt?: number;
+  /**
    * Taken off the list by the user ("Remove from the list") while its process
    * still runs. Kept on disk so that a rescan does not bring it straight back;
    * cleared by the next hook, which is the activity the user removed it for

@@ -179,7 +179,8 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     runBridge('SessionStart', { session_id: SESSION_ID, cwd: projectDir });
     await drain(dirs, Date.now(), undefined, archive);
     runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir });
-    await drain(dirs, Date.now(), undefined, archive);
+    // 'remove': the setting off, closing the tab takes the row away.
+    await drain(dirs, Date.now(), undefined, archive, 'remove');
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
 
@@ -228,7 +229,8 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     await withTokens(await readSessions(dirs), transcripts);
 
     runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir });
-    await drain(dirs, Date.now(), undefined, archive);
+    // 'remove': the setting off, closing the tab takes the row away.
+    await drain(dirs, Date.now(), undefined, archive, 'remove');
 
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
 

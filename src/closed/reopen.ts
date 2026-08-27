@@ -37,7 +37,7 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
 
 /**
  * Executes what a click on a closed conversation's row asks for. Extracted
- * out of the `kohVibe.reopenSession` command registration (extension.ts) for
+ * of the click on an ended row (`kohVibe.focusSession`, extension.ts) for
  * the same reason `acknowledgeVisibleSessions`/`acknowledgeClickedSession`
  * were pulled out of extension.ts's onVisible/focusSession — see
  * `focus/acknowledge.ts`'s header comment: a composition point living

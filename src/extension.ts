@@ -8,6 +8,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, parseEditorMemento, readEditorMemento } from './claude/dormant';
 import { visibleSessions } from './store/visible';
+import { openSessions } from './store/open';
 import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
@@ -20,8 +21,9 @@ import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
+import { ClosedTree } from './ui/closed-tree';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions } from './spool/persist';
+import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand,
@@ -34,7 +36,6 @@ import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrar
 import type { TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
 import { SessionsTree, groupIdOfNode, sessionIdOfNode } from './ui/tree';
-import { ClosedTree } from './ui/closed-tree';
 import { decorationColorOf } from './ui/decorations';
 import { StatusSummary } from './ui/statusbar';
 import { readBuildStamp, versionLabel } from './ui/version';
@@ -182,6 +183,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return sound;
   }
 
+  /**
+   * The "persistent sessions" setting, as a context key: package.json shows
+   * the "Recently closed" view only while it is off — with it on, an ended
+   * conversation is a greyed row in the list, and the view would sit empty.
+   */
+  const PERSISTENT = 'kohVibe.persistentSessions';
+  let persistentContext: boolean | undefined;
+  async function syncPersistentContext(on: boolean): Promise<void> {
+    if (persistentContext === on) return;
+    persistentContext = on;
+    await vscode.commands.executeCommand('setContext', PERSISTENT, on);
+  }
+  // Before the views exist: the key is unset until then, and `!unset` would
+  // show the closed view for a moment on every start.
+  await syncPersistentContext((await readSettings(settingsPath)).persistent);
+
+  /**
+   * Flip the setting. Turning it off also takes away the rows already ended:
+   * that is where closing their tab would have sent them under this policy,
+   * and they are in the closed history either way.
+   */
+  async function setPersistent(on: boolean): Promise<void> {
+    if (sound.persistent === on) return;
+    sound = await writeSettings(settingsPath, { persistent: on });
+    if (!on) {
+      for (const s of (await readSessions(dirs)).values()) {
+        if (s.endedAt !== undefined) await removeSession(dirs, s.id);
+      }
+    }
+    await render();
+  }
+
   /** Ce que cet éditeur avait chez lui, et qui ne servira qu'une fois. */
   function legacySettings(): AppSettings {
     const config = vscode.workspace.getConfiguration('kohVibe');
@@ -270,7 +303,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath);
   const footer = new FooterTree();
-  const closedTree = new ClosedTree();
   const usageView = new UsageView(() => void vscode.commands.executeCommand('kohVibe.refreshUsage'));
   const status = new StatusSummary();
   const transcripts = new Map<string, TranscriptStats>();
@@ -294,14 +326,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Vue distincte, sous la première dans le même conteneur : VSCode n'offre
   // aucun moyen d'épingler une ligne au bas d'un arbre, et tout ce qu'on y
   // mettait défilait avec les conversations.
+  const closedTree = new ClosedTree();
+  const settingsView = vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer });
   context.subscriptions.push(
     footer,
     closedTree,
-    // Trois vues empilées dans le conteneur : les sessions, la consommation,
-    // puis les réglages. L'ordre vient de package.json, pas d'ici.
-    vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
+    // Quatre vues empilées dans le conteneur : les sessions, « Fermé
+    // récemment » (seulement quand les sessions ne sont pas persistantes), la
+    // consommation, puis les réglages. L'ordre vient de package.json, pas d'ici.
     vscode.window.createTreeView('kohVibe.closed', { treeDataProvider: closedTree }),
-    vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer }),
+    vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
+    settingsView,
+    // The checkbox itself; the rest of the row goes through the command.
+    settingsView.onDidChangeCheckboxState((e) => {
+      for (const [node, state] of e.items) {
+        if (node.kind === 'persistent') void setPersistent(state === vscode.TreeItemCheckboxState.Checked);
+      }
+    }),
   );
 
   // Posée une fois : ni la version ni le commit ne changent tant que la fenêtre
@@ -335,6 +376,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         usageView.setUsage(await readUsage(home));
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
+        footer.setPersistent(sound.persistent);
+        await syncPersistentContext(sound.persistent);
         footer.setLibrary(await installedCount(librarySoundsDir(home)));
         const map = await withTokens(await readSessions(dirs), transcripts, () => {
           if (transcriptFailureWarned) return;
@@ -356,20 +399,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         for (const d of dormant.values()) if (!map.has(d.id)) map.set(d.id, d);
         // A conversation leaving the list while its process still runs comes
         // back a few seconds later (store/vanish.ts).
-        vanish.observe(map.keys());
+        vanish.observe(openSessions(map).keys());
         // Hidden ones stay out of everything the user sees — and in everything
         // that reasons about what is alive (the closed view, the rescan).
         const shown = visibleSessions(map);
+        // Re-read on every render, never cached: shared file, another window
+        // may have closed a conversation between two rounds. `readClosed` never
+        // fails (absent or unreadable means "empty list"). Both, and in this
+        // order: the closed view hides an entry whose conversation is back in
+        // the list, so it needs the shown ids as much as the list itself.
+        const closed = await readClosed(closedPath);
+        closedTree.setClosed(closed.closed);
+        closedTree.setLive(shown.keys());
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
         // vaut « classement vide », voir groups/store.ts) : aucune garde de
         // type `*FailureWarned` n'est nécessaire ici.
         const groups = await readGroups(groupsPath);
-        // Re-read on every render, never cached: shared file, another window
-        // may have closed a conversation between two rounds. `readClosed` never
-        // fails (absent or unreadable means "empty list").
-        const closed = await readClosed(closedPath);
         // Le carillon avant l'affichage : `shouldChime` compare l'état du tour
         // précédent au nouveau, et `lastStatuses` doit avancer à CHAQUE rendu,
         // même silencieux — sinon la comparaison se ferait contre un état de
@@ -391,12 +438,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (shown.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
         tree.setSessions(shown);
         tree.setGroups(groups);
-        // Both, and in this order: the closed view hides an entry whose
-        // conversation is alive again, so it needs the live ids as much as the
-        // list itself.
-        closedTree.setClosed(closed.closed);
-        closedTree.setLive(map.keys());
-        status.update(shown);
+        // The status bar counts what runs: an ended or dormant row is a
+        // conversation to come back to, not a session at work.
+        status.update(openSessions(shown));
       },
       () => {
         // Filet générique : quelle que soit la cause restée hors de l'isolation
@@ -457,12 +501,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * if the id ever came back, and would grow the shared file without end.
    */
   const forget = async (id: string): Promise<void> => {
-    // Hidden, not removed: a removed file is exactly what the rescan brings
-    // back. A dormant tab has no file to mark — it leaves this window's
-    // memory instead, and stays out. Its folder assignment is kept either
-    // way: a conversation that comes back comes back where it was filed.
+    // Three kinds of row, three ways out. An open one is hidden, not removed:
+    // a removed file is exactly what the rescan brings back. An ended one is
+    // removed for good — nothing runs behind it. A dormant tab has no file
+    // at all: it leaves this window's memory, and stays out. The folder
+    // assignment is kept either way: a conversation that comes back comes
+    // back where it was filed.
     if (dormant.delete(id)) dismissed.add(id);
-    else await hideSession(dirs, id);
+    else {
+      const s = await readSession(dirs, id);
+      if (s?.endedAt !== undefined) await removeSession(dirs, id);
+      else await hideSession(dirs, id);
+    }
     await render();
   };
 
@@ -491,6 +541,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // The closed-conversation history. Errors are NOT swallowed here: `drain`
     // relies on the rejection to leave the event in place and retry it.
     archive,
+    // What `SessionEnd` does to the row, per the setting as last read.
+    () => (sound.persistent ? 'keep' : 'remove'),
   );
   watcher.start();
   broker.start();
@@ -553,6 +605,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // purpose, and package.json keeps it disabled.
     vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
     vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
+      // An ended conversation is brought back, not focused: the same three-way
+      // decision the closed history used (closed/reopen.ts) — a tab in the
+      // window that holds the project, a terminal, or an explanation.
+      if (s.endedAt !== undefined) {
+        void reopenClosedSession(toClosedEntry(s, s.endedAt), (e) => broker.requestReopen(e));
+        return;
+      }
       // Le clic acquitte inconditionnellement (spec §5 : « clic sur la
       // session »), indépendamment de claims() — qui ne gouverne que
       // l'acquittement passif d'acknowledgeVisibleSessions, ci-dessus.
@@ -560,14 +619,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void acknowledgeClickedSession(dirs, s).catch(() => undefined);
       void broker.request(s).catch(() => undefined);
     }),
-    // The three-way decision (terminal / editor tab / explain) is not made
-    // here: reopenClosedSession (closed/reopen.ts) owns it, and is tested
-    // directly, for the same reason acknowledgeVisibleSessions/
-    // acknowledgeClickedSession were pulled out of this file — see
-    // focus/acknowledge.ts.
-    vscode.commands.registerCommand('kohVibe.reopenSession', (entry: ClosedEntry) =>
-      reopenClosedSession(entry, (e) => broker.requestReopen(e)),
-    ),
     /**
      * The trash on a live conversation. The three-part decision — nothing to
      * close, ask first, route — belongs to requestCloseSession (close/close.ts)
@@ -582,6 +633,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const s = (await readSession(dirs, id)) ?? dormant.get(id);
       // Already gone from the spool: nothing to close, and nothing to remove.
       if (s === undefined) return;
+      // Nothing runs behind an ended row: the trash removes it for good.
+      if (s.endedAt !== undefined) {
+        await forget(id);
+        return;
+      }
       await requestCloseSession(s, {
         confirm: async (target) =>
           (await vscode.window.showWarningMessage(
@@ -681,6 +737,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await writeSettings(settingsPath, { [which]: chosen.sound ?? NO_SOUND });
       await render();
     }),
+    // The three-way decision (terminal / editor tab / explain) is not made
+    // here: reopenClosedSession (closed/reopen.ts) owns it, and is tested
+    // directly — see focus/acknowledge.ts for the same reasoning.
+    vscode.commands.registerCommand('kohVibe.reopenSession', (entry: ClosedEntry) =>
+      reopenClosedSession(entry, (e) => broker.requestReopen(e)),
+    ),
+    vscode.commands.registerCommand('kohVibe.togglePersistentSessions', () => setPersistent(!sound.persistent)),
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();
       const steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];

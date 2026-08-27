@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import * as vscode from 'vscode';
-import { isReopenable, type ClosedEntry } from '../closed/model';
+import { isReopenable, toClosedEntry, type ClosedEntry } from '../closed/model';
 import type { Session, Status } from '../events/types';
 
 /**
@@ -82,6 +82,13 @@ export function sessionLabel(s: Pick<Session, 'title' | 'branch' | 'project'>): 
 // repeating that normalisation would be the next trap: the one nobody
 // remembers to keep in step with the first.
 export function sessionDescription(s: Session, now: number): string {
+  // A dormant tab has no age worth counting: nothing has happened in it since
+  // the editor restored it, and "20 000 h" would say the opposite.
+  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab not started')}`;
+  // An ended one says when it closed, as the closed history always did —
+  // before anything else: nothing runs behind it, whatever the row still
+  // carries from before its end.
+  if (s.endedAt !== undefined) return closedDescription({ ...s, closedAt: s.endedAt }, now);
   if (s.pendingPermission !== undefined) {
     return vscode.l10n.t('permission: {0}', s.pendingPermission.summary || s.pendingPermission.tool);
   }
@@ -89,9 +96,6 @@ export function sessionDescription(s: Session, now: number): string {
     const target = s.currentAction.target;
     return target === undefined ? s.currentAction.tool : `${s.currentAction.tool} ${basename(target)}`;
   }
-  // A dormant tab has no age worth counting: nothing has happened in it since
-  // the editor restored it, and "20 000 h" would say the opposite.
-  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab not started')}`;
   // The status is NOT spelled out here: the dot on the line (ui/tree.ts) already
   // carries it, by colour. The word does not disappear for all that — it stays
   // in the tooltip and in the accessibility label, the two places where an icon
@@ -101,6 +105,7 @@ export function sessionDescription(s: Session, now: number): string {
 }
 
 export function sessionTooltip(s: Session, now: number): string {
+  if (s.endedAt !== undefined) return closedTooltip(toClosedEntry(s, s.endedAt), now);
   const lines = [
     projectAndBranch(s, ' / '),
     s.dormant === true ? vscode.l10n.t('tab not started') : `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,

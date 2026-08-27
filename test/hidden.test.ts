@@ -29,8 +29,10 @@ describe('reduce — a hidden session', () => {
     expect(reduce({ ...base, status: 'done_unseen', hidden: true }, ev('Ack'))?.hidden).toBe(true);
   });
 
-  it('still ends on SessionEnd', () => {
-    expect(reduce({ ...base, hidden: true }, ev('SessionEnd'))).toBeUndefined();
+  it('ends on SessionEnd, and is hidden no more: the row is back, greyed', () => {
+    const s = reduce({ ...base, hidden: true }, ev('SessionEnd'));
+    expect(s?.endedAt).toBe(20);
+    expect(s).not.toHaveProperty('hidden');
   });
 });
 

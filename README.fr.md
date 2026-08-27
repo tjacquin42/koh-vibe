@@ -18,13 +18,16 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
   attendent d'abord, puis celles qui travaillent, puis celles qui viennent de finir.
 - **Une pastille de statut** par session — même glyphe, cinq couleurs — et, à côté, le projet,
   la branche et l'outil en cours d'exécution.
-- **Fermé récemment**, une vue à part qui retient les dix conversations terminées le plus
-  récemment, pour qu'une session qu'on vient de quitter ne disparaisse pas d'un coup.
+- **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
+  que *Sessions persistantes* est coché dans les réglages (il l'est par défaut) — les vingt
+  plus récentes. Décoché, fermer un onglet retire la ligne ; *Fermé récemment*, une vue à
+  part, retient alors les dix conversations terminées le plus récemment.
 - **Fermer une conversation** avec l'icône corbeille qui apparaît au survol d'une ligne
-  vivante. Elle ferme son onglet Claude Code, ce qui met fin à la conversation et la range
-  dans *Fermé récemment*. Quand aucun onglet n'est trouvé — une conversation dans un
-  terminal, dans l'application de bureau Claude, ou dans un projet qu'aucune fenêtre n'a
-  ouvert — la ligne est simplement retirée de la liste.
+  vivante. Elle ferme son onglet Claude Code, ce qui met fin à la conversation : la ligne se
+  grise, ou part dans *Fermé récemment*, selon le réglage. Quand aucun onglet n'est trouvé —
+  une conversation dans un terminal, dans l'application de bureau Claude, ou dans un projet
+  qu'aucune fenêtre n'a ouvert — la ligne est simplement retirée de la liste. Sur une ligne
+  terminée, l'icône la retire pour de bon.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -92,10 +95,16 @@ Dans la liste de choix, les flèches font entendre chaque son ; **→** rejoue l
 Code tourne dans son terminal, et une session encore vivante réapparaîtra à son prochain
 événement.
 
-**Rouvrir.** Une conversation qui vient de se terminer ne disparaît pas : elle passe dans
-*Fermé récemment*, sa propre vue, tant que neuf autres ne l'ont pas encore poussée dehors.
-Un clic la ramène — dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf posé
-sur son dossier, selon d'où elle venait.
+**Sessions persistantes.** La première ligne des réglages, une case à cocher, décide de ce que
+fermer un onglet fait à sa ligne. Cochée — le défaut — la conversation reste dans la liste,
+grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les vingt plus
+récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée, fermer
+l'onglet retire la ligne, et décocher retire aussi les lignes déjà terminées. Le survol de la
+ligne donne la même explication.
+
+**Rouvrir.** Un clic sur une conversation terminée — ligne grisée, ou entrée de *Fermé
+récemment* — la ramène : dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf
+posé sur son dossier, selon d'où elle venait.
 
 ## Où vivent les données
 
@@ -111,7 +120,7 @@ Tout tient dans `~/.koh-vibe/` :
 | `backups/` | les copies de `settings.json` prises avant chaque pose de hooks |
 | `groups.json` | les dossiers, leurs couleurs, l'ordre choisi et les sons |
 | `closed.json` | les dix conversations fermées le plus récemment |
-| `settings.json` | les sons globaux et le volume |
+| `settings.json` | les sons globaux, le volume, et si les sessions persistent |
 | `usage.json` | le dernier relevé de consommation, mis en cache |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |
