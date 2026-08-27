@@ -18,6 +18,7 @@ describe('parseUsage', () => {
     expect(parseUsage(REAL)).toEqual({
       fiveHour: { percent: 78, resetsAt: 1786297800 },
       sevenDay: { percent: 32, resetsAt: 1786712400 },
+      models: [],
     });
   });
 
@@ -25,6 +26,7 @@ describe('parseUsage', () => {
     expect(parseUsage({ rate_limits: { five_hour: { used_percentage: 5 } } })).toEqual({
       fiveHour: { percent: 5, resetsAt: undefined },
       sevenDay: undefined,
+      models: [],
     });
   });
 
@@ -67,6 +69,7 @@ describe('parseUsage — les deux vocabulaires', () => {
     expect(parseUsage(API)).toEqual({
       fiveHour: { percent: 13, resetsAt: Math.floor(Date.parse('2026-08-14T20:10:00.000725+00:00') / 1000) },
       sevenDay: { percent: 3, resetsAt: Math.floor(Date.parse('2026-08-21T13:00:00.000747+00:00') / 1000) },
+      models: [],
     });
   });
 
@@ -82,6 +85,74 @@ describe('parseUsage — les deux vocabulaires', () => {
       percent: 7,
       resetsAt: undefined,
     });
+  });
+});
+
+// The per-model windows, as the API renders them today: a `limits` list whose
+// `weekly_scoped` entries carry the model in `scope.model.display_name`. The
+// older `seven_day_<model>` fields are still emitted (null here) and are read
+// the same way when they carry something.
+const SCOPED = {
+  five_hour: { utilization: 43, resets_at: '2026-08-27T14:49:59.822275+00:00' },
+  seven_day: { utilization: 15, resets_at: '2026-08-28T12:59:59.822297+00:00' },
+  seven_day_opus: null,
+  seven_day_sonnet: null,
+  limits: [
+    { kind: 'session', group: 'session', percent: 43, resets_at: '2026-08-27T14:49:59.822275+00:00', scope: null },
+    { kind: 'weekly_all', group: 'weekly', percent: 15, resets_at: '2026-08-28T12:59:59.822297+00:00', scope: null },
+    {
+      kind: 'weekly_scoped',
+      group: 'weekly',
+      percent: 13,
+      resets_at: '2026-08-28T12:59:59.822539+00:00',
+      scope: { model: { id: null, display_name: 'Fable' }, surface: null },
+    },
+  ],
+};
+
+describe('parseUsage — the windows scoped to one model', () => {
+  it('reads a weekly window scoped to a model out of `limits`, named after the model', () => {
+    expect(parseUsage(SCOPED)?.models).toEqual([
+      { name: 'Fable', percent: 13, resetsAt: Math.floor(Date.parse('2026-08-28T12:59:59.822539+00:00') / 1000) },
+    ]);
+  });
+
+  it('ignores the unscoped limits, and a scoped one that names no model or no usable percentage', () => {
+    const limits = [
+      { kind: 'weekly_scoped', percent: 9, scope: { model: { display_name: '' } } },
+      { kind: 'weekly_scoped', percent: 9, scope: { surface: 'code' } },
+      { kind: 'weekly_scoped', percent: 140, scope: { model: { display_name: 'Opus' } } },
+      { kind: 'weekly_all', percent: 9, scope: { model: { display_name: 'Opus' } } },
+    ];
+    expect(parseUsage({ ...SCOPED, limits })?.models).toEqual([]);
+  });
+
+  it('still reads the older `seven_day_<model>` fields, and lets `limits` win on the same name', () => {
+    const legacy = {
+      seven_day_opus: { utilization: 40, resets_at: 1786712400 },
+      seven_day_sonnet: { utilization: 2 },
+    };
+    expect(parseUsage({ ...SCOPED, limits: [], ...legacy })?.models).toEqual([
+      { name: 'Opus', percent: 40, resetsAt: 1786712400 },
+      { name: 'Sonnet', percent: 2, resetsAt: undefined },
+    ]);
+    const both = { ...SCOPED, seven_day_opus: { utilization: 40 }, limits: [
+      { kind: 'weekly_scoped', percent: 41, scope: { model: { display_name: 'Opus' } } },
+    ] };
+    expect(parseUsage(both)?.models).toEqual([{ name: 'Opus', percent: 41, resetsAt: undefined }]);
+  });
+
+  it('is a reading in its own right: a model window alone is worth showing', () => {
+    const only = { limits: [{ kind: 'weekly_scoped', percent: 7, scope: { model: { display_name: 'Fable' } } }] };
+    expect(parseUsage(only)).toEqual({
+      fiveHour: undefined,
+      sevenDay: undefined,
+      models: [{ name: 'Fable', percent: 7, resetsAt: undefined }],
+    });
+  });
+
+  it('keeps the statusline shape, which carries no model window', () => {
+    expect(parseUsage(REAL)?.models).toEqual([]);
   });
 });
 
