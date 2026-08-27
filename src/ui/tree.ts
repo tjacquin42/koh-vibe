@@ -166,6 +166,11 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   private groups: GroupsState = emptyGroups();
   // `undefined` = rien n'a encore été affiché : le premier rendu passe toujours.
   private rendered: string | undefined;
+  // The freshest hooks-installed state the render loop has observed, fed by
+  // `setHooksInstalled`. `undefined` = never observed yet: `getChildren` then
+  // falls back to asking `checkHooksInstalled` itself, so the first empty
+  // display never waits for a render tick.
+  private hooksInstalled: boolean | undefined;
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -214,6 +219,20 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
+   * Fed by the render loop, and only while there is no session to show (the
+   * only time the value is consulted — I5). Without it, the "hooks not
+   * installed" row could never notice an installation made while the window
+   * was open: the signature below did not change, so nothing ever fired
+   * `onDidChangeTreeData`, so VSCode never called `getChildren` again — the
+   * very symptom the injected checker was meant to avoid. Taking part in the
+   * signature is what turns an observed change into a redraw.
+   */
+  setHooksInstalled(installed: boolean): void {
+    this.hooksInstalled = installed;
+    this.refresh();
+  }
+
+  /**
    * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
    *
    * Pas l'état brut : `lastEventAt` change à chaque événement, mais l'âge
@@ -223,6 +242,11 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   private signature(): string {
     const now = Date.now();
     return JSON.stringify([
+      // Only relevant when the session list is empty — the sole case where the
+      // hooks row is displayed. Included unconditionally: it is inert
+      // otherwise, and a conditional here would be one more branch to keep in
+      // step with getChildren.
+      this.hooksInstalled ?? null,
       this.sessions.map((s) => [
         s.id,
         s.status,
@@ -289,7 +313,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   async getChildren(node?: TreeNode): Promise<TreeNode[]> {
     if (node === undefined) {
       if (this.sessions.length === 0) {
-        const installed = await this.checkHooksInstalled();
+        const installed = this.hooksInstalled ?? (await this.checkHooksInstalled());
         return [
           installed
             ? { kind: 'empty', message: vscode.l10n.t('No active Claude Code session') }
@@ -331,7 +355,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       const item = new vscode.TreeItem(node.message);
       item.id = 'empty';
       if (node.action === 'install') {
-        item.command = { command: 'kohVibe.installHooks', title: 'Installer' };
+        item.command = { command: 'kohVibe.installHooks', title: vscode.l10n.t('Install') };
       }
       return item;
     }

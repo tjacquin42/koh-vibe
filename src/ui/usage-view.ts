@@ -73,7 +73,7 @@ function row(label: string, w: UsageWindow | undefined, now: number): string {
 export function usageHtml(reading: UsageReading | undefined, now: number): string {
   const body =
     reading === undefined
-      ? `<div class="empty">Consommation inconnue — cliquez pour rafraîchir.</div>`
+      ? `<div class="empty">${escape(vscode.l10n.t('Usage unknown — click to refresh.'))}</div>`
       : rowsOf(reading.usage, now) + footer(reading, now);
   return `<style>
     body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
@@ -125,6 +125,14 @@ export class UsageView implements vscode.WebviewViewProvider {
     this.view = view;
     view.webview.options = { enableScripts: true };
     view.webview.onDidReceiveMessage(() => this.onRefresh());
+    // VSCode disposes the webview when the view is destroyed (e.g. the
+    // container hidden long enough). Writing HTML to a disposed webview
+    // throws — and `paint()` runs on every render tick, so keeping the stale
+    // reference made the WHOLE dashboard render fail until reload. Dropped
+    // here; `resolveWebviewView` is called again when the view comes back.
+    view.onDidDispose(() => {
+      if (this.view === view) this.view = undefined;
+    });
     // Forcer le rendu : la vue vient d'apparaître, elle n'a encore rien affiché.
     this.rendered = undefined;
     this.paint();

@@ -127,9 +127,11 @@ describe('usageHtml', () => {
   });
 
   it('reste affichable sans aucune mesure, et propose de rafraîchir', () => {
+    // La source est l'anglais, comme partout : le message passe par
+    // vscode.l10n.t, et le bouchon de test rend la chaîne source telle quelle.
     const html = usageHtml(undefined, now);
-    expect(html).toContain('inconnue');
-    expect(html).toContain('rafraîchir');
+    expect(html).toContain('unknown');
+    expect(html).toContain('refresh');
   });
 
   it('échappe ce qui vient de l extérieur', () => {

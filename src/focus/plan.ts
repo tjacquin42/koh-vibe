@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import type { Session } from '../events/types';
 import { sessionLabel } from '../ui/labels';
 
@@ -26,7 +27,10 @@ export function focusPlan(sessionId: string, origin: unknown, label: string): Fo
   const suffix = typeof origin === 'string' && origin.length > 0 ? ` (${origin})` : '';
   return {
     kind: 'explain',
-    message: `Koh-Vibe : la session « ${label} » tourne hors de l'éditeur${suffix} — rien à ouvrir ici.`,
+    // Through `vscode.l10n.t` like every other user-facing string: the English
+    // literal is the default, the French lives in the bundle — same rule as
+    // its twin `reopenPlan` (closed/reopen.ts).
+    message: vscode.l10n.t('Koh-Vibe: session « {0} » runs outside the editor{1} — nothing to open here.', label, suffix),
   };
 }
 

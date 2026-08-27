@@ -1,3 +1,4 @@
+import { isRecord } from '../lib/json';
 /**
  * Ce que Claude Code passe à la statusline, et que le pont dépose tel quel.
  *
@@ -28,10 +29,6 @@ export interface Usage {
    * scoped limit.
    */
   models: readonly ScopedWindow[];
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 /**

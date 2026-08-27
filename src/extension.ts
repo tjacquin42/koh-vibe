@@ -269,6 +269,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // mettait défilait avec les conversations.
   context.subscriptions.push(
     footer,
+    closedTree,
     // Trois vues empilées dans le conteneur : les sessions, la consommation,
     // puis les réglages. L'ordre vient de package.json, pas d'ici.
     vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
@@ -319,6 +320,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         // The cache follows the list: a conversation that ended, or was removed,
         // must not keep its counters in memory for the life of the window.
+        // Pruned AFTER withTokens — `archive` (below) has already read the
+        // title it needed before the state file disappeared. The one and only
+        // cleanup path: the watcher's callback, below, does not repeat it.
         for (const id of transcripts.keys()) if (!map.has(id)) transcripts.delete(id);
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
@@ -343,6 +347,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume, soundPaths);
         }
         lastStatuses = statuses;
+        // Only while there is nothing to show — the sole case where the hooks
+        // row is displayed (I5): the row must notice an installation made
+        // while the window is open, and nothing but this loop can observe it
+        // (see SessionsTree.setHooksInstalled). The cost is one small file
+        // read per tick, paid only on an empty dashboard.
+        if (map.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
         tree.setSessions(map);
         tree.setGroups(groups);
         // Both, and in this order: the closed view hides an entry whose

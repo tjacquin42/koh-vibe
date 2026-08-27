@@ -51,7 +51,13 @@ function released() {
 // finit dans le .vsix (voir .vscodeignore) : un .vscode/ local ou un test
 // modifié ne changent rien à ce qui tourne, et s'ils allumaient le marqueur en
 // permanence il ne voudrait plus rien dire.
-const PACKAGED = /^(src|resources|bin)\/|^(package\.json|tsconfig\.json|\.vscodeignore)$/;
+// The list follows .vscodeignore, minus the files that do not change what
+// runs: README and CHANGELOG ship in the package but are documentation.
+// `src/` stands in for `out/` (compiled from it), `l10n/` and the package.nls
+// files carry the displayed labels, and scripts/install-hooks.cjs is executed
+// by the extension at runtime.
+const PACKAGED =
+  /^(src|resources|bin|l10n)\/|^(package\.json|package\.nls(\.fr)?\.json|tsconfig\.json|\.vscodeignore|scripts\/install-hooks\.cjs)$/;
 
 function changedPath(line) {
   // Format porcelain : deux colonnes d'état, une espace, puis le chemin —

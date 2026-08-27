@@ -1,4 +1,6 @@
+import * as vscode from 'vscode';
 import type { ChimeEvent } from '../sound/model';
+import { isRecord } from '../lib/json';
 
 /** Les deux événements qui sonnent, dans l'ordre où ils s'affichent. */
 export const CHIME_EVENTS: readonly ChimeEvent[] = ['waiting', 'done'];
@@ -78,10 +80,6 @@ export function emptyGroups(): GroupsState {
 /** `undefined` (« Sans dossier ») et la chaîne vide désignent le même seau. */
 export function orderKey(groupId: string | undefined): string {
   return groupId ?? UNFILED;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function name(v: unknown): string | undefined {
@@ -178,7 +176,7 @@ export function serializeGroups(s: GroupsState): string {
 
 export function createGroup(s: GroupsState, label: string, newId: () => string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error('Un dossier ne peut pas avoir un nom vide.');
+  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
   return { ...s, groups: [...s.groups, { id: newId(), name: clean, order: s.groups.length }] };
 }
 
@@ -216,7 +214,7 @@ export function reorderGroups(
 
 export function renameGroup(s: GroupsState, id: string, label: string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error('Un dossier ne peut pas avoir un nom vide.');
+  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
   return { ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, name: clean } : g)) };
 }
 

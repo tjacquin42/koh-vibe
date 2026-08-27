@@ -1,4 +1,5 @@
 import { HOOK_EVENTS } from '../events/types';
+import { isRecord } from '../lib/json';
 
 /** Marqueur qui rend nos entrées reconnaissables : le nom de fichier de notre bridge. */
 export const KOH_MARKER = 'koh-vibe-bridge';
@@ -29,10 +30,6 @@ interface HookCommand {
 interface HookMatcher {
   matcher: string;
   hooks: HookCommand[];
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 /** Une entrée de matcher reconnue : un objet dont `hooks` est un tableau. */

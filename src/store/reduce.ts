@@ -55,7 +55,11 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (!late) {
         next.status = 'running';
         next.inFlightSince = ev.at;
-        next.currentAction = { tool: ev.toolName ?? 'outil', target: ev.toolTarget };
+        // English fallback, not a localised one: this value is WRITTEN into the
+        // shared state file, which every window of every language reads —
+        // baking a translation into it would show one user's language to
+        // another. English is the project's neutral default (CLAUDE.md).
+        next.currentAction = { tool: ev.toolName ?? 'tool', target: ev.toolTarget };
         delete next.pendingPermission;
       }
       break;
@@ -70,7 +74,8 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (!late) {
         next.status = 'waiting';
         next.pendingPermission = {
-          tool: ev.toolName ?? 'outil',
+          // Same rule as `currentAction.tool` above: shared state, English fallback.
+          tool: ev.toolName ?? 'tool',
           summary: ev.toolTarget ?? ev.message ?? '',
         };
       }

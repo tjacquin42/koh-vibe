@@ -1,5 +1,6 @@
 import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../sound/bundled';
 import { clampVolume, DEFAULT_VOLUME } from '../sound/player';
+import { isRecord } from '../lib/json';
 
 /**
  * Les réglages du son, partagés entre TOUS les éditeurs de la machine.
@@ -33,10 +34,6 @@ export interface AppSettings {
  */
 export function defaultSettings(): AppSettings {
   return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME };
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function sound(v: unknown, fallback: string): string {

@@ -90,6 +90,29 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     expect(checkHooksInstalled).toHaveBeenCalledTimes(2);
   });
 
+  it("setHooksInstalled fait redessiner la ligne vide : une installation observée par le rendu se voit sans rechargement, même quand rien d'autre ne change", async () => {
+    const checkHooksInstalled = vi.fn().mockResolvedValue(false);
+    const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
+    let fired = 0;
+    tree.onDidChangeTreeData(() => {
+      fired += 1;
+    });
+
+    tree.setSessions(new Map());
+    expect(await bodyOf(tree)).toEqual([
+      { kind: 'empty', message: 'Hooks not installed — click to install them', action: 'install' },
+    ]);
+
+    const before = fired;
+    tree.setHooksInstalled(true);
+
+    // La valeur observée participe à la signature : le changement déclenche un
+    // redessin, et getChildren la consulte sans repasser par le vérificateur.
+    expect(fired).toBe(before + 1);
+    expect(await bodyOf(tree)).toEqual([{ kind: 'empty', message: 'No active Claude Code session' }]);
+    expect(checkHooksInstalled).toHaveBeenCalledTimes(1);
+  });
+
   it('ne consulte plus jamais les hooks une fois que des sessions apparaissent (le symptôme I5 disparaît par construction)', async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);

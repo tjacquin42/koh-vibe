@@ -33,6 +33,13 @@ const bridgeArg = process.argv.indexOf('--bridge');
 // jamais du cwd : ainsi le script fonctionne identiquement lancé depuis le dépôt
 // (scripts/ et bin/ sont frères) ou depuis l'extension installée (même
 // arborescence dans le .vsix, cf. .vscodeignore).
+// `--bridge` with no value after it: refused right away with a message,
+// rather than letting existsSync(undefined) throw a TypeError further down.
+// The message itself stays French like every other message this script
+// prints — its output is user-facing text, not code.
+if (bridgeArg > -1 && process.argv[bridgeArg + 1] === undefined) {
+  fail(`--bridge attend un chemin.\nRien n'a été écrit.`);
+}
 const bridgeSource =
   bridgeArg > -1 ? process.argv[bridgeArg + 1] : join(__dirname, '..', 'bin', 'koh-vibe-bridge');
 // Cible stable, sous kohVibeHome() : ni le dépôt ni l'extension installée ne
