@@ -19,7 +19,7 @@ import { EVENT_TITLE, FooterTree, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { ensureDirs, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
-import { pruneAssignmentsAfterPurge } from './groups/purge';
+import { pruneAssignmentsOf } from './groups/prune';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
@@ -68,7 +68,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // only source saying that a conversation is alive when its hooks are silent.
   const claudeRoot = claudeHome();
   const registryDir = claudeSessionsDir(claudeRoot);
-  const liveSessionIds = async (): Promise<ReadonlySet<string>> => new Set((await readLiveSessions(registryDir)).keys());
   /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts). Never fails a refresh: the registry is a
@@ -304,6 +303,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ),
           );
         });
+        // The cache follows the list: a conversation that ended, or was removed,
+        // must not keep its counters in memory for the life of the window.
+        for (const id of transcripts.keys()) if (!map.has(id)) transcripts.delete(id);
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
@@ -376,7 +378,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   const forget = async (id: string): Promise<void> => {
     await removeSession(dirs, id);
-    await pruneAssignmentsAfterPurge(dirs, groupsPath, [id]).catch(() => undefined);
+    await pruneAssignmentsOf(dirs, groupsPath, [id]).catch(() => undefined);
     await render();
   };
 
@@ -393,17 +395,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const watcher = new SpoolWatcher(
     dirs,
-    (res) => {
-      // Une session purgée (24h sans événement, voir purgeStaleSessions) ne
-      // doit pas laisser une entrée orpheline dans ce cache en mémoire :
-      // sinon la purge sur disque ne borne rien côté mémoire.
-      for (const id of res.purged) transcripts.delete(id);
-      // Même principe côté classement en dossiers : l'affectation d'une
-      // session purgée est un déchet sans nettoyage. pruneAssignmentsAfterPurge
-      // n'écrit rien quand res.purged est vide (la quasi-totalité des tours).
-      void pruneAssignmentsAfterPurge(dirs, groupsPath, res.purged).catch(() => undefined);
-      void render();
-    },
+    () => void render(),
     () => {
       if (drainFailureWarned) return;
       drainFailureWarned = true;
@@ -415,9 +407,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // The closed-conversation history. Errors are NOT swallowed here: `drain`
     // relies on the rejection to leave the event in place and retry it.
     archive,
-    // What keeps a silent conversation out of the purge: its process is still
-    // listed in Claude Code's registry. Asked only when there is a candidate.
-    liveSessionIds,
   );
   watcher.start();
   broker.start();
@@ -763,7 +752,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // lisent — voir seedSettings, qui ne réécrit jamais un fichier présent.
   await seedSettings(settingsPath, legacySettings);
   // Before the first render, so that a conversation lost while this window was
-  // away — purged, or the extension reloaded — is back on screen at once.
+  // away — ended by a window reload before its tab was resumed, or removed by
+  // hand — is back on screen at once.
   await rescan();
   await render();
 }

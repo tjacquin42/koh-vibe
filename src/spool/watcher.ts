@@ -5,8 +5,7 @@ import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
-import { SESSION_PURGE_MS } from '../store/staleness';
-import { ensureDirs, purgeStaleSessions, readSession, removeSession, writeSession, type LiveProbe } from './persist';
+import { ensureDirs, readSession, removeSession, writeSession } from './persist';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
 
 export interface DrainResult {
@@ -16,9 +15,6 @@ export interface DrainResult {
    * place dans events/ pour un prochain drain, ni perdu ni classé invalide —
    * sauf s'il a dépassé MAX_EVENT_AGE_MS, voir `rejectedPermanently`. */
   deferred: number;
-  /** Sessions supprimées pour n'avoir reçu aucun événement depuis plus de
-   * `SESSION_PURGE_MS` (spec §5). */
-  purged: string[];
   /** Noms des événements écartés vers rejected/ pour avoir échoué alors
    * qu'ils avaient déjà dépassé MAX_EVENT_AGE_MS (N3) : sous-ensemble de ce
    * qui compte dans `rejected`, distingué pour que l'appelant puisse
@@ -52,9 +48,7 @@ export type ArchiveClosed = (s: Session) => Promise<void>;
  * 5 minutes : très généreux comparé au temps d'un tick, même chargé (~30 s
  * au pire pour ~660 événements, voir GUARD_TIMEOUT_MS) — un événement qui
  * échoue encore après 5 minutes a déjà survécu à des dizaines de passages,
- * pas juste à un pic de charge. Et très en-dessous de l'échelle « oublié
- * pendant des heures » : rien à voir avec SESSION_PURGE_MS (24 h), qui
- * concerne l'absence totale d'événement, pas un échec actif et répété.
+ * pas juste à un pic de charge.
  */
 export const MAX_EVENT_AGE_MS = 5 * 60_000;
 
@@ -77,8 +71,9 @@ function eventTimestamp(name: string): number | undefined {
 }
 
 /**
- * Consomme tout le spool une fois, puis purge les sessions mortes depuis plus
- * de `SESSION_PURGE_MS`.
+ * Consomme tout le spool une fois. Rien ici ne retire une session pour son
+ * silence : un onglet laissé ouvert une journée reste une conversation. Seul
+ * `SessionEnd` — ou l'utilisateur, qui ferme ou retire — la sort de la liste.
  *
  * L'ordre est essentiel : on écrit l'état AVANT de supprimer l'événement. Une
  * autre fenêtre qui rate l'événement supprimé retrouve l'état dans sessions/ ;
@@ -101,18 +96,12 @@ function eventTimestamp(name: string): number | undefined {
  * écriture-puis-suppression, jamais avant : l'invariant « on écrit l'état
  * avant de supprimer l'événement » est ce qui rend cet abandon sans perte —
  * l'événement, ni appliqué ni supprimé, sera retraité par le passage frais.
- *
- * `live` (see `purgeStaleSessions`) keeps a silent session whose process still
- * runs out of the purge. Optional here, like `archive`: the tests that do not
- * care call `drain` without it, and `SpoolWatcher` — the only production path
- * — makes it mandatory.
  */
 export async function drain(
   dirs: SpoolDirs,
   now: number,
   signal?: AbandonSignal,
   archive?: ArchiveClosed,
-  live?: LiveProbe,
 ): Promise<DrainResult> {
   let names: string[] = [];
   try {
@@ -163,7 +152,7 @@ export async function drain(
         // sera retraité. Rien d'autre ne peut plus être fait de sûr par
         // cette exécution : on arrête tout le drain, pas seulement cet
         // événement.
-        return { applied, rejected, deferred, purged: [], rejectedPermanently };
+        return { applied, rejected, deferred, rejectedPermanently };
       }
 
       if (next === undefined) {
@@ -174,9 +163,7 @@ export async function drain(
         // it ever entering the history.
         //
         // `SessionEnd` only: it is the one event that means "this conversation
-        // is over". A session purged for staleness (`purgeStaleSessions`,
-        // below) was not closed, it was forgotten — and it does not come
-        // through here.
+        // is over".
         if (ev.event === 'SessionEnd' && current !== undefined && archive !== undefined) {
           await archive(current);
         }
@@ -231,9 +218,7 @@ export async function drain(
     }
   }
 
-  const purged = await purgeStaleSessions(dirs, now, SESSION_PURGE_MS, live);
-
-  return { applied, rejected, deferred, purged, rejectedPermanently };
+  return { applied, rejected, deferred, rejectedPermanently };
 }
 
 export interface LocalEventInput {
@@ -286,19 +271,14 @@ export class SpoolWatcher {
     private readonly dirs: SpoolDirs,
     private readonly onChange: (result: DrainResult) => void,
     private readonly onError: (err: unknown) => void,
-    // Horloge injectable : un test pilote le seuil de purge sans dépendre du
-    // vrai Date.now() (qui purgerait aussitôt des sessions de test dont les
-    // `at` sont de petits entiers). Le process long de l'extension garde le
+    // Horloge injectable : un test date ses événements de petits entiers sans
+    // dépendre du vrai Date.now(). Le process long de l'extension garde le
     // comportement par défaut.
     private readonly now: () => number = Date.now,
     // Required: this is the only production path into `drain`, so it is the
     // only place where forgetting it must be a compile error rather than a
     // silently empty history.
     private readonly archive: ArchiveClosed,
-    // Required for the same reason as `archive`: forgetting it would quietly
-    // bring back the bug it exists to fix — a conversation purged while its
-    // tab is open — and a compile error is the only way to notice that.
-    private readonly live: LiveProbe,
   ) {}
 
   start(): void {
@@ -328,7 +308,7 @@ export class SpoolWatcher {
 
   private tick(): Promise<void> {
     return this.guard.run(async (signal) => {
-      const res = await drain(this.dirs, this.now(), signal, this.archive, this.live);
+      const res = await drain(this.dirs, this.now(), signal, this.archive);
       if (res.rejectedPermanently.length > 0) {
         // Signalement dédié : drain() n'a pas échoué (les autres événements
         // se sont appliqués normalement), mais celui-ci a échoué alors qu'il
@@ -340,7 +320,7 @@ export class SpoolWatcher {
           ),
         );
       }
-      if (res.applied > 0 || res.purged.length > 0) this.onChange(res);
+      if (res.applied > 0) this.onChange(res);
     }, this.onError);
   }
 }

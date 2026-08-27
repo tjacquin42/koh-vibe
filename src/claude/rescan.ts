@@ -29,12 +29,12 @@ async function exists(path: string): Promise<boolean> {
 
 /**
  * Brings back into the spool every conversation whose process is running but
- * whose state file is gone — purged after a silent day before the registry
- * was consulted, or removed by hand — and returns the ids it added, sorted.
+ * whose state file is gone — ended by a window reload before its tab was
+ * resumed, or removed by hand — and returns the ids it added, sorted.
  *
  * Adds, and only adds: a session the spool already knows is left exactly as
  * it is (its status and counters come from real hooks), and nothing is ever
- * removed here — the purge, with the same registry in hand, decides that.
+ * removed here: only `SessionEnd`, or the user, takes a session off the list.
  *
  * What a recreated session carries is what the registry and the path say:
  * `idle`, no tool count, dated from the process start — nothing has happened

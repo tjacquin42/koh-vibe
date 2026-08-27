@@ -6,7 +6,7 @@ import { spoolDirs, type SpoolDirs } from '../src/paths';
 import { ensureDirs, writeSession } from '../src/spool/persist';
 import { assign, createGroup, parseGroups, serializeGroups } from '../src/groups/model';
 import { readGroups, updateGroups } from '../src/groups/store';
-import { pruneAssignmentsAfterPurge } from '../src/groups/purge';
+import { pruneAssignmentsOf } from '../src/groups/prune';
 
 // Compte les écritures RÉELLES sur disque (writeFile, appelé par updateGroups avant chaque
 // rename) : le seul moyen de démontrer qu'aucune écriture n'a eu lieu, pas seulement que le
@@ -63,15 +63,15 @@ afterEach(() => {
   readFileOverride.current = undefined;
 });
 
-describe('pruneAssignmentsAfterPurge', () => {
-  it('retire l affectation de la session purgée, garde celle d une session encore vivante', async () => {
+describe('pruneAssignmentsOf', () => {
+  it('retire l affectation de la session retirée, garde celle d une session encore vivante', async () => {
     await writeSession(dirs, session('vivante'));
     await updateGroups(file, (s) => {
       const withGroup = createGroup(s, 'dossier', () => 'g1');
       return assign(assign(withGroup, 'vivante', 'g1'), 'purgee', 'g1');
     });
 
-    await pruneAssignmentsAfterPurge(dirs, file, ['purgee']);
+    await pruneAssignmentsOf(dirs, file, ['purgee']);
 
     expect((await readGroups(file)).assignments).toEqual({ vivante: 'g1' });
   });
@@ -82,7 +82,7 @@ describe('pruneAssignmentsAfterPurge', () => {
   // trouverait bien quelque chose à retirer, et ce test tomberait. Sans cette affectation
   // morte, ce test ne prouve rien sur le premier garde-fou : le second suffirait déjà à
   // bloquer l'écriture, et les deux resteraient indiscernables l'un de l'autre.
-  it('n écrit rien quand rien n a été purgé, même s il existe déjà une affectation morte', async () => {
+  it('n écrit rien quand rien n a été retiré, même s il existe déjà une affectation morte', async () => {
     await writeSession(dirs, session('vivante'));
     await updateGroups(file, (s) => {
       const withGroup = createGroup(s, 'dossier', () => 'g1');
@@ -90,18 +90,18 @@ describe('pruneAssignmentsAfterPurge', () => {
     });
     writeFileCalls.count = 0;
 
-    await pruneAssignmentsAfterPurge(dirs, file, []);
+    await pruneAssignmentsOf(dirs, file, []);
 
     expect(writeFileCalls.count).toBe(0);
     expect((await readGroups(file)).assignments).toEqual({ vivante: 'g1', fantome: 'g1' });
   });
 
-  it('n écrit rien quand la session purgée n était classée dans aucun dossier', async () => {
+  it('n écrit rien quand la session retirée n était classée dans aucun dossier', async () => {
     await writeSession(dirs, session('vivante'));
     await updateGroups(file, (s) => assign(createGroup(s, 'dossier', () => 'g1'), 'vivante', 'g1'));
     writeFileCalls.count = 0;
 
-    await pruneAssignmentsAfterPurge(dirs, file, ['jamais-classee']);
+    await pruneAssignmentsOf(dirs, file, ['jamais-classee']);
 
     expect(writeFileCalls.count).toBe(0);
     expect((await readGroups(file)).assignments).toEqual({ vivante: 'g1' });
@@ -132,8 +132,8 @@ describe('pruneAssignmentsAfterPurge', () => {
     };
 
     // 's1' n'a jamais eu de fichier de session dans sessions/ : c'est précisément la session
-    // déjà purgée qui déclenche ce nettoyage.
-    await pruneAssignmentsAfterPurge(dirs, file, ['s1']);
+    // déjà retirée qui déclenche ce nettoyage.
+    await pruneAssignmentsOf(dirs, file, ['s1']);
 
     expect((await readGroups(file)).assignments).toEqual({ s2: 'g1' });
   });

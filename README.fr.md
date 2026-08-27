@@ -127,12 +127,11 @@ Aucun verrou : les fichiers partagés sont fusionnés à trois voies (l'état lu
 le plus frais relu juste avant d'écrire), pour que deux fenêtres qui rangent en même temps ne
 s'effacent pas l'une l'autre.
 
-Une conversation silencieuse pendant une journée — un onglet d'éditeur laissé ouvert —
-n'émet aucun hook. Avant de l'oublier, koh-vibe demande au registre des processus de Claude
-Code (`~/.claude/sessions/`) si elle vit encore, et la garde si oui. **Rafraîchir** lit le
-même registre dans l'autre sens : toute conversation vivante que la liste a perdue revient,
-dans le dossier où elle était rangée. Sans ce registre (un Claude Code plus ancien), une
-journée de silence vaut toujours un adieu, comme avant.
+Une conversation quitte la liste quand elle se termine, quand vous la fermez, ou quand vous
+la retirez — jamais parce qu'elle s'est tue : un onglet laissé ouvert une journée reste une
+conversation. **Rafraîchir** lit le registre des processus de Claude Code
+(`~/.claude/sessions/`) et ramène toute conversation vivante que la liste a perdue, dans le
+dossier où elle était rangée ; la même passe tourne à l'ouverture de la fenêtre.
 
 La consommation vient de l'API d'Anthropic, interrogée au plus une fois toutes les cinq
 minutes et mise en cache dans un fichier partagé — sinon chaque fenêtre irait chercher de son

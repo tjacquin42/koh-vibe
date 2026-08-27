@@ -117,12 +117,11 @@ Each window watches the spool on its own, reduces the events into state, and dis
 locks: shared files are merged three ways (the state read, ours, and the freshest one re-read
 just before writing), so two windows filing at the same time do not erase each other.
 
-A conversation that stays silent for a day — an editor tab you left open — emits no hook at
-all. Before forgetting it, koh-vibe asks Claude Code's own registry of running processes
-(`~/.claude/sessions/`) whether it is still alive, and keeps it if so. **Refresh** reads the
-same registry the other way round: every live conversation the list has lost comes back,
-in the folder it was filed in. Without that registry (an older Claude Code), a day of silence
-still means goodbye, as it always did.
+A conversation leaves the list when it ends, when you close it, or when you remove it —
+never because it went quiet: a tab you left open for a day is still a conversation.
+**Refresh** reads Claude Code's own registry of running processes (`~/.claude/sessions/`)
+and brings back every live conversation the list has lost, in the folder it was filed in;
+the same pass runs when the window opens.
 
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a
 shared file — otherwise every window would fetch exactly the same thing. The OAuth token is
