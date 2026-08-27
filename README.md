@@ -150,7 +150,7 @@ and brings back every live conversation the list has lost, in the folder it was 
 The same pass runs when the window opens, and a few seconds after a conversation vanishes
 while its process still runs — the same conversation open in two editors, one of them
 quitting — with a spinner in place of the button while it does. Tabs the editor restored
-but you have not opened since show as « tab asleep »: the editor resolves only the active tab, so no Claude Code process runs behind the others until they are shown. A click wakes one; the ▷ button in the view title wakes them all, closing the duplicate tabs of one conversation on the way. « Remove
+but you have not opened since are listed like any idle session — the tab is open, that is what counts. The editor resolves only the active tab, so no Claude Code process runs behind the others until they are shown: a click brings the tab to the front, and Claude Code resumes it. « Remove
 from the list » hides a conversation until its next activity.
 
 Usage comes from Anthropic's API, called at most once every five minutes and cached in a

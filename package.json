@@ -33,7 +33,6 @@
     },
     "commands": [
       { "command": "kohVibe.refresh", "title": "%command.kohVibe.refresh.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
-      { "command": "kohVibe.wakeTabs", "title": "%command.kohVibe.wakeTabs.title%", "category": "Koh-Vibe", "icon": "$(debug-start)" },
       { "command": "kohVibe.rescanning", "title": "%command.kohVibe.rescanning.title%", "category": "Koh-Vibe", "icon": "$(sync~spin)", "enablement": "false" },
       { "command": "kohVibe.focusSession", "title": "%command.kohVibe.focusSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.reopenSession", "title": "%command.kohVibe.reopenSession.title%", "category": "Koh-Vibe" },
@@ -65,7 +64,6 @@
       "view/title": [
         { "command": "kohVibe.refresh", "when": "view == kohVibe.sessions && !kohVibe.rescanning", "group": "navigation" },
         { "command": "kohVibe.rescanning", "when": "view == kohVibe.sessions && kohVibe.rescanning", "group": "navigation" },
-        { "command": "kohVibe.wakeTabs", "when": "view == kohVibe.sessions && kohVibe.hasDormant", "group": "navigation" },
         { "command": "kohVibe.newGroup", "when": "view == kohVibe.sessions", "group": "navigation" }
       ],
       "view/item/context": [

@@ -82,9 +82,13 @@ export function sessionLabel(s: Pick<Session, 'title' | 'branch' | 'project'>): 
 // repeating that normalisation would be the next trap: the one nobody
 // remembers to keep in step with the first.
 export function sessionDescription(s: Session, now: number): string {
-  // A dormant tab has no age worth counting: nothing has happened in it since
-  // the editor restored it, and "20 000 h" would say the opposite.
-  if (s.dormant === true) return `${projectAndBranch(s, ' · ')} · ${vscode.l10n.t('tab asleep')}`;
+  // A restored tab reads like any idle session. Its age is real when the
+  // file knows one; a tab the spool never saw has none worth counting — nothing
+  // happened in it since the editor restored it, and "20 000 h" would say the
+  // opposite — so it shows its project alone.
+  if (s.dormant === true) {
+    return s.lastEventAt > 0 ? `${projectAndBranch(s, ' · ')} · ${formatAgeCoarse(now - s.lastEventAt)}` : projectAndBranch(s, ' · ');
+  }
   // An ended one says when it closed, as the closed history always did —
   // before anything else: nothing runs behind it, whatever the row still
   // carries from before its end.
@@ -109,7 +113,7 @@ export function sessionTooltip(s: Session, now: number): string {
   const lines = [
     projectAndBranch(s, ' / '),
     s.dormant === true
-      ? vscode.l10n.t('tab asleep: restored by the editor, no Claude Code process until it is shown — click to wake it')
+      ? `${statusLabel('idle')} · ${vscode.l10n.t('tab open, not shown since the editor restored it — click to bring it to the front')}`
       : `${statusLabel(s.status)} · ${formatAge(now - s.lastEventAt)}`,
     vscode.l10n.t('origin: {0}', s.origin),
     // Two strings rather than one with a suffix: no European language builds a

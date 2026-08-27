@@ -50,8 +50,9 @@ const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, 
  * status decides, then recency, as the dashboard always sorted.
  */
 function tierOf(s: Session): number {
+  // A restored tab is an OPEN session to the user — it is right there in the
+  // tab bar — so it sorts with the open ones, as the idle one it reads as.
   if (s.endedAt !== undefined) return 2;
-  if (s.dormant === true) return 1;
   return 0;
 }
 
@@ -429,9 +430,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // A muted dot for what is not open — ended, or a tab nobody has woken —
     // and the label greyed with it, through the same decoration provider the
     // folders use: the only way VSCode offers to colour a row's text.
-    const pastille = statusIconPath(this.extensionPath, isOpen(s) ? s.status : 'ended');
+    // Only an ENDED row is muted: a restored tab is open, and reads as idle.
+    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended');
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
-    if (!isOpen(s)) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
+    if (s.endedAt !== undefined) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
     // Volontairement AUCUNE couleur sur une session ouverte : la teinte du
     // dossier descendue sur ses conversations noyait la lecture. Le dossier
     // porte la couleur, ses sessions portent leur statut.

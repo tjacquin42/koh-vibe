@@ -10,9 +10,10 @@ const dormant: Session = {
 describe('labels — a dormant tab', () => {
   it('says the tab was never started rather than counting an age that means nothing', () => {
     const now = 1_700_000_000_000;
-    expect(sessionDescription(dormant, now)).toBe('projet · tab asleep');
-    expect(sessionTooltip(dormant, now)).toContain('tab asleep');
-    expect(sessionTooltip(dormant, now)).toContain('click to wake it');
+    expect(sessionDescription(dormant, now)).toBe('projet');
+    expect(sessionTooltip(dormant, now)).toContain('idle');
+    expect(sessionTooltip(dormant, now)).toContain('click to bring it to the front');
+    expect(sessionTooltip(dormant, now)).not.toContain('20 000');
     expect(sessionTooltip(dormant, now)).not.toMatch(/\d+ h/);
   });
 });

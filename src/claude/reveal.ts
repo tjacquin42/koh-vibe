@@ -57,42 +57,6 @@ export function locateClaudeTab(
   return undefined;
 }
 
-/**
- * Every tab of one session in the window, in tab order. A title the memento
- * gives to this session alone marks every live Claude tab of that title as
- * hers — that is how the duplicates of one conversation are all found; a
- * title shared with another session counts only where the memento's own
- * position still holds it.
- */
-export function positionsOf(groups: readonly GroupLike[], memento: readonly MementoTab[], sessionId: string): TabPosition[] {
-  const mine = memento.filter((t) => t.sessionId === sessionId);
-  const seen = new Set<string>();
-  const out: TabPosition[] = [];
-  const push = (pos: TabPosition): void => {
-    const key = `${pos.group}:${pos.index}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(pos);
-  };
-  for (const title of new Set(mine.map((t) => t.title))) {
-    const owners = new Set(memento.filter((t) => t.title === title).map((t) => t.sessionId));
-    if (owners.size === 1) {
-      groups.forEach((g, group) => {
-        g.tabs.forEach((t, index) => {
-          if (isClaudeTab(t) && t.label === title) push({ group, index });
-        });
-      });
-      continue;
-    }
-    for (const m of mine) {
-      if (m.title !== title) continue;
-      const at = groups[m.group]?.tabs[m.index];
-      if (at !== undefined && isClaudeTab(at) && at.label === title) push({ group: m.group, index: m.index });
-    }
-  }
-  return out.sort((a, b) => a.group - b.group || a.index - b.index);
-}
-
 const FOCUS_GROUP: readonly string[] = [
   'workbench.action.focusFirstEditorGroup',
   'workbench.action.focusSecondEditorGroup',
