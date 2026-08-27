@@ -37,9 +37,9 @@ and the hook bridges are zsh scripts.
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
 
-## What's new
+## What's new in 1.2.0
 
-Everything below is merged on `dev` and ships with the next release, after 1.1.0:
+Since 1.1.0:
 
 - **Ended conversations stay** in the list, greyed out, in their folder — and a setting,
   *Persistent sessions*, decides it. Reopening one brings back that very conversation, never

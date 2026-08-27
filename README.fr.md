@@ -40,9 +40,9 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
   session fermée.
 
-## Nouveautés
+## Nouveautés de la 1.2.0
 
-Tout ce qui suit est fusionné sur `dev` et part avec la prochaine version, après la 1.1.0 :
+Depuis la 1.1.0 :
 
 - **Les conversations terminées restent** dans la liste, grisées, dans leur dossier — et un
   réglage, *Sessions persistantes*, en décide. En rouvrir une ramène cette conversation-là,
