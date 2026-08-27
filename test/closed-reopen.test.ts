@@ -82,7 +82,7 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockResolvedValue(undefined);
     const e = entry({ id: 's9', cwd: '/Users/dev/autre-projet', project: 'autre-projet', origin: 'terminal' });
 
-    await reopenClosedSession(e, requestReopen);
+    await expect(reopenClosedSession(e, requestReopen)).resolves.toBe('terminal');
 
     expect(createTerminal).toHaveBeenCalledWith({ cwd: '/Users/dev/autre-projet', name: 'autre-projet' });
     expect(sendText).toHaveBeenCalledWith('claude --resume s9');
@@ -95,7 +95,7 @@ describe('reopenClosedSession', () => {
     const info = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const requestReopen = vi.fn().mockResolvedValue(undefined);
 
-    await reopenClosedSession(entry({ origin: 'sdk' }), requestReopen);
+    await expect(reopenClosedSession(entry({ origin: 'sdk' }), requestReopen)).resolves.toBe('explain');
 
     expect(info).toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
@@ -107,7 +107,7 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockResolvedValue(undefined);
     const e = entry({ origin: 'vscode' });
 
-    await reopenClosedSession(e, requestReopen);
+    await expect(reopenClosedSession(e, requestReopen)).resolves.toBe('editor');
 
     expect(requestReopen).toHaveBeenCalledWith(e);
     expect(createTerminal).not.toHaveBeenCalled();
@@ -117,7 +117,8 @@ describe('reopenClosedSession', () => {
     const requestReopen = vi.fn().mockRejectedValue(new Error('boom'));
     const error = vi.spyOn(vscode.window, 'showErrorMessage').mockResolvedValue(undefined);
 
-    await expect(reopenClosedSession(entry({ origin: 'vscode' }), requestReopen)).resolves.toBeUndefined();
+    // `failed`, so the caller shows no wait for a reopen that never started.
+    await expect(reopenClosedSession(entry({ origin: 'vscode' }), requestReopen)).resolves.toBe('failed');
 
     // Otherwise the row's only gesture does nothing and says nothing (Important 6).
     expect(error).toHaveBeenCalled();

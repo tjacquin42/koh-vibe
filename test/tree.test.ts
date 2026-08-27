@@ -650,3 +650,36 @@ describe('identité des lignes — ce qui permet à une infobulle de survivre', 
     expect(['folder', 'file']).not.toContain(icon.id);
   });
 });
+
+// A greyed row a click is bringing back: the render loop settles it once the
+// conversation is open again; meanwhile the row must show the wait and take
+// no second click — a second click meant a second tab.
+describe('SessionsTree — a row being brought back', () => {
+  const checkHooksInstalled = vi.fn().mockResolvedValue(true);
+
+  it('spins in place of its dot, says so, takes no click, and redraws only when the set moves', async () => {
+    const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
+    tree.setSessions(new Map([['a', session('a', { endedAt: 1 })], ['b', session('b', { endedAt: 1 })]]));
+    let fired = 0;
+    tree.onDidChangeTreeData(() => {
+      fired += 1;
+    });
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    const [group] = await bodyOf(tree);
+    const rows = await tree.getChildren(group);
+    const items = rows.map((row) => tree.getTreeItem(row));
+    const byId = new Map(rows.map((row, i) => [nodeId(row), items[i]!]));
+    const a = byId.get('session:a')!;
+    const b = byId.get('session:b')!;
+    expect(a.iconPath).toMatchObject({ id: 'loading~spin' });
+    expect(a.description).toBe('reopening…');
+    expect(a.command).toBeUndefined();
+    expect(b.iconPath).not.toMatchObject({ id: 'loading~spin' });
+    expect(b.command?.command).toBe('kohVibe.focusSession');
+    tree.setReopening(new Set(['a']));
+    expect(fired).toBe(1);
+    tree.setReopening(new Set());
+    expect(fired).toBe(2);
+  });
+});

@@ -193,6 +193,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // falls back to asking `checkHooksInstalled` itself, so the first empty
   // display never waits for a render tick.
   private hooksInstalled: boolean | undefined;
+  // The ended rows a click is bringing back (ui/reopening.ts): a spinner in
+  // place of the dot, and no command until they show up or give up.
+  private reopening: ReadonlySet<string> = new Set();
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -254,6 +257,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     this.refresh();
   }
 
+  /** Fed by the `Reopening` set's own notification, never computed here. */
+  setReopening(ids: ReadonlySet<string>): void {
+    this.reopening = ids;
+    this.refresh();
+  }
+
   /**
    * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
    *
@@ -276,6 +285,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         sessionLabel(s),
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
+        this.reopening.has(s.id),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -434,6 +444,14 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended');
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
     if (s.endedAt !== undefined) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
+    if (this.reopening.has(s.id)) {
+      // Same as the closed view: between the click and the conversation
+      // showing up, the row is what says something is happening — and takes
+      // no second click, which started a second reopen and a second tab.
+      item.iconPath = new vscode.ThemeIcon('loading~spin');
+      item.description = vscode.l10n.t('reopening…');
+      return item;
+    }
     // Volontairement AUCUNE couleur sur une session ouverte : la teinte du
     // dossier descendue sur ses conversations noyait la lecture. Le dossier
     // porte la couleur, ses sessions portent leur statut.

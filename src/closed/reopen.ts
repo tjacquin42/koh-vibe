@@ -70,30 +70,40 @@ export function openResumeTerminal(plan: { cwd: string; name: string; command: s
   terminal.show();
 }
 
+/**
+ * What a reopen did: whether anything is now on its way. `explain` and
+ * `failed` mean nothing is — the caller shows no wait for them.
+ */
+export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
+
 export async function reopenClosedSession(
   entry: ClosedEntry,
   requestReopen: (e: ClosedEntry) => Promise<void>,
-): Promise<void> {
+): Promise<ReopenOutcome> {
   // `listed` is the broker's question, asked in the window that will run the
   // command; here it only sorts the origins, so `true` keeps the editor ones
   // on the editor path.
   const plan = reopenPlan(entry.origin, entry.id, entry.cwd, sessionLabel(entry), true);
   if (plan.kind === 'explain') {
     void vscode.window.showInformationMessage(plan.message);
-    return;
+    return 'explain';
   }
   if (plan.kind === 'terminal') {
     openResumeTerminal(plan);
-    return;
+    return 'terminal';
   }
   // The tab can only come back in a window that holds the project: the
   // broker takes care of that, locally or by request. The catch stays — an
   // unhandled rejection would be worse — but a silently swallowed failure
   // here (full disk, `requests/` removed at runtime) would leave the click
   // doing and saying nothing, on a section whose only gesture IS this one.
-  await requestReopen(entry).catch(() => {
-    void vscode.window.showErrorMessage(
-      vscode.l10n.t('Koh-Vibe: could not reopen « {0} ».', sessionLabel(entry)),
-    );
-  });
+  return requestReopen(entry).then(
+    () => 'editor' as const,
+    () => {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('Koh-Vibe: could not reopen « {0} ».', sessionLabel(entry)),
+      );
+      return 'failed' as const;
+    },
+  );
 }

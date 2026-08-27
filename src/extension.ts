@@ -28,6 +28,7 @@ import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sou
 import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
 import { ClosedTree } from './ui/closed-tree';
+import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
 import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
@@ -408,6 +409,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // aucun moyen d'épingler une ligne au bas d'un arbre, et tout ce qu'on y
   // mettait défilait avec les conversations.
   const closedTree = new ClosedTree();
+  // The rows a click is bringing back: both trees draw them spinning, and
+  // the render loop below settles them once the conversation is open again.
+  const reopening = new Reopening((ids) => {
+    tree.setReopening(ids);
+    closedTree.setReopening(ids);
+  });
+  /**
+   * Brings an ended conversation back — a greyed row or a closed entry — and
+   * shows the wait on its row. The three-way decision (terminal / editor tab /
+   * explain) is not made here: reopenClosedSession (closed/reopen.ts) owns it,
+   * and is tested directly — see focus/acknowledge.ts for the same reasoning.
+   * The wait is shown only when something is on its way: an explanation or a
+   * failed request leaves nothing to wait for.
+   */
+  async function bringBack(entry: ClosedEntry): Promise<void> {
+    reopening.start(entry.id);
+    const outcome = await reopenClosedSession(entry, (e) => broker.requestReopen(e));
+    if (outcome === 'explain' || outcome === 'failed') reopening.stop(entry.id);
+  }
   const settingsView = vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer });
   context.subscriptions.push(
     footer,
@@ -491,6 +511,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const closed = await readClosed(closedPath);
         closedTree.setClosed(closed.closed);
         closedTree.setLive(shown.keys());
+        // An open row — ended no more — is what a reopen was waiting for.
+        reopening.settle([...shown.values()].filter((s) => s.endedAt === undefined).map((s) => s.id));
         // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
         // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
         // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
@@ -709,6 +731,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => clearInterval(ticker) },
     { dispose: () => clearTimeout(lateRescan) },
     { dispose: () => vanish.dispose() },
+    { dispose: () => reopening.dispose() },
     onTabs,
     // Refresh does two things: it brings back every live conversation the
     // spool has lost, then renders. It says so only when it found something —
@@ -749,7 +772,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (s.endedAt !== undefined) {
         const endedAt = s.endedAt;
         void hasTranscript(s).then((has) => {
-          if (has) return reopenClosedSession(toClosedEntry(s, endedAt), (e) => broker.requestReopen(e));
+          if (has) return bringBack(toClosedEntry(s, endedAt));
           // Nothing to resume: the row should not even be here (rescan drops such rows).
           void vscode.window.showInformationMessage(
             vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
@@ -886,12 +909,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await writeSettings(settingsPath, { [which]: chosen.sound ?? NO_SOUND });
       await render();
     }),
-    // The three-way decision (terminal / editor tab / explain) is not made
-    // here: reopenClosedSession (closed/reopen.ts) owns it, and is tested
-    // directly — see focus/acknowledge.ts for the same reasoning.
-    vscode.commands.registerCommand('kohVibe.reopenSession', (entry: ClosedEntry) =>
-      reopenClosedSession(entry, (e) => broker.requestReopen(e)),
-    ),
+    vscode.commands.registerCommand('kohVibe.reopenSession', (entry: ClosedEntry) => bringBack(entry)),
     vscode.commands.registerCommand('kohVibe.toggleSetting', (key: unknown) => {
       const toggle = SETTING_TOGGLES.find((k) => k === key);
       return toggle === undefined ? undefined : toggleSetting(toggle, !sound[toggle]);

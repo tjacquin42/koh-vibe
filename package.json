@@ -41,7 +41,7 @@
       { "command": "kohVibe.uninstallHooks", "title": "%command.kohVibe.uninstallHooks.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.newGroup", "title": "%command.kohVibe.newGroup.title%", "category": "Koh-Vibe", "icon": "$(new-folder)" },
       { "command": "kohVibe.newSession", "title": "%command.kohVibe.newSession.title%", "category": "Koh-Vibe", "icon": "$(add)" },
-      { "command": "kohVibe.newSessionInGroup", "title": "%command.kohVibe.newSessionInGroup.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.newSessionInGroup", "title": "%command.kohVibe.newSessionInGroup.title%", "category": "Koh-Vibe", "icon": "$(add)" },
       { "command": "kohVibe.renameGroup", "title": "%command.kohVibe.renameGroup.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.colorGroup", "title": "%command.kohVibe.colorGroup.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.deleteGroup", "title": "%command.kohVibe.deleteGroup.title%", "category": "Koh-Vibe" },
@@ -71,6 +71,7 @@
       ],
       "view/item/context": [
         { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "new@1" },
+        { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "inline" },
         { "command": "kohVibe.renameGroup", "when": "view == kohVibe.sessions && viewItem == group" },
         { "command": "kohVibe.colorGroup", "when": "view == kohVibe.sessions && viewItem == group" },
         { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },

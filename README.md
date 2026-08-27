@@ -37,23 +37,52 @@ and the hook bridges are zsh scripts.
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
 
+## What's new
+
+Everything below is merged on `dev` and ships with the next release, after 1.1.0:
+
+- **Ended conversations stay** in the list, greyed out, in their folder — and a setting,
+  *Persistent sessions*, decides it. Reopening one brings back that very conversation, never
+  a blank one: the editor tab when Claude Code will find it from this window, a terminal
+  otherwise.
+- **Temporary sessions** replace *Unfiled*: left out of every folder for 24 hours, a
+  conversation leaves the list. A second setting turns that off.
+- **The trash closes in one click** — the tab and the row at once. A tab the editor restored
+  is closed in place.
+- **Restored tabs are open sessions.** After a window reload, every Claude tab still open is
+  listed as idle — never greyed, never opened twice: a click brings it to the front.
+- **New session from the dashboard**: the **+** in the view title, or the one at the right of
+  a folder row, which files the conversation there.
+- **A spinner while a conversation comes back**, on its row — and while *Recently closed*
+  loads.
+- **Rows are named as the tabs are** — the title you gave, else Claude's, else the last
+  prompt. A conversation that never got a message leaves no row and no history.
+- **Nothing is forgotten for going quiet**: a silent conversation stays; *Refresh* brings back
+  the ones the list lost, in their folder; a conversation that vanished while its process
+  still runs comes back on its own.
+- **Usage per model**, when your plan counts one apart.
+- **Two default chimes** travel in the package, so a fresh install is not silent.
+
 ## Install
 
 The extension is not published on the marketplace; it installs from a locally built package.
+From the integrated terminal of the editor you want it in:
 
 ```bash
 pnpm install
-pnpm package
-code --install-extension koh-vibe-0.1.0.vsix --force
+sh install.sh
 ```
 
-`pnpm package` compiles before packaging, so the `.vsix` always holds the code you just wrote.
+`install.sh` builds, packages under a throwaway version number and installs into the editor
+its terminal belongs to — VSCode, Cursor or Antigravity, whichever runs it. Then reload the
+window (*Developer: Reload Window*). The number comes from the clock so that every install
+lands in a fresh directory: the one in `package.json` only moves at release time, and
+reinstalling under the same number leaves the editor serving what it already had.
 
-VSCode forks expose the same command under their own binary name (usually installable from
-their palette via *Install 'code' command in PATH*). The same `.vsix` works there unchanged.
-
-**Quit the editor fully after installing** — not just a window reload. Views and icons are
-read at startup.
+By hand, the same thing is `pnpm package` then `code --install-extension koh-vibe-*.vsix
+--force` — VSCode forks expose the command under their own binary name, usually installable
+from their palette via *Install 'code' command in PATH*. Installed that way, under the
+unchanged version number, **quit the editor fully** rather than reloading the window.
 
 ### Install the hooks
 
@@ -73,8 +102,9 @@ disturbing what you placed. The folders themselves are dragged the same way — 
 another to put it in front, or onto *Temporary sessions* to send it to the end.
 
 **New session.** The **+** button in the view title opens a new Claude Code tab — a fresh
-conversation in the window's folder. Right-click a folder → *New session here* does the same
-and files the conversation in that folder as soon as it shows up, so it is not a temporary one.
+conversation in the window's folder. Hover a folder: the same **+** appears at the right of
+its row (right-click offers it too, as *New session here*) and files the conversation in that
+folder as soon as it shows up, so it is not a temporary one.
 
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
@@ -114,6 +144,10 @@ whichever it came from. The editor tab only when Claude Code will find the conve
 this window — its transcript under the window's own project, and not hidden from its session
 list; otherwise a terminal resumes it, which works from anywhere. A restored tab nobody has
 opened yet is simply brought to the front, never opened a second time.
+While it comes back, the row spins in place of its dot — a few seconds pass between the click
+and the conversation showing up, during which nothing else moves — and takes no second click,
+which would open a second tab. The spinner clears when the conversation is open again, or
+after thirty seconds without it.
 
 ## Where the data lives
 
@@ -172,7 +206,7 @@ Outside contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 ```bash
 pnpm install
 pnpm build       # compiles to out/, and stamps the build from the latest tag
-pnpm test        # builds, then runs 663 tests without an extension host
+pnpm test        # builds, then runs the whole suite without an extension host
 pnpm test:watch  # the same tests, without rebuilding on every run
 pnpm typecheck   # types across src AND test
 pnpm package     # produces the .vsix

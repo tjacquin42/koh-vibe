@@ -70,6 +70,8 @@
   "Sound library: {0} sounds": "Bibliothèque de sons : {0} sons",
   "Sound when a session finishes": "Son quand c'est terminé",
   "No closed conversation": "Aucune conversation fermée",
+  "Loading…": "Chargement…",
+  "reopening…": "réouverture…",
   "Reopen this conversation": "Rouvrir cette conversation",
   "Persistent sessions": "Sessions persistantes",
   "Temporary sessions expire after 24 h": "Les sessions temporaires expirent après 24 h",
