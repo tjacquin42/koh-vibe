@@ -80,6 +80,12 @@ d'interface courts ([Kenney](https://kenney.nl/assets/interface-sounds), CC0), t
 seule fois et rangée chez lui — jamais dans `~/Library/Sounds`, dont la liste sert aussi au
 panneau Son du système. La ligne *Bibliothèque de sons* des réglages l'installe et la retire.
 
+Deux de ses sons voyagent dans le paquet, renommés d'après ce qu'ils annoncent : **Attente**,
+quand une session se met à vous attendre, et **Fin**, quand elle vient de finir. Une
+installation neuve démarre sur ces deux-là : le tableau de bord carillonne donc dès le premier
+lancement, bibliothèque ou pas. C'est un défaut, pas une règle : un son déjà choisi, silence
+compris, reste en place, et une mise à jour ne le remet jamais.
+
 Dans la liste de choix, les flèches font entendre chaque son ; **→** rejoue le son survolé.
 
 **Retirer.** Clic droit sur une session → *Retirer de la liste*. Rien n'est arrêté : Claude

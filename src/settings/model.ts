@@ -1,4 +1,5 @@
-import { clampVolume, DEFAULT_VOLUME, NO_SOUND } from '../sound/player';
+import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../sound/bundled';
+import { clampVolume, DEFAULT_VOLUME } from '../sound/player';
 
 /**
  * Les réglages du son, partagés entre TOUS les éditeurs de la machine.
@@ -19,8 +20,19 @@ export interface AppSettings {
   volume: number;
 }
 
+/**
+ * What the dashboard chimes with before anyone has chosen anything.
+ *
+ * Two sounds rather than silence: a notification nobody ever hears teaches
+ * nothing about itself — someone who installs the extension has to hear it once
+ * to know it exists, and only then decide to change it or turn it off.
+ *
+ * A default only ever fills a hole. Everything the user has settled — a sound,
+ * or the silence they asked for — is a value in the settings file, and a value
+ * is never replaced by a default: see `parseSettings` and `seedSettings`.
+ */
 export function defaultSettings(): AppSettings {
-  return { waiting: NO_SOUND, done: NO_SOUND, volume: DEFAULT_VOLUME };
+  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -59,4 +71,22 @@ export function parseSettings(raw: string): AppSettings {
 
 export function serializeSettings(s: AppSettings): string {
   return `${JSON.stringify({ version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume) }, null, 2)}\n`;
+}
+
+/**
+ * What this editor kept in its own VSCode settings, read once by the migration.
+ *
+ * A key the editor never held falls back to the DEFAULT, never to silence. This
+ * is the path a fresh install takes — there is nothing to migrate — and reading
+ * that emptiness as « the user asked for quiet » would freeze silence into the
+ * shared file on the very first launch. The default could then never apply
+ * again, since `seedSettings` rightly leaves an existing file alone.
+ */
+export function settingsFromEditor(read: (key: string) => unknown): AppSettings {
+  const base = defaultSettings();
+  return {
+    waiting: sound(read('sound.waiting'), base.waiting),
+    done: sound(read('sound.done'), base.done),
+    volume: clampVolume(read('sound.volume')),
+  };
 }
