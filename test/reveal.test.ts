@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locateClaudeTab, revealTabAt, type GroupLike } from '../src/claude/reveal';
+import { locateClaudeTab, revealTabAt, type GroupLike, type MementoTab } from '../src/claude/reveal';
 import { TabInputWebview } from './stubs/vscode';
 
 const claude = (label: string): { label: string; input: unknown } => ({ label, input: new TabInputWebview('mainThreadWebview-claudeVSCodePanel') });
@@ -12,25 +12,39 @@ describe('locateClaudeTab — where a restored tab sits now', () => {
   ];
 
   it('trusts the memento position while a Claude tab of that title is still there', () => {
-    expect(locateClaudeTab(groups, { group: 0, index: 1, title: 'Telegram Alert' })).toEqual({ group: 0, index: 1 });
-    expect(locateClaudeTab(groups, { group: 1, index: 0, title: 'List DB STYLE' })).toEqual({ group: 1, index: 0 });
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 0, index: 1, title: 'Telegram Alert' })).toEqual({ group: 0, index: 1 });
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 1, index: 0, title: 'List DB STYLE' })).toEqual({ group: 1, index: 0 });
   });
 
-  it('finds the tab by its title once it has moved, when that title is unique', () => {
-    expect(locateClaudeTab(groups, { group: 0, index: 3, title: 'Telegram Alert' })).toEqual({ group: 0, index: 1 });
-    expect(locateClaudeTab(groups, { group: 5, index: 0, title: 'List DB STYLE' })).toEqual({ group: 1, index: 0 });
+  it('finds the tab by its title once it has moved', () => {
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 0, index: 3, title: 'Telegram Alert' })).toEqual({ group: 0, index: 1 });
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 5, index: 0, title: 'List DB STYLE' })).toEqual({ group: 1, index: 0 });
   });
 
-  it('gives up rather than guess between two tabs of the same title', () => {
-    expect(locateClaudeTab(groups, { group: 1, index: 4, title: 'Claude Code' })).toBeUndefined();
+  it('picks the first tab of a title the memento gives to this one session — duplicates are the same conversation', () => {
+    const memento: MementoTab[] = [
+      { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' },
+      { sessionId: 'S', group: 0, index: 3, title: 'Claude Code' },
+    ];
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 1, index: 4, title: 'Claude Code' }, memento)).toEqual({ group: 0, index: 2 });
+  });
+
+  it('gives up rather than guess when the memento gives that title to two different sessions', () => {
+    const memento: MementoTab[] = [
+      { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' },
+      { sessionId: 'T', group: 0, index: 3, title: 'Claude Code' },
+    ];
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 1, index: 4, title: 'Claude Code' }, memento)).toBeUndefined();
+    // Without the memento, a lone title still resolves; two of a kind do not.
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 1, index: 4, title: 'Claude Code' })).toEqual({ group: 0, index: 2 });
   });
 
   it('never returns a tab that is not a Claude one, whatever its title', () => {
-    expect(locateClaudeTab(groups, { group: 0, index: 0, title: 'a.ts' })).toBeUndefined();
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 0, index: 0, title: 'a.ts' })).toBeUndefined();
   });
 
   it('still trusts the position when the same title sits there and elsewhere', () => {
-    expect(locateClaudeTab(groups, { group: 0, index: 2, title: 'Claude Code' })).toEqual({ group: 0, index: 2 });
+    expect(locateClaudeTab(groups, { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' })).toEqual({ group: 0, index: 2 });
   });
 });
 

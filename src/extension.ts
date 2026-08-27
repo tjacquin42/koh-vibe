@@ -8,7 +8,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { locateClaudeTab, revealTabAt } from './claude/reveal';
+import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
@@ -120,19 +120,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const known = new Set([...live.keys(), ...open, ...dismissed]);
     const labels = new Set(claudeTabsOf(vscode.window.tabGroups.all).map((t) => t.label));
     const tabs = parseEditorMemento(raw);
+    mementoTabs = tabs;
     for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
     for (const d of dormantSessions(tabs, labels, known, folder)) dormant.set(d.id, d);
+  };
+  // Every Claude tab of the memento, in order: what tells two tabs of one
+  // title apart (claude/reveal.ts).
+  let mementoTabs: readonly ClaudeTab[] = [];
+  /** The tab of a session in this window, when it can be told which one it is. */
+  const locateSessionTab = (id: string): { tab: vscode.Tab; pos: TabPosition } | undefined => {
+    const want = dormantTabs.get(id);
+    if (want === undefined) return undefined;
+    const groups = vscode.window.tabGroups.all;
+    const pos = locateClaudeTab(groups, want, mementoTabs);
+    const tab = pos === undefined ? undefined : groups[pos.group]?.tabs[pos.index];
+    return pos === undefined || tab === undefined ? undefined : { tab, pos };
   };
   /**
    * Brings a restored tab to the front, by its position — never through the
    * Claude Code command, which opens a second tab for a conversation it has
-   * not registered yet. `false` when the tab cannot be told apart.
+   * not registered yet, and a BLANK one when its list does not hold the id.
+   * `false` when the tab cannot be told apart.
    */
   const revealSessionTab = async (id: string): Promise<boolean> => {
-    const tab = dormantTabs.get(id);
-    if (tab === undefined) return false;
-    const pos = locateClaudeTab(vscode.window.tabGroups.all, tab);
-    return pos !== undefined && (await revealTabAt(pos));
+    const found = locateSessionTab(id);
+    return found !== undefined && (await revealTabAt(found.pos));
   };
   /**
    * Whether Claude Code's session list, in this window, holds the id — i.e.
@@ -526,6 +538,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * in the folder layout — leaving the latter would resurrect a ghost ranking
    * if the id ever came back, and would grow the shared file without end.
    */
+  /** The row of a tab just closed: gone for good, and never back through the memento. */
+  const remove = async (id: string): Promise<void> => {
+    if (dormant.delete(id)) dismissed.add(id);
+    await removeSession(dirs, id);
+    await render();
+  };
+
   const forget = async (id: string): Promise<void> => {
     // Three kinds of row, three ways out. An open one is hidden, not removed:
     // a removed file is exactly what the rescan brings back. An ended one is
@@ -553,15 +572,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           closeTab: (i) =>
             closeSessionTab(i, {
               ...vscodeTabs(),
-              // A restored tab is brought to the front by position; only when
-              // none can be told apart does the command take over.
+              // A tab this window can tell apart is closed directly. The
+              // reveal-then-close road is for the others — and never for a
+              // dormant tab: the command would open a second, or a blank, one.
+              locate: (sessionId) => locateSessionTab(sessionId)?.tab,
               reveal: async (sessionId) => {
-                if (await revealSessionTab(sessionId)) return;
+                if (dormant.has(sessionId)) throw new Error('restored tab not found');
                 await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
               },
             }),
           archive,
           forget,
+          remove,
         }),
       forget,
     },
@@ -651,7 +673,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // over — which, at worst, resumes the conversation in a second tab.
       if (s.dormant === true) {
         void revealSessionTab(s.id)
-          .then((done) => (done ? undefined : broker.request(s)))
+          .then((done) => {
+            if (done) return;
+            // Never the Claude Code command here: it would open the
+            // conversation a second time, or a blank one.
+            void vscode.window.showInformationMessage(
+              vscode.l10n.t('Koh-Vibe: « {0} » is a restored tab this window cannot tell apart — click it in the tab bar.', sessionLabel(s)),
+            );
+          })
           .catch(() => undefined);
         return;
       }
@@ -679,8 +708,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.closeSession', async (node: unknown) => {
       const id = sessionIdOfNode(node);
       if (id === undefined) return;
-      // A dormant tab is closable too: revealing it wakes it, then closes it.
-      const s = (await readSession(dirs, id)) ?? dormant.get(id);
+      // A dormant tab is closable too — first: over an ended file, the tab
+      // is the thing to close, and the file goes with it (`remove`).
+      const s = dormant.get(id) ?? (await readSession(dirs, id));
       // Already gone from the spool: nothing to close, and nothing to remove.
       if (s === undefined) return;
       // Nothing runs behind an ended row: the trash removes it for good.

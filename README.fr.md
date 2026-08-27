@@ -26,11 +26,12 @@ le trousseau du système, et les ponts de hooks sont des scripts zsh.
   glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
   réglage désactive ce comportement.
 - **Fermer une conversation** avec l'icône corbeille qui apparaît au survol d'une ligne
-  vivante. Elle ferme son onglet Claude Code, ce qui met fin à la conversation : la ligne se
-  grise, ou part dans *Fermé récemment*, selon le réglage. Quand aucun onglet n'est trouvé —
-  une conversation dans un terminal, dans l'application de bureau Claude, ou dans un projet
-  qu'aucune fenêtre n'a ouvert — la ligne est simplement retirée de la liste. Sur une ligne
-  terminée, l'icône la retire pour de bon.
+  vivante. Elle ferme son onglet Claude Code et retire la ligne — la conversation passe dans
+  *Fermé récemment* — en un clic, quoi que dise *Sessions persistantes* : ce réglage concerne
+  les onglets que vous fermez vous-même. Un onglet restauré est fermé sur place, sans être
+  ouvert. Quand aucun onglet n'est trouvé — une conversation dans un terminal, dans
+  l'application de bureau Claude, ou dans un projet qu'aucune fenêtre n'a ouvert — la ligne
+  est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une

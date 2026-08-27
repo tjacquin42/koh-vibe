@@ -25,10 +25,12 @@ and the hook bridges are zsh scripts.
 - **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
   there for 24 hours without activity, it leaves the list — a setting turns that off.
 - **Close a conversation** with the trash icon that appears when you hover a live row. It
-  closes its Claude Code tab, which ends the conversation: the row greys out, or leaves for
-  *Recently closed*, depending on the setting. When no tab is found — a conversation running
-  in a terminal, in the Claude desktop app, or in a project no window has open — the row is
-  simply removed from the list. On an ended row, the icon removes it for good.
+  closes its Claude Code tab and removes the row — the conversation goes to *Recently
+  closed* — in one click, whatever *Persistent sessions* says: that setting is for the tabs
+  you close yourself. A restored tab is closed in place, without being opened. When no tab is
+  found — a conversation running in a terminal, in the Claude desktop app, or in a project no
+  window has open — the row is simply removed from the list. On a greyed row, the icon removes
+  it for good.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.

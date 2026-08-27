@@ -21,27 +21,40 @@ function isClaudeTab(tab: TabLike): boolean {
   return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.includes(PANEL_VIEW_TYPE);
 }
 
+/** What the memento knows of a tab: its session, its title, its place. */
+export interface MementoTab {
+  sessionId: string;
+  title: string;
+  group: number;
+  index: number;
+}
+
 /**
  * Where a restored Claude tab sits now. The memento's position is trusted
  * when it still holds a Claude tab of that title — the memento is persisted
- * state, and tabs may have moved since. Failing that, the one tab of that
- * title in the window; failing that, nothing: two tabs of the same title
- * cannot be told apart, and revealing the wrong conversation is worse than
- * revealing none.
+ * state, and tabs may have moved since. Failing that, a tab of that title in
+ * the window, provided the title belongs to this one session in the memento:
+ * a conversation open in several tabs (the duplicates the editor command
+ * used to create) is the same conversation whichever tab is picked, while two
+ * conversations of one title — untitled ones all read "Claude Code" — cannot
+ * be told apart, and reaching the wrong one is worse than reaching none.
  */
 export function locateClaudeTab(
   groups: readonly GroupLike[],
-  want: { group: number; index: number; title: string },
+  want: MementoTab,
+  memento: readonly MementoTab[] = [want],
 ): TabPosition | undefined {
   const at = groups[want.group]?.tabs[want.index];
   if (at !== undefined && isClaudeTab(at) && at.label === want.title) return { group: want.group, index: want.index };
-  const found: TabPosition[] = [];
-  groups.forEach((g, group) => {
-    g.tabs.forEach((t, index) => {
-      if (isClaudeTab(t) && t.label === want.title) found.push({ group, index });
-    });
-  });
-  return found.length === 1 ? found[0] : undefined;
+  const owners = new Set(memento.filter((t) => t.title === want.title).map((t) => t.sessionId));
+  owners.add(want.sessionId);
+  if (owners.size > 1) return undefined;
+  for (const [group, g] of groups.entries()) {
+    for (const [index, t] of g.tabs.entries()) {
+      if (isClaudeTab(t) && t.label === want.title) return { group, index };
+    }
+  }
+  return undefined;
 }
 
 const FOCUS_GROUP: readonly string[] = [
