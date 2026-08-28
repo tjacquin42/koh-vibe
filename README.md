@@ -2,15 +2,65 @@
 
 *[Version française](README.fr.md)*
 
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/tjacquin42.koh-vibe?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=tjacquin42.koh-vibe)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/tjacquin42.koh-vibe)](https://marketplace.visualstudio.com/items?itemName=tjacquin42.koh-vibe)
+[![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 Every Claude Code session you have running, in one view: across projects, across windows,
 across editors — with its status, what it is doing right now, and your usage.
 
-*Koh* means "island" in Thai. Inspired by
-[open-vibe-island](https://github.com/Octane0411/open-vibe-island), which does the same thing
-in the Mac notch. No code is taken from it.
+> **macOS only.** Chimes go through `afplay`, the usage token is read from the system
+> keychain, and the hook bridges are zsh scripts. Nothing here pretends to work elsewhere.
 
-**macOS only.** Chimes go through `afplay`, the usage token is read from the system keychain,
-and the hook bridges are zsh scripts.
+## Requirements
+
+- **macOS**, for the reasons above.
+- **[Claude Code](https://claude.com/claude-code)**, used from this machine. Koh-Vibe watches
+  the sessions you run; it starts one only when you ask it to.
+- **VSCode 1.94** or newer, or a fork that follows it — Cursor and Antigravity are what it is
+  used with day to day.
+- **Claude Code's hooks**, installed in one click from the view. Nothing appears in the list
+  until they are — see [Install the hooks](#install-the-hooks).
+
+## Install
+
+Search **Koh-Vibe** in the Extensions view, or run:
+
+```
+ext install tjacquin42.koh-vibe
+```
+
+Then reload the window, open the Koh-Vibe view in the activity bar, and install the hooks.
+
+VSCode forks — Cursor, Windsurf, VSCodium — do not reach the Microsoft marketplace. Build the
+package yourself for those; it is one command, [below](#from-source).
+
+### Install the hooks
+
+Nothing appears until Claude Code starts dropping its events. Open the Koh-Vibe view and click
+*Hooks not installed*, or run **Koh-Vibe: Install hooks** from the palette.
+
+The script adds eight hooks to `~/.claude/settings.json`, **backs the file up before touching
+it**, and refuses to write if its fingerprint changed in the meantime. Hooks and a status line
+you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing.
+**Koh-Vibe: Uninstall hooks** undoes exactly that.
+
+### From source
+
+From the integrated terminal of the editor you want it in:
+
+```bash
+git clone https://github.com/tjacquin42/koh-vibe.git
+cd koh-vibe
+pnpm install
+sh install.sh
+```
+
+`install.sh` builds, packages under a throwaway version number and installs into the editor
+its terminal belongs to — VSCode, Cursor or Antigravity, whichever runs it. Then reload the
+window (*Developer: Reload Window*). The number comes from the clock so that every install
+lands in a fresh directory: the one in `package.json` only moves at release time, and
+reinstalling under the same number leaves the editor serving what it already had.
 
 ## What it shows
 
@@ -36,63 +86,6 @@ and the hook bridges are zsh scripts.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
-
-## What's new in 1.2.0
-
-Since 1.1.0:
-
-- **Ended conversations stay** in the list, greyed out, in their folder — and a setting,
-  *Persistent sessions*, decides it. Reopening one brings back that very conversation, never
-  a blank one: the editor tab when Claude Code will find it from this window, a terminal
-  otherwise.
-- **Temporary sessions** replace *Unfiled*: left out of every folder for 24 hours, a
-  conversation leaves the list. A second setting turns that off.
-- **The trash closes in one click** — the tab and the row at once. A tab the editor restored
-  is closed in place.
-- **Restored tabs are open sessions.** After a window reload, every Claude tab still open is
-  listed as idle — never greyed, never opened twice: a click brings it to the front.
-- **New session from the dashboard**: the **+** in the view title, or the one at the right of
-  a folder row, which files the conversation there.
-- **A spinner while a conversation comes back**, on its row — and while *Recently closed*
-  loads.
-- **Rows are named as the tabs are** — the title you gave, else Claude's, else the last
-  prompt. A conversation that never got a message leaves no row and no history.
-- **Nothing is forgotten for going quiet**: a silent conversation stays; *Refresh* brings back
-  the ones the list lost, in their folder; a conversation that vanished while its process
-  still runs comes back on its own.
-- **Usage per model**, when your plan counts one apart.
-- **Two default chimes** travel in the package, so a fresh install is not silent.
-
-## Install
-
-The extension is not published on the marketplace; it installs from a locally built package.
-From the integrated terminal of the editor you want it in:
-
-```bash
-pnpm install
-sh install.sh
-```
-
-`install.sh` builds, packages under a throwaway version number and installs into the editor
-its terminal belongs to — VSCode, Cursor or Antigravity, whichever runs it. Then reload the
-window (*Developer: Reload Window*). The number comes from the clock so that every install
-lands in a fresh directory: the one in `package.json` only moves at release time, and
-reinstalling under the same number leaves the editor serving what it already had.
-
-By hand, the same thing is `pnpm package` then `code --install-extension koh-vibe-*.vsix
---force` — VSCode forks expose the command under their own binary name, usually installable
-from their palette via *Install 'code' command in PATH*. Installed that way, under the
-unchanged version number, **quit the editor fully** rather than reloading the window.
-
-### Install the hooks
-
-Nothing appears until Claude Code starts dropping its events. Open the Koh-Vibe view and click
-*Hooks not installed*, or run **Koh-Vibe: Install hooks** from the palette.
-
-The script adds eight hooks to `~/.claude/settings.json`, **backs the file up before touching
-it**, and refuses to write if its fingerprint changed in the meantime. Hooks and a status line
-you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing.
-**Koh-Vibe: Uninstall hooks** undoes exactly that.
 
 ## Using it
 
@@ -149,9 +142,36 @@ and the conversation showing up, during which nothing else moves — and takes n
 which would open a second tab. The spinner clears when the conversation is open again, or
 after thirty seconds without it.
 
-## Where the data lives
+## Settings and commands
 
-Everything sits under `~/.koh-vibe/`:
+Koh-Vibe's settings live in its own **Settings** view, at the bottom of the panel, not in the
+editor's settings: two checkboxes — *Persistent sessions* and *Temporary sessions* — the
+global chime for each event, the volume, and the sound library. Folders and conversations
+override the chimes from their own right-click menu.
+
+From the command palette, under **Koh-Vibe**:
+
+| Command | What it does |
+|---|---|
+| *Install hooks* / *Uninstall hooks* | adds Koh-Vibe's hooks to `~/.claude/settings.json`, or takes them back out |
+| *Refresh* | re-reads Claude Code's registry and brings back every live conversation the list lost |
+| *New session* | opens a new Claude Code tab, filed in the current window's folder |
+| *New folder* | creates a folder |
+| *Sound for an event* · *Chime volume* | the global chimes |
+| *Install the sound library* / *Remove the sound library* | the hundred Kenney sounds |
+| *Refresh usage* | forces a usage reading, which is otherwise cached for five minutes |
+
+The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds —
+is on the right-click menu of the row it applies to.
+
+## Your data, and what leaves the machine
+
+**Nothing is sent anywhere, and there is no telemetry.** The one network call Koh-Vibe makes
+is to Anthropic, for your usage figures, at most once every five minutes. The OAuth token it
+needs is read from the system keychain — never logged, never written to disk. No prompt, no
+transcript and no path ever leaves the machine.
+
+Everything else sits under `~/.koh-vibe/`:
 
 | | |
 |---|---|
@@ -190,41 +210,34 @@ and brings back every live conversation the list has lost, in the folder it was 
 The same pass runs when the window opens, and a few seconds after a conversation vanishes
 while its process still runs — the same conversation open in two editors, one of them
 quitting — with a spinner in place of the button while it does. Tabs the editor restored
-but you have not opened since are listed like any idle session — the tab is open, that is what counts. The editor resolves only the active tab, so no Claude Code process runs behind the others until they are shown: a click brings the tab to the front, and Claude Code resumes it. « Remove
-from the list » hides a conversation until its next activity.
+but you have not opened since are listed like any idle session — the tab is open, that is
+what counts. The editor resolves only the active tab, so no Claude Code process runs behind
+the others until they are shown: a click brings the tab to the front, and Claude Code resumes
+it. *Remove from the list* hides a conversation until its next activity.
 
-Usage comes from Anthropic's API, called at most once every five minutes and cached in a
-shared file — otherwise every window would fetch exactly the same thing. The OAuth token is
-read from the system keychain, never logged and never written to disk.
+## What's new
+
+**1.2.0** keeps every conversation: ended ones stay greyed in their folder, reopening brings
+back that very conversation rather than a blank one, unfiled ones are *temporary* until you
+file them, the trash closes tab and row in one click, and a **+** starts a new session from
+the dashboard. Nothing is forgotten for going quiet any more.
+
+Every version, and what it changed, is in the [changelog](CHANGELOG.md).
 
 ## Contributing
 
-Outside contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Outside contributions are welcome — the flow, the commands and what the review looks at are
+in [CONTRIBUTING.md](CONTRIBUTING.md). Versioning is described in [CLAUDE.md](CLAUDE.md): one
+pull request merged into `main` is one version, and the delivery workflow posts it on its own.
 
-## Development
+## Credits
 
-```bash
-pnpm install
-pnpm build       # compiles to out/, and stamps the build from the latest tag
-pnpm test        # builds, then runs the whole suite without an extension host
-pnpm test:watch  # the same tests, without rebuilding on every run
-pnpm typecheck   # types across src AND test
-pnpm package     # produces the .vsix
-```
+*Koh* means "island" in Thai. Inspired by
+[open-vibe-island](https://github.com/Octane0411/open-vibe-island), which does the same thing
+in the Mac notch. No code is taken from it.
 
-`pnpm test` builds first because the end-to-end test runs `scripts/install-hooks.cjs`, which
-loads the compiled installer. That dependency used to be invisible: it held on a machine that
-had built once, and failed on a fresh clone.
-
-Tests do not start VSCode: `vscode` resolves to a stub (`test/stubs/vscode.ts`), which makes
-the tree, the commands and the bridge testable in milliseconds. The type checker, however,
-works against the real API — a stub that drifted from its signatures would prove nothing.
-
-`scripts/make-icons.cjs` regenerates both icons from the point table it contains: that table
-is the source of the drawing.
-
-Versioning is described in [CLAUDE.md](CLAUDE.md) — one pull request merged into `main` is one
-version, and the delivery workflow posts it on its own.
+Koh-Vibe is an independent project. It is not affiliated with, endorsed by, or sponsored by
+Anthropic.
 
 ## Licence
 
