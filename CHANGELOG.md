@@ -14,6 +14,45 @@ time. The detail underneath is written by hand, in the follow-up pull request th
 entry — `main` is protected, so the delivery can never push this file itself, and an entry
 that arrives as a bare link is an entry still waiting for that pull request.
 
+## [1.2.1](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.2.1) — 2026-08-29
+
+`patch` · [#20](https://github.com/tjacquin42/koh-vibe/pull/20) — A listing ready for the Marketplace: a changelog that is up to date, a README that shows the panel
+
+Carries [#18](https://github.com/tjacquin42/koh-vibe/pull/18) and
+[#19](https://github.com/tjacquin42/koh-vibe/pull/19).
+
+Nothing changes in what the extension does. This is the documentation catching up with three
+releases that shipped without it, so that the listing can be published.
+
+### Added
+
+- **A screenshot at the top of both READMEs.** The listing described the extension without
+  ever showing it. A folder is open in the capture, so what it is for is visible at a glance:
+  a status dot per session, the tool a session is running, the greyed row of a conversation
+  that ended, the trash that closes one.
+- **Three sections in the README** — the settings and the palette commands, a statement of
+  what leaves the machine (nothing but the usage call; the keychain token is never written to
+  disk), and the non-affiliation with Anthropic.
+
+### Changed
+
+- **The changelog is three versions less late.** `v1.0.1`, `v1.1.0` and `v1.2.0` were tagged
+  and released without ever being written down: `main` is protected, so the delivery posts the
+  tag but cannot push the entry. All five entries are now rewritten from the bodies of the
+  pull requests that delivered them.
+- **The README reads the way a listing is read** — requirements first, then the Marketplace
+  install, then what it shows and how to use it. *What's new* shrinks to a link to this file,
+  so a release stops having to rewrite it in two languages, and the development commands move
+  to CONTRIBUTING.
+
+### Fixed
+
+- **A test that read the wall clock** turned CI red on `expected [ 599 ] to deeply equal
+  [ 600 ]`. `showBusy` waits `minMs - (now() - started)`, and the minimum-duration test left
+  `now` on the real `Date.now` where its neighbour already injected one: a millisecond
+  boundary falling between the start and the finally was enough. The clock is frozen, which is
+  what the case was about — an instant task waits the whole floor.
+
 ## [1.2.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.2.0) — 2026-08-27
 
 `minor` · [#17](https://github.com/tjacquin42/koh-vibe/pull/17) — Keep every conversation — greyed when ended, temporary until filed, brought back for real — and start new ones from the dashboard
