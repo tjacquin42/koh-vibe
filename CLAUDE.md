@@ -51,7 +51,18 @@ announced level. It warns; it does not block.
 
 Once the pull request is merged, the `version` job of `.github/workflows/cd.yml` **reads the
 number from `package.json`** and posts the `vX.Y.Z` tag, the GitHub Release, the label and the
-milestone.
+milestone. The `publish` job then puts that build on the Marketplace, under the `tjacquin42`
+publisher, using the `VSCE_PAT` repository secret.
+
+**The publication lives in the same run, and it has to.** A tag and a Release created with the
+Actions token trigger no workflow — GitHub cuts the recursion at the source — so a workflow
+listening on `release: [published]` or on `push: tags` would never start, and would never say
+so. `publish` therefore hangs off `needs: version`, and reads the number actually posted from
+that job's `tag` output, which `bump-version.sh` writes to `$GITHUB_OUTPUT`.
+
+It refuses to publish when `package.json` and the tag disagree — the case where the promotion
+pull request forgot the bump and the script applied the level itself. The version exists then,
+but is not online; the run summary carries the two commands that finish the job by hand.
 
 The `CHANGELOG.md` entry is the exception: the job writes it, but cannot push it, for the reason
 above. It waits in the job summary under « Entrée de CHANGELOG à reporter », and it is up to a

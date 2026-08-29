@@ -71,6 +71,16 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG existe déjà." >&2; exit 1; }
 fi
 
+# Le job « publish » enchaîne dans le même run et a besoin du numéro RÉELLEMENT
+# posé — pas de celui de package.json, dont le repli ci-dessus peut s'écarter.
+# En bloc `if`, jamais en « [ -n … ] && echo … » : sous `set -e`, un test faux en
+# fin de liste ET tuerait le script, ce qui abandonnerait la livraison pour une
+# ligne qui ne sert qu'à la CI. Hors Actions la variable n'existe pas, et ce bloc
+# ne fait rien.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+fi
+
 SHA=$(gh pr view "$PR" --repo "$REPO" --json mergeCommit -q .mergeCommit.oid)
 TITLE=$(gh pr view "$PR" --repo "$REPO" --json title -q .title)
 DATE=$(date +%Y-%m-%d)

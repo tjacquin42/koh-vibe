@@ -123,6 +123,10 @@ jobs:
     concurrency:
       group: version-${{ github.ref }}
       cancel-in-progress: false
+    # Vide quand rien n'a été versionné — un commit direct sur main, sans PR. Le job
+    # « publish » s'en sert comme condition : pas de tag, rien à publier.
+    outputs:
+      tag: ${{ steps.poser.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -148,6 +152,7 @@ jobs:
           echo "numero=$NUM" >> "$GITHUB_OUTPUT"
 
       - name: Poser la version
+        id: poser
         if: steps.pr.outputs.numero != ''
         env:
           GH_TOKEN: ${{ github.token }}
@@ -188,5 +193,91 @@ jobs:
             echo
             echo '```diff'
             git show --format= --no-color HEAD -- CHANGELOG.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    # La publication vit dans le MÊME run que la version, et pas dans un workflow
+    # déclenché par le tag ou par la Release. Ce n'est pas un choix de style :
+    # GitHub coupe la récursion à la source, et un événement créé avec le jeton
+    # d'Actions ne déclenche aucun workflow. Un « on: release: [published] » ou un
+    # « on: push: tags: [v*] » ne partirait donc jamais — et il ne le dirait pas,
+    # il ne se passerait simplement rien, version après version.
+    needs: version
+    # Vide quand le job précédent n'a rien versionné : un commit poussé directement
+    # sur main n'a pas de PR, donc pas de tag, donc rien à publier.
+    if: needs.version.outputs.tag != ''
+    # Linux, pas macOS : empaqueter ne dépend pas de la plateforme, et les tests qui
+    # en dépendent, eux, ont déjà tourné sur la PR. Un runner macOS facturerait dix
+    # fois les minutes pour le même .vsix.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Le tag fait foi sur le numéro livré ; package.json fait foi sur celui que
+      # vsce publiera. Ils divergent dans un cas précis et déjà prévu : la PR de
+      # promotion a oublié le bump, et bump-version.sh a appliqué le niveau d'office.
+      # Sans ce contrôle, vsce partirait publier un numéro déjà en ligne et
+      # échouerait sur un message de la place de marché, qui ne dit rien du vrai
+      # problème. Celui-ci le dit.
+      - name: Le manifeste et le tag disent-ils la même chose ?
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          MANIFESTE=$(node -p "require('./package.json').version")
+          if [ "v$MANIFESTE" != "$TAG" ]; then
+            echo "::error::$TAG a été posée, mais package.json porte $MANIFESTE — rien n'est publié. Reporte le numéro dans package.json par une PR, puis publie à la main : « npx vsce publish --no-dependencies »."
+            exit 1
+          fi
+          echo "Publication de **$TAG**." >> "$GITHUB_STEP_SUMMARY"
+
+      # « --no-dependencies » parce que le dépôt est en pnpm : sans lui, vsce part
+      # sur un « npm ls » qui échoue. C'est sans risque ici, l'extension n'ayant
+      # aucune dépendance d'exécution — tout ce qu'elle embarque est dans out/, et
+      # .vscodeignore est une liste blanche.
+      #
+      # vsce lance « vscode:prepublish », donc compile : ce qui part sur la place de
+      # marché est le code de ce commit, pas un out/ resté d'un run précédent.
+      - name: Publier sur la place de marché
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VSCE_PAT:-}" ]; then
+            echo "::error::Le secret VSCE_PAT manque. Crée un jeton Azure DevOps (Marketplace → Manage, « All accessible organizations »), pose-le en secret du dépôt sous ce nom, et relance ce job."
+            exit 1
+          fi
+          pnpm exec vsce publish --no-dependencies
+
+      # Le PAT Azure DevOps expire au bout d'un an au maximum, et son expiration ne
+      # se voit nulle part avant la livraison qu'elle bloque. Le tag et la Release
+      # sont déjà posés à ce stade : la version existe, elle n'est simplement pas en
+      # ligne, et c'est cette phrase-là qu'il faut retrouver dans le run.
+      - name: Ce qui reste à faire si la publication a échoué
+        if: failure()
+        run: |
+          {
+            echo "### La version est posée, mais pas publiée"
+            echo
+            echo "Le tag et la Release existent. Seule la place de marché n'a rien reçu."
+            echo
+            echo "Vérifie d'abord que \`VSCE_PAT\` n'a pas expiré — un jeton Azure DevOps"
+            echo "vit un an au plus. Puis, depuis une copie à jour de \`main\` :"
+            echo
+            echo '```bash'
+            echo "pnpm install --frozen-lockfile"
+            echo "npx vsce publish --no-dependencies"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
