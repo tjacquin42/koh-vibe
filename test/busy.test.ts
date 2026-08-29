@@ -66,6 +66,10 @@ describe('showBusy — minimum duration', () => {
     const p = showBusy(async () => 'fast', {
       ...deps,
       minMs: 600,
+      // Frozen: with the real clock, a single millisecond passing between the
+      // start and the finally makes the floor 599 and the test fail on a
+      // loaded runner. The instant task is the point, not the wall clock.
+      now: () => 0,
       wait: (ms: number) => {
         waited.push(ms);
         return gate;

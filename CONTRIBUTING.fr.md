@@ -36,6 +36,27 @@ pnpm package     # prouve que l'extension s'empaquette encore
 La CI lance ces trois commandes sur macOS, seule plateforme que l'extension sait servir. Elle
 ne lit aucun secret : elle tourne donc sur les PR venues d'un fork comme sur les autres.
 
+Le reste des scripts :
+
+```bash
+pnpm build       # compile vers out/, et date le paquet depuis package.json
+pnpm test:watch  # les mêmes tests, sans recompiler à chaque fois
+pnpm watch       # tsc en mode veille
+```
+
+`pnpm test` compile d'abord, parce que le test de bout en bout lance
+`scripts/install-hooks.cjs`, qui charge l'installateur compilé. Cette dépendance était
+invisible : elle tenait sur une machine ayant déjà construit une fois, et tombait sur un clone
+frais.
+
+Les tests ne démarrent pas VSCode : `vscode` est résolu vers un bouchon
+(`test/stubs/vscode.ts`), ce qui rend l'arbre, les commandes et le pont testables en
+millisecondes. Le typeur, lui, travaille contre la vraie API — un bouchon qui divergerait de
+ses signatures ne prouverait plus rien.
+
+`scripts/make-icons.cjs` regénère les deux icônes à partir de la table de points qu'il
+contient : c'est elle, la source du dessin.
+
 Pour essayer votre build pour de vrai, depuis le terminal intégré de l'éditeur où vous la
 voulez :
 
@@ -71,8 +92,8 @@ corps de PR, noms de branches, libellés d'issues.
 
 **Les fichiers d'information sont bilingues** : `README.md` et `CONTRIBUTING.md` ont un jumeau
 `.fr.md`. L'anglais fait foi, le français le suit ; les deux changent dans le même commit.
-`CHANGELOG.md` est en anglais seul — il est engendré à partir des titres de PR, qui sont en
-anglais.
+`CHANGELOG.md` est en anglais seul : la livraison engendre son en-tête à partir des titres de
+PR, qui sont en anglais, et le détail en dessous s'écrit à la main dans la même langue.
 
 **Le texte affiché suit l'utilisateur.** Aucune chaîne visible n'est écrite en dur dans une
 langue : les libellés contribués passent par `package.nls.json`, ceux du code par
