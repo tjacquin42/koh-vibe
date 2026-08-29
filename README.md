@@ -9,7 +9,7 @@
 Every Claude Code session you have running, in one view: across projects, across windows,
 across editors — with its status, what it is doing right now, and your usage.
 
-![The Koh-Vibe panel: sessions grouped by folder, a status dot per row, usage and settings](https://raw.githubusercontent.com/tjacquin42/koh-vibe/main/docs/screenshot.png)
+![The Koh-Vibe panel: sessions grouped by folder, a status dot per row, usage and settings](https://raw.githubusercontent.com/tjacquin42/koh-vibe/d348d505f3023aae94335951687c7fb1b2819884/docs/screenshot.png)
 
 > **macOS only.** Chimes go through `afplay`, the usage token is read from the system
 > keychain, and the hook bridges are zsh scripts. Nothing here pretends to work elsewhere.
