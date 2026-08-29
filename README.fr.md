@@ -10,6 +10,8 @@ Toutes vos sessions Claude Code dans une seule vue : celles de tous les projets,
 les fenêtres et de tous les éditeurs de la machine — avec leur statut, ce qu'elles sont en
 train de faire, et votre consommation.
 
+![Le panneau Koh-Vibe : les sessions rangées par dossier, une pastille de statut par ligne, la consommation et les réglages](https://raw.githubusercontent.com/tjacquin42/koh-vibe/main/docs/screenshot.png)
+
 > **macOS uniquement.** Les carillons passent par `afplay`, le jeton de consommation est lu
 > dans le trousseau du système, et les ponts de hooks sont des scripts zsh. Rien ici ne
 > prétend marcher ailleurs.
