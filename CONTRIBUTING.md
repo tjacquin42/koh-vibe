@@ -35,6 +35,25 @@ pnpm package     # proves the extension still packages
 CI runs those three on macOS, which is the only platform this extension supports. It reads no
 secret, so it runs on pull requests from forks like any other.
 
+The rest of the scripts:
+
+```bash
+pnpm build       # compiles to out/, and stamps the build from package.json
+pnpm test:watch  # the same tests, without rebuilding on every run
+pnpm watch       # tsc in watch mode
+```
+
+`pnpm test` builds first because the end-to-end test runs `scripts/install-hooks.cjs`, which
+loads the compiled installer. That dependency used to be invisible: it held on a machine that
+had built once, and failed on a fresh clone.
+
+Tests do not start VSCode: `vscode` resolves to a stub (`test/stubs/vscode.ts`), which makes
+the tree, the commands and the bridge testable in milliseconds. The type checker, however,
+works against the real API — a stub that drifted from its signatures would prove nothing.
+
+`scripts/make-icons.cjs` regenerates both icons from the point table it contains: that table
+is the source of the drawing.
+
 To try your build for real, from the integrated terminal of the editor you want it in:
 
 ```bash
@@ -69,7 +88,8 @@ branch names, issue labels.
 
 **Information files are bilingual**: `README.md` and `CONTRIBUTING.md` have a `.fr.md` twin.
 English is authoritative and French follows; both change in the same commit. `CHANGELOG.md` is
-English only — it is generated from pull request titles, which are English.
+English only: the delivery generates its heading from pull request titles, which are English,
+and the detail underneath is written by hand in the same language.
 
 **Displayed text follows the user.** Nothing user-visible is hardcoded in one language:
 contributed labels go through `package.nls.json`, runtime ones through `vscode.l10n.t()`. The
