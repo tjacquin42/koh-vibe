@@ -14,6 +14,8 @@ import { reopenPlan } from '../src/closed/reopen';
 import { withTokens } from '../src/transcript/tokens';
 import type { TranscriptStats } from '../src/transcript/reader';
 import { closeSessionHere } from '../src/close/close';
+import { rescanLiveSessions } from '../src/claude/rescan';
+import type { LiveSession } from '../src/claude/registry';
 
 // Bout en bout : installation des hooks sur une configuration bidon, exécution du
 // vrai bridge pour trois événements d'une même session, réduction par le chemin de
@@ -278,6 +280,63 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     await drain(dirs, Date.now(), undefined, archive, 'keep');
     expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
     expect((await readClosed(closedPath)).closed.map((e) => e.id)).toEqual([SESSION_ID]);
+  });
+
+  /**
+   * The bug the trash had: one click closed the tab but left the row, greyed,
+   * and it took a second click to be rid of it.
+   *
+   * Nothing here is contrived. Closing the tab is itself what changes the
+   * window's Claude tab count, and that starts a rescan on the spot — while
+   * the process behind the closed tab is STILL registered and still alive
+   * (observed: entries three days old whose pid still answers). The rescan
+   * found no state file, took the registry at its word, and wrote the row
+   * back; the `SessionEnd` arriving a moment later then greyed it.
+   *
+   * The removed ids are what settles it, and the order below is the one
+   * `remove` follows in extension.ts: mark first, delete second, so a rescan
+   * already under way cannot slip between the two.
+   */
+  it('does not let the rescan write back the row the trash just removed', async () => {
+    runInstaller();
+
+    const closedPath = closedFile(kohHome);
+    const archive = (s: Session): Promise<void> =>
+      rememberClosed(closedPath, toClosedEntry(s, 1_000)).then(() => undefined);
+    const removed = new Set<string>();
+    const claudeRoot = join(fakeHome, '.claude');
+    const registry = new Map<string, LiveSession>([
+      [SESSION_ID, { pid: process.pid, sessionId: SESSION_ID, cwd: projectDir, entrypoint: 'claude-vscode', startedAt: 1_000 }],
+    ]);
+
+    runBridge('SessionStart', { session_id: SESSION_ID, cwd: projectDir }, 'claude-vscode');
+    await drain(dirs, Date.now());
+
+    await closeSessionHere(SESSION_ID, {
+      read: (id) => readSession(dirs, id),
+      closeTab: async () => 'closed',
+      archive,
+      forget: async () => {
+        throw new Error('a closed tab is removed, never merely forgotten');
+      },
+      remove: async (id) => {
+        removed.add(id);
+        await removeSession(dirs, id);
+      },
+    });
+
+    // The tab that just closed starts this one.
+    expect(await rescanLiveSessions(dirs, registry, Date.now(), claudeRoot, removed)).toEqual([]);
+    expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
+
+    // And the vanish watch starts another, five seconds on — the process can
+    // well outlive that.
+    await rescanLiveSessions(dirs, registry, Date.now(), claudeRoot, removed);
+    runBridge('SessionEnd', { session_id: SESSION_ID, cwd: projectDir }, 'claude-vscode');
+    await drain(dirs, Date.now(), undefined, archive, 'keep');
+
+    // No row at all — not even a greyed one asking for a second click.
+    expect((await readSessions(dirs)).get(SESSION_ID)).toBeUndefined();
   });
 
   it('archives nothing when no tab was found — the row goes, the closed list stays empty', async () => {

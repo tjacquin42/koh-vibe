@@ -45,16 +45,30 @@ async function exists(path: string): Promise<boolean> {
  * entrypoint like the hooks do, and the transcript only when the file is
  * really there. Its folder assignment, if the file still holds one, applies
  * by id: it comes back where it was filed.
+ *
+ * `removed` is the one thing that outranks the registry: the ids the user
+ * took off the list in this window. A row taken off leaves no state file
+ * behind — which is precisely the state this function exists to repair — so
+ * without it the trash and the rescan pull against each other. And they do
+ * meet: closing the tab is itself what changes this window's Claude tab
+ * count, which starts a rescan on the spot, while the process behind the
+ * closed tab is still registered and still alive.
  */
 export async function rescanLiveSessions(
   dirs: SpoolDirs,
   live: ReadonlyMap<string, LiveSession>,
   now: number,
   claudeHome: string,
+  removed: ReadonlySet<string> = new Set(),
 ): Promise<string[]> {
   const added: string[] = [];
   const entries = [...live.values()].sort((a, b) => (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0));
   for (const entry of entries) {
+    // Read here, at the last moment, and never captured before the loop:
+    // `remove` marks the id BEFORE it deletes the file, so a rescan already
+    // under way when the user clicks still sees a removal it would otherwise
+    // race — the very race that made this bug intermittent.
+    if (removed.has(entry.sessionId)) continue;
     const known = await readSession(dirs, entry.sessionId);
     if (known !== undefined) {
       if (known.endedAt === undefined) continue;

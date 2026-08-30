@@ -218,7 +218,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const rescan = async (): Promise<string[]> => {
     try {
       const live = await readLiveSessions(registryDir);
-      const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot);
+      const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot, dismissed);
       // An ended row with nothing to resume — a conversation that never got a
       // message — has no business on screen (see the watcher's `hasTranscript`).
       for (const s of (await readSessions(dirs)).values()) {
@@ -620,7 +620,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   /** The row of a tab just closed: gone for good, and never back through the memento. */
   const remove = async (id: string): Promise<void> => {
-    if (dormant.delete(id)) dismissed.add(id);
+    dormant.delete(id);
+    // Marked BEFORE the file goes, and for every row rather than the dormant
+    // ones alone: a removed file is exactly what the rescan brings back, and
+    // the tab this removal has just closed is itself what starts one — its
+    // process is still registered, and still alive, for a moment or for good.
+    dismissed.add(id);
     await removeSession(dirs, id);
     await render();
   };
@@ -637,8 +642,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const s = await readSession(dirs, id);
     if (s !== undefined) {
       // A dormant row over an ended file: the file goes with it.
-      if (s.endedAt !== undefined) await removeSession(dirs, id);
-      else if (!wasDormant) await hideSession(dirs, id);
+      if (s.endedAt !== undefined) {
+        // Same reason as `remove`: nothing but this mark keeps the rescan
+        // from writing the file back the moment it is gone.
+        dismissed.add(id);
+        await removeSession(dirs, id);
+      } else if (!wasDormant) await hideSession(dirs, id);
     }
     await render();
   };
@@ -737,6 +746,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // spool has lost, then renders. It says so only when it found something —
     // a refresh that changes nothing has nothing to announce.
     vscode.commands.registerCommand('kohVibe.refresh', async () => {
+      // Refresh is the gesture that says "bring back whatever still runs" —
+      // including a row removed by mistake. It is the only way out of
+      // `dismissed` short of reloading the window, so it clears it: every
+      // other rescan (the tab count, the vanish watch, the late pass) must
+      // keep honouring a removal the user meant.
+      dismissed.clear();
       const added = await refreshAll();
       if (added.length === 0) return;
       void vscode.window.showInformationMessage(

@@ -126,3 +126,37 @@ describe('rescanLiveSessions', () => {
     expect(added).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('rescanLiveSessions and the rows the user removed', () => {
+  // The trash closes the tab, then deletes the state file — but the process
+  // behind a closed tab is still registered, and still alive: the very
+  // closing of that tab triggers a rescan, which found the file gone and
+  // brought the row straight back. The `SessionEnd` arriving a moment later
+  // then greyed it out, and the user had to click the trash a second time.
+  it('never brings back a conversation the user removed, however alive its process', async () => {
+    const added = await rescanLiveSessions(dirs, registry(live('s1')), NOW, claude, new Set(['s1']));
+
+    expect(added).toEqual([]);
+    expect(await readSession(dirs, 's1')).toBeUndefined();
+  });
+
+  it('never revives an ended row the user removed', async () => {
+    await writeSession(dirs, {
+      id: 's1', cwd: '/Users/dev/projet', project: 'projet', origin: 'vscode',
+      status: 'idle', toolCount: 3, lastEventAt: 4_500_000, endedAt: 4_500_000,
+    });
+
+    const added = await rescanLiveSessions(dirs, registry(live('s1')), NOW, claude, new Set(['s1']));
+
+    expect(added).toEqual([]);
+    expect((await readSession(dirs, 's1'))?.endedAt).toBe(4_500_000);
+  });
+
+  it('holds back only what was removed, and brings the rest back', async () => {
+    const added = await rescanLiveSessions(dirs, registry(live('gone'), live('kept')), NOW, claude, new Set(['gone']));
+
+    expect(added).toEqual(['kept']);
+    expect(await readSession(dirs, 'gone')).toBeUndefined();
+    expect(await readSession(dirs, 'kept')).toBeDefined();
+  });
+});
