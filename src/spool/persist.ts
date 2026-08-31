@@ -41,7 +41,15 @@ export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const seq = (writeSessionSeq += 1);
   const target = join(dirs.sessions, `${s.id}.json`);
   const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
-  await writeFile(tmp, JSON.stringify(s), 'utf8');
+  // `dormant` n'est pas un état de la conversation : c'est ce que CETTE fenêtre
+  // sait de son onglet, recalculé à chaque rendu depuis le mémento de l'éditeur
+  // (claude/dormant.ts). Écrit ici, il survivrait à la fermeture de l'onglet
+  // qu'il décrit, et la conversation resterait à jamais « un onglet restauré » :
+  // le clic tenterait de ramener au premier plan un onglet qui n'existe plus,
+  // et elle deviendrait impossible à rouvrir. La règle est posée à la porte
+  // plutôt que chez les appelants — il suffit d'un qui l'oublie.
+  const { dormant: _perWindow, ...persisted } = s;
+  await writeFile(tmp, JSON.stringify(persisted), 'utf8');
   await rename(tmp, target);
 }
 

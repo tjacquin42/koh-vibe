@@ -39,6 +39,19 @@ describe('persist', () => {
     expect(back.get('a')).toEqual(session('a'));
   });
 
+  // `dormant` marque une surimpression : l'onglet que CETTE fenêtre a restauré,
+  // recalculé à chaque rendu depuis le mémento de l'éditeur. Écrit sur disque,
+  // il survivrait à la fermeture de l'onglet qu'il décrit, et la conversation
+  // resterait à jamais « un onglet restauré » — impossible à rouvrir. La règle
+  // vit ici, à la seule porte qui mène au disque, plutôt que chez chaque appelant.
+  it("n'écrit jamais le drapeau dormant, qui n'appartient qu'à la fenêtre qui l'a calculé", async () => {
+    await writeSession(dirs, { ...session('s1'), dormant: true, endedAt: 42 });
+    const back = await readSession(dirs, 's1');
+    expect(back?.dormant).toBeUndefined();
+    // Tout le reste passe intact.
+    expect(back?.endedAt).toBe(42);
+  });
+
   it('ne laisse aucun fichier temporaire', async () => {
     await writeSession(dirs, session('a'));
     expect(readdirSync(dirs.sessions).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
