@@ -1,4 +1,5 @@
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,11 +7,13 @@ import { spoolDirs, type SpoolDirs } from '../src/paths';
 import {
   createSession,
   ensureDirs,
+  hideSession,
   readSession,
   readSessions,
   removeSession,
   writeSession,
 } from '../src/spool/persist';
+import { shownSession } from '../src/claude/dormant';
 import { reduceAll } from '../src/store/reduce';
 import type { Session, SpoolEvent } from '../src/events/types';
 
@@ -50,6 +53,50 @@ describe('persist', () => {
     expect(back?.dormant).toBeUndefined();
     // Tout le reste passe intact.
     expect(back?.endedAt).toBe(42);
+  });
+
+  it("ignore un drapeau dormant déjà présent sur le disque, plutôt que de le propager", async () => {
+    // Un fichier écrit par une version qui ne retirait pas encore le drapeau.
+    // Sans cela, la conversation resterait bloquée jusqu'à une réparation à la
+    // main : l'invariant doit tenir à la lecture aussi, pas seulement à
+    // l'écriture, sinon il ne guérit rien de ce qui existe déjà.
+    await writeFile(join(dirs.sessions, 's5.json'), JSON.stringify({ ...session('s5'), dormant: true, endedAt: 7 }), 'utf8');
+    expect((await readSession(dirs, 's5'))?.dormant).toBeUndefined();
+    expect((await readSessions(dirs)).get('s5')?.dormant).toBeUndefined();
+    expect((await readSession(dirs, 's5'))?.endedAt).toBe(7);
+  });
+
+  it("createSession ne l'écrit pas davantage — la porte a deux battants", async () => {
+    await createSession(dirs, { ...session('s2'), dormant: true });
+    expect((await readSession(dirs, 's2'))?.dormant).toBeUndefined();
+  });
+
+  it("hideSession, qui réécrit une session lue, ne le réintroduit pas non plus", async () => {
+    await writeSession(dirs, { ...session('s3'), dormant: true });
+    await hideSession(dirs, 's3');
+    const back = await readSession(dirs, 's3');
+    expect(back?.dormant).toBeUndefined();
+    expect(back?.hidden).toBe(true);
+  });
+
+  // La couture qui a réellement cassé : la sortie de `shownSession` — une
+  // conversation terminée que l'onglet restauré fait paraître éveillée — repart
+  // à l'écriture quand on la met en veille. Chaque module était juste ; c'est
+  // leur jonction qui ne l'était pas, et aucun test ne la traversait.
+  it("une session affichée éveillée par un onglet restauré reste rouvrable une fois réécrite", async () => {
+    const onDisk: Session = { ...session('s4'), endedAt: 10 };
+    const restored: Session = { ...session('s4'), dormant: true, lastEventAt: 0 };
+    const shown = shownSession(onDisk, restored);
+    expect(shown?.dormant).toBe(true); // la vue a bien besoin du drapeau
+
+    // Ce que fait la lune : on la marque terminée et on la réécrit.
+    await writeSession(dirs, { ...shown!, endedAt: 99 });
+
+    const back = await readSession(dirs, 's4');
+    // Sans quoi le clic prendrait à jamais la branche « onglet restauré » et
+    // chercherait à ramener au premier plan un onglet qui n'existe plus.
+    expect(back?.dormant).toBeUndefined();
+    expect(back?.endedAt).toBe(99);
   });
 
   it('ne laisse aucun fichier temporaire', async () => {

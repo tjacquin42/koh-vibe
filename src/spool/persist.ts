@@ -37,19 +37,31 @@ let writeSessionSeq = 0;
  * Écriture atomique : un lecteur concurrent voit l'ancien fichier ou le nouveau,
  * jamais un fichier à moitié écrit.
  */
+/**
+ * Ce qu'une session laisse sur le disque.
+ *
+ * `dormant` n'est pas un état de la conversation : c'est ce que CETTE fenêtre
+ * sait de son onglet, recalculé à chaque rendu depuis le mémento de l'éditeur
+ * (claude/dormant.ts). Écrit, il survivrait à la fermeture de l'onglet qu'il
+ * décrit, et la conversation resterait à jamais « un onglet restauré » : le
+ * clic tenterait de ramener au premier plan un onglet qui n'existe plus, et
+ * elle deviendrait impossible à rouvrir.
+ *
+ * La règle est posée aux portes — les deux qui écrivent et les deux qui lisent —
+ * plutôt que chez les appelants : il suffit d'un qui l'oublie, et c'est arrivé.
+ * L'appliquer aussi à la lecture guérit les fichiers qu'une version antérieure
+ * avait déjà marqués, au lieu d'attendre une réparation à la main.
+ */
+function persisted(s: Session): Session {
+  const { dormant: _perWindow, ...rest } = s;
+  return rest;
+}
+
 export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const seq = (writeSessionSeq += 1);
   const target = join(dirs.sessions, `${s.id}.json`);
   const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
-  // `dormant` n'est pas un état de la conversation : c'est ce que CETTE fenêtre
-  // sait de son onglet, recalculé à chaque rendu depuis le mémento de l'éditeur
-  // (claude/dormant.ts). Écrit ici, il survivrait à la fermeture de l'onglet
-  // qu'il décrit, et la conversation resterait à jamais « un onglet restauré » :
-  // le clic tenterait de ramener au premier plan un onglet qui n'existe plus,
-  // et elle deviendrait impossible à rouvrir. La règle est posée à la porte
-  // plutôt que chez les appelants — il suffit d'un qui l'oublie.
-  const { dormant: _perWindow, ...persisted } = s;
-  await writeFile(tmp, JSON.stringify(persisted), 'utf8');
+  await writeFile(tmp, JSON.stringify(persisted(s)), 'utf8');
   await rename(tmp, target);
 }
 
@@ -68,7 +80,7 @@ export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolea
   const seq = (writeSessionSeq += 1);
   const target = join(dirs.sessions, `${s.id}.json`);
   const tmp = join(dirs.sessions, `.tmp-${s.id}-${process.pid}-${seq}`);
-  await writeFile(tmp, JSON.stringify(s), 'utf8');
+  await writeFile(tmp, JSON.stringify(persisted(s)), 'utf8');
   try {
     await link(tmp, target);
     return true;
@@ -150,7 +162,11 @@ function isSession(v: unknown): v is Session {
 export async function readSession(dirs: SpoolDirs, id: string): Promise<Session | undefined> {
   try {
     const parsed: unknown = JSON.parse(await readFile(join(dirs.sessions, `${id}.json`), 'utf8'));
-    return isSession(parsed) ? parsed : undefined;
+    // Ignoré à la lecture autant qu'à l'écriture : un fichier laissé par une
+    // version qui écrivait encore le drapeau guérit de lui-même, au lieu
+    // d'attendre une réparation à la main. L'invariant ne vaut que s'il est
+    // total — interdire d'écrire ne répare rien de ce qui est déjà écrit.
+    return isSession(parsed) ? persisted(parsed) : undefined;
   } catch {
     return undefined;
   }
@@ -168,7 +184,7 @@ export async function readSessions(dirs: SpoolDirs): Promise<Map<string, Session
     if (!name.endsWith('.json')) continue;
     try {
       const parsed: unknown = JSON.parse(await readFile(join(dirs.sessions, name), 'utf8'));
-      if (isSession(parsed)) out.set(parsed.id, parsed);
+      if (isSession(parsed)) out.set(parsed.id, persisted(parsed));
     } catch {
       // fichier illisible : on l'ignore, il sera réécrit au prochain événement
     }
