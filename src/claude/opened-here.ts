@@ -36,7 +36,7 @@ export interface ActiveTab {
  */
 export class OpenedHere {
   private readonly known = new Map<string, ClaudeTab>();
-  private pending: { id: string; at: number } | undefined;
+  private pending: { id: string; at: number; from?: string } | undefined;
 
   constructor(private readonly ttlMs: number = PENDING_OPEN_MS) {}
 
@@ -64,8 +64,16 @@ export class OpenedHere {
     if (this.pending !== undefined && now - this.pending.at > this.ttlMs) this.pending = undefined;
     if (this.pending === undefined || active === undefined) return resolved;
     if (resolved !== undefined && resolved !== this.pending.id) {
-      // Une autre conversation a pris le dessus : ce qu'on attendait ne viendra
-      // plus, et continuer à guetter finirait par nommer le mauvais onglet.
+      // La conversation D'OÙ L'ON VIENT ne compte pas : au moment de la demande,
+      // l'onglet actif est encore le précédent, et c'est souvent une
+      // conversation. La prendre pour un changement d'avis fermait l'attente
+      // avant même que le panneau demandé n'apparaisse — le défaut qui rendait
+      // la sélection intermittente. La première observée est donc retenue comme
+      // le point de départ, et la revoir ne prouve rien.
+      this.pending.from ??= resolved;
+      if (resolved === this.pending.from) return resolved;
+      // Une TROISIÈME conversation, en revanche : l'utilisateur est passé à
+      // autre chose, et continuer à guetter finirait par nommer le mauvais onglet.
       this.pending = undefined;
       return resolved;
     }

@@ -34,13 +34,15 @@ describe('OpenedHere — reconnaître l onglet qu on vient de faire ouvrir', () 
     ]);
   });
 
-  it('referme l attente dès qu une AUTRE conversation devient active', () => {
+  // La PREMIÈRE conversation vue après la demande est celle d où l on vient :
+  // au moment du clic, l onglet actif est encore le précédent. Elle ne ferme
+  // donc pas l attente — seule une conversation de plus le fait. Le détail est
+  // vérifié plus bas, avec le défaut qu il corrige.
+  it('ne referme pas l attente sur la conversation d où l on vient', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     expect(m.observe('s-autre', tab('#EDN monitoring', 15), 100)).toBe('s-autre');
-    expect(m.entries()).toEqual([]);
-    // Ce qui suit ne doit plus être attribué à la conversation attendue.
-    expect(m.observe(undefined, tab('Claude Code'), 200)).toBeUndefined();
+    expect(m.observe(undefined, tab('Claude Code'), 200)).toBe('s-nouvelle');
   });
 
   it('laisse la résolution habituelle répondre quand elle nomme la conversation attendue', () => {
@@ -66,5 +68,38 @@ describe('OpenedHere — reconnaître l onglet qu on vient de faire ouvrir', () 
       { sessionId: 's-un', title: 'Un', group: 0, index: 3 },
       { sessionId: 's-deux', title: 'Deux', group: 0, index: 7 },
     ]);
+  });
+});
+
+// Le défaut qui restait : au moment de la demande, l onglet actif est encore
+// celui d avant — souvent une AUTRE conversation. La règle « il est passé à
+// autre chose » se déclenchait dessus et jetait l attente avant même que le
+// panneau demandé n apparaisse.
+describe('OpenedHere — la conversation quittée ne compte pas comme un changement d avis', () => {
+  it('garde l attente quand l onglet encore actif est celui d où l on vient', () => {
+    const m = new OpenedHere();
+    m.opening('s-nouvelle', 0);
+    // Premier événement : on est toujours sur la conversation précédente.
+    expect(m.observe('s-precedente', tab('#EDN monitoring', 15), 20)).toBe('s-precedente');
+    // Le panneau demandé arrive enfin, et rien ne sait encore le nommer.
+    expect(m.observe(undefined, tab('Claude Code'), 30)).toBe('s-nouvelle');
+    expect(m.entries()).toEqual([{ sessionId: 's-nouvelle', title: 'Claude Code', group: 0, index: 16 }]);
+  });
+
+  it('revenir sur la conversation quittée ne ferme toujours pas l attente', () => {
+    const m = new OpenedHere();
+    m.opening('s-nouvelle', 0);
+    m.observe('s-precedente', tab('#EDN monitoring', 15), 20);
+    expect(m.observe('s-precedente', tab('#EDN monitoring', 15), 40)).toBe('s-precedente');
+    expect(m.observe(undefined, tab('Claude Code'), 50)).toBe('s-nouvelle');
+  });
+
+  it('mais une TROISIÈME conversation, elle, ferme bien l attente', () => {
+    const m = new OpenedHere();
+    m.opening('s-nouvelle', 0);
+    m.observe('s-precedente', tab('#EDN monitoring', 15), 20);
+    expect(m.observe('s-tierce', tab('Autre chose', 9), 30)).toBe('s-tierce');
+    expect(m.observe(undefined, tab('Claude Code'), 40)).toBeUndefined();
+    expect(m.entries()).toEqual([]);
   });
 });
