@@ -111,6 +111,30 @@ function halo(fill, strength) {
 }
 
 /**
+ * A PROBE, and nothing more: does VSCode animate an SVG it shows as a tree
+ * icon?
+ *
+ * Chromium animates an SVG used as `background-image`, and that is how the
+ * tree paints `TreeItem.iconPath` — so this should turn. Should is not does,
+ * and the answer decides whether animated dots are worth designing at all, so
+ * one status carries the experiment rather than a page of reasoning.
+ *
+ * CSS rather than SMIL, for `prefers-reduced-motion`: a viewer who has asked
+ * their system for less movement gets a still ring, not an argument.
+ *
+ * Remove this, and the `spin` argument below, once the question is settled.
+ */
+function spinStyle() {
+  return (
+    `<style>` +
+    `@keyframes s{to{transform:rotate(360deg)}}` +
+    `.r{transform-origin:8px 8px;animation:s 2.6s linear infinite}` +
+    `@media(prefers-reduced-motion:reduce){.r{animation:none}}` +
+    `</style>`
+  );
+}
+
+/**
  * The dot itself, over its halo.
  *
  * The core shrinks from 4.5 to CORE_RADIUS to make that halo room. The box does
@@ -118,12 +142,20 @@ function halo(fill, strength) {
  * added AROUND the disc, it is taken out of it. A status that does not glow
  * keeps the full 4.5 and looks exactly as it always did.
  */
-function disc([fill, opacity], glow) {
+function disc([fill, opacity], glow, spin) {
   const alpha = opacity === 1 ? '' : ` fill-opacity="${opacity}"`;
-  const radius = glow > 0 ? CORE_RADIUS : RADIUS;
+  const radius = spin ? 2.7 : glow > 0 ? CORE_RADIUS : RADIUS;
+  const dash = (2 * Math.PI * 6.2) / 8;
+  const ring = spin
+    ? spinStyle() +
+      `<circle class="r" cx="8" cy="8" r="6.2" fill="none" stroke="${fill}" stroke-width="1.3" ` +
+      `stroke-linecap="round" stroke-opacity="0.85" ` +
+      `stroke-dasharray="${dash.toFixed(2)} ${(dash / 2).toFixed(2)}"/>`
+    : '';
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">` +
     halo(fill, glow) +
+    ring +
     `<circle cx="${SIZE / 2}" cy="${SIZE / 2}" r="${radius}" fill="${fill}"${alpha}/>` +
     `</svg>\n`
   );
@@ -138,7 +170,8 @@ for (const [status, themes] of Object.entries(PALETTE)) {
     // tirets bas changés en tirets, puis le thème. Un test vérifie que chaque
     // chemin annoncé existe pour de vrai.
     const file = join(dir, `${status.replace('_', '-')}-${theme}.svg`);
-    writeFileSync(file, disc(color, themes.glow * (theme === 'light' ? LIGHT_GLOW : 1)), 'utf8');
+    const glow = themes.glow * (theme === 'light' ? LIGHT_GLOW : 1);
+    writeFileSync(file, disc(color, glow, status === 'running'), 'utf8');
     console.log(`écrit ${file.slice(file.indexOf('resources'))}`);
   }
 }
