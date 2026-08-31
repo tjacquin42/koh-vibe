@@ -40,17 +40,22 @@ const { join } = require('node:path');
  * `#CCCCCC80` est un canal alpha dans le registre de VSCode, pas une nuance de gris.
  */
 const PALETTE = {
-  running: { dark: ['#59A4F9', 1], light: ['#0063D3', 1], glow: 0.9 },
-  waiting: { dark: ['#D18616', 1], light: ['#C4700E', 1], glow: 1 },
-  done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1], glow: 0.85 },
-  idle: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.35 },
+  running: { dark: ['#59A4F9', 1], light: ['#0063D3', 1], glow: 0.56 },
+  waiting: { dark: ['#D18616', 1], light: ['#C4700E', 1], glow: 0.62 },
+  done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1], glow: 0.53 },
+  // Full opacity, where the grey used to sit at 0.7 and 0.3. Muting a grey
+  // against a near-black row is muting the only thing it had: the colours can
+  // afford to be dimmed because their hue still separates them from the
+  // background, and grey has no hue to fall back on. It reads as a quiet dot
+  // now, rather than as one that failed to render.
+  idle: { dark: ['#CCCCCC', 1], light: ['#5F5F5F', 1], glow: 0.22 },
   // Not a status but a tone: an ended conversation, or a tab nobody has woken.
   // Deliberately IDENTICAL to `idle`, opacity included. The row already says it
   // is over — the decoration provider greys its label (ui/tree.ts) — so a
   // second, dimmer grey in the dot said the same thing twice, and said it so
   // faintly that the two greys read as a rendering accident rather than as a
   // distinction. One grey, one meaning: nothing is running here.
-  ended: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.35 },
+  ended: { dark: ['#CCCCCC', 1], light: ['#5F5F5F', 1], glow: 0.22 },
 };
 
 /**
