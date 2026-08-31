@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Status } from '../src/events/types';
-import { STATUS_ICON_DIR, statusIconPath } from '../src/ui/status-icon';
+import { STATUS_ICON_DIR, STILL_ICON_DIR, statusIconPath } from '../src/ui/status-icon';
 
-const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle', 'stale'];
+const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle'];
 const ROOT = join(__dirname, '..');
 
 describe('statusIconPath', () => {
@@ -36,6 +36,62 @@ describe('statusIconPath', () => {
       for (const file of [paths.light, paths.dark]) {
         await expect(access(file), `${status} → ${file}`).resolves.toBeUndefined();
       }
+    }
+  });
+});
+
+const TONES = [...ALL, 'ended'] as const;
+
+describe('statusIconPath — le jeu figé, quand on coupe les animations', () => {
+  it('désigne le sous-dossier des immobiles, et lui seul', () => {
+    const still = statusIconPath('/ext', 'running', false);
+    expect(still.dark.startsWith(join('/ext', 'resources', STATUS_ICON_DIR, STILL_ICON_DIR))).toBe(true);
+    expect(statusIconPath('/ext', 'running', true).dark).not.toContain(STILL_ICON_DIR);
+  });
+
+  it('anime par défaut : un appelant qui ne dit rien garde le mouvement', () => {
+    expect(statusIconPath('/ext', 'running').dark).toBe(statusIconPath('/ext', 'running', true).dark);
+  });
+
+  // Le même invariant que ci-dessus, pour le second jeu : une case décochée ne
+  // doit pas produire des lignes SANS pastille.
+  it('nomme des fichiers qui existent vraiment, pour chaque ton', async () => {
+    for (const tone of TONES) {
+      const paths = statusIconPath(ROOT, tone, false);
+      for (const file of [paths.light, paths.dark]) {
+        await expect(access(file), `${tone} → ${file}`).resolves.toBeUndefined();
+      }
+    }
+  });
+
+  it('ne porte aucune animation, là où le jeu animé en porte une', async () => {
+    // La vraie garantie derrière la case : décochée, plus rien ne bouge.
+    for (const tone of TONES) {
+      const still = await readFile(statusIconPath(ROOT, tone, false).dark, 'utf8');
+      expect(still, `${tone} figé`).not.toContain('animation:');
+    }
+    // Et le mouvement existe bel et bien quelque part, sinon le test au-dessus
+    // passerait tout seul le jour où l animation disparaîtrait par accident.
+    const moving = await Promise.all(
+      TONES.map((t) => readFile(statusIconPath(ROOT, t, true).dark, 'utf8')),
+    );
+    expect(moving.some((svg) => svg.includes('animation:'))).toBe(true);
+  });
+
+  it('dessine la MÊME chose, au mouvement près — sinon couper l animation changerait le sens', async () => {
+    // Les deux fichiers doivent parler des mêmes formes : mêmes rayons, mêmes
+    // couleurs, même pointillé. Seuls le bloc <style> et l angle de départ,
+    // porté par un attribut d un côté et par les keyframes de l autre, varient.
+    for (const tone of TONES) {
+      const strip = (svg: string): string =>
+        svg.replace(/<style>[\s\S]*?<\/style>/, '')
+          .replace(/ class="r"/, '')
+          .replace(/ transform="rotate\(-90 8 8\)"/, '');
+      const [moving, still] = await Promise.all([
+        readFile(statusIconPath(ROOT, tone, true).dark, 'utf8').then(strip),
+        readFile(statusIconPath(ROOT, tone, false).dark, 'utf8').then(strip),
+      ]);
+      expect(still, `${tone}`).toBe(moving);
     }
   });
 });

@@ -89,7 +89,6 @@ describe('needsConfirmation', () => {
   it('does not ask when nothing is interrupted', () => {
     expect(needsConfirmation('done_unseen')).toBe(false);
     expect(needsConfirmation('idle')).toBe(false);
-    expect(needsConfirmation('stale')).toBe(false);
   });
 });
 

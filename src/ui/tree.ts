@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { Session, Status } from '../events/types';
-import { withStaleness } from '../store/staleness';
 import { sessionDescription, sessionLabel, sessionTooltip, statusLabel } from './labels';
 import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
 import { shownColor, themeColorOf, type ColorPreview } from './colors';
@@ -42,7 +41,7 @@ export type TreeNode =
  * Le choix de l'image contre le codicon coloré est expliqué dans ./status-icon.
  */
 
-const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3, stale: 4 };
+const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
 
 /**
  * Three tiers before any status: what runs, then the tabs nobody has woken,
@@ -200,6 +199,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // per-window overlay over `groups`, cleared when the picker closes: nothing
   // here is ever written to the shared file.
   private preview: ColorPreview | undefined;
+  // Whether the dots turn, from the shared settings. `true` until the first
+  // read says otherwise — the moving set is what ships, and a first frame of
+  // still dots would flicker for nothing on every window that keeps them.
+  private animate = true;
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -233,10 +236,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   ) {}
 
   setSessions(map: Map<string, Session>): void {
-    const now = Date.now();
-    this.sessions = [...map.values()]
-      .map((s) => withStaleness(s, now))
-      .sort(compareSessions);
+    this.sessions = [...map.values()].sort(compareSessions);
     this.refresh();
   }
 
@@ -258,6 +258,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
    */
   setHooksInstalled(installed: boolean): void {
     this.hooksInstalled = installed;
+    this.refresh();
+  }
+
+  /** Fed by the render loop, from the shared settings file. */
+  setAnimate(on: boolean): void {
+    this.animate = on;
     this.refresh();
   }
 
@@ -317,6 +323,8 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       // compares what is DISPLAYED, and the displayed colour of a folder is no
       // longer `groups` alone.
       this.preview ?? null,
+      // Same reason: it decides which file every dot points at.
+      this.animate,
     ]);
   }
 
@@ -545,7 +553,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // and the label greyed with it, through the same decoration provider the
     // folders use: the only way VSCode offers to colour a row's text.
     // Only an ENDED row is muted: a restored tab is open, and reads as idle.
-    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended');
+    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended', this.animate);
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
     if (s.endedAt !== undefined) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
     if (this.reopening.has(s.id)) {

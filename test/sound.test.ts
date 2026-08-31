@@ -27,10 +27,9 @@ describe('chimeFor', () => {
   });
 
   it('ne sonne pas pour les bascules qui arrivent toutes seules', () => {
-    // Une session passe d elle-même de en cours à l arrêt puis à périmée : un
-    // carillon à chaque fois deviendrait un bruit de fond, donc un signal mort.
+    // A session goes from working to idle on its own: a chime at every such
+    // step would become background noise, and so a dead signal.
     expect(chimeFor(at(['s1', 'running']), at(['s1', 'idle']))).toBeUndefined();
-    expect(chimeFor(at(['s1', 'idle']), at(['s1', 'stale']))).toBeUndefined();
     expect(chimeFor(at(['s1', 'waiting']), at(['s1', 'running']))).toBeUndefined();
   });
 
@@ -152,13 +151,16 @@ describe('FooterTree — la vue épinglée en bas', () => {
     return f;
   };
 
-  it('expose les deux réglages de la liste et ceux du son, et rien d autre — la consommation a sa propre vue', () => {
-    expect(footer().getChildren().map((n) => n.kind)).toEqual(['toggle', 'toggle', 'sound', 'sound', 'volume', 'library']);
+  it('expose les réglages de la liste et ceux du son, et rien d autre — la consommation a sa propre vue', () => {
+    expect(footer().getChildren().map((n) => n.kind)).toEqual([
+      'toggle', 'toggle', 'toggle', 'sound', 'sound', 'volume', 'library',
+    ]);
   });
 
   it('rend chaque ligne cliquable, vers sa propre commande', () => {
     const f = footer();
     expect(f.getChildren().map((n) => f.getTreeItem(n).command?.command)).toEqual([
+      'kohVibe.toggleSetting',
       'kohVibe.toggleSetting',
       'kohVibe.toggleSetting',
       'kohVibe.chooseSound',
@@ -180,7 +182,7 @@ describe('FooterTree — la vue épinglée en bas', () => {
 
   it('dit à la commande de quel événement il s agit', () => {
     const f = footer();
-    const [, , waiting, done] = f.getChildren();
+    const [, , , waiting, done] = f.getChildren();
     expect(f.getTreeItem(waiting!).command?.arguments).toEqual(['waiting']);
     expect(f.getTreeItem(done!).command?.arguments).toEqual(['done']);
   });

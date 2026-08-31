@@ -16,10 +16,10 @@ export interface SoundSettings {
   volume: number;
 }
 
-/** The two on/off settings, as the shared file names them (settings/model.ts). */
-export type SettingToggle = 'persistent' | 'expireTemporary';
+/** The on/off settings, as the shared file names them (settings/model.ts). */
+export type SettingToggle = 'persistent' | 'expireTemporary' | 'animate';
 
-export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary'];
+export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary', 'animate'];
 
 export type FooterNode =
   | { kind: 'toggle'; key: SettingToggle; on: boolean }
@@ -28,9 +28,9 @@ export type FooterNode =
   | { kind: 'library'; count: number };
 
 export function toggleLabel(key: SettingToggle): string {
-  return key === 'persistent'
-    ? vscode.l10n.t('Persistent sessions')
-    : vscode.l10n.t('Temporary sessions expire after 24 h');
+  if (key === 'persistent') return vscode.l10n.t('Persistent sessions');
+  if (key === 'animate') return vscode.l10n.t('Animated status dots');
+  return vscode.l10n.t('Temporary sessions expire after 24 h');
 }
 
 /**
@@ -38,6 +38,11 @@ export function toggleLabel(key: SettingToggle): string {
  * "temporary" alone says nothing about tabs, folders, or how to come back.
  */
 export function toggleTooltip(key: SettingToggle): string {
+  if (key === 'animate') {
+    return vscode.l10n.t(
+      'The ring around a dot turns while a conversation works, and sweeps while it waits for you.\nUnchecked, the same rings are shown still. Nothing is lost: a dashed ring still means working, and a broken one still means waiting.',
+    );
+  }
   return key === 'persistent'
     ? vscode.l10n.t(
         'Keep a conversation in the list after its tab is closed: greyed out, in its folder, a click reopens it.\nUnchecked, closing the tab removes it from the list instead. Rows already greyed stay either way.',
@@ -81,7 +86,7 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   readonly onDidChangeTreeData = this.emitter.event;
   private sound: SoundSettings = { waiting: NO_SOUND, done: NO_SOUND, volume: 0.5 };
   private library = 0;
-  private toggles: Record<SettingToggle, boolean> = { persistent: true, expireTemporary: true };
+  private toggles: Record<SettingToggle, boolean> = { persistent: true, expireTemporary: true, animate: true };
   // Même règle que l'arbre des sessions : ne rien annoncer quand rien n'a
   // changé, sinon l'infobulle s'escamote sous la souris.
   private rendered: string | undefined;

@@ -33,8 +33,25 @@ export const STATUS_ICON_DIR = 'status';
  */
 export type IconTone = Status | 'ended';
 
-export function statusIconPath(extensionPath: string, status: IconTone): { light: string; dark: string } {
+/** Where the motionless twin of every icon lives, beside the moving one. */
+export const STILL_ICON_DIR = 'still';
+
+/**
+ * The pair of files for a tone, moving or still.
+ *
+ * `animate === false` swaps in the twin from `still/`, which is the same
+ * drawing stopped at the angle its keyframes start from — never another
+ * design. Turning motion off must cost nothing in meaning: a dashed ring still
+ * says working, a broken one still says waiting.
+ */
+export function statusIconPath(
+  extensionPath: string,
+  status: IconTone,
+  animate = true,
+): { light: string; dark: string } {
+  const parts = [extensionPath, 'resources', STATUS_ICON_DIR];
+  if (!animate) parts.push(STILL_ICON_DIR);
   const file = (theme: 'light' | 'dark'): string =>
-    join(extensionPath, 'resources', STATUS_ICON_DIR, `${status.replace('_', '-')}-${theme}.svg`);
+    join(...parts, `${status.replace('_', '-')}-${theme}.svg`);
   return { light: file('light'), dark: file('dark') };
 }
