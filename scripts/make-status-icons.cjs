@@ -111,26 +111,68 @@ function halo(fill, strength) {
 }
 
 /**
- * A PROBE, and nothing more: does VSCode animate an SVG it shows as a tree
- * icon?
+ * The ring around the dot, and what it says.
  *
- * Chromium animates an SVG used as `background-image`, and that is how the
- * tree paints `TreeItem.iconPath` — so this should turn. Should is not does,
- * and the answer decides whether animated dots are worth designing at all, so
- * one status carries the experiment rather than a page of reasoning.
+ * One shape, three readings, carried by the dash pattern. `running` is a
+ * dashed ring turning steadily — the universal reading of work in progress.
+ * `waiting` is a ring with one frank gap, sweeping rather than gliding: what
+ * the ring is missing to close is your answer. `done_unseen` is closed, and
+ * still: nothing is happening any more, and motion would say otherwise.
  *
- * CSS rather than SMIL, for `prefers-reduced-motion`: a viewer who has asked
- * their system for less movement gets a still ring, not an argument.
- *
- * Remove this, and the `spin` argument below, once the question is settled.
+ * The greys carry no ring at all. Nothing is running behind them, so there is
+ * no cycle to draw.
  */
-function spinStyle() {
+const RING_RADIUS = 6.2;
+const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const RINGS = {
+  running: { dash: [CIRCUMFERENCE / 8, CIRCUMFERENCE / 16], width: 1.3, spin: '2.6s linear' },
+  waiting: {
+    dash: [CIRCUMFERENCE * 0.76, CIRCUMFERENCE * 0.24],
+    width: 1.4,
+    spin: '1.9s cubic-bezier(.5,0,.5,1)',
+  },
+  done_unseen: { dash: undefined, width: 1.3, spin: undefined },
+};
+
+/**
+ * The rotation, in CSS inside the file.
+ *
+ * Two details are what make it turn ON ITSELF rather than drift around the
+ * box, and both were learnt the hard way:
+ *
+ * The starting angle lives in the KEYFRAMES, never in a `transform` attribute
+ * on the element. An attribute transform and a CSS transform animation both
+ * feed the same property: the browser then interpolates between two matrices,
+ * one of which carries the translation that `rotate(a x y)` decomposes into,
+ * and the ring wanders off centre as it turns.
+ *
+ * And `transform-box: view-box` is stated rather than assumed, so 8px 8px
+ * means the centre of the 16-unit viewBox and not the corner of the stroke's
+ * own bounding box.
+ *
+ * `prefers-reduced-motion` stops it: a viewer who asked their system for less
+ * movement gets a still ring, which still says everything the dashes say.
+ */
+function spinStyle(spin) {
   return (
     `<style>` +
-    `@keyframes s{to{transform:rotate(360deg)}}` +
-    `.r{transform-origin:8px 8px;animation:s 2.6s linear infinite}` +
-    `@media(prefers-reduced-motion:reduce){.r{animation:none}}` +
+    `@keyframes s{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}` +
+    `.r{transform-box:view-box;transform-origin:8px 8px;animation:s ${spin} infinite}` +
+    `@media(prefers-reduced-motion:reduce){.r{animation:none;transform:rotate(-90deg)}}` +
     `</style>`
+  );
+}
+
+function ring(fill, spec) {
+  if (spec === undefined) return '';
+  const dash = spec.dash === undefined ? '' : ` stroke-dasharray="${spec.dash.map((d) => d.toFixed(2)).join(' ')}"`;
+  // A still ring keeps its start angle in an attribute, which is free of the
+  // interpolation problem above precisely because nothing animates it.
+  const still = spec.spin === undefined ? ' transform="rotate(-90 8 8)"' : '';
+  return (
+    (spec.spin === undefined ? '' : spinStyle(spec.spin)) +
+    `<circle${spec.spin === undefined ? '' : ' class="r"'} cx="8" cy="8" r="${RING_RADIUS}" fill="none" ` +
+    `stroke="${fill}" stroke-width="${spec.width}" stroke-linecap="round" stroke-opacity="0.85"${dash}${still}/>`
   );
 }
 
@@ -142,20 +184,16 @@ function spinStyle() {
  * added AROUND the disc, it is taken out of it. A status that does not glow
  * keeps the full 4.5 and looks exactly as it always did.
  */
-function disc([fill, opacity], glow, spin) {
+function disc([fill, opacity], glow, spec) {
   const alpha = opacity === 1 ? '' : ` fill-opacity="${opacity}"`;
-  const radius = spin ? 2.7 : glow > 0 ? CORE_RADIUS : RADIUS;
-  const dash = (2 * Math.PI * 6.2) / 8;
-  const ring = spin
-    ? spinStyle() +
-      `<circle class="r" cx="8" cy="8" r="6.2" fill="none" stroke="${fill}" stroke-width="1.3" ` +
-      `stroke-linecap="round" stroke-opacity="0.85" ` +
-      `stroke-dasharray="${dash.toFixed(2)} ${(dash / 2).toFixed(2)}"/>`
-    : '';
+  // Three objects in 16 px: the core pulls in again once a ring surrounds it,
+  // so each keeps some air around it.
+  const radius = spec !== undefined ? 2.7 : glow > 0 ? CORE_RADIUS : RADIUS;
+  const around = ring(fill, spec);
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">` +
     halo(fill, glow) +
-    ring +
+    around +
     `<circle cx="${SIZE / 2}" cy="${SIZE / 2}" r="${radius}" fill="${fill}"${alpha}/>` +
     `</svg>\n`
   );
@@ -171,7 +209,7 @@ for (const [status, themes] of Object.entries(PALETTE)) {
     // chemin annoncé existe pour de vrai.
     const file = join(dir, `${status.replace('_', '-')}-${theme}.svg`);
     const glow = themes.glow * (theme === 'light' ? LIGHT_GLOW : 1);
-    writeFileSync(file, disc(color, glow, status === 'running'), 'utf8');
+    writeFileSync(file, disc(color, glow, RINGS[status]), 'utf8');
     console.log(`écrit ${file.slice(file.indexOf('resources'))}`);
   }
 }
