@@ -48,7 +48,7 @@ const PALETTE = {
   // afford to be dimmed because their hue still separates them from the
   // background, and grey has no hue to fall back on. It reads as a quiet dot
   // now, rather than as one that failed to render.
-  idle: { dark: ['#CCCCCC', 1], light: ['#5F5F5F', 1], glow: 0.22 },
+  idle: { dark: ['#B0B0B0', 1], light: ['#6B6B6B', 1], glow: 0.22 },
   // Not a status but a tone: an ended conversation, or a tab nobody has woken.
   //
   // Far dimmer than `idle`, and the two must stay far apart — a closed row and
