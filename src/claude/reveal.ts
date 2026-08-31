@@ -57,6 +57,12 @@ export function locateClaudeTab(
   return undefined;
 }
 
+/** Si la place indiquée porte bien une conversation, et non un fichier ou rien. */
+export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): boolean {
+  const tab = groups[at.group]?.tabs[at.index];
+  return tab !== undefined && isClaudeTab(tab);
+}
+
 /**
  * The conversation a tab belongs to — `locateClaudeTab` read backwards.
  *

@@ -9,7 +9,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
+import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
@@ -27,6 +27,7 @@ import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
+import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
@@ -725,9 +726,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       forget,
     },
     listed,
-    (sessionId) => {
-      pendingOpen = { id: sessionId, at: Date.now() };
-    },
+    (sessionId) => openedHere.opening(sessionId, Date.now()),
   );
 
   const watcher = new SpoolWatcher(
@@ -805,11 +804,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * titre change quand la conversation en gagne un — ne désigne donc jamais le
    * mauvais onglet : elle cesse simplement de correspondre.
    */
-  const openedHere = new Map<string, ClaudeTab>();
-  // La conversation dont on vient de demander l'onglet, en attente de le voir
-  // apparaître. `undefined` dès qu'elle a été reconnue.
-  let pendingOpen: { id: string; at: number } | undefined;
-  const PENDING_OPEN_MS = 15_000;
+  const openedHere = new OpenedHere();
   let lastRevealed: string | undefined;
   const revealActiveSession = (): void => {
     // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
@@ -821,24 +816,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Ce qu'on a ouvert soi-même d'abord, le mémento ensuite — dédoublonné par
     // session, pour qu'une entrée fraîche remplace la sienne plutôt que de la
     // concurrencer et de créer une fausse ambiguïté.
-    const tabs = [...openedHere.values(), ...mementoTabs.filter((m) => !openedHere.has(m.sessionId))];
-    let id = group < 0 || index < 0 ? undefined : sessionOfClaudeTab(tabs, groups, { group, index });
-    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
-    if (id === undefined && pendingOpen !== undefined && group >= 0 && index >= 0) {
-      // L'onglet qu'on attendait vient d'apparaître : c'est ici, et seulement
-      // ici, qu'on peut le nommer. Périmé passé quelques secondes — au-delà,
-      // l'onglet actif n'a plus de raison d'être celui qu'on avait demandé.
-      if (Date.now() - pendingOpen.at <= PENDING_OPEN_MS && active !== undefined) {
-        const learned: ClaudeTab = { sessionId: pendingOpen.id, title: active.label, group, index };
-        // Vérifié plutôt que supposé : la position doit bien porter un onglet
-        // Claude de ce titre, ce que `sessionOfClaudeTab` sait dire.
-        if (sessionOfClaudeTab([learned], groups, { group, index }) === pendingOpen.id) {
-          openedHere.set(pendingOpen.id, learned);
-          id = pendingOpen.id;
-        }
-      }
-      pendingOpen = undefined;
-    }
+    const learned = openedHere.entries();
+    const learnedIds = new Set(learned.map((e) => e.sessionId));
+    const tabs = [...learned, ...mementoTabs.filter((m) => !learnedIds.has(m.sessionId))];
+    const at = group < 0 || index < 0 ? undefined : { group, index };
+    const resolved = at === undefined ? undefined : sessionOfClaudeTab(tabs, groups, at);
+    // `undefined` dès que l'onglet actif n'est pas une conversation : c'est ce
+    // qui laisse l'attente ouverte le temps que le panneau demandé apparaisse.
+    const active =
+      at !== undefined && current !== undefined && isClaudeTabAt(groups, at)
+        ? { title: current.label, group, index }
+        : undefined;
+    const id = openedHere.observe(resolved, active, Date.now());
     if (id === undefined) {
       // Repartir de zéro : revenir sur l'onglet après un détour par un fichier
       // doit re-sélectionner sa ligne, même si rien n'a bougé entre-temps.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locateClaudeTab, revealTabAt, sessionOfClaudeTab, type GroupLike, type MementoTab } from '../src/claude/reveal';
+import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type GroupLike, type MementoTab } from '../src/claude/reveal';
 import { TabInputWebview } from './stubs/vscode';
 
 const claude = (label: string): { label: string; input: unknown } => ({ label, input: new TabInputWebview('mainThreadWebview-claudeVSCodePanel') });
@@ -149,5 +149,19 @@ describe('sessionOfClaudeTab — une entrée fraîche devant un mémento en reta
   it('laisse le mémento répondre pour les onglets qu il connaît toujours', () => {
     const fresh: MementoTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 0 })).toBe('s-ancienne');
+  });
+});
+
+describe('isClaudeTabAt — distinguer une conversation d un fichier', () => {
+  const groups: GroupLike[] = [{ tabs: [file('a.ts'), claude('Telegram Alert')] }];
+
+  it('reconnaît une conversation', () => {
+    expect(isClaudeTabAt(groups, { group: 0, index: 1 })).toBe(true);
+  });
+
+  it('refuse un fichier, une place vide, un groupe qui n existe pas', () => {
+    expect(isClaudeTabAt(groups, { group: 0, index: 0 })).toBe(false);
+    expect(isClaudeTabAt(groups, { group: 0, index: 9 })).toBe(false);
+    expect(isClaudeTabAt(groups, { group: 5, index: 0 })).toBe(false);
   });
 });
