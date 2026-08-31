@@ -84,6 +84,21 @@ export function sessionOfClaudeTab(
 ): string | undefined {
   const tab = groups[at.group]?.tabs[at.index];
   if (tab === undefined || !isClaudeTab(tab)) return undefined;
+  // Deux onglets OUVERTS du même nom, et le nom ne prouve plus rien.
+  //
+  // Une conversation neuve s'appelle « Claude Code » comme toutes les autres :
+  // il suffit d'en ouvrir deux. Le mémento n'en connaît alors souvent qu'une,
+  // si bien que les deux onglets renvoyaient vers la même ligne — et l'un des
+  // deux était forcément le mauvais. La position ne rattrape rien ici : elle
+  // est de l'état persisté et glisse dès qu'un onglet s'ouvre ou se ferme,
+  // donc rien ne dit lequel des deux jumeaux le mémento décrivait.
+  //
+  // Ce comptage regarde les onglets RÉELLEMENT ouverts, là où le garde-fou
+  // ci-dessous ne regarde que le mémento : deux ambiguïtés distinctes, et
+  // seule la seconde était couverte.
+  let sameLabel = 0;
+  for (const g of groups) for (const t of g.tabs) if (isClaudeTab(t) && t.label === tab.label) sameLabel += 1;
+  if (sameLabel > 1) return undefined;
   const here = memento.find((t) => t.group === at.group && t.index === at.index && t.title === tab.label);
   if (here !== undefined) return here.sessionId;
   const owners = new Set(memento.filter((t) => t.title === tab.label).map((t) => t.sessionId));

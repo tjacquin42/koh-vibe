@@ -165,3 +165,38 @@ describe('isClaudeTabAt — distinguer une conversation d un fichier', () => {
     expect(isClaudeTabAt(groups, { group: 5, index: 0 })).toBe(false);
   });
 });
+
+// Le défaut que l usage a révélé : une conversation neuve s appelle « Claude
+// Code », comme toutes les autres. Deux onglets neufs portent donc le même nom,
+// et le mémento n en connaît souvent qu un — si bien que les DEUX onglets
+// renvoyaient vers la même ligne. Le garde-fou existant ne regardait que
+// l ambiguïté DANS le mémento, jamais celle des onglets réellement ouverts.
+describe('sessionOfClaudeTab — deux onglets du même nom ne désignent personne', () => {
+  const groups: GroupLike[] = [
+    { tabs: [claude('Claude Code'), claude('Claude Code'), claude('Titrée')] },
+  ];
+  const memento: MementoTab[] = [
+    { sessionId: 's-premiere', title: 'Claude Code', group: 0, index: 0 },
+    { sessionId: 's-titree', title: 'Titrée', group: 0, index: 2 },
+  ];
+
+  it('refuse, même quand le mémento tombe pile sur la position', () => {
+    // Le mémento place « s-premiere » exactement là. Mais l onglet voisin porte
+    // le même nom : rien ne dit lequel des deux est celui du mémento, et se
+    // tromper de ligne est pire que n en désigner aucune.
+    expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 0 })).toBeUndefined();
+  });
+
+  it('refuse aussi l autre, plutôt que de lui prêter la même conversation', () => {
+    expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 1 })).toBeUndefined();
+  });
+
+  it('répond normalement pour un nom que ne porte qu un seul onglet', () => {
+    expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 2 })).toBe('s-titree');
+  });
+
+  it('compte les onglets de TOUS les groupes, un doublon ailleurs compte autant', () => {
+    const split: GroupLike[] = [{ tabs: [claude('Claude Code')] }, { tabs: [claude('Claude Code')] }];
+    expect(sessionOfClaudeTab(memento, split, { group: 0, index: 0 })).toBeUndefined();
+  });
+});
