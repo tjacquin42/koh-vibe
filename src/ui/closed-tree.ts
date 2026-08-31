@@ -22,6 +22,20 @@ export function closedNodeId(node: ClosedNode): string {
 }
 
 /**
+ * The conversation id targeted by a context menu in THIS view. Mirrors
+ * `sessionIdOfNode`, which reads the sessions tree's own node shape: each tree
+ * stays the only judge of what its rows look like, and neither has to know
+ * about the other. Same caution as there — VSCode hands the item over as is,
+ * so it is anything at all as far as the types are concerned.
+ */
+export function closedIdOfNode(node: unknown): string | undefined {
+  if (typeof node !== 'object' || node === null) return undefined;
+  const candidate = node as { kind?: unknown; entry?: { id?: unknown } };
+  if (candidate.kind !== 'entry' || candidate.entry === undefined) return undefined;
+  return typeof candidate.entry.id === 'string' ? candidate.entry.id : undefined;
+}
+
+/**
  * The recently closed conversations, as their own view beside the sessions,
  * the usage and the settings.
  *

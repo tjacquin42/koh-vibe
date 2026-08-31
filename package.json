@@ -55,6 +55,7 @@
       { "command": "kohVibe.soundGroup.done", "title": "%command.kohVibe.soundGroup.done.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.soundSession.waiting", "title": "%command.kohVibe.soundSession.waiting.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.soundSession.done", "title": "%command.kohVibe.soundSession.done.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copySessionId", "title": "%command.kohVibe.copySessionId.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.forgetSession", "title": "%command.kohVibe.forgetSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.closeSession", "title": "%command.kohVibe.closeSession.title%", "category": "Koh-Vibe", "icon": "$(trash)" },
       { "command": "kohVibe.refreshUsage", "title": "%command.kohVibe.refreshUsage.title%", "category": "Koh-Vibe" }
@@ -77,6 +78,8 @@
         { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },
         { "command": "kohVibe.soundGroup.done", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@2" },
         { "command": "kohVibe.deleteGroup", "when": "view == kohVibe.sessions && viewItem == group", "group": "zzz@1" },
+        { "command": "kohVibe.copySessionId", "when": "view == kohVibe.sessions && viewItem == session", "group": "copy@1" },
+        { "command": "kohVibe.copySessionId", "when": "view == kohVibe.closed && viewItem == closedSession", "group": "copy@1" },
         { "command": "kohVibe.soundSession.waiting", "when": "view == kohVibe.sessions && viewItem == session", "group": "son@1" },
         { "command": "kohVibe.soundSession.done", "when": "view == kohVibe.sessions && viewItem == session", "group": "son@2" },
         { "command": "kohVibe.forgetSession", "when": "view == kohVibe.sessions && viewItem == session", "group": "zzz@1" },
@@ -88,7 +91,8 @@
         { "command": "kohVibe.reopenSession", "when": "false" },
         { "command": "kohVibe.newSessionInGroup", "when": "false" },
         { "command": "kohVibe.toggleSetting", "when": "false" },
-        { "command": "kohVibe.closeSession", "when": "false" }
+        { "command": "kohVibe.closeSession", "when": "false" },
+        { "command": "kohVibe.copySessionId", "when": "false" }
       ]
     }
   },

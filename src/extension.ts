@@ -27,7 +27,7 @@ import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
-import { ClosedTree } from './ui/closed-tree';
+import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
 import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
@@ -1044,6 +1044,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await render();
       }),
     ]),
+    /**
+     * Copies the id of a conversation, from either view.
+     *
+     * The two trees do not share a node shape, and neither should have to know
+     * about the other's: the id is asked of each in turn, and the first one
+     * that recognises the row answers. A click that matches neither — the row
+     * standing in for an empty list, a folder — leaves the clipboard alone
+     * rather than writing something wrong into it.
+     */
+    vscode.commands.registerCommand('kohVibe.copySessionId', async (node: unknown) => {
+      const id = sessionIdOfNode(node) ?? closedIdOfNode(node);
+      if (id === undefined) return;
+      await vscode.env.clipboard.writeText(id);
+      // A notification would weigh more than the action it reports, and would
+      // have to be dismissed. The status bar says it happened and withdraws.
+      vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: conversation ID copied'), 3000);
+    }),
     /**
      * Retire une conversation du tableau de bord.
      *

@@ -12,6 +12,8 @@ type Manifest = { contributes: { commands: Command[]; menus: Record<string, Menu
 const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as Manifest;
 const inline = (command: string): MenuEntry[] =>
   manifest.contributes.menus['view/item/context']!.filter((m) => m.command === command && m.group === 'inline');
+const context = (command: string): MenuEntry[] =>
+  manifest.contributes.menus['view/item/context']!.filter((m) => m.command === command);
 const icon = (command: string): string | undefined => manifest.contributes.commands.find((c) => c.command === command)?.icon;
 
 describe('the manifest', () => {
@@ -27,5 +29,16 @@ describe('the manifest', () => {
     const [entry] = inline('kohVibe.closeSession');
     expect(entry?.when).toContain('viewItem == session');
     expect(icon('kohVibe.closeSession')).toBe('$(trash)');
+  });
+
+  it('offers the id of a conversation on a live row and on a closed one', () => {
+    const whens = context('kohVibe.copySessionId').map((m) => m.when ?? '');
+    expect(whens.some((w) => w.includes('viewItem == session'))).toBe(true);
+    expect(whens.some((w) => w.includes('viewItem == closedSession'))).toBe(true);
+  });
+
+  it('keeps that copy out of the palette, which has no row to read an id from', () => {
+    const palette = manifest.contributes.menus['commandPalette']!.find((m) => m.command === 'kohVibe.copySessionId');
+    expect(palette?.when).toBe('false');
   });
 });

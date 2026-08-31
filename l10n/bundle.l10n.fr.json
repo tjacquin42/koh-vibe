@@ -120,5 +120,6 @@
   "{0} tools": "{0} outils",
   "{0} — this conversation": "{0} — cette conversation",
   "{0} — this folder": "{0} — ce dossier",
-  "{0}, by {1} — {2}, so free for any use.\nAround 2 MB downloaded once (3 MB on disk), placed in {3}, and removable in one click.": "{0}, par {1} — {2}, donc libres de tout usage.\nEnviron 2 Mo téléchargés une seule fois (3 Mo sur le disque), posés dans {3}, et retirables d'un geste."
+  "{0}, by {1} — {2}, so free for any use.\nAround 2 MB downloaded once (3 MB on disk), placed in {3}, and removable in one click.": "{0}, par {1} — {2}, donc libres de tout usage.\nEnviron 2 Mo téléchargés une seule fois (3 Mo sur le disque), posés dans {3}, et retirables d'un geste.",
+  "Koh-Vibe: conversation ID copied": "Koh-Vibe : ID de la conversation copié"
 }
