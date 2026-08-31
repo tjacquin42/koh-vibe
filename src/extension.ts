@@ -7,9 +7,9 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal';
+import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
@@ -27,10 +27,11 @@ import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
 import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
 import { UsageView } from './ui/usage-view';
-import { ClosedTree } from './ui/closed-tree';
+import { OpenedHere } from './claude/opened-here';
+import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
+import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
@@ -49,8 +50,8 @@ import { readBuildStamp, versionLabel } from './ui/version';
 import { sessionLabel } from './ui/labels';
 import { FocusBroker } from './focus/broker';
 import { acknowledgeClickedSession, acknowledgeVisibleSessions } from './focus/acknowledge';
-import { closeSessionHere, requestCloseSession } from './close/close';
-import { claudeTabsOf, closeSessionTab, vscodeTabs } from './close/tabs';
+import { closeSessionHere, needsConfirmation, requestCloseSession, sleepSessionHere } from './close/close';
+import { claudeTabsOf, closeSessionTab, vscodeTabs, type CloseOutcome } from './close/tabs';
 import { countKohEntries } from './hooks/installer';
 import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
@@ -111,22 +112,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Every Claude tab of the memento, by session: where a restored tab sits,
   // so that a click brings THAT tab to the front (claude/reveal.ts).
   const dormantTabs = new Map<string, ClaudeTab>();
+  /**
+   * Takes stock of this window's restored Claude tabs.
+   *
+   * NOTHING is published before every read has finished, and that is the whole
+   * discipline of this function. `render` consults `dormant` at the instant it
+   * runs, and `mergeDormant` is what keeps a conversation marked ended but
+   * whose tab is still on screen from showing greyed. Emptying the map first
+   * and filling it after the awaits made that intermediate state visible: any
+   * render landing in the gap saw nothing to revive and greyed EVERY such row
+   * for a frame. Putting a conversation to sleep fires three renders in a burst
+   * — the state write, the tab closing, and the command's own — which is what
+   * made the flicker easy to catch.
+   *
+   * The maps are still emptied when there is nothing to read: an unreadable
+   * memento means "no restored tab", not "keep yesterday's". That clearing is
+   * safe because no `await` follows it.
+   */
   const refreshDormant = async (live: ReadonlyMap<string, unknown>): Promise<void> => {
-    dormant.clear();
-    dormantTabs.clear();
+    const publish = (tabs: readonly ClaudeTab[], sessions: readonly Session[]): void => {
+      mementoTabs = tabs;
+      dormantTabs.clear();
+      for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
+      dormant.clear();
+      for (const d of sessions) dormant.set(d.id, d);
+    };
     const folder = workspaceFolders()[0];
-    if (stateDb === undefined || folder === undefined) return;
+    if (stateDb === undefined || folder === undefined) return publish([], []);
     const raw = await readEditorMemento(stateDb);
-    if (raw === undefined) return;
+    if (raw === undefined) return publish([], []);
     // Known: what has a process, or an OPEN state file. An ended one does not
     // count — its restored tab makes it dormant, not closed (mergeDormant).
     const open = [...(await readSessions(dirs)).values()].filter((s) => s.endedAt === undefined).map((s) => s.id);
     const known = new Set([...live.keys(), ...open, ...dismissed]);
     const labels = new Set(claudeTabsOf(vscode.window.tabGroups.all).map((t) => t.label));
     const tabs = parseEditorMemento(raw);
-    mementoTabs = tabs;
-    for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
-    for (const d of dormantSessions(tabs, labels, known, folder)) dormant.set(d.id, d);
+    publish(tabs, [...dormantSessions(tabs, labels, known, folder)]);
   };
   // Every Claude tab of the memento, in order: what tells two tabs of one
   // title apart (claude/reveal.ts).
@@ -652,31 +673,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await render();
   };
 
+  /**
+   * La session telle que sa LIGNE la montre — c'est elle qu'on a cliquée.
+   *
+   * Pas le fichier d'état brut : la vue passe par `mergeDormant`, qui réveille
+   * une conversation marquée terminée dont l'éditeur a restauré l'onglet. Lire
+   * le fichier directement faisait diverger le geste de la ligne — après un
+   * redémarrage de l'IDE, la ligne s'affichait éveillée et la lune, y voyant
+   * une fin, sortait sans un mot. `shownSession` est cette règle, et elle n'a
+   * plus qu'un seul domicile (claude/dormant.ts).
+   */
+  const readForClose = async (i: string): Promise<Session | undefined> =>
+    shownSession(await readSession(dirs, i), dormant.get(i));
+
+  /**
+   * Closing the tab itself — the one step the trash and the moon share, and
+   * the only one. What follows differs entirely (close/close.ts), which is why
+   * this sits apart rather than being written twice.
+   */
+  const closeTabHere = (i: string): Promise<CloseOutcome> =>
+    closeSessionTab(i, {
+      ...vscodeTabs(),
+      // A tab this window can tell apart is closed directly. The
+      // reveal-then-close road is for the others — and never for a
+      // dormant tab: the command would open a second, or a blank, one.
+      locate: (sessionId) => locateSessionTab(sessionId)?.tab,
+      reveal: async (sessionId) => {
+        if (dormant.has(sessionId)) throw new Error('restored tab not found');
+        await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
+      },
+    });
+
   const broker = new FocusBroker(
     dirs,
     {
       closeHere: (id) =>
-        closeSessionHere(id, {
-          read: async (i) => (await readSession(dirs, i)) ?? dormant.get(i),
-          closeTab: (i) =>
-            closeSessionTab(i, {
-              ...vscodeTabs(),
-              // A tab this window can tell apart is closed directly. The
-              // reveal-then-close road is for the others — and never for a
-              // dormant tab: the command would open a second, or a blank, one.
-              locate: (sessionId) => locateSessionTab(sessionId)?.tab,
-              reveal: async (sessionId) => {
-                if (dormant.has(sessionId)) throw new Error('restored tab not found');
-                await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
-              },
-            }),
-          archive,
-          forget,
-          remove,
+        closeSessionHere(id, { read: readForClose, closeTab: closeTabHere, archive, forget, remove }),
+      sleepHere: (id) =>
+        sleepSessionHere(id, {
+          read: readForClose,
+          closeTab: closeTabHere,
+          // Written, not hidden: the greyed row has to survive this window
+          // closing. A dormant tab has no state file at all — writing one is
+          // what keeps its row on the list once its tab is gone.
+          markEnded: async (s, at) => {
+            await writeSession(dirs, { ...s, endedAt: at });
+            dormant.delete(s.id);
+            await render();
+          },
+          now: Date.now,
         }),
       forget,
     },
     listed,
+    (sessionId) => openedHere.opening(sessionId, Date.now()),
   );
 
   const watcher = new SpoolWatcher(
@@ -726,6 +776,78 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void rescan().then(() => render());
   });
 
+  /**
+   * Le geste inverse du clic sur une ligne : l'onglet que l'utilisateur vient
+   * de choisir désigne sa conversation dans le tableau de bord.
+   *
+   * `select` sans `focus` : le curseur doit rester là où on tape. Montrer où
+   * l'on est est tout l'intérêt ; voler le clavier à chaque changement
+   * d'onglet n'en est pas un.
+   *
+   * Rien n'arrive quand l'onglet actif n'est pas une conversation, ni quand le
+   * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
+   * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
+   */
+  /**
+   * Les onglets que CETTE fenêtre a elle-même fait ouvrir, retenus au vol.
+   *
+   * Le mémento de l'éditeur est la seule table qui relie un onglet à sa
+   * conversation, mais c'est de l'état persisté : il ignore un onglet tout
+   * juste rouvert, ni par sa position ni par son titre. Après un redémarrage
+   * il les connaît tous — d'où un focus qui marchait au redémarrage et jamais
+   * sur une réouverture.
+   *
+   * Ce que l'on retient ici a la même forme qu'une entrée de mémento, et vient
+   * simplement AVANT elle : `sessionOfClaudeTab` vérifie de toute façon que la
+   * position porte encore un onglet Claude de ce titre, et se rabat sinon sur
+   * un titre qui n'appartient qu'à une conversation. Une entrée périmée — le
+   * titre change quand la conversation en gagne un — ne désigne donc jamais le
+   * mauvais onglet : elle cesse simplement de correspondre.
+   */
+  const openedHere = new OpenedHere();
+  let lastRevealed: string | undefined;
+  const revealActiveSession = (): void => {
+    // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
+    if (!view.visible) return;
+    const groups = vscode.window.tabGroups.all;
+    const group = groups.indexOf(vscode.window.tabGroups.activeTabGroup);
+    const current = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const index = current === undefined ? -1 : vscode.window.tabGroups.activeTabGroup.tabs.indexOf(current);
+    // Ce qu'on a ouvert soi-même d'abord, le mémento ensuite — dédoublonné par
+    // session, pour qu'une entrée fraîche remplace la sienne plutôt que de la
+    // concurrencer et de créer une fausse ambiguïté.
+    const learned = openedHere.entries();
+    const learnedIds = new Set(learned.map((e) => e.sessionId));
+    const tabs = [...learned, ...mementoTabs.filter((m) => !learnedIds.has(m.sessionId))];
+    const at = group < 0 || index < 0 ? undefined : { group, index };
+    const resolved = at === undefined ? undefined : sessionOfClaudeTab(tabs, groups, at);
+    // `undefined` dès que l'onglet actif n'est pas une conversation : c'est ce
+    // qui laisse l'attente ouverte le temps que le panneau demandé apparaisse.
+    const active =
+      at !== undefined && current !== undefined && isClaudeTabAt(groups, at)
+        ? { title: current.label, group, index }
+        : undefined;
+    const id = openedHere.observe(resolved, active, Date.now());
+    if (id === undefined) {
+      // Repartir de zéro : revenir sur l'onglet après un détour par un fichier
+      // doit re-sélectionner sa ligne, même si rien n'a bougé entre-temps.
+      lastRevealed = undefined;
+      return;
+    }
+    if (id === lastRevealed) return;
+    const node = tree.nodeFor(id);
+    if (node === undefined) return;
+    lastRevealed = id;
+    void view.reveal(node, { select: true, focus: false }).then(undefined, () => undefined);
+  };
+  const onActiveTab = vscode.window.tabGroups.onDidChangeTabs(revealActiveSession);
+  // Changer de groupe d'éditeurs change l'onglet actif sans qu'aucun onglet ne
+  // change : les deux événements sont nécessaires.
+  const onActiveGroup = vscode.window.tabGroups.onDidChangeTabGroups(revealActiveSession);
+  // Et la vue qui s'ouvre : ce qui était actif avant qu'elle soit visible n'a
+  // déclenché aucun événement.
+  const onViewVisible = view.onDidChangeVisibility(() => revealActiveSession());
+
   // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
   // avoir n'importe quel répertoire courant, le script n'en dépend pas.
   const installScript = join(context.extensionPath, 'scripts', 'install-hooks.cjs');
@@ -742,6 +864,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => vanish.dispose() },
     { dispose: () => reopening.dispose() },
     onTabs,
+    onActiveTab,
+    onActiveGroup,
+    onViewVisible,
     // Refresh does two things: it brings back every live conversation the
     // spool has lost, then renders. It says so only when it found something —
     // a refresh that changes nothing has nothing to announce.
@@ -804,6 +929,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void broker.request(s).catch(() => undefined);
     }),
     /**
+     * The moon: closes the tab and leaves the conversation on the dashboard.
+     *
+     * The confirmation is the trash's, word for word in intent, because the
+     * act underneath is the same one: closing a tab ends the conversation
+     * behind it (close/close.ts). What the moon promises is about the ROW, not
+     * about the agent — it stays in its folder, greyed, and a click reopens
+     * it. Promising more would be a lie the first time someone put a working
+     * conversation to sleep and found it stopped.
+     */
+    vscode.commands.registerCommand('kohVibe.sleepSession', async (node: unknown) => {
+      const id = sessionIdOfNode(node);
+      if (id === undefined) return;
+      const s = await readForClose(id);
+      // Already asleep, or gone: the menu should not even have offered this.
+      if (s === undefined || s.endedAt !== undefined) return;
+      if (
+        needsConfirmation(s.status) &&
+        (await vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Put « {0} » to sleep? This conversation is still active — closing its tab ends it.',
+            sessionLabel(s),
+          ),
+          { modal: true },
+          vscode.l10n.t('Put to sleep'),
+        )) === undefined
+      ) {
+        return;
+      }
+      await broker.requestSleep(s).catch(() => {
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', sessionLabel(s)),
+        );
+      });
+    }),
+    /**
      * The trash on a live conversation. The three-part decision — nothing to
      * close, ask first, route — belongs to requestCloseSession (close/close.ts)
      * and is tested there, for the same reason reopenClosedSession was pulled
@@ -818,11 +978,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const s = dormant.get(id) ?? (await readSession(dirs, id));
       // Already gone from the spool: nothing to close, and nothing to remove.
       if (s === undefined) return;
-      // Nothing runs behind an ended row: the trash removes it for good.
-      if (s.endedAt !== undefined) {
-        await forget(id);
-        return;
-      }
+      // The ended case is no longer decided here: `requestCloseSession` archives
+      // then forgets it, so the rule lives with its twin and is tested with it.
       await requestCloseSession(s, {
         confirm: async (target) =>
           (await vscode.window.showWarningMessage(
@@ -834,6 +991,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.l10n.t('Close'),
           )) !== undefined,
         route: (target) => broker.requestClose(target),
+        archive,
         forget,
       }).catch(() => {
         // Surfaced, never swallowed: the click would otherwise do and say
@@ -1045,6 +1203,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     ]),
     /**
+     * Copies the id of a conversation, from either view.
+     *
+     * The two trees do not share a node shape, and neither should have to know
+     * about the other's: the id is asked of each in turn, and the first one
+     * that recognises the row answers. A click that matches neither — the row
+     * standing in for an empty list, a folder — leaves the clipboard alone
+     * rather than writing something wrong into it.
+     */
+    vscode.commands.registerCommand('kohVibe.copySessionId', async (node: unknown) => {
+      const id = sessionIdOfNode(node) ?? closedIdOfNode(node);
+      if (id === undefined) return;
+      await vscode.env.clipboard.writeText(id);
+      // A notification would weigh more than the action it reports, and would
+      // have to be dismissed. The status bar says it happened and withdraws.
+      vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: conversation ID copied'), 3000);
+    }),
+    /**
      * Retire une conversation du tableau de bord.
      *
      * Ne tue rien : Claude Code tourne dans son terminal, et cette extension
@@ -1063,15 +1238,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: this conversation could not be removed.'));
       }
     }),
+    /**
+     * The folder colour picker, which shows each colour ON THE FOLDER as the
+     * highlighted entry moves.
+     *
+     * A built `QuickPick` rather than `showQuickPick`, for that one reason:
+     * only the built form reports the entry under the cursor before anything
+     * is confirmed. And it is needed, because a list of colour NAMES is the
+     * only list VSCode can render — quick pick labels take codicons but never
+     * a colour, so nothing in the list itself can show what "Indigo" looks
+     * like under the current theme. The folder shows it instead.
+     *
+     * The preview writes nothing: it is an overlay held by the view
+     * (ui/colors.ts), so closing the list without choosing restores what the
+     * folder held, and no other window ever sees it.
+     */
     vscode.commands.registerCommand('kohVibe.colorGroup', async (node: unknown) => {
       const id = groupIdOfNode(node);
       if (id === undefined) return;
-      const pick = await vscode.window.showQuickPick(
-        [NO_COLOR_LABEL, ...GROUP_COLORS.map((c) => c.label)],
-        { placeHolder: vscode.l10n.t('Folder colour') },
-      );
-      // Fermer la liste n'efface rien : la distinction vit dans colorChoice.
-      const choice = colorChoice(pick);
+      const items: vscode.QuickPickItem[] = [
+        { label: NO_COLOR_LABEL },
+        ...GROUP_COLORS.map((c) => ({ label: c.label })),
+      ];
+      const picker = vscode.window.createQuickPick();
+      picker.items = items;
+      picker.placeholder = vscode.l10n.t('Folder colour');
+      // Opens on the colour the folder already has, so the list says what it
+      // is today before saying what it could be.
+      const current = (await readGroups(groupsPath)).groups.find((g) => g.id === id)?.color;
+      const currentLabel = GROUP_COLORS.find((c) => c.id === current)?.label ?? NO_COLOR_LABEL;
+      picker.activeItems = items.filter((i) => i.label === currentLabel);
+      // The accepted label, and nothing else: every way out of the list that is
+      // not a choice — Escape, a click elsewhere — leaves this `undefined`,
+      // which `colorChoice` already reads as "closed without choosing".
+      let accepted: string | undefined;
+      picker.onDidChangeActive((active) => {
+        const seen = colorChoice(active[0]?.label);
+        // A label the palette does not know previews nothing rather than
+        // clearing the folder, the same rule `colorChoice` applies to a choice.
+        if (seen.kind === 'set') tree.setPreview(id, seen.color);
+      });
+      picker.onDidAccept(() => {
+        accepted = picker.selectedItems[0]?.label;
+        picker.hide();
+      });
+      await new Promise<void>((resolve) => {
+        picker.onDidHide(() => {
+          picker.dispose();
+          resolve();
+        });
+        picker.show();
+      });
+      // Before the write, and on every road out: the folder goes back to what
+      // it holds, and the write below — if there is one — is what changes it.
+      tree.clearPreview();
+      // Closing the list erases nothing: the distinction lives in colorChoice.
+      const choice = colorChoice(accepted);
       if (choice.kind === 'cancel') return;
       await runGroupAction(
         () => colorGroupCommand(groupsPath, id, choice.color),

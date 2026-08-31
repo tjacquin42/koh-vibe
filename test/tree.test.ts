@@ -380,6 +380,99 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
   });
 });
 
+describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouverte', () => {
+  const iconColorOf = (tree: SessionsTree, node: TreeNode): string | undefined =>
+    (tree.getTreeItem(node).iconPath as { color?: { id: string } }).color?.id;
+
+  const twoFolders = (): SessionsTree => {
+    const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
+    tree.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
+    tree.setGroups(
+      groups({
+        groups: [
+          { id: 'g-1', name: 'Un', order: 0, color: 'green' },
+          { id: 'g-2', name: 'Deux', order: 1, color: 'red' },
+        ],
+        assignments: { s1: 'g-1', s2: 'g-2' },
+      }),
+    );
+    return tree;
+  };
+
+  it('montre la couleur parcourue sur le dossier, avant toute validation', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBe('charts.blue');
+  });
+
+  it('colore aussi le LIBELLÉ, et pas seulement l\'icône', async () => {
+    // Le libellé passe par une resourceUri : sans elle, la moitié de la ligne
+    // garderait l'ancienne couleur pendant qu'on parcourt la liste.
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(tree.getTreeItem(node!).resourceUri?.query).toContain('charts.blue');
+  });
+
+  it('laisse les autres dossiers sur leur propre couleur', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const body = await tree.getChildren();
+    const other = body.find((n) => n.kind === 'group' && n.group?.id === 'g-2');
+    expect(iconColorOf(tree, other!)).toBe('charts.red');
+  });
+
+  it('décolore vraiment le dossier quand on parcourt « Aucune »', async () => {
+    // L'aperçu d'un retrait est un aperçu comme un autre : sans lui, on
+    // validerait « Aucune » sans jamais avoir vu ce que ça donne.
+    const tree = twoFolders();
+    tree.setPreview('g-1', undefined);
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBeUndefined();
+    expect(tree.getTreeItem(node!).resourceUri).toBeUndefined();
+  });
+
+  it('rend au dossier sa couleur dès que la liste se ferme', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    tree.clearPreview();
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBe('charts.green');
+  });
+
+  it('prévient VSCode à chaque pas — sinon l\'aperçu ne se verrait jamais', () => {
+    // `refresh` ne signale que ce qui CHANGE À L'ÉCRAN : l'aperçu doit donc
+    // entrer dans sa signature, ou le calque resterait invisible.
+    const tree = twoFolders();
+    const seen = vi.fn();
+    tree.onDidChangeTreeData(seen);
+    tree.setPreview('g-1', 'blue');
+    tree.setPreview('g-1', 'red');
+    tree.clearPreview();
+    expect(seen).toHaveBeenCalledTimes(3);
+  });
+
+  it('ne signale rien quand il n\'y a aucun aperçu à retirer', () => {
+    const tree = twoFolders();
+    const seen = vi.fn();
+    tree.onDidChangeTreeData(seen);
+    tree.clearPreview();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it('ne touche pas à la couleur que le dossier PORTE, seulement à celle qu\'il montre', async () => {
+    // Le calque est de la présentation, et rien d'autre : la couleur rangée
+    // reste celle du classement, faute de quoi une couleur seulement survolée
+    // finirait dans le fichier partagé — et dans l'autre éditeur.
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(node!.kind === 'group' && node!.group?.color).toBe('green');
+    expect(iconColorOf(tree, node!)).toBe('charts.blue');
+  });
+});
+
 describe('SessionsTree — ordre choisi à la main', () => {
   const three = (): Map<string, Session> =>
     new Map([
@@ -681,5 +774,238 @@ describe('SessionsTree — a row being brought back', () => {
     expect(fired).toBe(1);
     tree.setReopening(new Set());
     expect(fired).toBe(2);
+  });
+});
+
+// The awake block and the asleep block, inside one folder. Closing a tab ends
+// its conversation and the row stays, greyed (settings « persistent ») — but
+// until now it sat flush against the live ones, and the eye had nothing to
+// break on.
+describe('a folder separates what is awake from what is asleep', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const kindsUnder = async (t: SessionsTree): Promise<string[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group)).map((n) => n.kind);
+  };
+
+  it('slips one blank line between the open conversations and the greyed ones', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['a', session('a')],
+        ['b', session('b', { endedAt: 10 })],
+        ['c', session('c')],
+        ['d', session('d', { endedAt: 20 })],
+      ]),
+    );
+    expect(await kindsUnder(t)).toEqual(['session', 'session', 'spacer', 'session', 'session']);
+  });
+
+  it('breaks nothing when every conversation is awake — a single block has nothing to separate', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['c', session('c')]]));
+    expect(await kindsUnder(t)).toEqual(['session', 'session']);
+  });
+
+  it('breaks nothing when every conversation is asleep, for the same reason', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a', { endedAt: 10 })], ['c', session('c', { endedAt: 20 })]]));
+    expect(await kindsUnder(t)).toEqual(['session', 'session']);
+  });
+
+  // The bug this pair pins down: a folder arranged by hand ranked EVERY named
+  // session ahead of the rest, asleep ones included, so putting one to sleep
+  // greyed it where it stood and never moved it. The chosen order still has to
+  // be honoured — but inside each block, not across the break.
+  it('drops an asleep conversation into its block even in a folder arranged by hand', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['s1', session('s1')],
+        ['s2', session('s2', { endedAt: 10 })],
+        ['s3', session('s3')],
+      ]),
+    );
+    t.setGroups(
+      groups({
+        groups: [{ id: 'g1', name: 'Dossier', order: 0 }],
+        assignments: { s1: 'g1', s2: 'g1', s3: 'g1' },
+        sessionOrder: { g1: ['s1', 's2', 's3'] },
+      }),
+    );
+    const [group] = await t.getChildren();
+    const rows = await t.getChildren(group);
+    expect(rows.map((n) => (n.kind === 'session' ? n.session.id : n.kind))).toEqual(['s1', 's3', 'spacer', 's2']);
+  });
+
+  it('keeps the chosen order inside each block, awake and asleep alike', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['s1', session('s1', { endedAt: 10 })],
+        ['s2', session('s2')],
+        ['s3', session('s3', { endedAt: 20 })],
+        ['s4', session('s4')],
+      ]),
+    );
+    t.setGroups(
+      groups({
+        groups: [{ id: 'g1', name: 'Dossier', order: 0 }],
+        assignments: { s1: 'g1', s2: 'g1', s3: 'g1', s4: 'g1' },
+        sessionOrder: { g1: ['s4', 's3', 's2', 's1'] },
+      }),
+    );
+    const [group] = await t.getChildren();
+    const rows = await t.getChildren(group);
+    // s4 then s2 among the awake, s3 then s1 among the asleep: the hand-picked
+    // sequence survives inside each block.
+    expect(rows.map((n) => (n.kind === 'session' ? n.session.id : n.kind))).toEqual([
+      's4',
+      's2',
+      'spacer',
+      's3',
+      's1',
+    ]);
+  });
+
+  it('gives each folder its own separator, which VSCode tells apart by id', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    const [group] = await t.getChildren();
+    const spacer = (await t.getChildren(group)).find((n) => n.kind === 'spacer');
+    expect(spacer).toBeDefined();
+    expect(nodeId(spacer!)).toContain('unfiled');
+  });
+});
+
+// The context value is what a menu entry can see of a row. Three of them,
+// because three rows offer three different gestures: the moon needs a tab to
+// close, so it belongs to a live conversation started from an editor — and to
+// no other.
+describe('SessionsTree — a row says what can be done to it', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const contextsUnder = async (t: SessionsTree): Promise<(string | undefined)[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group))
+      .filter((n) => n.kind === 'session')
+      .map((n) => t.getTreeItem(n).contextValue);
+  };
+
+  it('marks a greyed row apart, so the moon can stay off it', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    expect(await contextsUnder(t)).toEqual(['session', 'sessionAsleep']);
+  });
+
+  it('marks a live conversation that has no tab apart too — nothing to put to sleep there', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a', { origin: 'terminal' })]]));
+    expect(await contextsUnder(t)).toEqual(['sessionNoTab']);
+  });
+
+  it('keeps every one of them under the same prefix, so the shared menus still match', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['a', session('a')],
+        ['b', session('b', { endedAt: 10 })],
+        ['c', session('c', { origin: 'desktop' })],
+      ]),
+    );
+    for (const value of await contextsUnder(t)) expect(value).toMatch(/^session/);
+  });
+});
+
+// `TreeView.reveal` walks up with `getParent`, so selecting a row from the
+// editor side needs it. `nodeFor` is the other half: the caller names a
+// conversation, not a node shape.
+describe('SessionsTree — reaching a row from outside', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const filed = (): SessionsTree => {
+    const t = make();
+    t.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
+    t.setGroups(
+      groups({ groups: [{ id: 'g1', name: 'Dossier', order: 0 }], assignments: { s1: 'g1' } }),
+    );
+    return t;
+  };
+
+  it('names the folder a conversation sits in', () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s1') });
+    expect(parent === undefined ? undefined : nodeId(parent)).toBe('group:g1');
+  });
+
+  it('names the unfiled bucket for a conversation in no folder', () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s2') });
+    expect(parent === undefined ? undefined : nodeId(parent)).toBe('group:unfiled');
+  });
+
+  it('hands back a folder carrying its real children, not an empty shell', async () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s1') });
+    expect(await t.getChildren(parent)).toHaveLength(1);
+  });
+
+  it('gives a folder no parent — it already sits at the root', () => {
+    const t = filed();
+    expect(t.getParent({ kind: 'group', group: undefined, sessions: [] })).toBeUndefined();
+  });
+
+  it('finds the node of a conversation it is showing, and only of one it shows', () => {
+    const t = filed();
+    const node = t.nodeFor('s1');
+    expect(node === undefined ? undefined : nodeId(node)).toBe('session:s1');
+    expect(t.nodeFor('nowhere')).toBeUndefined();
+  });
+});
+
+// La chaîne visible du sommeil, d un bout à l autre : le tri, la coupure entre
+// les deux blocs, et ce que les menus voient de la ligne. Chaque maillon est
+// testé isolément plus haut ; ce scénario les enchaîne, parce que c est leur
+// enchaînement que l utilisateur regarde et qu aucune régression ne doit
+// laisser une ligne endormie au milieu des vivantes.
+describe('endormir une conversation, vu depuis la vue', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const rowsOf = async (t: SessionsTree): Promise<string[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group)).map((n) => (n.kind === 'session' ? n.session.id : n.kind));
+  };
+  const menusOf = async (t: SessionsTree): Promise<(string | undefined)[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group))
+      .filter((n) => n.kind === 'session')
+      .map((n) => t.getTreeItem(n).contextValue);
+  };
+
+  it('déplace la ligne sous la coupure et lui retire sa lune, sans toucher aux autres', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b')], ['c', session('c')]]));
+
+    // Avant : trois conversations vivantes, aucune coupure, trois lunes.
+    expect(await rowsOf(t)).toEqual(['a', 'b', 'c']);
+    expect(await menusOf(t)).toEqual(['session', 'session', 'session']);
+
+    // La lune a fait son travail sur « b » : elle est marquée terminée.
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })], ['c', session('c')]]));
+
+    expect(await rowsOf(t)).toEqual(['a', 'c', 'spacer', 'b']);
+    // « b » n a plus d onglet à fermer ; « a » et « c » gardent le leur.
+    expect(await menusOf(t)).toEqual(['session', 'session', 'sessionAsleep']);
+  });
+
+  it('retire la coupure quand la dernière endormie est réveillée', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    expect(await rowsOf(t)).toEqual(['a', 'spacer', 'b']);
+
+    t.setSessions(new Map([['a', session('a')], ['b', session('b')]]));
+    expect(await rowsOf(t)).toEqual(['a', 'b']);
+    expect(await menusOf(t)).toEqual(['session', 'session']);
   });
 });

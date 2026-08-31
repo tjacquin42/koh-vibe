@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, type ClaudeTab } from '../src/claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, shownSession, type ClaudeTab } from '../src/claude/dormant';
 import type { Session } from '../src/events/types';
 
 /**
@@ -167,5 +167,59 @@ describe('mergeDormant — a restored tab over the sessions on disk', () => {
     const map = new Map<string, Session>([[ID_A, open]]);
     mergeDormant(map, [dormant]);
     expect(map.get(ID_A)).toBe(open);
+  });
+});
+
+// The rule the VIEW applies, pulled out so a command can apply the same one.
+// It had lived only inside `mergeDormant`, and the divergence cost a bug: the
+// row showed a conversation as awake — its tab restored by a window reload —
+// while the moon read the raw state file, found it ended, and returned in
+// silence. A row and the gesture on that row must agree on what they are.
+describe('shownSession — what a row actually shows', () => {
+  const onDisk = (over: Partial<Session> = {}): Session => ({
+    id: 's1',
+    cwd: '/Users/dev/projet',
+    project: 'projet',
+    origin: 'vscode',
+    status: 'idle',
+    toolCount: 0,
+    lastEventAt: 42,
+    ...over,
+  });
+  const restored = (over: Partial<Session> = {}): Session => onDisk({ dormant: true, lastEventAt: 0, ...over });
+
+  it('wakes an ended conversation whose tab the editor restored — the tab is right there', () => {
+    const shown = shownSession(onDisk({ endedAt: 10, title: 'du fichier' }), restored());
+    expect(shown?.endedAt).toBeUndefined();
+    expect(shown?.dormant).toBe(true);
+    // Everything the file knew survives: only its end goes.
+    expect(shown?.title).toBe('du fichier');
+    expect(shown?.lastEventAt).toBe(42);
+  });
+
+  it('borrows the tab title only when the file has none', () => {
+    expect(shownSession(onDisk({ endedAt: 10 }), restored({ title: 'de l onglet' }))?.title).toBe('de l onglet');
+    expect(shownSession(onDisk({ endedAt: 10, title: 'du fichier' }), restored({ title: 'de l onglet' }))?.title).toBe(
+      'du fichier',
+    );
+  });
+
+  it('leaves an OPEN conversation alone — a process is the truth, a tab only a promise', () => {
+    const open = onDisk();
+    expect(shownSession(open, restored())).toBe(open);
+  });
+
+  it('shows the restored tab alone when the spool knows nothing of it', () => {
+    const tab = restored();
+    expect(shownSession(undefined, tab)).toBe(tab);
+  });
+
+  it('shows the file alone when this window restored no tab for it', () => {
+    const file = onDisk({ endedAt: 10 });
+    expect(shownSession(file, undefined)).toBe(file);
+  });
+
+  it('shows nothing when neither knows it', () => {
+    expect(shownSession(undefined, undefined)).toBeUndefined();
   });
 });

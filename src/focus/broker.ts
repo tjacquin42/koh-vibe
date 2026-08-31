@@ -27,6 +27,8 @@ const STALE_REQUEST_MS = 30_000;
 export interface CloseHandlers {
   /** Closes the tab here, then archives and removes the row per the outcome. */
   closeHere: (sessionId: string) => Promise<void>;
+  /** Closes the tab here and greys the row where it stands, archiving nothing. */
+  sleepHere: (sessionId: string) => Promise<void>;
   /** Removes the row, closing nothing and archiving nothing. */
   forget: (sessionId: string) => Promise<void>;
 }
@@ -58,6 +60,16 @@ export class FocusBroker {
     // claude/listed.ts. Asked right before the editor command runs, here or in
     // the window a request travels to: the answer depends on the window.
     private readonly listed: (sessionId: string) => Promise<boolean>,
+    /**
+     * Signale la conversation dont on vient de demander l'onglet à Claude Code.
+     *
+     * C'est le seul instant où cette fenêtre sait à coup sûr à quelle session
+     * appartient l'onglet qui va apparaître : le mémento de l'éditeur, seule
+     * table qui fait ce lien, est de l'état persisté et ignore encore un onglet
+     * tout juste ouvert. Optionnel — le courtier fonctionne sans, et ses tests
+     * s'en passent.
+     */
+    private readonly onOpened?: (sessionId: string) => void,
   ) {}
 
   private folders(): string[] {
@@ -84,7 +96,7 @@ export class FocusBroker {
    * would overwrite the other's entry.
    */
   private async postRequest(
-    prefix: 'focus' | 'reopen' | 'close',
+    prefix: 'focus' | 'reopen' | 'close' | 'sleep',
     s: { id: string; cwd: string; origin: unknown; label: string },
     onUnconsumed: () => void | Promise<void>,
   ): Promise<void> {
@@ -202,6 +214,29 @@ export class FocusBroker {
     );
   }
 
+  /**
+   * The moon. Same routing as `requestClose` — only the window that holds the
+   * project can close a tab — and the same origin filter applied upstream.
+   *
+   * Where the two part company is the fallback. A close that nobody consumes
+   * concludes "no window holds the project, so no tab exists" and removes the
+   * row. Sleeping concludes the same thing and does the OPPOSITE: with no tab
+   * to close, there is nothing to put to sleep, and the row is left exactly as
+   * it was. Saying so is the point — a moon that silently did nothing would
+   * read as a broken button.
+   */
+  async requestSleep(s: Session): Promise<void> {
+    if (claims(this.folders(), s.cwd)) {
+      await this.close.sleepHere(s.id);
+      return;
+    }
+    await this.postRequest('sleep', { ...s, label: sessionLabel(s) }, () => {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('Koh-Vibe: no window holds « {0} » — no tab to put to sleep.', sessionLabel(s)),
+      );
+    });
+  }
+
   private async focusSession(plan: FocusPlan, gesture: 'focus' | 'reopen'): Promise<void> {
     if (plan.kind === 'explain') {
       void vscode.window.showInformationMessage(plan.message);
@@ -209,6 +244,11 @@ export class FocusBroker {
     }
     try {
       await vscode.commands.executeCommand(plan.command, ...plan.args);
+      // `args[0]` est l'identifiant pour `claude-vscode.editor.open`, la seule
+      // commande qui désigne une conversation. Annoncé APRÈS coup : un échec
+      // n'ouvre aucun onglet, et il n'y aurait rien à apprendre.
+      const opened = plan.args[0];
+      if (typeof opened === 'string') this.onOpened?.(opened);
     } catch {
       // Un avertissement par session d'extension suffit : répété à chaque
       // clic, il devient du bruit qu'on apprend à ignorer. Un par geste, pas
@@ -278,7 +318,8 @@ export class FocusBroker {
     const folders = this.folders();
     const now = Date.now();
     for (const name of names.filter(
-      (n) => n.startsWith('focus-') || n.startsWith('reopen-') || n.startsWith('close-'),
+      (n) =>
+        n.startsWith('focus-') || n.startsWith('reopen-') || n.startsWith('close-') || n.startsWith('sleep-'),
     )) {
       const path = join(this.dirs.requests, name);
       try {
@@ -321,6 +362,19 @@ export class FocusBroker {
             // kohVibe.closeSession).
             await this.close.closeHere(sessionId).catch(() => {
               void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not close « {0} ».', label));
+            });
+          }
+          continue;
+        }
+        if (name.startsWith('sleep-')) {
+          // Same origin guard as the close above, and for the same reason: a
+          // request carrying a non-editor origin would close a tab in a window
+          // where nobody asked for anything.
+          if (closePlan(origin).kind === 'tab') {
+            await this.close.sleepHere(sessionId).catch(() => {
+              void vscode.window.showErrorMessage(
+                vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', label),
+              );
             });
           }
           continue;

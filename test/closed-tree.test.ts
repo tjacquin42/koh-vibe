@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ClosedTree, closedNodeId } from '../src/ui/closed-tree';
+import { ClosedTree, closedIdOfNode, closedNodeId } from '../src/ui/closed-tree';
 import type { ClosedEntry } from '../src/closed/model';
 
 const closed = (id: string, over: Partial<ClosedEntry> = {}): ClosedEntry => ({
@@ -146,5 +146,30 @@ describe('the recently closed view', () => {
     tree.setReopening(new Set());
     expect(fired).toBe(2);
     expect(tree.getTreeItem(tree.getChildren()[0]!).command?.command).toBe('kohVibe.reopenSession');
+  });
+});
+
+// closedIdOfNode: what VSCode hands kohVibe.copySessionId when the click
+// happened in this view rather than in the sessions tree.
+describe('closedIdOfNode — resolves a conversation id without ever casting', () => {
+  it('reads the id off a closed entry row', () => {
+    expect(closedIdOfNode({ kind: 'entry', entry: closed('c1') })).toBe('c1');
+  });
+
+  it('refuses the rows that stand in for an absence, which carry no conversation', () => {
+    expect(closedIdOfNode({ kind: 'empty' })).toBeUndefined();
+    expect(closedIdOfNode({ kind: 'loading' })).toBeUndefined();
+  });
+
+  it('refuses a node coming from the sessions tree, whose shape is not this one', () => {
+    expect(closedIdOfNode({ kind: 'session', session: { id: 's1' } })).toBeUndefined();
+  });
+
+  it('refuses anything that is not an object, because VSCode passes the item as is', () => {
+    for (const value of [undefined, null, 'c1', 42, []]) expect(closedIdOfNode(value)).toBeUndefined();
+  });
+
+  it('refuses an entry whose id is not a string', () => {
+    expect(closedIdOfNode({ kind: 'entry', entry: { id: 42 } })).toBeUndefined();
   });
 });
