@@ -40,30 +40,33 @@ const { join } = require('node:path');
  * `#CCCCCC80` est un canal alpha dans le registre de VSCode, pas une nuance de gris.
  */
 const PALETTE = {
-  running: { dark: ['#59A4F9', 1], light: ['#0063D3', 1], glow: 0.75 },
-  waiting: { dark: ['#D18616', 1], light: ['#C4700E', 1], glow: 0.95 },
-  done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1], glow: 0.7 },
-  idle: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.18 },
-  // Not a status but a tone: an ended conversation, or a tab nobody has
-  // woken. Dimmer than `stale`, which still describes a live process.
-  ended: { dark: ['#CCCCCC', 0.3], light: ['#616161', 0.3], glow: 0 },
+  running: { dark: ['#59A4F9', 1], light: ['#0063D3', 1], glow: 0.9 },
+  waiting: { dark: ['#D18616', 1], light: ['#C4700E', 1], glow: 1 },
+  done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1], glow: 0.85 },
+  idle: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.35 },
+  // Not a status but a tone: an ended conversation, or a tab nobody has woken.
+  // Deliberately IDENTICAL to `idle`, opacity included. The row already says it
+  // is over — the decoration provider greys its label (ui/tree.ts) — so a
+  // second, dimmer grey in the dot said the same thing twice, and said it so
+  // faintly that the two greys read as a rendering accident rather than as a
+  // distinction. One grey, one meaning: nothing is running here.
+  ended: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.35 },
 };
 
 /**
  * How far each status glows — information, not decoration.
  *
  * The halo says what a row is asking of you, so it is strongest where the
- * conversation is stuck waiting for an answer, and absent where nothing will
- * come. `stale` and `ended` are the two that glow not at all, for the same
- * reason read from opposite ends: a stale row claims to be running but has
- * gone silent (5 minutes, or 30 with a tool in flight — store/staleness.ts),
- * and an ended one is over. Neither is going to produce anything, and a halo
- * on either would promise otherwise.
+ * conversation is stuck waiting for an answer, and quietest where nothing is
+ * running. Past a certain point the strength is no longer carried by the
+ * opacity, which caps at 1, but by WHERE the falloff begins — see `halo()`.
  *
- * Light themes divide it: on a white row the same value stops reading as
- * light and starts reading as a smudge.
+ * Light themes hold it back, but far less than they first did. The colours
+ * used there are dark and saturated, so a strong halo reads as a coloured
+ * aura rather than as a smudge; cut too far, it simply vanished against
+ * white, which is the defect this value exists to answer.
  */
-const LIGHT_GLOW = 0.38;
+const LIGHT_GLOW = 0.75;
 
 // 16 px est la taille à laquelle VSCode affiche l'icône d'une ligne d'arbre
 // (`background-size: 16px`), et 4.5 le rayon qui redonne au disque l'encombrement
@@ -77,6 +80,11 @@ const CORE_RADIUS = 3.2;
 /**
  * The halo, as a radial gradient filling the whole box.
  *
+ * The two stops are where the intensity really lives. Opacity caps at 1, so
+ * past that the only way to glow harder is to push the falloff outward: the
+ * first stop sits at 30% rather than 18%, which widens the bright core of
+ * the glow instead of merely darkening its centre.
+ *
  * The id is fixed rather than generated: each file is a standalone document
  * loaded by VSCode as an image (`TreeItem.iconPath`), never inlined into the
  * page, so two dots on screen cannot collide over it.
@@ -85,8 +93,8 @@ function halo(fill, strength) {
   if (strength <= 0) return '';
   return (
     `<defs><radialGradient id="g">` +
-    `<stop offset="18%" stop-color="${fill}" stop-opacity="${strength.toFixed(3)}"/>` +
-    `<stop offset="52%" stop-color="${fill}" stop-opacity="${(strength * 0.34).toFixed(3)}"/>` +
+    `<stop offset="30%" stop-color="${fill}" stop-opacity="${strength.toFixed(3)}"/>` +
+    `<stop offset="62%" stop-color="${fill}" stop-opacity="${(strength * 0.45).toFixed(3)}"/>` +
     `<stop offset="100%" stop-color="${fill}" stop-opacity="0"/>` +
     `</radialGradient></defs>` +
     `<circle cx="${SIZE / 2}" cy="${SIZE / 2}" r="${SIZE / 2}" fill="url(#g)"/>`
