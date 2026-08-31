@@ -20,7 +20,7 @@ import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
-import { defaultSettings, settingsFromEditor, type AppSettings } from './settings/model';
+import { defaultSettings, settingsFromEditor, settingsPatch, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
@@ -314,7 +314,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   async function toggleSetting(key: SettingToggle, on: boolean): Promise<void> {
     if (sound[key] === on) return;
-    sound = await writeSettings(settingsPath, key === 'persistent' ? { persistent: on } : { expireTemporary: on });
+    sound = await writeSettings(settingsPath, settingsPatch(key, on));
     await render();
   }
 

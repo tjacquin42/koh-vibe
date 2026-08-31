@@ -2,11 +2,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { SETTING_TOGGLES } from '../src/ui/footer-tree';
 import {
   defaultSettings,
   parseSettings,
   serializeSettings,
   settingsFromEditor,
+  settingsPatch,
 } from '../src/settings/model';
 import { DEFAULT_DONE_SOUND, DEFAULT_WAITING_SOUND } from '../src/sound/bundled';
 import { readSettings, seedSettings, writeSettings } from '../src/settings/store';
@@ -252,5 +254,44 @@ describe('animated status dots — the third checkbox', () => {
     const s = parseSettings('{"waiting":"Funk","animate":"oui"}');
     expect(s.animate).toBe(true);
     expect(s.waiting).toBe('Funk');
+  });
+});
+
+describe('settingsPatch — ce qu\'une case cochée écrit dans le fichier', () => {
+  // Le test qui manquait, et le défaut qu'il aurait attrapé : le câblage
+  // écrivait `key === 'persistent' ? {persistent} : {expireTemporary}`, un
+  // ternaire BINAIRE sur une union qui en compte trois. Cocher « Pastilles
+  // animées » basculait « Les conversations temporaires expirent », et rien
+  // n'écrivait jamais `animate`. TypeScript ne pouvait rien dire : un ternaire
+  // sur trois cas reste parfaitement valide.
+  //
+  // La boucle part de SETTING_TOGGLES plutôt que d'une liste écrite ici : une
+  // quatrième bascule ajoutée demain est couverte le jour où elle est ajoutée,
+  // sans que personne ait à y penser.
+  it('écrit la bascule demandée, et elle seule', () => {
+    for (const key of SETTING_TOGGLES) {
+      for (const on of [true, false]) {
+        expect(settingsPatch(key, on), `${key} → ${String(on)}`).toEqual({ [key]: on });
+      }
+    }
+  });
+
+  it('couvre chaque bascule de la vue des réglages, sans exception', () => {
+    // Une bascule que `settingsPatch` ne saurait pas nommer produirait une
+    // case inerte, ou pire, une case qui en change une autre.
+    for (const key of SETTING_TOGGLES) {
+      expect(Object.keys(settingsPatch(key, true)), `${key}`).toEqual([key]);
+    }
+  });
+
+  it('produit un correctif que writeSettings sait fusionner sans rien perdre', () => {
+    const base = defaultSettings();
+    for (const key of SETTING_TOGGLES) {
+      const merged = { ...base, ...settingsPatch(key, false) };
+      expect(merged[key]).toBe(false);
+      for (const other of SETTING_TOGGLES.filter((k) => k !== key)) {
+        expect(merged[other], `${key} ne doit pas toucher ${other}`).toBe(base[other]);
+      }
+    }
   });
 });

@@ -108,6 +108,28 @@ export function parseSettings(raw: string): AppSettings {
   };
 }
 
+/**
+ * What ticking one checkbox writes — one key, computed, never a branch.
+ *
+ * The branch it replaces was `key === 'persistent' ? { persistent: on } : {
+ * expireTemporary: on }`, a BINARY ternary over what became a three-member
+ * union. Ticking the third box wrote the second setting, and nothing ever
+ * wrote the third. TypeScript could say nothing: a ternary covering two of
+ * three cases is perfectly valid code, and there is no exhaustiveness to
+ * check in an expression that never claims to be exhaustive.
+ *
+ * A computed key cannot drift that way. A fourth toggle added tomorrow is
+ * handled the moment it exists, and `AppSettingsToggle` keeps the key honest
+ * — only a boolean field of the settings can be one.
+ */
+export type AppSettingsToggle = {
+  [K in keyof AppSettings]: AppSettings[K] extends boolean ? K : never;
+}[keyof AppSettings];
+
+export function settingsPatch(key: AppSettingsToggle, on: boolean): Partial<AppSettings> {
+  return { [key]: on };
+}
+
 export function serializeSettings(s: AppSettings): string {
   return `${JSON.stringify(
     { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent, expireTemporary: s.expireTemporary, animate: s.animate },
