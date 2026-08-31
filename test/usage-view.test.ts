@@ -13,7 +13,7 @@ const reading = (five: number, seven: number, resetsAt?: number, at = 0): UsageR
 });
 
 describe('percentColor', () => {
-  it('passe du vert à l orange à 50 %, puis au rouge à 80 %', () => {
+  it('goes from green to orange at 50%, then to red at 80%', () => {
     expect(percentColor(0)).toContain('green');
     expect(percentColor(50)).toContain('green');
     expect(percentColor(51)).toContain('orange');
@@ -22,7 +22,7 @@ describe('percentColor', () => {
     expect(percentColor(100)).toContain('red');
   });
 
-  it('ne cite jamais une couleur en dur : la vue doit suivre le thème', () => {
+  it('never names a hard-coded colour: the view has to follow the theme', () => {
     for (const p of [10, 60, 95]) expect(percentColor(p)).toMatch(/^var\(--vscode-/);
   });
 });
@@ -33,29 +33,29 @@ describe('resetText', () => {
     resetsAt: Math.floor(now / 1000) + secondsFromNow,
   });
 
-  it('dit les minutes, les heures, puis les jours', () => {
+  it('says minutes, then hours, then days', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(30 * 60, now), now)).toBe('in 30 min');
     expect(resetText(at(2 * 3600, now), now)).toBe('in 2 h');
     expect(resetText(at(6 * 86_400, now), now)).toBe('in 6 d');
   });
 
-  it('arrondit vers le bas — une échéance ne doit jamais paraître plus lointaine', () => {
+  it('rounds down — a deadline must never look further away than it is', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(2 * 3600 + 3500, now), now)).toBe('in 2 h');
   });
 
-  it('ne descend jamais sous « dans 1 min » avant l échéance', () => {
+  it('never goes below "in 1 min" before the deadline', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(20, now), now)).toBe('in 1 min');
   });
 
-  it('dit la remise à zéro plutôt qu un délai négatif', () => {
+  it('says the reset rather than a negative delay', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(-60, now), now)).toBe('reset');
   });
 
-  it('n invente rien sans échéance', () => {
+  it('invents nothing when there is no deadline', () => {
     expect(resetText({ percent: 10, resetsAt: undefined }, 0)).toBe('');
     expect(resetText(undefined, 0)).toBe('');
   });
@@ -94,7 +94,7 @@ describe('usageHtml', () => {
     expect(cells('reset')).toBe(3);
   });
 
-  it('donne à chaque fenêtre son nom, son pourcentage et son échéance', () => {
+  it('gives every window its name, its percentage and its deadline', () => {
     const html = usageHtml(reading(30, 5, Math.floor(now / 1000) + 7200), now);
     expect(html).toContain('5 h');
     expect(html).toContain('30 %');
@@ -103,7 +103,7 @@ describe('usageHtml', () => {
     expect(html).toContain('in 2 h');
   });
 
-  it('colore le pourcentage, et lui seul', () => {
+  it('colours the percentage, and it alone', () => {
     const html = usageHtml(reading(90, 5), now);
     // Le nom de la fenêtre reste dans la couleur du texte courant ; seul le
     // pourcentage porte une couleur propre.
@@ -111,13 +111,13 @@ describe('usageHtml', () => {
     expect(html).toContain('<span class="kind">5 h</span>');
   });
 
-  it('dit d où vient la mesure et depuis quand', () => {
+  it('says where the measurement comes from, and how old it is', () => {
     expect(usageHtml(reading(1, 1, undefined, now - 120_000), now)).toContain('Anthropic');
     expect(usageHtml(reading(1, 1, undefined, now - 120_000), now)).toContain('2 min');
     expect(usageHtml(reading(1, 1, undefined, now), now)).toContain('just now');
   });
 
-  it('échappe ce qu elle interpole, y compris ses propres libellés', () => {
+  it('escapes what it interpolates, its own labels included', () => {
     // Un libellé cesse d être « le sien » dès qu il peut venir d un bundle :
     // « just now » n a pas d apostrophe, « à l instant » en a une, et l allemand
     // a ses guillemets. Le test porte donc sur l échappement lui-même, que la
@@ -126,7 +126,7 @@ describe('usageHtml', () => {
     expect(escape('<b>&"</b>')).toBe('&#60;b&#62;&#38;&#34;&#60;/b&#62;');
   });
 
-  it('reste affichable sans aucune mesure, et propose de rafraîchir', () => {
+  it('stays displayable with no measurement at all, and offers to refresh', () => {
     // La source est l'anglais, comme partout : le message passe par
     // vscode.l10n.t, et le bouchon de test rend la chaîne source telle quelle.
     const html = usageHtml(undefined, now);
@@ -134,7 +134,7 @@ describe('usageHtml', () => {
     expect(html).toContain('refresh');
   });
 
-  it('échappe ce qui vient de l extérieur', () => {
+  it('escapes what comes from outside', () => {
     // La source et les libellés sont à nous, mais la règle vaut par défaut : une
     // vue web ne doit jamais interpoler sans échapper.
     expect(usageHtml(undefined, now)).not.toContain('<script>alert');

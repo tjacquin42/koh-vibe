@@ -8,25 +8,25 @@ const base: Session = {
 };
 
 describe('withStaleness', () => {
-  it('périme une session en cours et silencieuse', () => {
+  it('stales a session that is working and silent', () => {
     expect(withStaleness(base, STALE_SILENT_MS + 1).status).toBe('stale');
   });
 
-  it('ne périme pas avant le délai', () => {
+  it('does not stale before the delay', () => {
     expect(withStaleness(base, STALE_SILENT_MS - 1).status).toBe('running');
   });
 
-  it('suspend la péremption pendant un outil en vol', () => {
+  it('suspends staling while a tool is in flight', () => {
     const inFlight: Session = { ...base, inFlightSince: 0 };
     expect(withStaleness(inFlight, STALE_SILENT_MS + 1).status).toBe('running');
   });
 
-  it('périme quand même au-delà du plafond', () => {
+  it('stales anyway beyond the ceiling', () => {
     const inFlight: Session = { ...base, inFlightSince: 0 };
     expect(withStaleness(inFlight, STALE_IN_FLIGHT_MS + 1).status).toBe('stale');
   });
 
-  it('ne touche pas aux autres statuts', () => {
+  it('does not touch the other statuses', () => {
     for (const status of ['waiting', 'done_unseen', 'idle', 'stale'] as const) {
       expect(withStaleness({ ...base, status }, STALE_IN_FLIGHT_MS * 10).status).toBe(status);
     }

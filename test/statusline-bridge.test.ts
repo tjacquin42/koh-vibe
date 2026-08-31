@@ -28,48 +28,48 @@ afterEach(() => {
 });
 
 describe('koh-vibe-statusline', () => {
-  it('dépose l instantané tel quel, sans l interpréter', () => {
+  it('drops the snapshot as is, without interpreting it', () => {
     expect(run(PAYLOAD)).toBe('');
     expect(readFileSync(join(home, 'status.json'), 'utf8')).toBe(PAYLOAD);
   });
 
-  it('n écrit rien de son propre chef sur stdout — ce flux appartient à la statusline', () => {
+  it('writes nothing of its own on stdout — that stream belongs to the status line', () => {
     expect(run(PAYLOAD)).toBe('');
   });
 
-  it('laisse passer la sortie du délégué, et lui repasse la MÊME entrée', () => {
+  it('lets the delegate output through, and hands it the SAME input', () => {
     const out = run(PAYLOAD, b64(`/usr/bin/head -c 12`));
     expect(out).toBe(PAYLOAD.slice(0, 12));
     // Et l instantané a bien été capté au passage.
     expect(readFileSync(join(home, 'status.json'), 'utf8')).toBe(PAYLOAD);
   });
 
-  it('survit à un délégué qui échoue, sans rien renvoyer de bruyant', () => {
+  it('survives a delegate that fails, returning nothing noisy', () => {
     expect(run(PAYLOAD, b64('/bin/sh -c "exit 3"'))).toBe('');
     expect(existsSync(join(home, 'status.json'))).toBe(true);
   });
 
-  it('accepte un délégué dont la commande contient guillemets et apostrophes', () => {
+  it('accepts a delegate whose command holds quotes and apostrophes', () => {
     const script = join(home, 'delegue.sh');
     writeFileSync(script, '#!/bin/sh\necho "il a dit: \'salut\'"\n', 'utf8');
     chmodSync(script, 0o755);
     expect(run(PAYLOAD, b64(`'${script}'`)).trim()).toBe("il a dit: 'salut'");
   });
 
-  it('ne laisse aucun fichier temporaire derrière lui', () => {
+  it('leaves no temporary file behind', () => {
     run(PAYLOAD);
     const { readdirSync } = require('node:fs') as typeof import('node:fs');
     expect(readdirSync(home).filter((f) => f.startsWith('.tmp'))).toEqual([]);
   });
 
-  it('ne crée rien quand le dossier d état n existe pas', () => {
+  it('creates nothing when the state folder does not exist', () => {
     rmSync(home, { recursive: true, force: true });
     expect(run(PAYLOAD)).toBe('');
     expect(existsSync(join(home, 'status.json'))).toBe(false);
     home = mkdtempSync(join(tmpdir(), 'koh-sl-'));
   });
 
-  it('n écrase pas un instantané valide par du vide', () => {
+  it('does not overwrite a valid snapshot with emptiness', () => {
     run(PAYLOAD);
     run('');
     expect(readFileSync(join(home, 'status.json'), 'utf8')).toBe(PAYLOAD);

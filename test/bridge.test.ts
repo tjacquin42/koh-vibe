@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe('koh-vibe-bridge', () => {
-  it('dépose un fichier par événement, payload intact', () => {
+  it('drops one file per event, payload untouched', () => {
     mkdirSync(join(home, 'events'), { recursive: true });
     run('PreToolUse', '{"session_id":"abc","cwd":"/tmp/p","tool_name":"Bash"}', {
       CLAUDE_CODE_ENTRYPOINT: 'cli',
@@ -52,7 +52,7 @@ describe('koh-vibe-bridge', () => {
     });
   });
 
-  it('zero-padde le pid dans le nom de fichier, pour que le tri lexicographique ne dépende pas de sa largeur', () => {
+  it('zero-pads the pid in the filename, so lexicographic order does not depend on its width', () => {
     // Deux événements de la même milliseconde ne sont distingués que par le
     // tri du nom de fichier une fois le champ horodatage égal ; un pid non
     // zero-paddé trie "9" après "10" alors que 9 < 10. Un pid de largeur fixe
@@ -66,17 +66,17 @@ describe('koh-vibe-bridge', () => {
     expect(match?.[1]).toHaveLength(10);
   });
 
-  it('ne laisse aucun fichier temporaire', () => {
+  it('leaves no temporary file behind', () => {
     mkdirSync(join(home, 'events'), { recursive: true });
     run('Stop', '{"session_id":"abc","cwd":"/tmp/p"}');
     expect(readdirSync(join(home, 'events')).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
   });
 
-  it('sort en 0 quand le spool n existe pas', () => {
+  it('exits 0 when the spool does not exist', () => {
     expect(run('Stop', '{"session_id":"abc","cwd":"/tmp/p"}')).toBe(0);
   });
 
-  it('sort en 0 quand le spool est en lecture seule', () => {
+  it('exits 0 when the spool is read-only', () => {
     const events = join(home, 'events');
     mkdirSync(events, { recursive: true });
     chmodSync(events, 0o500);
@@ -84,7 +84,7 @@ describe('koh-vibe-bridge', () => {
     chmodSync(events, 0o700);
   });
 
-  it("ne perturbe jamais la session Claude Code qui l'appelle : rien sur stderr même quand le spool n'est pas inscriptible (M1)", () => {
+  it('never disturbs the Claude Code session that calls it: nothing on stderr even when the spool is not writable (M1)', () => {
     // execFileSync ne donne accès à stderr qu'en cas d'échec : spawnSync le
     // capture toujours, sans dépendre du code de retour.
     const events = join(home, 'events');

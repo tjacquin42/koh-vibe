@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe('withTokens', () => {
-  it('isole les échecs par session : une session illisible ne prive pas les autres de leurs compteurs', async () => {
+  it('isolates failures per session: an unreadable session does not deprive the others of their counters', async () => {
     const sessions = new Map<string, Session>([
       ['good', session('good', goodFile)],
       ['bad', session('bad', brokenDir)],
@@ -54,12 +54,12 @@ describe('withTokens', () => {
     expect(onFailure.mock.calls[0]?.[0]).toBe(out.get('bad'));
   });
 
-  it('ne lève jamais, même quand la seule session présente échoue', async () => {
+  it('never throws, even when the only session there fails', async () => {
     const sessions = new Map<string, Session>([['bad', session('bad', brokenDir)]]);
     await expect(withTokens(sessions, new Map<string, TranscriptStats>())).resolves.toBeDefined();
   });
 
-  it('le rendu suivant fonctionne toujours : un second appel après un échec réussit encore, pour la session saine comme pour la fautive', async () => {
+  it('the next render still works: a second call after a failure succeeds again, for the healthy session as for the faulty one', async () => {
     const sessions = new Map<string, Session>([
       ['good', session('good', goodFile)],
       ['bad', session('bad', brokenDir)],
@@ -76,14 +76,14 @@ describe('withTokens', () => {
     expect(onFailure).toHaveBeenCalledTimes(2); // une fois par appel, jamais avalé
   });
 
-  it('n appelle jamais onFailure pour une session sans transcript', async () => {
+  it('never calls onFailure for a session with no transcript', async () => {
     const sessions = new Map<string, Session>([['idle', { ...session('idle', ''), transcriptPath: undefined }]]);
     const onFailure = vi.fn();
     await withTokens(sessions, new Map<string, TranscriptStats>(), onFailure);
     expect(onFailure).not.toHaveBeenCalled();
   });
 
-  it('recopie le titre du transcript sur la session', async () => {
+  it('copies the transcript title onto the session', async () => {
     const titleFile = join(dir, 'title.jsonl');
     await writeFile(titleFile, `${JSON.stringify({ type: 'custom-title', customTitle: '#Mon titre' })}\n${assistant(10, 5)}`);
     const sessions = new Map<string, Session>([['a', session('a', titleFile)]]);

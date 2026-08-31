@@ -5,29 +5,29 @@ import type { Session } from '../src/events/types';
 describe('claims', () => {
   const folders = ['/Users/dev/projet', '/Users/dev/autre-projet'];
 
-  it('revendique une session dans un dossier du workspace', () => {
+  it('claims a session inside a workspace folder', () => {
     expect(claims(folders, '/Users/dev/projet')).toBe(true);
     expect(claims(folders, '/Users/dev/projet/web')).toBe(true);
   });
 
-  it('revendique un worktree situé sous le dossier', () => {
+  it('claims a worktree sitting under the folder', () => {
     expect(claims(folders, '/Users/dev/projet/.worktrees/feat-seo')).toBe(true);
   });
 
-  it('ne revendique pas un projet voisin au préfixe trompeur', () => {
+  it('does not claim a neighbouring project whose prefix looks alike', () => {
     expect(claims(folders, '/Users/dev/projet-old')).toBe(false);
   });
 
-  it('ne revendique rien sans dossier ouvert', () => {
+  it('claims nothing when no folder is open', () => {
     expect(claims([], '/Users/dev/projet')).toBe(false);
   });
 
-  it('revendique indépendamment de la casse (macOS insensible à la casse)', () => {
+  it('claims regardless of case (macOS is case-insensitive)', () => {
     expect(claims(folders, '/users/dev/projet')).toBe(true);
     expect(claims(folders, '/Users/dev/PROJET/web')).toBe(true);
   });
 
-  it('ne revendique toujours pas le préfixe trompeur, même avec une casse différente', () => {
+  it('still does not claim the misleading prefix, even in a different case', () => {
     expect(claims(folders, '/Users/dev/PROJET-old')).toBe(false);
   });
 });
@@ -44,18 +44,18 @@ describe('sessionsToAcknowledge', () => {
   };
   const folders = ['/Users/dev/projet'];
 
-  it('retient les sessions terminées non lues que ces dossiers revendiquent', () => {
+  it('keeps the unread finished sessions these folders claim', () => {
     const claimed: Session = { ...base, id: 'a', cwd: '/Users/dev/projet' };
     const foreign: Session = { ...base, id: 'b', cwd: '/Users/dev/autre-projet' };
     expect(sessionsToAcknowledge([claimed, foreign], folders)).toEqual([claimed]);
   });
 
-  it('ignore une session revendiquée mais pas terminée non lue', () => {
+  it('ignores a claimed session that is not an unread finished one', () => {
     const running: Session = { ...base, id: 'a', status: 'running' };
     expect(sessionsToAcknowledge([running], folders)).toEqual([]);
   });
 
-  it('ne retient rien sans dossier ouvert', () => {
+  it('keeps nothing when no folder is open', () => {
     expect(sessionsToAcknowledge([base], [])).toEqual([]);
   });
 });

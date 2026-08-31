@@ -15,7 +15,7 @@ import { settingsFile } from '../src/paths';
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'koh-set-'));
 
 describe('parseSettings', () => {
-  it('lit ce qui est écrit', () => {
+  it('reads what is written', () => {
     expect(parseSettings('{"waiting":"Clic 1","done":"Verre 2","volume":0.3}')).toEqual({
       waiting: 'Clic 1',
       done: 'Verre 2',
@@ -25,12 +25,12 @@ describe('parseSettings', () => {
     });
   });
 
-  it('retombe sur les valeurs par défaut quand le fichier est illisible', () => {
+  it('falls back to the defaults when the file is unreadable', () => {
     expect(parseSettings('pas du json')).toEqual(defaultSettings());
     expect(parseSettings('[]')).toEqual(defaultSettings());
   });
 
-  it('rattrape chaque champ SÉPARÉMENT', () => {
+  it('recovers each field SEPARATELY', () => {
     // Un volume abîmé ne doit pas emporter le choix des sons avec lui : sinon
     // une seule valeur fausse fait croire que tout le réglage a été perdu.
     const s = parseSettings('{"waiting":"Clic 1","volume":"beaucoup"}');
@@ -38,35 +38,35 @@ describe('parseSettings', () => {
     expect(s.volume).toBe(defaultSettings().volume);
   });
 
-  it('garde le silence choisi, qui n est pas une absence de choix', () => {
+  it('keeps a chosen silence, which is not the absence of a choice', () => {
     expect(parseSettings('{"waiting":""}').waiting).toBe('');
   });
 
-  it('fait le tour du fichier', () => {
+  it('round-trips through the file', () => {
     const s = { waiting: 'Clic 1', done: '', volume: 0.9, persistent: false, expireTemporary: true };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 });
 
-describe('le fichier de réglages partagé', () => {
-  it('vit à la racine de l état, à côté du classement', () => {
+describe('the shared settings file', () => {
+  it('lives at the root of the state, beside the filing', () => {
     // C est ce qui le rend commun aux éditeurs : la même machine ne doit pas
     // annoncer deux carillons différents selon la fenêtre d où on la regarde.
     expect(settingsFile('/racine')).toBe(join('/racine', 'settings.json'));
   });
 
-  it('vaut les valeurs par défaut quand il n existe pas', async () => {
+  it('counts as the defaults when it does not exist', async () => {
     expect(await readSettings(join(scratch(), 'absent.json'))).toEqual(defaultSettings());
   });
 
-  it('écrit un champ sans effacer les autres', async () => {
+  it('writes one field without erasing the others', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.4 });
     await writeSettings(file, { volume: 0.8 });
     expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8, persistent: true, expireTemporary: true });
   });
 
-  it('relit avant d écrire : régler le volume n écrase pas un son choisi entre-temps', async () => {
+  it('reads before writing: setting the volume does not overwrite a sound chosen meanwhile', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1' });
     // Une autre fenêtre écrit pendant qu on tient encore l ancien état en main.
@@ -75,7 +75,7 @@ describe('le fichier de réglages partagé', () => {
     expect((await readSettings(file)).waiting).toBe('Erreur 3');
   });
 
-  it('ne laisse pas de fichier temporaire derrière lui', async () => {
+  it('leaves no temporary file behind', async () => {
     const dir = scratch();
     const file = join(dir, 'settings.json');
     await writeSettings(file, { volume: 0.1 });
@@ -85,15 +85,15 @@ describe('le fichier de réglages partagé', () => {
   });
 });
 
-describe('seedSettings — la migration depuis les réglages de chaque éditeur', () => {
-  it('verse les réglages locaux quand le fichier partagé n existe pas encore', async () => {
+describe('seedSettings — migrating from each editor own settings', () => {
+  it('pours the local settings in when the shared file does not exist yet', async () => {
     const file = join(scratch(), 'settings.json');
     const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true }));
     expect(seeded.waiting).toBe('Funk');
     expect(JSON.parse(readFileSync(file, 'utf8')).done).toBe('Hero');
   });
 
-  it('ne touche à RIEN quand le fichier est déjà là', async () => {
+  it('touches NOTHING when the file is already there', async () => {
     // Sans cette garde, chaque démarrage réimposerait les réglages locaux de SON
     // éditeur : les deux ne se contrediraient plus seulement, ils se battraient.
     const file = join(scratch(), 'settings.json');
@@ -102,7 +102,7 @@ describe('seedSettings — la migration depuis les réglages de chaque éditeur'
     expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3, persistent: true, expireTemporary: true });
   });
 
-  it('sème même un silence choisi, qui est un réglage comme un autre', async () => {
+  it('seeds a chosen silence too, which is a setting like any other', async () => {
     const file = join(scratch(), 'settings.json');
     expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5, persistent: true, expireTemporary: true }))).waiting).toBe('');
     expect((await readSettings(file)).waiting).toBe('');

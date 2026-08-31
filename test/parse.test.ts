@@ -6,7 +6,7 @@ const fixture = (name: string): string =>
   readFileSync(`test/fixtures/hooks/${name}.json`, 'utf8');
 
 describe('parseSpoolFile', () => {
-  it('normalise un PreToolUse réel', () => {
+  it('normalises a real PreToolUse', () => {
     const ev = parseSpoolFile(fixture('PreToolUse'));
     expect(ev?.event).toBe('PreToolUse');
     expect(ev?.sessionId).not.toBe('');
@@ -14,52 +14,52 @@ describe('parseSpoolFile', () => {
     expect(ev?.toolName).toBeDefined();
   });
 
-  it('rejette un JSON invalide sans lever', () => {
+  it('rejects invalid JSON without throwing', () => {
     expect(parseSpoolFile('{ pas du json')).toBeUndefined();
   });
 
-  it('rejette un événement inconnu', () => {
+  it('rejects an unknown event', () => {
     expect(parseSpoolFile('{"event":"Inconnu","at":1,"payload":{}}')).toBeUndefined();
   });
 
-  it('rejette un payload sans session_id', () => {
+  it('rejects a payload with no session_id', () => {
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"cwd":"/x"}}')).toBeUndefined();
   });
 
-  it('tolère entrypoint et termProgram absents', () => {
+  it('tolerates a missing entrypoint and termProgram', () => {
     const ev = parseSpoolFile('{"event":"Stop","at":5,"payload":{"session_id":"s","cwd":"/x"}}');
     expect(ev?.entrypoint).toBe('');
     expect(ev?.at).toBe(5);
   });
 
-  it('extrait la cible depuis tool_input', () => {
+  it('extracts the target out of tool_input', () => {
     const ev = parseSpoolFile(
       '{"event":"PreToolUse","at":1,"payload":{"session_id":"s","cwd":"/x","tool_name":"Edit","tool_input":{"file_path":"/x/a.ts"}}}',
     );
     expect(ev?.toolTarget).toBe('/x/a.ts');
   });
 
-  it('rejette un session_id qui contient un séparateur de chemin', () => {
+  it('rejects a session_id holding a path separator', () => {
     // "a/b" produit sessions/.tmp-a/b-<pid> côté writeSession → ENOENT. Un
     // identifiant de session doit être utilisable comme nom de fichier.
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"a/b","cwd":"/x"}}')).toBeUndefined();
   });
 
-  it('rejette un session_id qui contient un antislash', () => {
+  it('rejects a session_id holding a backslash', () => {
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"a\\\\b","cwd":"/x"}}')).toBeUndefined();
   });
 
-  it('rejette un session_id "." ou ".."', () => {
+  it('rejects a session_id of "." or ".."', () => {
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":".","cwd":"/x"}}')).toBeUndefined();
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"..","cwd":"/x"}}')).toBeUndefined();
   });
 
-  it('accepte un session_id ordinaire', () => {
+  it('accepts an ordinary session_id', () => {
     const ev = parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"abc-123_XYZ","cwd":"/x"}}');
     expect(ev?.sessionId).toBe('abc-123_XYZ');
   });
 
-  it("rejette un session_id contenant un octet NUL (N3 : liste blanche, pas une liste de caractères interdits)", () => {
+  it('rejects a session_id holding a NUL byte (N3: an allow list, not a list of forbidden characters)', () => {
     // L'octet NUL franchit une validation qui ne raisonnerait que par liste noire
     // ('/', '\', '.', '..') : il ne figure dans aucune de ces exclusions, et
     // pourtant reste inutilisable dans un nom de fichier. La frontière doit
@@ -69,7 +69,7 @@ describe('parseSpoolFile', () => {
     ).toBeUndefined();
   });
 
-  it('rejette un session_id contenant un espace ou un caractère exotique quelconque', () => {
+  it('rejects a session_id holding a space or any exotic character', () => {
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"a b","cwd":"/x"}}')).toBeUndefined();
     expect(parseSpoolFile('{"event":"Stop","at":1,"payload":{"session_id":"a✨b","cwd":"/x"}}')).toBeUndefined();
   });
@@ -79,7 +79,7 @@ describe('parseSpoolFile', () => {
   // et pendingPermission.summary (store/reduce.ts) partage exactement cette
   // même source (ev.toolTarget) — un second lecteur qui aurait fallu penser à
   // corriger séparément si la normalisation était restée côté affichage.
-  it("normalise les blancs (dont les retours à la ligne) d'une commande Bash multi-ligne extraite de tool_input", () => {
+  it('normalises the whitespace (newlines included) of a multi-line Bash command read out of tool_input', () => {
     const raw = JSON.stringify({
       event: 'PreToolUse',
       at: 1,
@@ -94,7 +94,7 @@ describe('parseSpoolFile', () => {
     expect(ev?.toolTarget).toBe('node -e " const fs = require(\'fs\') console.log(fs)"');
   });
 
-  it('normalise la même commande multi-ligne quand elle arrive via un PermissionRequest (repro exacte du défaut observé)', () => {
+  it('normalises the same multi-line command when it arrives through a PermissionRequest (an exact repro of the observed defect)', () => {
     const raw = JSON.stringify({
       event: 'PermissionRequest',
       at: 1,
@@ -110,7 +110,7 @@ describe('parseSpoolFile', () => {
     expect(ev?.toolTarget).toBe("node -e \" const fs=require('fs') …\"");
   });
 
-  it('normalise aussi les blancs du champ message (second repli de pendingPermission.summary)', () => {
+  it('normalises the whitespace of the message field too (the second fallback of pendingPermission.summary)', () => {
     const raw = JSON.stringify({
       event: 'PermissionRequest',
       at: 1,
@@ -120,7 +120,7 @@ describe('parseSpoolFile', () => {
     expect(ev?.message).toBe('ligne 1 ligne 2');
   });
 
-  it("ignore une valeur de tool_input qui ne contient que des blancs et retombe sur la clé suivante", () => {
+  it('ignores a tool_input value made of whitespace only and falls back to the next key', () => {
     const raw = JSON.stringify({
       event: 'PreToolUse',
       at: 1,

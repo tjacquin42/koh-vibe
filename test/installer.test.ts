@@ -22,11 +22,11 @@ const existing = {
 };
 
 describe('installHooks', () => {
-  it('ajoute nos 8 entrées', () => {
+  it('adds our 8 entries', () => {
     expect(countKohEntries(installHooks(existing, BRIDGE))).toBe(8);
   });
 
-  it('préserve les entrées existantes', () => {
+  it('preserves the existing entries', () => {
     const out = installHooks(existing, BRIDGE) as typeof existing;
     const perm = out.hooks.PermissionRequest.flatMap((e) => e.hooks.map((h) => h.command));
     expect(perm).toContain('/vibe/bridge --source claude');
@@ -34,7 +34,7 @@ describe('installHooks', () => {
     expect(out.model).toBe('opus');
   });
 
-  it('ne rend jamais notre PermissionRequest bloquant', () => {
+  it('never makes our PermissionRequest blocking', () => {
     const out = installHooks(existing, BRIDGE) as typeof existing;
     const ours = out.hooks.PermissionRequest.flatMap((e) => e.hooks).filter((h) =>
       h.command.includes(KOH_MARKER),
@@ -43,16 +43,16 @@ describe('installHooks', () => {
     expect(ours[0]).not.toHaveProperty('timeout');
   });
 
-  it('est idempotent', () => {
+  it('is idempotent', () => {
     const once = installHooks(existing, BRIDGE);
     expect(countKohEntries(installHooks(once, BRIDGE))).toBe(8);
   });
 
-  it('fonctionne sur un settings.json sans hooks', () => {
+  it('works on a settings.json with no hooks', () => {
     expect(countKohEntries(installHooks({}, BRIDGE))).toBe(8);
   });
 
-  it('désinstalle uniquement les nôtres', () => {
+  it('uninstalls ours only', () => {
     const out = uninstallHooks(installHooks(existing, BRIDGE)) as typeof existing;
     expect(countKohEntries(out)).toBe(0);
     expect(out.hooks.PermissionRequest.flatMap((e) => e.hooks.map((h) => h.command))).toContain(
@@ -61,11 +61,11 @@ describe('installHooks', () => {
     expect(out.hooks.PreToolUse.flatMap((e) => e.hooks.map((h) => h.command))).toContain('mon-hook-a-moi');
   });
 
-  it('la désinstallation est idempotente', () => {
+  it('uninstalling is idempotent', () => {
     expect(countKohEntries(uninstallHooks(uninstallHooks(installHooks(existing, BRIDGE))))).toBe(0);
   });
 
-  it("retire la clé hooks plutôt que de laisser un objet vide quand il ne reste rien, ni à nous ni à personne (M5)", () => {
+  it('removes the hooks key rather than leaving an empty object when nothing is left, ours or anyone else (M5)', () => {
     const out = uninstallHooks(installHooks({}, BRIDGE)) as Record<string, unknown>;
     expect(out).not.toHaveProperty('hooks');
     // Le garde-fou d'empreinte doit rester intact : rien n'a changé pour lui,
@@ -87,46 +87,46 @@ const withUnknownForms = {
   },
 };
 
-describe('formes non reconnues', () => {
-  it('préserve une entrée dont hooks n est pas un tableau, à l installation', () => {
+describe('shapes we do not recognise', () => {
+  it('preserves an entry whose hooks is not an array, on install', () => {
     const out = installHooks(withUnknownForms, BRIDGE) as typeof withUnknownForms;
     expect(out.hooks.PostCompact).toEqual([{ matcher: '*', hooks: 'not-an-array' }]);
   });
 
-  it('préserve un événement dont la valeur n est pas un tableau, à l installation', () => {
+  it('preserves an event whose value is not an array, on install', () => {
     const out = installHooks(withUnknownForms, BRIDGE) as typeof withUnknownForms;
     expect(out.hooks.PreCompact).toBe('valeur-inattendue');
   });
 
-  it('préserve ces deux formes à la désinstallation', () => {
+  it('preserves both of those shapes on uninstall', () => {
     const out = uninstallHooks(withUnknownForms) as typeof withUnknownForms;
     expect(out.hooks.PostCompact).toEqual([{ matcher: '*', hooks: 'not-an-array' }]);
     expect(out.hooks.PreCompact).toBe('valeur-inattendue');
   });
 
-  it('un aller-retour rend l objet strictement identique en présence de ces formes', () => {
+  it('a round trip returns a strictly identical object in the presence of those shapes', () => {
     const back = uninstallHooks(installHooks(withUnknownForms, BRIDGE));
     expect(back).toEqual(withUnknownForms);
   });
 });
 
 describe('foreignFingerprint', () => {
-  it('qualifie chaque commande étrangère par son ascendance en noms', () => {
+  it('qualifies every foreign command by its ancestry of names', () => {
     expect(foreignFingerprint(existing)).toEqual([
       '["hooks","PermissionRequest","*",{"type":"command","command":"/vibe/bridge --source claude","timeout":86400}]',
       '["hooks","PreToolUse","Bash",{"type":"command","command":"mon-hook-a-moi"}]',
     ]);
   });
 
-  it('rend un tableau vide sur un settings.json sans hooks', () => {
+  it('returns an empty array on a settings.json with no hooks', () => {
     expect(foreignFingerprint({})).toEqual([]);
   });
 
-  it('ne change pas après installation', () => {
+  it('does not change after an install', () => {
     expect(foreignFingerprint(installHooks(existing, BRIDGE))).toEqual(foreignFingerprint(existing));
   });
 
-  it('ne change pas après un aller-retour, même en présence de formes non reconnues', () => {
+  it('does not change after a round trip, even with shapes we do not recognise', () => {
     const back = uninstallHooks(installHooks(withUnknownForms, BRIDGE));
     expect(foreignFingerprint(back)).toEqual(foreignFingerprint(withUnknownForms));
   });
@@ -136,7 +136,7 @@ describe('foreignFingerprint', () => {
   // changé de place, ou a été perdue en même temps qu'une autre apparaissait.
   // L'empreinte, qualifiée par ascendance, doit les distinguer — sinon le garde-fou du
   // script laisserait passer une régression comme celle du Constat 1.
-  it('distingue une commande étrangère déplacée d un événement à un autre', () => {
+  it('tells apart a foreign command moved from one event to another', () => {
     const treeA = {
       hooks: {
         PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'foo' }] }],
@@ -152,7 +152,7 @@ describe('foreignFingerprint', () => {
     expect(foreignFingerprint(treeA)).not.toEqual(foreignFingerprint(treeB));
   });
 
-  it('distingue une commande étrangère perdue en même temps qu une autre apparaît', () => {
+  it('tells apart a foreign command lost at the same moment another appears', () => {
     const treeC = {
       hooks: { PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'foo' }] }] },
     };
@@ -170,7 +170,7 @@ describe('foreignFingerprint', () => {
   // "PreToolUse" avec un matcher "Bash.foo", alors que ce sont deux emplacements
   // réellement distincts. L'ascendance encodée comme suite de segments (tableau JSON)
   // doit les distinguer.
-  it('distingue deux ascendances réellement différentes que la concaténation confondrait', () => {
+  it('tells apart two genuinely different ancestries that concatenation would confuse', () => {
     const treeA = {
       hooks: {
         PreToolUse: [{ matcher: 'Bash.foo', hooks: [{ type: 'command', command: 'evil' }] }],
@@ -190,13 +190,13 @@ describe('foreignFingerprint', () => {
   // (aveugle des deux côtés à une telle suppression). La forme qui marche est
   // l'asymétrie : l'empreinte d'un arbre qui porte la forme malformée doit différer de
   // l'empreinte du même arbre qui en est privé.
-  it('une valeur d événement non-tableau se distingue de son absence dans l empreinte', () => {
+  it('a non-array event value is distinguishable from its absence in the fingerprint', () => {
     const withForm = { hooks: { PreCompact: 'valeur-inattendue' } };
     const withoutForm = { hooks: {} };
     expect(foreignFingerprint(withForm)).not.toEqual(foreignFingerprint(withoutForm));
   });
 
-  it('une entrée de matcher dont hooks n est pas un tableau se distingue de son absence', () => {
+  it('a matcher entry whose hooks is not an array is distinguishable from its absence', () => {
     const withForm = { hooks: { PostCompact: [{ matcher: '*', hooks: 'not-an-array' }] } };
     const withoutForm = { hooks: { PostCompact: [] } };
     expect(foreignFingerprint(withForm)).not.toEqual(foreignFingerprint(withoutForm));
@@ -208,8 +208,8 @@ describe('foreignFingerprint', () => {
 // passant — installHooks/uninstallHooks la supprimait, et foreignFingerprint, qui
 // partage ce même prédicat, ne la voyait pas non plus disparaître. isOurs reconnaît
 // désormais exactement le gabarit que nous écrivons, jamais une commande qui le contient.
-describe('isOurs (précision de la reconnaissance)', () => {
-  it('ne classe pas comme nôtre une commande étrangère qui enrobe notre bridge', () => {
+describe('isOurs (how precise the recognition is)', () => {
+  it('does not class a foreign command wrapping our bridge as ours', () => {
     const wrapped = {
       hooks: {
         PreToolUse: [
@@ -227,26 +227,26 @@ describe('isOurs (précision de la reconnaissance)', () => {
     expect(foreignFingerprint(wrapped).length).toBeGreaterThan(0);
   });
 
-  it('reconnaît exactement notre propre commande installée : rien d étranger après une installation à vide', () => {
+  it('recognises exactly our own installed command: nothing foreign after an install from empty', () => {
     const out = installHooks({}, BRIDGE);
     expect(foreignFingerprint(out)).toEqual([]);
   });
 });
 
-describe('migration depuis l ancien nom', () => {
+describe('migrating from the old name', () => {
   const LEGACY = "/bin/sh -c '[ -x \"/Users/dev/.koh-claude/bin/koh-claude-bridge\" ] && \"/Users/dev/.koh-claude/bin/koh-claude-bridge\" Stop; exit 0'";
 
-  it('reconnaît une entrée posée sous l ancien nom', () => {
+  it('recognises an entry laid down under the old name', () => {
     const before = { hooks: { Stop: [{ matcher: '*', hooks: [{ type: 'command', command: LEGACY }] }] } };
     expect(countKohEntries(before)).toBe(1);
   });
 
-  it('retire les anciennes entrées à la désinstallation, au lieu de les laisser orphelines', () => {
+  it('removes the old entries on uninstall, instead of leaving them orphaned', () => {
     const before = { hooks: { Stop: [{ matcher: '*', hooks: [{ type: 'command', command: LEGACY }] }] } };
     expect(countKohEntries(uninstallHooks(before))).toBe(0);
   });
 
-  it('ne pose pas un second jeu de hooks à côté de l ancien', () => {
+  it('does not lay a second set of hooks beside the old one', () => {
     // Le vrai risque du renommage : deux ponts installés, chaque événement
     // dupliqué dans le spool.
     const before = { hooks: { Stop: [{ matcher: '*', hooks: [{ type: 'command', command: LEGACY }] }] } };
@@ -256,11 +256,11 @@ describe('migration depuis l ancien nom', () => {
     expect(JSON.stringify(after)).not.toContain('koh-claude-bridge');
   });
 
-  it('n installe jamais l ancien nom : une pose neuve ne porte que le nom courant', () => {
+  it('never installs the old name: a fresh install carries the current name only', () => {
     expect(JSON.stringify(installHooks({}, '/Users/dev/.koh-vibe/bin/koh-vibe-bridge'))).not.toContain('koh-claude');
   });
 
-  it('ne confond pas un pont étranger dont le nom finit autrement', () => {
+  it('does not confuse a foreign bridge whose name ends differently', () => {
     const foreign = "/bin/sh -c '[ -x \"/opt/autre-bridge\" ] && \"/opt/autre-bridge\" Stop; exit 0'";
     const before = { hooks: { Stop: [{ matcher: '*', hooks: [{ type: 'command', command: foreign }] }] } };
     expect(countKohEntries(before)).toBe(0);

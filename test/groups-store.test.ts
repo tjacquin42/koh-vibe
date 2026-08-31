@@ -54,16 +54,16 @@ afterEach(() => {
 });
 
 describe('groups store', () => {
-  it('un fichier absent vaut un classement vide', async () => {
+  it('a missing file counts as an empty filing', async () => {
     expect(await readGroups(join(dir, 'rien.json'))).toEqual(emptyGroups());
   });
 
-  it('un fichier illisible vaut un classement vide, sans lever', async () => {
+  it('an unreadable file counts as an empty filing, without throwing', async () => {
     await writeFile(file, 'pas du json');
     expect(await readGroups(file)).toEqual(emptyGroups());
   });
 
-  it('relit juste avant d écrire : la modification d une autre fenêtre survit', async () => {
+  it('reads again right before writing: another window edit survives', async () => {
     await updateGroups(file, (s) => createGroup(s, 'mien', () => 'g1'));
     // point d'entrelacement injecté : une autre fenêtre écrit pendant notre transformation
     const out = await updateGroups(file, async (s) => {
@@ -76,7 +76,7 @@ describe('groups store', () => {
     expect(out.groups.map((g) => g.name)).toEqual(['mien', 'sien']);
   });
 
-  it('une couleur posée ici survit à l écriture simultanée d une autre fenêtre', async () => {
+  it('a colour set here survives another window writing at the same time', async () => {
     // Le défaut d origine : la fusion ne propageait que le nom, et perdait en
     // silence tout autre attribut du dossier.
     await updateGroups(file, (s) => createGroup(s, 'mien', () => 'g1'));
@@ -94,7 +94,7 @@ describe('groups store', () => {
     expect((await readGroups(file)).groups[0]?.color).toBe('purple');
   });
 
-  it('une couleur retirée ici n est pas ressuscitée par l état plus frais', async () => {
+  it('a colour removed here is not resurrected by the fresher state', async () => {
     await updateGroups(file, (s) => setGroupColor(createGroup(s, 'mien', () => 'g1'), 'g1', 'red'));
     const out = await updateGroups(file, async (s) => {
       await writeFile(
@@ -106,7 +106,7 @@ describe('groups store', () => {
     expect(out.groups[0]).not.toHaveProperty('color');
   });
 
-  it('ranger dans un dossier n efface pas l ordre qu une autre fenêtre pose dans un autre', async () => {
+  it('filing into one folder does not erase the order another window sets in a different one', async () => {
     // Le défaut que ce test garde : prendre `after.sessionOrder` en bloc
     // écrasait tous les dossiers, pas seulement celui qu on venait de ranger.
     await updateGroups(file, (s) => createGroup(createGroup(s, 'mien', () => 'g1'), 'sien', () => 'g2'));
@@ -121,7 +121,7 @@ describe('groups store', () => {
     expect(sessionOrderOf(reread, 'g2')).toEqual(['x', 'y']);
   });
 
-  it('un ordre réordonné ici gagne sur celui, plus ancien, du fichier', async () => {
+  it('an order reordered here wins over the older one in the file', async () => {
     await updateGroups(file, (s) => setSessionOrder(createGroup(s, 'mien', () => 'g1'), 'g1', ['a', 'b', 'c']));
     const out = await updateGroups(file, async (s) => {
       const fresh = parseGroups(await readFile(file, 'utf8'));
@@ -132,7 +132,7 @@ describe('groups store', () => {
     expect(out.groups.map((g) => g.name)).toEqual(['mien', 'ailleurs']);
   });
 
-  it('un dossier supprimé ici reste supprimé même si l autre fenêtre l ignorait', async () => {
+  it('a folder deleted here stays deleted even when the other window did not know it', async () => {
     await updateGroups(file, (s) => createGroup(s, 'à supprimer', () => 'g1'));
     // point d'entrelacement injecté : une autre fenêtre, qui ignore la suppression en cours,
     // écrit un dossier sans rapport pendant notre transformation
@@ -146,7 +146,7 @@ describe('groups store', () => {
     expect(out.groups.map((g) => g.name)).toEqual(['ailleurs']);
   });
 
-  it('une affectation faite ailleurs ne disparaît pas parce qu on ne la connaissait pas', async () => {
+  it('an assignment made elsewhere does not vanish for not being known here', async () => {
     await updateGroups(file, (s) => createGroup(s, 'dossier', () => 'g1'));
     // point d'entrelacement injecté : une autre fenêtre affecte une session pendant notre
     // transformation, qui elle ne touche qu'à un dossier sans rapport avec cette affectation
@@ -166,7 +166,7 @@ describe('groups store', () => {
   // `updateGroups` (la fusion ne connaît pas les invariants de `parseGroups`, elle ne fait que
   // combiner). Elle ne persiste pas : `parseGroups`, appelé par toute lecture suivante, filtre
   // déjà toute affectation qui ne pointe sur aucun dossier existant (voir groups-model.test.ts).
-  it('une affectation orpheline transitoire se corrige à la lecture suivante', async () => {
+  it('a transient orphan assignment fixes itself on the next read', async () => {
     await updateGroups(file, (s) => createGroup(s, 'à supprimer', () => 'g1'));
     // point d'entrelacement injecté : une autre fenêtre affecte une session à g1 pendant qu on
     // le supprime, sans savoir que la suppression est en cours
@@ -186,7 +186,7 @@ describe('groups store', () => {
     expect((await readGroups(file)).assignments).toEqual({});
   });
 
-  it('écrit de façon atomique : aucun fichier temporaire ne subsiste', async () => {
+  it('writes atomically: no temporary file is left behind', async () => {
     await updateGroups(file, (s) => createGroup(s, 'x', () => 'g1'));
     const restes = (await readdir(dir)).filter((n) => n.startsWith('.tmp'));
     expect(restes).toEqual([]);
@@ -195,7 +195,7 @@ describe('groups store', () => {
   // Tour de correction 2, Important : ce comportement était déjà correct (vérifié à l'exécution
   // par le relecteur) mais non couvert — exactement le genre de garantie qui casse en silence,
   // comme le gel vécu au lot précédent sur une garde de réentrance dont le drapeau restait levé.
-  it('un rename qui échoue ne laisse aucun fichier temporaire', async () => {
+  it('a failing rename leaves no temporary file behind', async () => {
     renameOverride.current = () => Promise.reject(new Error('disque plein'));
 
     await expect(updateGroups(file, (s) => createGroup(s, 'x', () => 'g1'))).rejects.toThrow('disque plein');
@@ -207,7 +207,7 @@ describe('groups store', () => {
 
   // Tour de correction 2, Important : idem — une transformation qui lève ne doit pas laisser la
   // file bloquée pour toujours (c'est précisément le gel vécu au lot précédent).
-  it('une transformation qui lève ne bloque pas la file pour les appels suivants', async () => {
+  it('a transform that throws does not block the queue for the calls that follow', async () => {
     await expect(
       updateGroups(file, () => {
         throw new Error('boom');
@@ -218,7 +218,7 @@ describe('groups store', () => {
     expect(out.groups.map((g) => g.name)).toEqual(['après']);
   });
 
-  it('préserve les champs inconnus au travers d un aller-retour', async () => {
+  it('preserves unknown fields across a round trip', async () => {
     await writeFile(file, JSON.stringify({ version: 1, groups: [], assignments: {}, futur: 42 }));
     await updateGroups(file, (s) => createGroup(s, 'x', () => 'g1'));
     const written = JSON.parse(await readFile(file, 'utf8')) as { futur: number };
@@ -231,7 +231,7 @@ describe('groups store', () => {
   // 3ᵉ appel à `readFile` sur ce fichier — c'est la relecture de contrôle faite juste avant de
   // renommer, à la fin de la première tentative — déclenche une écriture réelle avant de
   // rendre la main, simulant une autre fenêtre qui écrit à cet instant précis.
-  it('une écriture externe entre la fusion et le renommage est absorbée par une nouvelle tentative', async () => {
+  it('an external write landing between the merge and the rename is absorbed by a retry', async () => {
     await updateGroups(file, (s) => createGroup(s, 'base', () => 'g-base'));
 
     let calls = 0;
@@ -261,7 +261,7 @@ describe('groups store', () => {
   // sautée, le troisième ajout serait écrasé en silence par le `rename` final. Les override de
   // `readFile` ci-dessous utilisent `node:fs` synchrone (non mocké) pour l'écriture externe,
   // afin de ne pas ré-entrer dans le `readFile` mocké et fausser le compteur d'appels.
-  it('la dernière tentative relit aussi avant de renommer, sous contention soutenue', async () => {
+  it('the last attempt reads again before renaming too, under sustained contention', async () => {
     await updateGroups(file, (s) => createGroup(s, 'base', () => 'g-base'));
 
     let calls = 0;
@@ -287,7 +287,7 @@ describe('groups store', () => {
   // depuis le même processus, ne s'exécutent jamais en même temps. `updateGroups` sérialise
   // maintenant ces appels par fichier (`enqueue`) : exactement le cas que `Promise.all` exerce
   // ici.
-  it('deux mises à jour concurrentes ne se perdent pas', async () => {
+  it('two concurrent updates lose neither', async () => {
     await Promise.all([
       updateGroups(file, (s) => createGroup(s, 'a', () => 'ga')),
       updateGroups(file, (s) => createGroup(s, 'b', () => 'gb')),

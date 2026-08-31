@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe('persist', () => {
-  it('écrit puis relit une session', async () => {
+  it('writes then reads a session back', async () => {
     await writeSession(dirs, session('a'));
     const back = await readSessions(dirs);
     expect(back.get('a')).toEqual(session('a'));
@@ -47,7 +47,7 @@ describe('persist', () => {
   // il survivrait à la fermeture de l'onglet qu'il décrit, et la conversation
   // resterait à jamais « un onglet restauré » — impossible à rouvrir. La règle
   // vit ici, à la seule porte qui mène au disque, plutôt que chez chaque appelant.
-  it("n'écrit jamais le drapeau dormant, qui n'appartient qu'à la fenêtre qui l'a calculé", async () => {
+  it('never writes the dormant flag, which belongs only to the window that computed it', async () => {
     await writeSession(dirs, { ...session('s1'), dormant: true, endedAt: 42 });
     const back = await readSession(dirs, 's1');
     expect(back?.dormant).toBeUndefined();
@@ -55,7 +55,7 @@ describe('persist', () => {
     expect(back?.endedAt).toBe(42);
   });
 
-  it("ignore un drapeau dormant déjà présent sur le disque, plutôt que de le propager", async () => {
+  it('ignores a dormant flag already on disk, rather than propagating it', async () => {
     // Un fichier écrit par une version qui ne retirait pas encore le drapeau.
     // Sans cela, la conversation resterait bloquée jusqu'à une réparation à la
     // main : l'invariant doit tenir à la lecture aussi, pas seulement à
@@ -66,12 +66,12 @@ describe('persist', () => {
     expect((await readSession(dirs, 's5'))?.endedAt).toBe(7);
   });
 
-  it("createSession ne l'écrit pas davantage — la porte a deux battants", async () => {
+  it('createSession does not write it either — the door has two leaves', async () => {
     await createSession(dirs, { ...session('s2'), dormant: true });
     expect((await readSession(dirs, 's2'))?.dormant).toBeUndefined();
   });
 
-  it("hideSession, qui réécrit une session lue, ne le réintroduit pas non plus", async () => {
+  it('hideSession, which rewrites a session it read, does not bring it back either', async () => {
     await writeSession(dirs, { ...session('s3'), dormant: true });
     await hideSession(dirs, 's3');
     const back = await readSession(dirs, 's3');
@@ -83,7 +83,7 @@ describe('persist', () => {
   // conversation terminée que l'onglet restauré fait paraître éveillée — repart
   // à l'écriture quand on la met en veille. Chaque module était juste ; c'est
   // leur jonction qui ne l'était pas, et aucun test ne la traversait.
-  it("une session affichée éveillée par un onglet restauré reste rouvrable une fois réécrite", async () => {
+  it('a session shown awake by a restored tab stays reopenable once rewritten', async () => {
     const onDisk: Session = { ...session('s4'), endedAt: 10 };
     const restored: Session = { ...session('s4'), dormant: true, lastEventAt: 0 };
     const shown = shownSession(onDisk, restored);
@@ -99,16 +99,16 @@ describe('persist', () => {
     expect(back?.endedAt).toBe(99);
   });
 
-  it('ne laisse aucun fichier temporaire', async () => {
+  it('leaves no temporary file behind', async () => {
     await writeSession(dirs, session('a'));
     expect(readdirSync(dirs.sessions).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
   });
 
-  it('supprime sans lever si le fichier est déjà absent', async () => {
+  it('deletes without throwing when the file is already gone', async () => {
     await expect(removeSession(dirs, 'jamais-vu')).resolves.toBeUndefined();
   });
 
-  it('ignore un fichier de session illisible', async () => {
+  it('ignores an unreadable session file', async () => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(join(dirs.sessions, 'casse.json'), '{ pas du json');
     await writeSession(dirs, session('a'));
@@ -116,7 +116,7 @@ describe('persist', () => {
     expect(back.size).toBe(1);
   });
 
-  it('ignore un fichier de session partiellement conforme', async () => {
+  it('ignores a partially conforming session file', async () => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(
       join(dirs.sessions, 'incomplet.json'),
@@ -129,7 +129,7 @@ describe('persist', () => {
     expect(back.has('b')).toBe(false);
   });
 
-  it('ne laisse aucun fichier temporaire même pour des écritures concurrentes sans attente entre elles', async () => {
+  it('leaves no temporary file behind even for concurrent writes with no wait between them', async () => {
     // writeSession est exportée et réutilisable : sa sûreté ne doit pas dépendre
     // de la sérialisation qu'un appelant (SpoolWatcher.tick) lui impose par ailleurs.
     await Promise.all([
@@ -142,17 +142,17 @@ describe('persist', () => {
   });
 
   describe('readSession', () => {
-    it('lit une seule session par id, sans passer par le répertoire entier', async () => {
+    it('reads a single session by id, without walking the whole directory', async () => {
       await writeSession(dirs, session('a'));
       await writeSession(dirs, session('b'));
       expect(await readSession(dirs, 'a')).toEqual(session('a'));
     });
 
-    it('retourne undefined pour une session absente', async () => {
+    it('returns undefined for a session that is not there', async () => {
       expect(await readSession(dirs, 'jamais-vu')).toBeUndefined();
     });
 
-    it('retourne undefined pour un fichier illisible', async () => {
+    it('returns undefined for an unreadable file', async () => {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(join(dirs.sessions, 'casse.json'), '{ pas du json');
       expect(await readSession(dirs, 'casse')).toBeUndefined();
@@ -174,7 +174,7 @@ describe('persist', () => {
     });
   });
 
-  it('converge : deux ordres de lecture donnent le même état', () => {
+  it('converges: two read orders give the same state', () => {
     const mk = (event: SpoolEvent['event'], at: number, id: string): SpoolEvent => ({
       event, at, entrypoint: 'cli', termProgram: '', sessionId: id, cwd: '/x',
     });

@@ -17,7 +17,7 @@ function ev(event: EventName, extra: Partial<SpoolEvent> = {}): SpoolEvent {
 }
 
 describe('reduce', () => {
-  it('crée la session au SessionStart, à l arrêt', () => {
+  it('creates the session on SessionStart, idle', () => {
     const s = reduce(undefined, ev('SessionStart', { transcriptPath: '/t.jsonl' }));
     expect(s?.status).toBe('idle');
     expect(s?.project).toBe('projet');
@@ -26,18 +26,18 @@ describe('reduce', () => {
     expect(s?.startedAt).toBeDefined();
   });
 
-  it('crée la session même sans SessionStart', () => {
+  it('creates the session even with no SessionStart', () => {
     const s = reduce(undefined, ev('PreToolUse', { toolName: 'Bash' }));
     expect(s?.status).toBe('running');
     expect(s?.startedAt).toBeUndefined();
   });
 
-  it('passe en cours au prompt', () => {
+  it('goes to working on the prompt', () => {
     const a = reduce(undefined, ev('SessionStart'));
     expect(reduce(a, ev('UserPromptSubmit'))?.status).toBe('running');
   });
 
-  it('affiche l action en cours et la retire au PostToolUse', () => {
+  it('shows the current action and drops it on PostToolUse', () => {
     const a = reduce(undefined, ev('PreToolUse', { toolName: 'Edit', toolTarget: '/x/a.ts' }));
     expect(a?.currentAction).toEqual({ tool: 'Edit', target: '/x/a.ts' });
     expect(a?.inFlightSince).toBeDefined();
@@ -47,45 +47,45 @@ describe('reduce', () => {
     expect(b?.toolCount).toBe(1);
   });
 
-  it('passe en attente sur PermissionRequest, avec le détail', () => {
+  it('goes to waiting on PermissionRequest, with the detail', () => {
     const a = reduce(undefined, ev('PreToolUse', { toolName: 'Bash' }));
     const b = reduce(a, ev('PermissionRequest', { toolName: 'Bash', toolTarget: 'rm -rf dist' }));
     expect(b?.status).toBe('waiting');
     expect(b?.pendingPermission).toEqual({ tool: 'Bash', summary: 'rm -rf dist' });
   });
 
-  it('passe en attente sur Notification', () => {
+  it('goes to waiting on Notification', () => {
     const a = reduce(undefined, ev('UserPromptSubmit'));
     expect(reduce(a, ev('Notification', { message: 'attend ton accord' }))?.status).toBe('waiting');
   });
 
-  it('sort de l attente quand un outil repart', () => {
+  it('leaves waiting when a tool starts again', () => {
     const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
     const b = reduce(a, ev('PreToolUse', { toolName: 'Bash' }));
     expect(b?.status).toBe('running');
     expect(b?.pendingPermission).toBeUndefined();
   });
 
-  it('termine non lu, puis à l arrêt après acquittement', () => {
+  it('finishes unread, then idle once acknowledged', () => {
     const a = reduce(undefined, ev('UserPromptSubmit'));
     const b = reduce(a, ev('Stop'));
     expect(b?.status).toBe('done_unseen');
     expect(reduce(b, ev('Ack'))?.status).toBe('idle');
   });
 
-  it('un Ack sur une session en cours ne change rien', () => {
+  it('an Ack on a working session changes nothing', () => {
     const a = reduce(undefined, ev('PreToolUse', { toolName: 'Bash' }));
     expect(reduce(a, ev('Ack'))?.status).toBe('running');
   });
 
-  it('SessionEnd garde la session, marquée terminée et à l arrêt', () => {
+  it('SessionEnd keeps the session, marked ended and idle', () => {
     const a = reduce(undefined, ev('SessionStart'));
     const b = reduce(a, ev('SessionEnd'));
     expect(b?.endedAt).toBe(b?.lastEventAt);
     expect(b?.status).toBe('idle');
   });
 
-  it('un hook en retard ne ressuscite pas une conversation terminée, mais garde ses effets cumulatifs', () => {
+  it('a late hook does not revive an ended conversation, but keeps its cumulative effects', () => {
     const a = reduce(undefined, ev('SessionStart'));
     const ended = reduce(a, ev('SessionEnd'));
     const stale = reduce(ended, ev('PostToolUse', { at: (ended?.lastEventAt ?? 0) - 5 }));
@@ -93,7 +93,7 @@ describe('reduce', () => {
     expect(stale?.toolCount).toBe(1);
   });
 
-  it('un SessionEnd en retard ne termine pas une conversation qui a parlé depuis (jumeau dans un autre éditeur)', () => {
+  it('a late SessionEnd does not end a conversation that has spoken since (a twin in another editor)', () => {
     const a = reduce(undefined, ev('SessionStart'));
     const b = reduce(a, ev('UserPromptSubmit'));
     const c = reduce(b, ev('SessionEnd', { at: (b?.lastEventAt ?? 0) - 5 }));
@@ -101,24 +101,24 @@ describe('reduce', () => {
     expect(c?.status).toBe('running');
   });
 
-  it('un Ack sur une session absente ne crée rien : seul un événement de hook fait naître une session', () => {
+  it('an Ack on a session that is not there creates nothing: only a hook event brings a session into being', () => {
     expect(reduce(undefined, ev('Ack'))).toBeUndefined();
   });
 
-  it('un événement en retard ne fait pas régresser le statut', () => {
+  it('a late event does not make the status regress', () => {
     const a = reduce(undefined, ev('Stop'));
     const late: SpoolEvent = { ...ev('UserPromptSubmit'), at: 1 };
     expect(reduce(a, late)?.status).toBe('done_unseen');
   });
 
-  it('mais ses effets cumulatifs comptent', () => {
+  it('but its cumulative effects count', () => {
     const a = reduce(undefined, ev('Stop'));
     const late: SpoolEvent = { ...ev('PostToolUse'), at: 1 };
     expect(reduce(a, late)?.toolCount).toBe(1);
     expect(reduce(a, late)?.lastEventAt).toBe(a?.lastEventAt);
   });
 
-  it('tient plusieurs sessions et un worktree', () => {
+  it('holds several sessions and a worktree', () => {
     const map = reduceAll([
       ev('SessionStart', { sessionId: 'a' }),
       ev('PreToolUse', { sessionId: 'b', cwd: '/Users/dev/projet/.worktrees/feat-seo' }),

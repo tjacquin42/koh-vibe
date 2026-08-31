@@ -8,7 +8,7 @@ const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle', 'st
 const ROOT = join(__dirname, '..');
 
 describe('statusIconPath', () => {
-  it('donne une paire light/dark à chaque statut, sans exception', () => {
+  it('gives every status a light/dark pair, with no exception', () => {
     for (const status of ALL) {
       const paths = statusIconPath('/ext', status);
       expect(paths.light, `statut ${status}`).toMatch(/\.svg$/);
@@ -17,12 +17,12 @@ describe('statusIconPath', () => {
     }
   });
 
-  it('ne donne jamais le même fichier à deux statuts différents', () => {
+  it('never gives the same file to two different statuses', () => {
     const seen = ALL.flatMap((s) => Object.values(statusIconPath('/ext', s)));
     expect(new Set(seen).size).toBe(seen.length);
   });
 
-  it('se range sous la racine du paquet qu on lui donne', () => {
+  it('sits under the package root it is given', () => {
     expect(statusIconPath('/ext', 'running').dark.startsWith(join('/ext', 'resources', STATUS_ICON_DIR))).toBe(true);
   });
 
@@ -30,7 +30,7 @@ describe('statusIconPath', () => {
   // une ligne SANS icône, et la pastille est le seul endroit où le statut se lit.
   // Un statut ajouté sans repasser par scripts/make-status-icons.cjs doit se
   // voir ici, pas dans la barre latérale de l utilisateur.
-  it('nomme des fichiers qui existent réellement dans le paquet', async () => {
+  it('names files that really exist in the package', async () => {
     for (const status of ALL) {
       const paths = statusIconPath(ROOT, status);
       for (const file of [paths.light, paths.dark]) {

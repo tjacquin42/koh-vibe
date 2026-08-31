@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs } from '../src/paths';
 
 describe('paths', () => {
-  it('utilise KOH_VIBE_HOME quand il est posé', () => {
+  it('uses KOH_VIBE_HOME when it is set', () => {
     expect(kohVibeHome({ KOH_VIBE_HOME: '/tmp/koh' })).toBe('/tmp/koh');
   });
 
-  it('retombe sur ~/.koh-vibe', () => {
+  it('falls back to ~/.koh-vibe', () => {
     expect(kohVibeHome({ HOME: '/Users/x' })).toBe('/Users/x/.koh-vibe');
   });
 
-  it('dérive les cinq sous-dossiers', () => {
+  it('derives the five subfolders', () => {
     expect(spoolDirs('/tmp/koh').events).toBe('/tmp/koh/events');
     expect(spoolDirs('/tmp/koh').sessions).toBe('/tmp/koh/sessions');
     expect(spoolDirs('/tmp/koh').requests).toBe('/tmp/koh/requests');
@@ -18,7 +18,7 @@ describe('paths', () => {
     expect(spoolDirs('/tmp/koh').backups).toBe('/tmp/koh/backups');
   });
 
-  it('place le classement en dossiers à la racine de l état', () => {
+  it('puts the folder filing at the root of the state', () => {
     expect(groupsFile('/tmp/koh')).toBe('/tmp/koh/groups.json');
   });
 

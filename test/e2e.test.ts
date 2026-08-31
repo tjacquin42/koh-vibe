@@ -86,8 +86,8 @@ afterEach(() => {
   rmSync(fakeHome, { recursive: true, force: true });
 });
 
-describe('bout en bout : installer → bridge → réduction → désinstaller', () => {
-  it('installe une copie stable et exécutable du bridge, référencée par les 8 hooks', () => {
+describe('end to end: install → bridge → reduction → uninstall', () => {
+  it('installs a stable, executable copy of the bridge, referenced by the 8 hooks', () => {
     runInstaller();
 
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
@@ -111,7 +111,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     );
   });
 
-  it('réinstalle sans se plaindre et écrase la copie du bridge en place', () => {
+  it('reinstalls without complaining and overwrites the bridge copy in place', () => {
     runInstaller();
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
     const firstRun = statSync(bridgeTarget).mtimeMs;
@@ -129,7 +129,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
   });
 
-  it('remplit le spool via le vrai bridge, puis réduit un statut, un projet et une action courante cohérents', async () => {
+  it('fills the spool through the real bridge, then reduces a coherent status, project and current action', async () => {
     runInstaller();
 
     runBridge('SessionStart', {
@@ -160,7 +160,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     expect(session?.currentAction).toEqual({ tool: 'Bash', target: 'pnpm test' });
   });
 
-  it('désinstalle et rend la configuration bidon strictement identique à son état de départ', () => {
+  it('uninstalls and leaves the dummy configuration strictly identical to how it started', () => {
     runInstaller();
     expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
 

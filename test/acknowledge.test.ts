@@ -42,8 +42,8 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-describe('acknowledgeVisibleSessions (I6, la moitié « vue affichée »)', () => {
-  it('acquitte uniquement les sessions terminées non lues que ces dossiers revendiquent', async () => {
+describe('acknowledgeVisibleSessions (I6, the "displayed view" half)', () => {
+  it('acknowledges only the unread finished sessions these folders claim', async () => {
     await writeSession(dirs, session({ id: 'claimed', cwd: '/Users/dev/projet', status: 'done_unseen' }));
     await writeSession(dirs, session({ id: 'foreign', cwd: '/Users/dev/autre-projet', status: 'done_unseen' }));
 
@@ -55,7 +55,7 @@ describe('acknowledgeVisibleSessions (I6, la moitié « vue affichée »)', () =
     expect(sessions.get('foreign')?.status).toBe('done_unseen'); // pas revendiquée, pas touchée
   });
 
-  it("n'acquitte pas une session revendiquée mais pas terminée non lue", async () => {
+  it('does not acknowledge a claimed session that is not an unread finished one', async () => {
     await writeSession(dirs, session({ id: 'running', cwd: '/Users/dev/projet', status: 'running' }));
 
     await acknowledgeVisibleSessions(dirs, ['/Users/dev/projet']);
@@ -64,7 +64,7 @@ describe('acknowledgeVisibleSessions (I6, la moitié « vue affichée »)', () =
     expect((await readSessions(dirs)).get('running')?.status).toBe('running');
   });
 
-  it("n'acquitte rien sans dossier ouvert", async () => {
+  it('acknowledges nothing when no folder is open', async () => {
     await writeSession(dirs, session({ id: 'a', cwd: '/Users/dev/projet', status: 'done_unseen' }));
 
     await acknowledgeVisibleSessions(dirs, []);
@@ -74,8 +74,8 @@ describe('acknowledgeVisibleSessions (I6, la moitié « vue affichée »)', () =
   });
 });
 
-describe('acknowledgeClickedSession (I6, la moitié « clic »)', () => {
-  it('acquitte la session cliquée inconditionnellement, même si aucune fenêtre ne la revendique', async () => {
+describe('acknowledgeClickedSession (I6, the "click" half)', () => {
+  it('acknowledges the clicked session unconditionally, even when no window claims it', async () => {
     await writeSession(dirs, session({ id: 's-cross', cwd: '/Users/dev/autre-projet', status: 'done_unseen' }));
 
     await acknowledgeClickedSession(dirs, { id: 's-cross', cwd: '/Users/dev/autre-projet' });
@@ -84,7 +84,7 @@ describe('acknowledgeClickedSession (I6, la moitié « clic »)', () => {
     expect((await readSessions(dirs)).get('s-cross')?.status).toBe('idle');
   });
 
-  it("un clic sur une session inconnue (déjà purgée) ne la recrée pas (I2, ordre respecté)", async () => {
+  it('a click on an unknown session (already purged) does not recreate it (I2, order kept)', async () => {
     await acknowledgeClickedSession(dirs, { id: 'fantome', cwd: '/Users/dev/projet' });
     await drain(dirs, 1);
 

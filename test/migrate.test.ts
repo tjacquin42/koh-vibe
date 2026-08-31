@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('migrateLegacyHome', () => {
-  it('reprend l état de l ancien nom quand le nouveau n existe pas', async () => {
+  it('takes over the state of the old name when the new one does not exist', async () => {
     seed(legacy(), 'mon classement');
     expect(await migrateLegacyHome(legacy(), home())).toBe('migrated');
     expect(readFileSync(join(home(), 'groups.json'), 'utf8')).toBe('mon classement');
@@ -31,7 +31,7 @@ describe('migrateLegacyHome', () => {
     expect(existsSync(legacy())).toBe(false);
   });
 
-  it('ne touche à rien quand le nouvel état existe déjà — il fait foi', async () => {
+  it('touches nothing when the new state already exists — it is the authority', async () => {
     seed(legacy(), 'ancien');
     seed(home(), 'récent');
     expect(await migrateLegacyHome(legacy(), home())).toBe('nothing');
@@ -40,12 +40,12 @@ describe('migrateLegacyHome', () => {
     expect(existsSync(legacy())).toBe(true);
   });
 
-  it('ne fait rien quand il n y a rien à reprendre', async () => {
+  it('does nothing when there is nothing to take over', async () => {
     expect(await migrateLegacyHome(legacy(), home())).toBe('nothing');
     expect(existsSync(home())).toBe(false);
   });
 
-  it('ne se déplace pas sur lui-même si les deux racines coïncident', async () => {
+  it('does not move onto itself when both roots coincide', async () => {
     seed(home(), 'inchangé');
     expect(await migrateLegacyHome(home(), home())).toBe('nothing');
     expect(readFileSync(join(home(), 'groups.json'), 'utf8')).toBe('inchangé');
@@ -53,12 +53,12 @@ describe('migrateLegacyHome', () => {
 });
 
 describe('legacyHome', () => {
-  it('désigne bien l ancien dossier', () => {
+  it('points at the old folder', () => {
     expect(legacyHome({ HOME: '/Users/dev' })).toBe('/Users/dev/.koh-claude');
     expect(kohVibeHome({ HOME: '/Users/dev' })).toBe('/Users/dev/.koh-vibe');
   });
 
-  it('suit son propre réglage d isolation, pour ne jamais viser le vrai dossier en test', () => {
+  it('follows its own isolation setting, so a test never targets the real folder', () => {
     expect(legacyHome({ HOME: '/Users/dev', KOH_VIBE_LEGACY_HOME: '/tmp/faux' })).toBe('/tmp/faux');
   });
 });

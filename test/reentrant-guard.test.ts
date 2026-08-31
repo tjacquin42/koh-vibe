@@ -8,7 +8,7 @@ import { ReentrantGuard } from '../src/lib/reentrant-guard';
 const NEVER_TIMES_OUT_MS = 1_000_000;
 
 describe('ReentrantGuard', () => {
-  it('ignore un déclenchement pendant qu un appel est déjà en vol', async () => {
+  it('ignores a trigger while a call is already in flight', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let inFlight = false;
     let concurrentCalls = 0;
@@ -31,7 +31,7 @@ describe('ReentrantGuard', () => {
     expect(guard.running).toBe(false);
   });
 
-  it('exécute normalement quand aucun appel n est en vol', async () => {
+  it('runs normally when no call is in flight', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let calls = 0;
     await guard.run(async () => {
@@ -41,7 +41,7 @@ describe('ReentrantGuard', () => {
     expect(guard.running).toBe(false);
   });
 
-  it('retombe sur running=false après une exécution, permettant le prochain appel', async () => {
+  it('falls back to running=false after a run, allowing the next call', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let calls = 0;
     await guard.run(async () => {
@@ -53,7 +53,7 @@ describe('ReentrantGuard', () => {
     expect(calls).toBe(2);
   });
 
-  it('avale une erreur via onError plutôt que de la laisser remonter en rejet non géré', async () => {
+  it('swallows an error through onError rather than letting it surface as an unhandled rejection', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     const errors: unknown[] = [];
     const boom = new Error('panne');
@@ -67,7 +67,7 @@ describe('ReentrantGuard', () => {
     expect(errors).toEqual([boom]);
   });
 
-  it('remet running à false après une erreur : l appel suivant n est pas bloqué', async () => {
+  it('sets running back to false after an error: the next call is not blocked', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     await guard.run(async () => {
       throw new Error('panne');
@@ -82,7 +82,7 @@ describe('ReentrantGuard', () => {
     expect(ranAfter).toBe(true);
   });
 
-  it('un déclenchement pendant une exécution en vol ne fait pas perdre le travail : rejouable ensuite', async () => {
+  it('a trigger during a run in flight loses no work: it can be replayed afterwards', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     const done: string[] = [];
 
@@ -113,12 +113,12 @@ describe('ReentrantGuard', () => {
     expect(done).toEqual(['premier', 'troisième']);
   });
 
-  describe('borne dans le temps (N2)', () => {
+  describe('bounded in time (N2)', () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('relâche la garde et signale une fois si fn ne se règle jamais avant le délai', async () => {
+    it('releases the guard and reports once when fn never settles before the delay', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
@@ -138,7 +138,7 @@ describe('ReentrantGuard', () => {
       expect(errors[0]).toBeInstanceOf(Error);
     });
 
-    it("passe à fn un signal dont abandoned devient true au moment du dépassement de délai, pas avant", async () => {
+    it('hands fn a signal whose abandoned turns true at the moment the delay is exceeded, not before', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const observedBeforeTimeout: boolean[] = [];
@@ -164,7 +164,7 @@ describe('ReentrantGuard', () => {
       expect(observedAfterTimeout).toBe(true); // la même référence de signal reflète l'abandon après coup
     });
 
-    it('deux passages concurrents après un dépassement de délai : accepté, comme deux fenêtres qui drainent en même temps', async () => {
+    it('two concurrent passes after a timeout: accepted, like two windows draining at once', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const order: string[] = [];
@@ -182,7 +182,7 @@ describe('ReentrantGuard', () => {
       expect(order).toEqual(['second appel, après le délai du premier']);
     });
 
-    it("l'exécution abandonnée qui finit par rejeter plus tard n'est pas un rejet non géré : onError la rattrape aussi", async () => {
+    it('the abandoned run that rejects later is not an unhandled rejection: onError catches it too', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
@@ -208,7 +208,7 @@ describe('ReentrantGuard', () => {
       expect(errors).toHaveLength(2);
     });
 
-    it("l'exécution abandonnée qui finit par réussir plus tard ne déclenche pas de second signalement", async () => {
+    it('the abandoned run that succeeds later does not trigger a second report', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
@@ -230,7 +230,7 @@ describe('ReentrantGuard', () => {
       expect(errors).toHaveLength(1); // toujours un seul, la réussite tardive ne signale rien
     });
 
-    it('ne déclenche pas le délai quand fn se règle largement avant', async () => {
+    it('does not trip the delay when fn settles well before it', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
