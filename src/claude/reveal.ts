@@ -57,6 +57,33 @@ export function locateClaudeTab(
   return undefined;
 }
 
+/**
+ * The conversation a tab belongs to — `locateClaudeTab` read backwards.
+ *
+ * A click in the editor has to select the matching row in the dashboard, and
+ * the memento is the only table that ties a tab to a conversation: nothing on
+ * a `Tab` carries a session id.
+ *
+ * The same two steps, and the same refusal to guess. The memento's own
+ * position is trusted when a Claude tab of that title still sits there;
+ * failing that, a title that belongs to ONE conversation in the memento
+ * identifies it wherever the tab has moved. Two conversations of one title —
+ * untitled ones all read "Claude Code" — cannot be told apart, and selecting
+ * the wrong row is worse than selecting none.
+ */
+export function sessionOfClaudeTab(
+  memento: readonly MementoTab[],
+  groups: readonly GroupLike[],
+  at: TabPosition,
+): string | undefined {
+  const tab = groups[at.group]?.tabs[at.index];
+  if (tab === undefined || !isClaudeTab(tab)) return undefined;
+  const here = memento.find((t) => t.group === at.group && t.index === at.index && t.title === tab.label);
+  if (here !== undefined) return here.sessionId;
+  const owners = new Set(memento.filter((t) => t.title === tab.label).map((t) => t.sessionId));
+  return owners.size === 1 ? [...owners][0] : undefined;
+}
+
 const FOCUS_GROUP: readonly string[] = [
   'workbench.action.focusFirstEditorGroup',
   'workbench.action.focusSecondEditorGroup',

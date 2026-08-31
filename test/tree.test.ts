@@ -824,3 +824,49 @@ describe('SessionsTree — a row says what can be done to it', () => {
     for (const value of await contextsUnder(t)) expect(value).toMatch(/^session/);
   });
 });
+
+// `TreeView.reveal` walks up with `getParent`, so selecting a row from the
+// editor side needs it. `nodeFor` is the other half: the caller names a
+// conversation, not a node shape.
+describe('SessionsTree — reaching a row from outside', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const filed = (): SessionsTree => {
+    const t = make();
+    t.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
+    t.setGroups(
+      groups({ groups: [{ id: 'g1', name: 'Dossier', order: 0 }], assignments: { s1: 'g1' } }),
+    );
+    return t;
+  };
+
+  it('names the folder a conversation sits in', () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s1') });
+    expect(parent === undefined ? undefined : nodeId(parent)).toBe('group:g1');
+  });
+
+  it('names the unfiled bucket for a conversation in no folder', () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s2') });
+    expect(parent === undefined ? undefined : nodeId(parent)).toBe('group:unfiled');
+  });
+
+  it('hands back a folder carrying its real children, not an empty shell', async () => {
+    const t = filed();
+    const parent = t.getParent({ kind: 'session', session: session('s1') });
+    expect(await t.getChildren(parent)).toHaveLength(1);
+  });
+
+  it('gives a folder no parent — it already sits at the root', () => {
+    const t = filed();
+    expect(t.getParent({ kind: 'group', group: undefined, sessions: [] })).toBeUndefined();
+  });
+
+  it('finds the node of a conversation it is showing, and only of one it shows', () => {
+    const t = filed();
+    const node = t.nodeFor('s1');
+    expect(node === undefined ? undefined : nodeId(node)).toBe('session:s1');
+    expect(t.nodeFor('nowhere')).toBeUndefined();
+  });
+});

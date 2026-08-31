@@ -9,7 +9,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { locateClaudeTab, revealTabAt, type TabPosition } from './claude/reveal';
+import { locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
@@ -764,6 +764,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void rescan().then(() => render());
   });
 
+  /**
+   * Le geste inverse du clic sur une ligne : l'onglet que l'utilisateur vient
+   * de choisir désigne sa conversation dans le tableau de bord.
+   *
+   * `select` sans `focus` : le curseur doit rester là où on tape. Montrer où
+   * l'on est est tout l'intérêt ; voler le clavier à chaque changement
+   * d'onglet n'en est pas un.
+   *
+   * Rien n'arrive quand l'onglet actif n'est pas une conversation, ni quand le
+   * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
+   * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
+   */
+  let lastRevealed: string | undefined;
+  const revealActiveSession = (): void => {
+    // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
+    if (!view.visible) return;
+    const groups = vscode.window.tabGroups.all;
+    const group = groups.indexOf(vscode.window.tabGroups.activeTabGroup);
+    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const index = active === undefined ? -1 : vscode.window.tabGroups.activeTabGroup.tabs.indexOf(active);
+    const id = group < 0 || index < 0 ? undefined : sessionOfClaudeTab(mementoTabs, groups, { group, index });
+    if (id === undefined) {
+      // Repartir de zéro : revenir sur l'onglet après un détour par un fichier
+      // doit re-sélectionner sa ligne, même si rien n'a bougé entre-temps.
+      lastRevealed = undefined;
+      return;
+    }
+    if (id === lastRevealed) return;
+    const node = tree.nodeFor(id);
+    if (node === undefined) return;
+    lastRevealed = id;
+    void view.reveal(node, { select: true, focus: false }).then(undefined, () => undefined);
+  };
+  const onActiveTab = vscode.window.tabGroups.onDidChangeTabs(revealActiveSession);
+  // Changer de groupe d'éditeurs change l'onglet actif sans qu'aucun onglet ne
+  // change : les deux événements sont nécessaires.
+  const onActiveGroup = vscode.window.tabGroups.onDidChangeTabGroups(revealActiveSession);
+  // Et la vue qui s'ouvre : ce qui était actif avant qu'elle soit visible n'a
+  // déclenché aucun événement.
+  const onViewVisible = view.onDidChangeVisibility(() => revealActiveSession());
+
   // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
   // avoir n'importe quel répertoire courant, le script n'en dépend pas.
   const installScript = join(context.extensionPath, 'scripts', 'install-hooks.cjs');
@@ -780,6 +821,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: () => vanish.dispose() },
     { dispose: () => reopening.dispose() },
     onTabs,
+    onActiveTab,
+    onActiveGroup,
+    onViewVisible,
     // Refresh does two things: it brings back every live conversation the
     // spool has lost, then renders. It says so only when it found something —
     // a refresh that changes nothing has nothing to announce.

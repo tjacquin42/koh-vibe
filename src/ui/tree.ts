@@ -358,6 +358,36 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     return this.ordered(sessions, groupId).map((s) => s.id);
   }
 
+  /**
+   * Le parent d'une ligne, exigé par `TreeView.reveal` : VSCode remonte
+   * jusqu'à la racine pour déplier ce qu'il faut avant de sélectionner.
+   *
+   * Le dossier est reconstruit avec SES sessions, pas rendu en coquille vide :
+   * VSCode peut redemander les enfants du parent qu'on lui donne, et un dossier
+   * sans contenu replierait la vue au lieu de l'ouvrir. Le filtrage et le tri
+   * sont exactement ceux de `getChildren` — les deux ne doivent jamais diverger.
+   */
+  getParent(node: TreeNode): TreeNode | undefined {
+    if (node.kind !== 'session') return undefined;
+    const id = this.groupOfSession(node.session.id);
+    const group = id === undefined ? undefined : this.groups.groups.find((g) => g.id === id);
+    const sessions = this.ordered(
+      this.sessions.filter((s) => this.groupOfSession(s.id) === id),
+      id,
+    );
+    return { kind: 'group', group, sessions };
+  }
+
+  /**
+   * La ligne d'une conversation, nommée par son identifiant. Ce qui appelle —
+   * l'onglet actif, côté éditeur — connaît une session, pas la forme des nœuds
+   * de cet arbre, et n'a pas à l'apprendre.
+   */
+  nodeFor(sessionId: string): TreeNode | undefined {
+    const session = this.sessions.find((s) => s.id === sessionId);
+    return session === undefined ? undefined : { kind: 'session', session };
+  }
+
   async getChildren(node?: TreeNode): Promise<TreeNode[]> {
     if (node === undefined) {
       if (this.sessions.length === 0) {
