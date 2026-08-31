@@ -50,12 +50,16 @@ const PALETTE = {
   // now, rather than as one that failed to render.
   idle: { dark: ['#CCCCCC', 1], light: ['#5F5F5F', 1], glow: 0.22 },
   // Not a status but a tone: an ended conversation, or a tab nobody has woken.
-  // Deliberately IDENTICAL to `idle`, opacity included. The row already says it
-  // is over — the decoration provider greys its label (ui/tree.ts) — so a
-  // second, dimmer grey in the dot said the same thing twice, and said it so
-  // faintly that the two greys read as a rendering accident rather than as a
-  // distinction. One grey, one meaning: nothing is running here.
-  ended: { dark: ['#CCCCCC', 1], light: ['#5F5F5F', 1], glow: 0.22 },
+  //
+  // Far dimmer than `idle`, and the two must stay far apart — a closed row and
+  // a quiet one are not the same thing, and the dot is what says so at a
+  // glance. Dimmer means DARKER on a dark theme and LIGHTER on a light one:
+  // what matters is distance from the foreground, not the hex going down.
+  //
+  // Full opacity all the same, like `idle`. The dimming is carried by the
+  // colour itself rather than by an alpha channel, so the dot never reads as
+  // one that failed to render — the defect a 0.3 alpha produced.
+  ended: { dark: ['#6E6E6E', 1], light: ['#A8A8A8', 1], glow: 0.12 },
 };
 
 /**
