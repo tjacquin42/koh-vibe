@@ -30,7 +30,7 @@ import { UsageView } from './ui/usage-view';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions, removeSession } from './spool/persist';
+import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
@@ -49,8 +49,8 @@ import { readBuildStamp, versionLabel } from './ui/version';
 import { sessionLabel } from './ui/labels';
 import { FocusBroker } from './focus/broker';
 import { acknowledgeClickedSession, acknowledgeVisibleSessions } from './focus/acknowledge';
-import { closeSessionHere, requestCloseSession } from './close/close';
-import { claudeTabsOf, closeSessionTab, vscodeTabs } from './close/tabs';
+import { closeSessionHere, needsConfirmation, requestCloseSession, sleepSessionHere } from './close/close';
+import { claudeTabsOf, closeSessionTab, vscodeTabs, type CloseOutcome } from './close/tabs';
 import { countKohEntries } from './hooks/installer';
 import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
@@ -652,27 +652,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await render();
   };
 
+  /** Reading a row for either gesture: the spool first, then this window's dormant tabs. */
+  const readForClose = async (i: string): Promise<Session | undefined> => (await readSession(dirs, i)) ?? dormant.get(i);
+
+  /**
+   * Closing the tab itself — the one step the trash and the moon share, and
+   * the only one. What follows differs entirely (close/close.ts), which is why
+   * this sits apart rather than being written twice.
+   */
+  const closeTabHere = (i: string): Promise<CloseOutcome> =>
+    closeSessionTab(i, {
+      ...vscodeTabs(),
+      // A tab this window can tell apart is closed directly. The
+      // reveal-then-close road is for the others — and never for a
+      // dormant tab: the command would open a second, or a blank, one.
+      locate: (sessionId) => locateSessionTab(sessionId)?.tab,
+      reveal: async (sessionId) => {
+        if (dormant.has(sessionId)) throw new Error('restored tab not found');
+        await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
+      },
+    });
+
   const broker = new FocusBroker(
     dirs,
     {
       closeHere: (id) =>
-        closeSessionHere(id, {
-          read: async (i) => (await readSession(dirs, i)) ?? dormant.get(i),
-          closeTab: (i) =>
-            closeSessionTab(i, {
-              ...vscodeTabs(),
-              // A tab this window can tell apart is closed directly. The
-              // reveal-then-close road is for the others — and never for a
-              // dormant tab: the command would open a second, or a blank, one.
-              locate: (sessionId) => locateSessionTab(sessionId)?.tab,
-              reveal: async (sessionId) => {
-                if (dormant.has(sessionId)) throw new Error('restored tab not found');
-                await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
-              },
-            }),
-          archive,
-          forget,
-          remove,
+        closeSessionHere(id, { read: readForClose, closeTab: closeTabHere, archive, forget, remove }),
+      sleepHere: (id) =>
+        sleepSessionHere(id, {
+          read: readForClose,
+          closeTab: closeTabHere,
+          // Written, not hidden: the greyed row has to survive this window
+          // closing. A dormant tab has no state file at all — writing one is
+          // what keeps its row on the list once its tab is gone.
+          markEnded: async (s, at) => {
+            await writeSession(dirs, { ...s, endedAt: at });
+            dormant.delete(s.id);
+            await render();
+          },
+          now: Date.now,
         }),
       forget,
     },
@@ -802,6 +820,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // acknowledgeClickedSession est testée directement, comme sa jumelle.
       void acknowledgeClickedSession(dirs, s).catch(() => undefined);
       void broker.request(s).catch(() => undefined);
+    }),
+    /**
+     * The moon: closes the tab and leaves the conversation on the dashboard.
+     *
+     * The confirmation is the trash's, word for word in intent, because the
+     * act underneath is the same one: closing a tab ends the conversation
+     * behind it (close/close.ts). What the moon promises is about the ROW, not
+     * about the agent — it stays in its folder, greyed, and a click reopens
+     * it. Promising more would be a lie the first time someone put a working
+     * conversation to sleep and found it stopped.
+     */
+    vscode.commands.registerCommand('kohVibe.sleepSession', async (node: unknown) => {
+      const id = sessionIdOfNode(node);
+      if (id === undefined) return;
+      const s = await readForClose(id);
+      // Already asleep, or gone: the menu should not even have offered this.
+      if (s === undefined || s.endedAt !== undefined) return;
+      if (
+        needsConfirmation(s.status) &&
+        (await vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Put « {0} » to sleep? This conversation is still active — closing its tab ends it.',
+            sessionLabel(s),
+          ),
+          { modal: true },
+          vscode.l10n.t('Put to sleep'),
+        )) === undefined
+      ) {
+        return;
+      }
+      await broker.requestSleep(s).catch(() => {
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', sessionLabel(s)),
+        );
+      });
     }),
     /**
      * The trash on a live conversation. The three-part decision — nothing to

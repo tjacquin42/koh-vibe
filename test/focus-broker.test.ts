@@ -32,6 +32,7 @@ let brokers: FocusBroker[];
 
 interface CloseCalls {
   closeHere: string[];
+  sleepHere: string[];
   forget: string[];
 }
 
@@ -45,6 +46,9 @@ function makeBroker(): FocusBroker {
     {
       closeHere: async (id: string) => {
         closeCalls.closeHere.push(id);
+      },
+      sleepHere: async (id: string) => {
+        closeCalls.sleepHere.push(id);
       },
       forget: async (id: string) => {
         closeCalls.forget.push(id);
@@ -76,7 +80,7 @@ beforeEach(async () => {
   setWorkspaceFolders(undefined);
   vi.restoreAllMocks();
   brokers = [];
-  closeCalls = { closeHere: [], forget: [] };
+  closeCalls = { closeHere: [], sleepHere: [], forget: [] };
 });
 
 afterEach(() => {
@@ -475,6 +479,7 @@ describe('requestClose', () => {
       closeHere: async () => {
         throw new Error('archive write failed');
       },
+      sleepHere: async () => undefined,
       forget: async () => undefined,
     }, async () => true);
     brokers.push(failing);

@@ -25,6 +25,7 @@
   "command.kohVibe.soundSession.done.title": "Conversation sound when it finishes",
   "command.kohVibe.forgetSession.title": "Remove from the list",
   "command.kohVibe.copySessionId.title": "Copy conversation ID",
+  "command.kohVibe.sleepSession.title": "Put to sleep",
   "command.kohVibe.closeSession.title": "Close conversation",
   "command.kohVibe.refreshUsage.title": "Refresh usage",
   "view.kohVibe.closed.name": "Recently closed",

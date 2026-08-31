@@ -379,7 +379,30 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       }
       return withSpacers(nodes);
     }
-    if (node.kind === 'group') return node.sessions.map((session) => ({ kind: 'session', session }));
+    if (node.kind === 'group') {
+      // Deux blocs dans un dossier : ce qui est éveillé, puis ce qui dort.
+      // `compareSessions` les a déjà rangés dans cet ordre ; il ne manquait que
+      // la respiration entre les deux, sans laquelle une conversation grisée se
+      // lit comme la suite de la liste vivante. Le séparateur porte l'id du
+      // dossier : VSCode distingue les lignes par leur identité, et deux
+      // séparateurs identiques se marcheraient dessus au rafraîchissement —
+      // même raison que dans `withSpacers`.
+      const rows: TreeNode[] = [];
+      let awake = false;
+      let broken = false;
+      for (const session of node.sessions) {
+        if (session.endedAt === undefined) awake = true;
+        // La coupure marque le PASSAGE de l'éveillé à l'endormi, pas la simple
+        // présence d'une ligne au-dessus : un dossier entièrement endormi n'a
+        // aucune frontière à montrer.
+        else if (!broken && awake) {
+          rows.push({ kind: 'spacer', after: `asleep:${node.group?.id ?? 'unfiled'}` });
+          broken = true;
+        }
+        rows.push({ kind: 'session', session });
+      }
+      return rows;
+    }
     return [];
   }
 
@@ -432,7 +455,15 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     item.id = nodeId(node);
     item.description = sessionDescription(s, now);
     item.tooltip = sessionTooltip(s, now);
-    item.contextValue = 'session';
+    // Trois valeurs, parce que trois lignes n'offrent pas les mêmes gestes. La
+    // lune ferme un onglet : elle n'a de sens que sur une conversation vivante
+    // ISSUE D'UN ÉDITEUR — `closePlan` (close/plan.ts) ne reconnaît d'onglet
+    // qu'à `vscode`. Une ligne grisée n'a plus d'onglet, une conversation de
+    // terminal n'en a jamais eu : ni l'une ni l'autre ne doit montrer un bouton
+    // qui ne ferait rien. Le préfixe commun laisse les menus partagés — sons,
+    // retirer, corbeille, copier l'ID — cibler les trois d'un seul `=~`.
+    item.contextValue =
+      s.endedAt !== undefined ? 'sessionAsleep' : s.origin === 'vscode' ? 'session' : 'sessionNoTab';
     item.accessibilityInformation = { label: `${sessionLabel(s)}, ${statusLabel(s.status)}` };
     // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
     // chemins. La conversion reste ici pour que statusIconPath() n'ait pas

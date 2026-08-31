@@ -683,3 +683,89 @@ describe('SessionsTree — a row being brought back', () => {
     expect(fired).toBe(2);
   });
 });
+
+// The awake block and the asleep block, inside one folder. Closing a tab ends
+// its conversation and the row stays, greyed (settings « persistent ») — but
+// until now it sat flush against the live ones, and the eye had nothing to
+// break on.
+describe('a folder separates what is awake from what is asleep', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const kindsUnder = async (t: SessionsTree): Promise<string[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group)).map((n) => n.kind);
+  };
+
+  it('slips one blank line between the open conversations and the greyed ones', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['a', session('a')],
+        ['b', session('b', { endedAt: 10 })],
+        ['c', session('c')],
+        ['d', session('d', { endedAt: 20 })],
+      ]),
+    );
+    expect(await kindsUnder(t)).toEqual(['session', 'session', 'spacer', 'session', 'session']);
+  });
+
+  it('breaks nothing when every conversation is awake — a single block has nothing to separate', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['c', session('c')]]));
+    expect(await kindsUnder(t)).toEqual(['session', 'session']);
+  });
+
+  it('breaks nothing when every conversation is asleep, for the same reason', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a', { endedAt: 10 })], ['c', session('c', { endedAt: 20 })]]));
+    expect(await kindsUnder(t)).toEqual(['session', 'session']);
+  });
+
+  it('gives each folder its own separator, which VSCode tells apart by id', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    const [group] = await t.getChildren();
+    const spacer = (await t.getChildren(group)).find((n) => n.kind === 'spacer');
+    expect(spacer).toBeDefined();
+    expect(nodeId(spacer!)).toContain('unfiled');
+  });
+});
+
+// The context value is what a menu entry can see of a row. Three of them,
+// because three rows offer three different gestures: the moon needs a tab to
+// close, so it belongs to a live conversation started from an editor — and to
+// no other.
+describe('SessionsTree — a row says what can be done to it', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const contextsUnder = async (t: SessionsTree): Promise<(string | undefined)[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group))
+      .filter((n) => n.kind === 'session')
+      .map((n) => t.getTreeItem(n).contextValue);
+  };
+
+  it('marks a greyed row apart, so the moon can stay off it', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    expect(await contextsUnder(t)).toEqual(['session', 'sessionAsleep']);
+  });
+
+  it('marks a live conversation that has no tab apart too — nothing to put to sleep there', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a', { origin: 'terminal' })]]));
+    expect(await contextsUnder(t)).toEqual(['sessionNoTab']);
+  });
+
+  it('keeps every one of them under the same prefix, so the shared menus still match', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['a', session('a')],
+        ['b', session('b', { endedAt: 10 })],
+        ['c', session('c', { origin: 'desktop' })],
+      ]),
+    );
+    for (const value of await contextsUnder(t)) expect(value).toMatch(/^session/);
+  });
+});

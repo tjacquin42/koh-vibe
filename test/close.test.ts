@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   closeSessionHere,
   needsConfirmation,
   requestCloseSession,
+  sleepSessionHere,
   type CloseHereDeps,
   type RequestCloseDeps,
+  type SleepHereDeps,
 } from '../src/close/close';
 import type { Session } from '../src/events/types';
 
@@ -149,5 +151,54 @@ describe('closeSessionHere', () => {
     await closeSessionHere('s1', hereDeps(c, { read: async () => undefined }));
 
     expect(c.log).toEqual(['forget']);
+  });
+});
+
+// Sleeping is the trash's quieter twin. The trash ends a conversation and
+// takes its row away, filing it under "recently closed"; the moon closes the
+// tab and leaves the row exactly where it was, greyed. Nothing is archived:
+// the conversation has not left the dashboard, and an entry in the history
+// would show it in two places at once.
+describe('sleepSessionHere — closes the tab and keeps the row', () => {
+  const deps = (over: Partial<SleepHereDeps> = {}): SleepHereDeps => ({
+    read: async () => session(),
+    closeTab: async () => 'closed',
+    markEnded: async () => undefined,
+    now: () => 1_000,
+    ...over,
+  });
+
+  it('closes the tab, then greys the row where it stands', async () => {
+    const calls: string[] = [];
+    await sleepSessionHere('s1', deps({
+      closeTab: async () => {
+        calls.push('closeTab');
+        return 'closed';
+      },
+      markEnded: async (s, at) => {
+        calls.push(`markEnded:${s.id}:${at}`);
+      },
+    }));
+    expect(calls).toEqual(['closeTab', 'markEnded:s1:1000']);
+  });
+
+  it('greys nothing when no tab was found — nothing was closed, so nothing ended', async () => {
+    const markEnded = vi.fn();
+    await sleepSessionHere('s1', deps({ closeTab: async () => 'notFound', markEnded }));
+    expect(markEnded).not.toHaveBeenCalled();
+  });
+
+  it('touches no tab for a conversation already asleep', async () => {
+    const closeTab = vi.fn();
+    await sleepSessionHere('s1', deps({ read: async () => session({ endedAt: 5 }), closeTab }));
+    expect(closeTab).not.toHaveBeenCalled();
+  });
+
+  it('does nothing at all when the state file has already gone', async () => {
+    const closeTab = vi.fn();
+    const markEnded = vi.fn();
+    await sleepSessionHere('s1', deps({ read: async () => undefined, closeTab, markEnded }));
+    expect(closeTab).not.toHaveBeenCalled();
+    expect(markEnded).not.toHaveBeenCalled();
   });
 });

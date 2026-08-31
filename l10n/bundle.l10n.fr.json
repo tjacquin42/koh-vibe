@@ -121,5 +121,9 @@
   "{0} — this conversation": "{0} — cette conversation",
   "{0} — this folder": "{0} — ce dossier",
   "{0}, by {1} — {2}, so free for any use.\nAround 2 MB downloaded once (3 MB on disk), placed in {3}, and removable in one click.": "{0}, par {1} — {2}, donc libres de tout usage.\nEnviron 2 Mo téléchargés une seule fois (3 Mo sur le disque), posés dans {3}, et retirables d'un geste.",
-  "Koh-Vibe: conversation ID copied": "Koh-Vibe : ID de la conversation copié"
+  "Koh-Vibe: conversation ID copied": "Koh-Vibe : ID de la conversation copié",
+  "Koh-Vibe: no window holds « {0} » — no tab to put to sleep.": "Koh-Vibe : aucune fenêtre ne détient « {0} » — aucun onglet à mettre en veille.",
+  "Koh-Vibe: could not put « {0} » to sleep.": "Koh-Vibe : « {0} » n’a pas pu être mise en veille.",
+  "Put « {0} » to sleep? This conversation is still active — closing its tab ends it.": "Mettre « {0} » en veille ? Cette conversation est encore active — fermer son onglet y met fin.",
+  "Put to sleep": "Mettre en veille"
 }
