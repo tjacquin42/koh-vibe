@@ -59,7 +59,7 @@ const PALETTE = {
   // Full opacity all the same, like `idle`. The dimming is carried by the
   // colour itself rather than by an alpha channel, so the dot never reads as
   // one that failed to render — the defect a 0.3 alpha produced.
-  ended: { dark: ['#6E6E6E', 1], light: ['#A8A8A8', 1], glow: 0.12 },
+  ended: { dark: ['#5A5A5A', 1], light: ['#B6B6B6', 1], glow: 0.1 },
 };
 
 /**
