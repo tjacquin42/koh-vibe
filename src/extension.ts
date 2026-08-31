@@ -725,6 +725,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       forget,
     },
     listed,
+    (sessionId) => {
+      pendingOpen = { id: sessionId, at: Date.now() };
+    },
   );
 
   const watcher = new SpoolWatcher(
@@ -786,15 +789,56 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
    * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
    */
+  /**
+   * Les onglets que CETTE fenêtre a elle-même fait ouvrir, retenus au vol.
+   *
+   * Le mémento de l'éditeur est la seule table qui relie un onglet à sa
+   * conversation, mais c'est de l'état persisté : il ignore un onglet tout
+   * juste rouvert, ni par sa position ni par son titre. Après un redémarrage
+   * il les connaît tous — d'où un focus qui marchait au redémarrage et jamais
+   * sur une réouverture.
+   *
+   * Ce que l'on retient ici a la même forme qu'une entrée de mémento, et vient
+   * simplement AVANT elle : `sessionOfClaudeTab` vérifie de toute façon que la
+   * position porte encore un onglet Claude de ce titre, et se rabat sinon sur
+   * un titre qui n'appartient qu'à une conversation. Une entrée périmée — le
+   * titre change quand la conversation en gagne un — ne désigne donc jamais le
+   * mauvais onglet : elle cesse simplement de correspondre.
+   */
+  const openedHere = new Map<string, ClaudeTab>();
+  // La conversation dont on vient de demander l'onglet, en attente de le voir
+  // apparaître. `undefined` dès qu'elle a été reconnue.
+  let pendingOpen: { id: string; at: number } | undefined;
+  const PENDING_OPEN_MS = 15_000;
   let lastRevealed: string | undefined;
   const revealActiveSession = (): void => {
     // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
     if (!view.visible) return;
     const groups = vscode.window.tabGroups.all;
     const group = groups.indexOf(vscode.window.tabGroups.activeTabGroup);
+    const current = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const index = current === undefined ? -1 : vscode.window.tabGroups.activeTabGroup.tabs.indexOf(current);
+    // Ce qu'on a ouvert soi-même d'abord, le mémento ensuite — dédoublonné par
+    // session, pour qu'une entrée fraîche remplace la sienne plutôt que de la
+    // concurrencer et de créer une fausse ambiguïté.
+    const tabs = [...openedHere.values(), ...mementoTabs.filter((m) => !openedHere.has(m.sessionId))];
+    let id = group < 0 || index < 0 ? undefined : sessionOfClaudeTab(tabs, groups, { group, index });
     const active = vscode.window.tabGroups.activeTabGroup.activeTab;
-    const index = active === undefined ? -1 : vscode.window.tabGroups.activeTabGroup.tabs.indexOf(active);
-    const id = group < 0 || index < 0 ? undefined : sessionOfClaudeTab(mementoTabs, groups, { group, index });
+    if (id === undefined && pendingOpen !== undefined && group >= 0 && index >= 0) {
+      // L'onglet qu'on attendait vient d'apparaître : c'est ici, et seulement
+      // ici, qu'on peut le nommer. Périmé passé quelques secondes — au-delà,
+      // l'onglet actif n'a plus de raison d'être celui qu'on avait demandé.
+      if (Date.now() - pendingOpen.at <= PENDING_OPEN_MS && active !== undefined) {
+        const learned: ClaudeTab = { sessionId: pendingOpen.id, title: active.label, group, index };
+        // Vérifié plutôt que supposé : la position doit bien porter un onglet
+        // Claude de ce titre, ce que `sessionOfClaudeTab` sait dire.
+        if (sessionOfClaudeTab([learned], groups, { group, index }) === pendingOpen.id) {
+          openedHere.set(pendingOpen.id, learned);
+          id = pendingOpen.id;
+        }
+      }
+      pendingOpen = undefined;
+    }
     if (id === undefined) {
       // Repartir de zéro : revenir sur l'onglet après un détour par un fichier
       // doit re-sélectionner sa ligne, même si rien n'a bougé entre-temps.

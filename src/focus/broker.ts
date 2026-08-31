@@ -60,6 +60,16 @@ export class FocusBroker {
     // claude/listed.ts. Asked right before the editor command runs, here or in
     // the window a request travels to: the answer depends on the window.
     private readonly listed: (sessionId: string) => Promise<boolean>,
+    /**
+     * Signale la conversation dont on vient de demander l'onglet à Claude Code.
+     *
+     * C'est le seul instant où cette fenêtre sait à coup sûr à quelle session
+     * appartient l'onglet qui va apparaître : le mémento de l'éditeur, seule
+     * table qui fait ce lien, est de l'état persisté et ignore encore un onglet
+     * tout juste ouvert. Optionnel — le courtier fonctionne sans, et ses tests
+     * s'en passent.
+     */
+    private readonly onOpened?: (sessionId: string) => void,
   ) {}
 
   private folders(): string[] {
@@ -234,6 +244,11 @@ export class FocusBroker {
     }
     try {
       await vscode.commands.executeCommand(plan.command, ...plan.args);
+      // `args[0]` est l'identifiant pour `claude-vscode.editor.open`, la seule
+      // commande qui désigne une conversation. Annoncé APRÈS coup : un échec
+      // n'ouvre aucun onglet, et il n'y aurait rien à apprendre.
+      const opened = plan.args[0];
+      if (typeof opened === 'string') this.onOpened?.(opened);
     } catch {
       // Un avertissement par session d'extension suffit : répété à chaque
       // clic, il devient du bruit qu'on apprend à ignorer. Un par geste, pas

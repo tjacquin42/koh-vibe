@@ -122,3 +122,32 @@ describe('sessionOfClaudeTab — whose conversation is the tab under the cursor'
     expect(sessionOfClaudeTab(memento, fresh, { group: 0, index: 0 })).toBeUndefined();
   });
 });
+
+// Ce que la fenêtre a ouvert elle-même passe devant le mémento : celui-ci est
+// de l'état persisté et ignore un onglet tout juste rouvert. Rien de spécial
+// n'est ajouté à la fonction pour cela — une entrée retenue au vol a la même
+// forme, et vient simplement en tête de la liste.
+describe('sessionOfClaudeTab — une entrée fraîche devant un mémento en retard', () => {
+  const groups: GroupLike[] = [{ tabs: [claude('Ancien onglet'), claude('Rouverte à l instant')] }];
+  // Le mémento décrit encore la disposition d'avant la réouverture.
+  const stale: MementoTab[] = [{ sessionId: 's-ancienne', title: 'Ancien onglet', group: 0, index: 1 }];
+
+  it('ne sait rien de l onglet rouvert tant que le mémento seul parle', () => {
+    expect(sessionOfClaudeTab(stale, groups, { group: 0, index: 1 })).toBeUndefined();
+  });
+
+  it('le reconnaît dès que la fenêtre place devant ce qu elle a ouvert', () => {
+    const fresh: MementoTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
+    expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 1 })).toBe('s-rouverte');
+  });
+
+  it('cesse simplement de correspondre quand le titre retenu a vieilli, sans jamais désigner l autre', () => {
+    const outdated: MementoTab = { sessionId: 's-rouverte', title: 'Titre d avant', group: 0, index: 1 };
+    expect(sessionOfClaudeTab([outdated, ...stale], groups, { group: 0, index: 1 })).toBeUndefined();
+  });
+
+  it('laisse le mémento répondre pour les onglets qu il connaît toujours', () => {
+    const fresh: MementoTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
+    expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 0 })).toBe('s-ancienne');
+  });
+});
