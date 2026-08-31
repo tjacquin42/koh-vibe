@@ -517,13 +517,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // What the tab bar shows and the spool does not: this window's dormant
         // tabs — over an ended row, never over an open one (mergeDormant).
         mergeDormant(map, dormant.values());
-        // Qui peut être mis en veille ici : la lune ferme un onglet, et fermer
-        // un onglet suppose de savoir lequel. `locateSessionTab` ne sait le dire
-        // que des onglets connus du mémento de l'éditeur, qui est de l'état
-        // persisté et retarde sur la liste vivante — une conversation ouverte
-        // depuis la dernière écriture y manque. Mesuré à chaque rendu plutôt
-        // que déduit : la réponse change sans qu'aucune session ne change.
-        tree.setReachable(new Set([...map.keys()].filter((id) => locateSessionTab(id) !== undefined)));
         // A conversation leaving the list while its process still runs comes
         // back a few seconds later (store/vanish.ts).
         vanish.observe(openSessions(map).keys());

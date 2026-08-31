@@ -57,7 +57,6 @@
       { "command": "kohVibe.soundSession.done", "title": "%command.kohVibe.soundSession.done.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.copySessionId", "title": "%command.kohVibe.copySessionId.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.sleepSession", "title": "%command.kohVibe.sleepSession.title%", "category": "Koh-Vibe", "icon": { "light": "resources/moon-light.svg", "dark": "resources/moon-dark.svg" } },
-      { "command": "kohVibe.sleepUnavailable", "title": "%command.kohVibe.sleepUnavailable.title%", "category": "Koh-Vibe", "icon": { "light": "resources/moon-off-light.svg", "dark": "resources/moon-off-dark.svg" }, "enablement": "false" },
       { "command": "kohVibe.forgetSession", "title": "%command.kohVibe.forgetSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.closeSession", "title": "%command.kohVibe.closeSession.title%", "category": "Koh-Vibe", "icon": "$(trash)" },
       { "command": "kohVibe.refreshUsage", "title": "%command.kohVibe.refreshUsage.title%", "category": "Koh-Vibe" }
@@ -86,7 +85,6 @@
         { "command": "kohVibe.soundSession.done", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "son@2" },
         { "command": "kohVibe.forgetSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "zzz@1" },
         { "command": "kohVibe.sleepSession", "when": "view == kohVibe.sessions && viewItem == session", "group": "inline@1" },
-        { "command": "kohVibe.sleepUnavailable", "when": "view == kohVibe.sessions && viewItem == sessionUnreachable", "group": "inline@1" },
         { "command": "kohVibe.closeSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "inline@2" }
       ],
       "commandPalette": [
@@ -97,8 +95,7 @@
         { "command": "kohVibe.toggleSetting", "when": "false" },
         { "command": "kohVibe.closeSession", "when": "false" },
         { "command": "kohVibe.copySessionId", "when": "false" },
-        { "command": "kohVibe.sleepSession", "when": "false" },
-        { "command": "kohVibe.sleepUnavailable", "when": "false" }
+        { "command": "kohVibe.sleepSession", "when": "false" }
       ]
     }
   },

@@ -26,7 +26,6 @@
   "command.kohVibe.forgetSession.title": "Retirer de la liste",
   "command.kohVibe.copySessionId.title": "Copier l'ID de la conversation",
   "command.kohVibe.sleepSession.title": "Mettre en veille",
-  "command.kohVibe.sleepUnavailable.title": "Impossible à mettre en veille — ouvre-la une fois pour que cette fenêtre reconnaisse son onglet",
   "command.kohVibe.closeSession.title": "Fermer la conversation",
   "command.kohVibe.refreshUsage.title": "Rafraîchir la consommation",
   "view.kohVibe.closed.name": "Fermé récemment",

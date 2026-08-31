@@ -70,29 +70,4 @@ describe('the manifest', () => {
     const palette = manifest.contributes.menus['commandPalette']!.find((m) => m.command === 'kohVibe.sleepSession');
     expect(palette?.when).toBe('false');
   });
-
-  it('bars the moon rather than hiding it when the tab cannot be identified', () => {
-    const [entry] = inline('kohVibe.sleepUnavailable');
-    expect(entry?.when).toContain('viewItem == sessionUnreachable');
-    expect(entry?.group).toBe('inline@1');
-    expect(icon('kohVibe.sleepUnavailable')).toEqual({
-      light: 'resources/moon-off-light.svg',
-      dark: 'resources/moon-off-dark.svg',
-    });
-  });
-
-  it('keeps the barred moon inert — it is a statement, not a button', () => {
-    const declared = manifest.contributes.commands.find((c) => c.command === 'kohVibe.sleepUnavailable') as
-      | (Command & { enablement?: string })
-      | undefined;
-    expect(declared?.enablement).toBe('false');
-  });
-
-  it('never shows both moons on one row', () => {
-    const on = inline('kohVibe.sleepSession')[0]?.when ?? '';
-    const off = inline('kohVibe.sleepUnavailable')[0]?.when ?? '';
-    expect(on).toContain('viewItem == session');
-    expect(on).not.toContain('sessionUnreachable');
-    expect(off).not.toContain('viewItem == session&');
-  });
 });
