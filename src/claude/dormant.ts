@@ -137,17 +137,28 @@ export function readStateItem(stateDb: string, key: string): Promise<string | un
  */
 export function mergeDormant(map: Map<string, Session>, dormant: Iterable<Session>): void {
   for (const d of dormant) {
-    const cur = map.get(d.id);
-    if (cur === undefined) {
-      map.set(d.id, d);
-      continue;
-    }
-    if (cur.endedAt === undefined) continue;
-    const { endedAt: _over, ...rest } = cur;
-    const next: Session = { ...rest, status: 'idle', dormant: true };
-    if (next.title === undefined && d.title !== undefined) next.title = d.title;
-    map.set(d.id, next);
+    const next = shownSession(map.get(d.id), d);
+    if (next !== undefined) map.set(d.id, next);
   }
+}
+
+/**
+ * The rule above, for ONE conversation — and the reason it is exported.
+ *
+ * A row shows the result of this; anything acting ON that row has to read the
+ * same thing, or the two disagree about what the user clicked. They did: after
+ * an editor restart, a conversation whose file was marked ended but whose tab
+ * had been restored showed as awake, while the moon read the raw file, found
+ * an end, and returned without a word. The rule now has one home.
+ */
+export function shownSession(onDisk: Session | undefined, restored: Session | undefined): Session | undefined {
+  if (restored === undefined) return onDisk;
+  if (onDisk === undefined) return restored;
+  if (onDisk.endedAt === undefined) return onDisk;
+  const { endedAt: _over, ...rest } = onDisk;
+  const next: Session = { ...rest, status: 'idle', dormant: true };
+  if (next.title === undefined && restored.title !== undefined) next.title = restored.title;
+  return next;
 }
 
 export function dormantSessions(

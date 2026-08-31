@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, type ClaudeTab } from './claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
 import { locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
@@ -672,8 +672,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await render();
   };
 
-  /** Reading a row for either gesture: the spool first, then this window's dormant tabs. */
-  const readForClose = async (i: string): Promise<Session | undefined> => (await readSession(dirs, i)) ?? dormant.get(i);
+  /**
+   * La session telle que sa LIGNE la montre — c'est elle qu'on a cliquée.
+   *
+   * Pas le fichier d'état brut : la vue passe par `mergeDormant`, qui réveille
+   * une conversation marquée terminée dont l'éditeur a restauré l'onglet. Lire
+   * le fichier directement faisait diverger le geste de la ligne — après un
+   * redémarrage de l'IDE, la ligne s'affichait éveillée et la lune, y voyant
+   * une fin, sortait sans un mot. `shownSession` est cette règle, et elle n'a
+   * plus qu'un seul domicile (claude/dormant.ts).
+   */
+  const readForClose = async (i: string): Promise<Session | undefined> =>
+    shownSession(await readSession(dirs, i), dormant.get(i));
 
   /**
    * Closing the tab itself — the one step the trash and the moon share, and
