@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Status } from '../src/events/types';
 import { STATUS_ICON_DIR, statusIconPath } from '../src/ui/status-icon';
 
-const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle', 'stale'];
+const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle'];
 const ROOT = join(__dirname, '..');
 
 describe('statusIconPath', () => {

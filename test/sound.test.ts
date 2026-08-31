@@ -27,10 +27,9 @@ describe('chimeFor', () => {
   });
 
   it('ne sonne pas pour les bascules qui arrivent toutes seules', () => {
-    // Une session passe d elle-même de en cours à l arrêt puis à périmée : un
-    // carillon à chaque fois deviendrait un bruit de fond, donc un signal mort.
+    // A session goes from working to idle on its own: a chime at every such
+    // step would become background noise, and so a dead signal.
     expect(chimeFor(at(['s1', 'running']), at(['s1', 'idle']))).toBeUndefined();
-    expect(chimeFor(at(['s1', 'idle']), at(['s1', 'stale']))).toBeUndefined();
     expect(chimeFor(at(['s1', 'waiting']), at(['s1', 'running']))).toBeUndefined();
   });
 

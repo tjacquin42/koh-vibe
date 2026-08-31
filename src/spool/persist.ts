@@ -11,7 +11,6 @@ const STATUSES: Record<Status, true> = {
   waiting: true,
   done_unseen: true,
   idle: true,
-  stale: true,
 };
 const ORIGINS: Record<Origin, true> = {
   vscode: true,

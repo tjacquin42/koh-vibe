@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { Session, Status } from '../events/types';
-import { withStaleness } from '../store/staleness';
 import { sessionDescription, sessionLabel, sessionTooltip, statusLabel } from './labels';
 import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
 import { shownColor, themeColorOf, type ColorPreview } from './colors';
@@ -42,7 +41,7 @@ export type TreeNode =
  * Le choix de l'image contre le codicon coloré est expliqué dans ./status-icon.
  */
 
-const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3, stale: 4 };
+const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
 
 /**
  * Three tiers before any status: what runs, then the tabs nobody has woken,
@@ -233,10 +232,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   ) {}
 
   setSessions(map: Map<string, Session>): void {
-    const now = Date.now();
-    this.sessions = [...map.values()]
-      .map((s) => withStaleness(s, now))
-      .sort(compareSessions);
+    this.sessions = [...map.values()].sort(compareSessions);
     this.refresh();
   }
 

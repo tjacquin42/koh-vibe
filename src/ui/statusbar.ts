@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { Session } from '../events/types';
-import { withStaleness } from '../store/staleness';
 
 export class StatusSummary {
   private readonly item: vscode.StatusBarItem;
@@ -12,8 +11,7 @@ export class StatusSummary {
   }
 
   update(map: Map<string, Session>): void {
-    const now = Date.now();
-    const sessions = [...map.values()].map((s) => withStaleness(s, now));
+    const sessions = [...map.values()];
     const waiting = sessions.filter((s) => s.status === 'waiting').length;
     const running = sessions.filter((s) => s.status === 'running').length;
     const done = sessions.filter((s) => s.status === 'done_unseen').length;

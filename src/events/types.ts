@@ -1,4 +1,4 @@
-export type Status = 'running' | 'waiting' | 'done_unseen' | 'idle' | 'stale';
+export type Status = 'running' | 'waiting' | 'done_unseen' | 'idle';
 export type Origin = 'vscode' | 'terminal' | 'desktop' | 'sdk' | 'unknown';
 
 export const HOOK_EVENTS = [

@@ -44,7 +44,6 @@ const PALETTE = {
   waiting: { dark: ['#D18616', 1], light: ['#C4700E', 1], glow: 0.95 },
   done_unseen: { dark: ['#89D185', 1], light: ['#388A34', 1], glow: 0.7 },
   idle: { dark: ['#CCCCCC', 0.7], light: ['#717171', 1], glow: 0.18 },
-  stale: { dark: ['#CCCCCC', 0.5], light: ['#616161', 0.5], glow: 0 },
   // Not a status but a tone: an ended conversation, or a tab nobody has
   // woken. Dimmer than `stale`, which still describes a live process.
   ended: { dark: ['#CCCCCC', 0.3], light: ['#616161', 0.3], glow: 0 },

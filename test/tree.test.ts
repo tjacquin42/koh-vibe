@@ -560,7 +560,7 @@ describe('SessionsTree — pastilles de statut', () => {
     return item.iconPath as { light: { fsPath: string }; dark: { fsPath: string } };
   };
 
-  const ALL: Array<Session['status']> = ['running', 'waiting', 'done_unseen', 'idle', 'stale'];
+  const ALL: Array<Session['status']> = ['running', 'waiting', 'done_unseen', 'idle'];
 
   it('donne une pastille à CHAQUE statut, sans exception', () => {
     // L invariant que ce test garde : un statut sans pastille laisse une ligne
