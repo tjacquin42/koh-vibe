@@ -111,22 +111,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Every Claude tab of the memento, by session: where a restored tab sits,
   // so that a click brings THAT tab to the front (claude/reveal.ts).
   const dormantTabs = new Map<string, ClaudeTab>();
+  /**
+   * Takes stock of this window's restored Claude tabs.
+   *
+   * NOTHING is published before every read has finished, and that is the whole
+   * discipline of this function. `render` consults `dormant` at the instant it
+   * runs, and `mergeDormant` is what keeps a conversation marked ended but
+   * whose tab is still on screen from showing greyed. Emptying the map first
+   * and filling it after the awaits made that intermediate state visible: any
+   * render landing in the gap saw nothing to revive and greyed EVERY such row
+   * for a frame. Putting a conversation to sleep fires three renders in a burst
+   * — the state write, the tab closing, and the command's own — which is what
+   * made the flicker easy to catch.
+   *
+   * The maps are still emptied when there is nothing to read: an unreadable
+   * memento means "no restored tab", not "keep yesterday's". That clearing is
+   * safe because no `await` follows it.
+   */
   const refreshDormant = async (live: ReadonlyMap<string, unknown>): Promise<void> => {
-    dormant.clear();
-    dormantTabs.clear();
+    const publish = (tabs: readonly ClaudeTab[], sessions: readonly Session[]): void => {
+      mementoTabs = tabs;
+      dormantTabs.clear();
+      for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
+      dormant.clear();
+      for (const d of sessions) dormant.set(d.id, d);
+    };
     const folder = workspaceFolders()[0];
-    if (stateDb === undefined || folder === undefined) return;
+    if (stateDb === undefined || folder === undefined) return publish([], []);
     const raw = await readEditorMemento(stateDb);
-    if (raw === undefined) return;
+    if (raw === undefined) return publish([], []);
     // Known: what has a process, or an OPEN state file. An ended one does not
     // count — its restored tab makes it dormant, not closed (mergeDormant).
     const open = [...(await readSessions(dirs)).values()].filter((s) => s.endedAt === undefined).map((s) => s.id);
     const known = new Set([...live.keys(), ...open, ...dismissed]);
     const labels = new Set(claudeTabsOf(vscode.window.tabGroups.all).map((t) => t.label));
     const tabs = parseEditorMemento(raw);
-    mementoTabs = tabs;
-    for (const t of tabs) if (!dormantTabs.has(t.sessionId)) dormantTabs.set(t.sessionId, t);
-    for (const d of dormantSessions(tabs, labels, known, folder)) dormant.set(d.id, d);
+    publish(tabs, [...dormantSessions(tabs, labels, known, folder)]);
   };
   // Every Claude tab of the memento, in order: what tells two tabs of one
   // title apart (claude/reveal.ts).
