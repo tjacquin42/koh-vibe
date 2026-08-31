@@ -34,6 +34,19 @@ export interface AppSettings {
    * leaves the list after a day without activity (store/temporary.ts).
    */
   expireTemporary: boolean;
+  /**
+   * Whether the status dots turn. `false` swaps in a still set of icons, drawn
+   * from the same shapes stopped at their starting angle — never a different
+   * design, so nothing about a row becomes unreadable by turning motion off.
+   *
+   * Shared like the rest, and worth saying why: someone who finds a spinning
+   * sidebar distracting finds it distracting in every window, not in one.
+   * Note that a viewer whose SYSTEM asks for less motion already gets the
+   * still frame, whatever this says — the icons carry their own
+   * `prefers-reduced-motion` rule. This setting is for the choice, not the
+   * accommodation.
+   */
+  animate: boolean;
 }
 
 /**
@@ -48,7 +61,14 @@ export interface AppSettings {
  * is never replaced by a default: see `parseSettings` and `seedSettings`.
  */
 export function defaultSettings(): AppSettings {
-  return { waiting: DEFAULT_WAITING_SOUND, done: DEFAULT_DONE_SOUND, volume: DEFAULT_VOLUME, persistent: true, expireTemporary: true };
+  return {
+    waiting: DEFAULT_WAITING_SOUND,
+    done: DEFAULT_DONE_SOUND,
+    volume: DEFAULT_VOLUME,
+    persistent: true,
+    expireTemporary: true,
+    animate: true,
+  };
 }
 
 function sound(v: unknown, fallback: string): string {
@@ -84,12 +104,13 @@ export function parseSettings(raw: string): AppSettings {
     volume: clampVolume(root['volume']),
     persistent: flag(root['persistent'], base.persistent),
     expireTemporary: flag(root['expireTemporary'], base.expireTemporary),
+    animate: flag(root['animate'], base.animate),
   };
 }
 
 export function serializeSettings(s: AppSettings): string {
   return `${JSON.stringify(
-    { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent, expireTemporary: s.expireTemporary },
+    { version: 1, waiting: s.waiting, done: s.done, volume: clampVolume(s.volume), persistent: s.persistent, expireTemporary: s.expireTemporary, animate: s.animate },
     null,
     2,
   )}\n`;
@@ -113,5 +134,6 @@ export function settingsFromEditor(read: (key: string) => unknown): AppSettings 
     // Never an editor setting: nothing to migrate, the default applies.
     persistent: base.persistent,
     expireTemporary: base.expireTemporary,
+    animate: base.animate,
   };
 }

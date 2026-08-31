@@ -81,6 +81,8 @@ const LIGHT_GLOW = 0.75;
 // (`background-size: 16px`), et 4.5 le rayon qui redonne au disque l'encombrement
 // du codicon `circle-filled` qu'il remplace — une pastille plus grosse décalerait
 // l'œil d'une ligne à l'autre pendant la transition.
+/** The subfolder holding the motionless twin of every icon. */
+const STILL_DIR = 'still';
 const SIZE = 16;
 const RADIUS = 4.5;
 // The core of a glowing dot, pulled in so the halo has somewhere to be.
@@ -125,11 +127,11 @@ function halo(fill, strength) {
 const RING_RADIUS = 6.2;
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const RINGS = {
-  running: { dash: [CIRCUMFERENCE / 8, CIRCUMFERENCE / 16], width: 1.3, spin: '2.6s linear' },
+  running: { dash: [CIRCUMFERENCE / 8, CIRCUMFERENCE / 16], width: 1.3, spin: '4.2s linear' },
   waiting: {
     dash: [CIRCUMFERENCE * 0.76, CIRCUMFERENCE * 0.24],
     width: 1.4,
-    spin: '1.9s cubic-bezier(.5,0,.5,1)',
+    spin: '3.1s cubic-bezier(.5,0,.5,1)',
   },
   done_unseen: { dash: undefined, width: 1.3, spin: undefined },
 };
@@ -163,15 +165,18 @@ function spinStyle(spin) {
   );
 }
 
-function ring(fill, spec) {
+function ring(fill, spec, moving) {
   if (spec === undefined) return '';
   const dash = spec.dash === undefined ? '' : ` stroke-dasharray="${spec.dash.map((d) => d.toFixed(2)).join(' ')}"`;
-  // A still ring keeps its start angle in an attribute, which is free of the
-  // interpolation problem above precisely because nothing animates it.
-  const still = spec.spin === undefined ? ' transform="rotate(-90 8 8)"' : '';
+  const turns = moving && spec.spin !== undefined;
+  // A ring that does not turn keeps its start angle in an attribute, which is
+  // free of the interpolation problem above precisely because nothing animates
+  // it — and it is the SAME angle the keyframes start from, so the still set is
+  // the moving one stopped, not a second drawing.
+  const still = turns ? '' : ' transform="rotate(-90 8 8)"';
   return (
-    (spec.spin === undefined ? '' : spinStyle(spec.spin)) +
-    `<circle${spec.spin === undefined ? '' : ' class="r"'} cx="8" cy="8" r="${RING_RADIUS}" fill="none" ` +
+    (turns ? spinStyle(spec.spin) : '') +
+    `<circle${turns ? ' class="r"' : ''} cx="8" cy="8" r="${RING_RADIUS}" fill="none" ` +
     `stroke="${fill}" stroke-width="${spec.width}" stroke-linecap="round" stroke-opacity="0.85"${dash}${still}/>`
   );
 }
@@ -184,12 +189,12 @@ function ring(fill, spec) {
  * added AROUND the disc, it is taken out of it. A status that does not glow
  * keeps the full 4.5 and looks exactly as it always did.
  */
-function disc([fill, opacity], glow, spec) {
+function disc([fill, opacity], glow, spec, moving) {
   const alpha = opacity === 1 ? '' : ` fill-opacity="${opacity}"`;
   // Three objects in 16 px: the core pulls in again once a ring surrounds it,
   // so each keeps some air around it.
   const radius = spec !== undefined ? 2.7 : glow > 0 ? CORE_RADIUS : RADIUS;
-  const around = ring(fill, spec);
+  const around = ring(fill, spec, moving);
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">` +
     halo(fill, glow) +
@@ -199,17 +204,29 @@ function disc([fill, opacity], glow, spec) {
   );
 }
 
+/**
+ * Two sets, from one table.
+ *
+ * `resources/status/` turns; `resources/status/still/` does not. The extension
+ * picks between them from the `animate` setting (ui/status-icon.ts), which is
+ * why they must be the same drawing and not two designs: turning motion off
+ * has to cost nothing in meaning. The still ring sits at the angle the
+ * keyframes start from, so it is literally the moving one stopped.
+ */
 const dir = join(__dirname, '..', 'resources', 'status');
+const stillDir = join(dir, STILL_DIR);
 mkdirSync(dir, { recursive: true });
+mkdirSync(stillDir, { recursive: true });
 
 for (const [status, themes] of Object.entries(PALETTE)) {
   for (const [theme, color] of Object.entries(themes).filter(([k]) => k === 'dark' || k === 'light')) {
     // Le nom doit rester celui que calcule statusIconPath() : le statut avec ses
     // tirets bas changés en tirets, puis le thème. Un test vérifie que chaque
     // chemin annoncé existe pour de vrai.
-    const file = join(dir, `${status.replace('_', '-')}-${theme}.svg`);
     const glow = themes.glow * (theme === 'light' ? LIGHT_GLOW : 1);
-    writeFileSync(file, disc(color, glow, RINGS[status]), 'utf8');
-    console.log(`écrit ${file.slice(file.indexOf('resources'))}`);
+    const name = `${status.replace('_', '-')}-${theme}.svg`;
+    writeFileSync(join(dir, name), disc(color, glow, RINGS[status], true), 'utf8');
+    writeFileSync(join(stillDir, name), disc(color, glow, RINGS[status], false), 'utf8');
+    console.log(`écrit ${name} (animé et figé)`);
   }
 }

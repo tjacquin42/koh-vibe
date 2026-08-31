@@ -22,6 +22,7 @@ describe('parseSettings', () => {
       volume: 0.3,
       persistent: true,
       expireTemporary: true,
+      animate: true,
     });
   });
 
@@ -43,7 +44,7 @@ describe('parseSettings', () => {
   });
 
   it('fait le tour du fichier', () => {
-    const s = { waiting: 'Clic 1', done: '', volume: 0.9, persistent: false, expireTemporary: true };
+    const s = { waiting: 'Clic 1', done: '', volume: 0.9, persistent: false, expireTemporary: true, animate: true };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 });
@@ -63,14 +64,14 @@ describe('le fichier de réglages partagé', () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.4 });
     await writeSettings(file, { volume: 0.8 });
-    expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8, persistent: true, expireTemporary: true });
+    expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8, persistent: true, expireTemporary: true, animate: true });
   });
 
   it('relit avant d écrire : régler le volume n écrase pas un son choisi entre-temps', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1' });
     // Une autre fenêtre écrit pendant qu on tient encore l ancien état en main.
-    writeFileSync(file, serializeSettings({ waiting: 'Erreur 3', done: '', volume: 0.5, persistent: true, expireTemporary: true }), 'utf8');
+    writeFileSync(file, serializeSettings({ waiting: 'Erreur 3', done: '', volume: 0.5, persistent: true, expireTemporary: true, animate: true }), 'utf8');
     await writeSettings(file, { volume: 0.2 });
     expect((await readSettings(file)).waiting).toBe('Erreur 3');
   });
@@ -88,7 +89,7 @@ describe('le fichier de réglages partagé', () => {
 describe('seedSettings — la migration depuis les réglages de chaque éditeur', () => {
   it('verse les réglages locaux quand le fichier partagé n existe pas encore', async () => {
     const file = join(scratch(), 'settings.json');
-    const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true }));
+    const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true, animate: true }));
     expect(seeded.waiting).toBe('Funk');
     expect(JSON.parse(readFileSync(file, 'utf8')).done).toBe('Hero');
   });
@@ -98,13 +99,13 @@ describe('seedSettings — la migration depuis les réglages de chaque éditeur'
     // éditeur : les deux ne se contrediraient plus seulement, ils se battraient.
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.3 });
-    const kept = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true }));
-    expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3, persistent: true, expireTemporary: true });
+    const kept = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true, animate: true }));
+    expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3, persistent: true, expireTemporary: true, animate: true });
   });
 
   it('sème même un silence choisi, qui est un réglage comme un autre', async () => {
     const file = join(scratch(), 'settings.json');
-    expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5, persistent: true, expireTemporary: true }))).waiting).toBe('');
+    expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5, persistent: true, expireTemporary: true, animate: true }))).waiting).toBe('');
     expect((await readSettings(file)).waiting).toBe('');
   });
 });
@@ -128,6 +129,7 @@ describe('the sounds a fresh install starts with', () => {
       volume: 0.3,
       persistent: true,
       expireTemporary: true,
+      animate: true,
     });
   });
 
@@ -160,6 +162,7 @@ describe('settingsFromEditor — what the migration reads from this editor', () 
       volume: 0.7,
       persistent: true,
       expireTemporary: true,
+      animate: true,
     });
   });
 
@@ -190,7 +193,7 @@ describe('a fresh install, end to end', () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Funk', done: '', volume: 0.2 });
     const kept = await seedSettings(file, () => settingsFromEditor(() => undefined));
-    expect(kept).toEqual({ waiting: 'Funk', done: '', volume: 0.2, persistent: true, expireTemporary: true });
+    expect(kept).toEqual({ waiting: 'Funk', done: '', volume: 0.2, persistent: true, expireTemporary: true, animate: true });
   });
 });
 
@@ -203,7 +206,7 @@ describe('persistent sessions — the setting behind the checkbox', () => {
 
   it('keeps a chosen off, and makes the round trip', () => {
     expect(parseSettings('{"persistent":false}').persistent).toBe(false);
-    const s = { ...defaultSettings(), persistent: false, expireTemporary: true };
+    const s = { ...defaultSettings(), persistent: false, expireTemporary: true, animate: true };
     expect(parseSettings(serializeSettings(s)).persistent).toBe(false);
   });
 
@@ -215,7 +218,7 @@ describe('persistent sessions — the setting behind the checkbox', () => {
 
   it('is written like any other field, and survives a volume change', async () => {
     const file = join(scratch(), 'settings.json');
-    await writeSettings(file, { persistent: false, expireTemporary: true });
+    await writeSettings(file, { persistent: false, expireTemporary: true, animate: true });
     await writeSettings(file, { volume: 0.2 });
     expect((await readSettings(file)).persistent).toBe(false);
   });
@@ -226,7 +229,28 @@ describe('temporary sessions expire — the second checkbox', () => {
     expect(defaultSettings().expireTemporary).toBe(true);
     expect(parseSettings('{"expireTemporary":false}').expireTemporary).toBe(false);
     expect(parseSettings('{"expireTemporary":"jamais"}').expireTemporary).toBe(true);
-    expect(parseSettings(serializeSettings({ ...defaultSettings(), expireTemporary: false })).expireTemporary).toBe(false);
+    expect(parseSettings(serializeSettings({ ...defaultSettings(), expireTemporary: false, animate: true })).expireTemporary).toBe(false);
     expect(settingsFromEditor(() => undefined).expireTemporary).toBe(true);
+  });
+});
+
+describe('animated status dots — the third checkbox', () => {
+  it('turns by default: a file that never mentions it, and a fresh editor', () => {
+    expect(defaultSettings().animate).toBe(true);
+    expect(parseSettings('{"waiting":"Clic 1"}').animate).toBe(true);
+    expect(settingsFromEditor(() => undefined).animate).toBe(true);
+  });
+
+  it('keeps a chosen off, and makes the round trip', () => {
+    const off = { ...defaultSettings(), animate: false };
+    expect(parseSettings(serializeSettings(off)).animate).toBe(false);
+  });
+
+  it('reads anything but a boolean as the default, without touching the rest', () => {
+    // Chaque champ retombe SÉPARÉMENT : un réglage d animation abîmé ne doit
+    // pas emporter le son avec lui.
+    const s = parseSettings('{"waiting":"Funk","animate":"oui"}');
+    expect(s.animate).toBe(true);
+    expect(s.waiting).toBe('Funk');
   });
 });

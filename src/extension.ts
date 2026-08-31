@@ -498,7 +498,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         usageView.setUsage(await readUsage(home));
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
-        footer.setToggles({ persistent: sound.persistent, expireTemporary: sound.expireTemporary });
+        footer.setToggles({
+          persistent: sound.persistent,
+          expireTemporary: sound.expireTemporary,
+          animate: sound.animate,
+        });
+        tree.setAnimate(sound.animate);
         footer.setLibrary(await installedCount(librarySoundsDir(home)));
         const map = await withTokens(await readSessions(dirs), transcripts, () => {
           if (transcriptFailureWarned) return;

@@ -1009,3 +1009,43 @@ describe('endormir une conversation, vu depuis la vue', () => {
     expect(await menusOf(t)).toEqual(['session', 'session']);
   });
 });
+
+describe("SessionsTree — quand les animations sont coupées", () => {
+  const treeWith = (): SessionsTree => {
+    const t = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
+    t.setSessions(new Map([['s1', session('s1', { status: 'running' })]]));
+    t.setGroups(groups({}));
+    return t;
+  };
+  const iconOf = (t: SessionsTree): string => {
+    const item = t.getTreeItem({ kind: 'session', session: session('s1', { status: 'running' }) });
+    return (item.iconPath as { dark: { fsPath: string } }).dark.fsPath;
+  };
+
+  it('anime tant que personne n a rien dit — c est ce qui est livré', () => {
+    expect(iconOf(treeWith())).not.toContain('still');
+  });
+
+  it('bascule sur le jeu figé quand la case est décochée', () => {
+    const t = treeWith();
+    t.setAnimate(false);
+    expect(iconOf(t)).toContain('still');
+  });
+
+  it('revient au mouvement quand on la recoche', () => {
+    const t = treeWith();
+    t.setAnimate(false);
+    t.setAnimate(true);
+    expect(iconOf(t)).not.toContain('still');
+  });
+
+  it('prévient VSCode du changement — sans quoi la vue garderait ses anciennes pastilles', () => {
+    // `refresh` ne signale que ce qui CHANGE À L ÉCRAN : le réglage doit donc
+    // entrer dans la signature, comme l aperçu de couleur avant lui.
+    const t = treeWith();
+    const seen = vi.fn();
+    t.onDidChangeTreeData(seen);
+    t.setAnimate(false);
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+});
