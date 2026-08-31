@@ -380,6 +380,99 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
   });
 });
 
+describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouverte', () => {
+  const iconColorOf = (tree: SessionsTree, node: TreeNode): string | undefined =>
+    (tree.getTreeItem(node).iconPath as { color?: { id: string } }).color?.id;
+
+  const twoFolders = (): SessionsTree => {
+    const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
+    tree.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
+    tree.setGroups(
+      groups({
+        groups: [
+          { id: 'g-1', name: 'Un', order: 0, color: 'green' },
+          { id: 'g-2', name: 'Deux', order: 1, color: 'red' },
+        ],
+        assignments: { s1: 'g-1', s2: 'g-2' },
+      }),
+    );
+    return tree;
+  };
+
+  it('montre la couleur parcourue sur le dossier, avant toute validation', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBe('charts.blue');
+  });
+
+  it('colore aussi le LIBELLÉ, et pas seulement l\'icône', async () => {
+    // Le libellé passe par une resourceUri : sans elle, la moitié de la ligne
+    // garderait l'ancienne couleur pendant qu'on parcourt la liste.
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(tree.getTreeItem(node!).resourceUri?.query).toContain('charts.blue');
+  });
+
+  it('laisse les autres dossiers sur leur propre couleur', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const body = await tree.getChildren();
+    const other = body.find((n) => n.kind === 'group' && n.group?.id === 'g-2');
+    expect(iconColorOf(tree, other!)).toBe('charts.red');
+  });
+
+  it('décolore vraiment le dossier quand on parcourt « Aucune »', async () => {
+    // L'aperçu d'un retrait est un aperçu comme un autre : sans lui, on
+    // validerait « Aucune » sans jamais avoir vu ce que ça donne.
+    const tree = twoFolders();
+    tree.setPreview('g-1', undefined);
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBeUndefined();
+    expect(tree.getTreeItem(node!).resourceUri).toBeUndefined();
+  });
+
+  it('rend au dossier sa couleur dès que la liste se ferme', async () => {
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    tree.clearPreview();
+    const [node] = await tree.getChildren();
+    expect(iconColorOf(tree, node!)).toBe('charts.green');
+  });
+
+  it('prévient VSCode à chaque pas — sinon l\'aperçu ne se verrait jamais', () => {
+    // `refresh` ne signale que ce qui CHANGE À L'ÉCRAN : l'aperçu doit donc
+    // entrer dans sa signature, ou le calque resterait invisible.
+    const tree = twoFolders();
+    const seen = vi.fn();
+    tree.onDidChangeTreeData(seen);
+    tree.setPreview('g-1', 'blue');
+    tree.setPreview('g-1', 'red');
+    tree.clearPreview();
+    expect(seen).toHaveBeenCalledTimes(3);
+  });
+
+  it('ne signale rien quand il n\'y a aucun aperçu à retirer', () => {
+    const tree = twoFolders();
+    const seen = vi.fn();
+    tree.onDidChangeTreeData(seen);
+    tree.clearPreview();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it('ne touche pas à la couleur que le dossier PORTE, seulement à celle qu\'il montre', async () => {
+    // Le calque est de la présentation, et rien d'autre : la couleur rangée
+    // reste celle du classement, faute de quoi une couleur seulement survolée
+    // finirait dans le fichier partagé — et dans l'autre éditeur.
+    const tree = twoFolders();
+    tree.setPreview('g-1', 'blue');
+    const [node] = await tree.getChildren();
+    expect(node!.kind === 'group' && node!.group?.color).toBe('green');
+    expect(iconColorOf(tree, node!)).toBe('charts.blue');
+  });
+});
+
 describe('SessionsTree — ordre choisi à la main', () => {
   const three = (): Map<string, Session> =>
     new Map([

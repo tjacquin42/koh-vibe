@@ -3,7 +3,7 @@ import type { Session, Status } from '../events/types';
 import { withStaleness } from '../store/staleness';
 import { sessionDescription, sessionLabel, sessionTooltip, statusLabel } from './labels';
 import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
-import { themeColorOf } from './colors';
+import { shownColor, themeColorOf, type ColorPreview } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
@@ -196,6 +196,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // The ended rows a click is bringing back (ui/reopening.ts): a spinner in
   // place of the dot, and no command until they show up or give up.
   private reopening: ReadonlySet<string> = new Set();
+  // The colour a folder shows while its picker is open (ui/colors.ts). A
+  // per-window overlay over `groups`, cleared when the picker closes: nothing
+  // here is ever written to the shared file.
+  private preview: ColorPreview | undefined;
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -264,6 +268,26 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
+   * Shows a colour on one folder without writing it anywhere — what the colour
+   * picker calls as the highlighted entry moves.
+   *
+   * `color: undefined` previews "None", which is why it is passed rather than
+   * inferred: removing a colour has to be as visible before confirming as
+   * setting one. Only `clearPreview` ends the preview.
+   */
+  setPreview(groupId: string, color: string | undefined): void {
+    this.preview = { groupId, color };
+    this.refresh();
+  }
+
+  /** Back to what the folders actually hold — the picker closed, either way. */
+  clearPreview(): void {
+    if (this.preview === undefined) return;
+    this.preview = undefined;
+    this.refresh();
+  }
+
+  /**
    * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
    *
    * Pas l'état brut : `lastEventAt` change à chaque événement, mais l'âge
@@ -289,6 +313,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
+      // Without this, a preview changed nothing VSCode could see: `refresh`
+      // compares what is DISPLAYED, and the displayed colour of a folder is no
+      // longer `groups` alone.
+      this.preview ?? null,
     ]);
   }
 
@@ -482,7 +510,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
           : vscode.l10n.t('{0} session', node.sessions.length);
       // « Sans dossier » n'est pas un dossier : il ne se colore pas, faute de
       // pouvoir porter un choix de l'utilisateur.
-      const theme = themeColorOf(node.group?.color);
+      const theme = themeColorOf(shownColor(node.group, this.preview));
       item.iconPath = new vscode.ThemeIcon(GROUP_GLYPH, theme === undefined ? undefined : new vscode.ThemeColor(theme));
       // Le libellé suit l'icône : c'est le fournisseur de décorations qui le
       // colore, seul moyen offert par VSCode d'atteindre le texte d'une ligne.

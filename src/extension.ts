@@ -1238,15 +1238,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: this conversation could not be removed.'));
       }
     }),
+    /**
+     * The folder colour picker, which shows each colour ON THE FOLDER as the
+     * highlighted entry moves.
+     *
+     * A built `QuickPick` rather than `showQuickPick`, for that one reason:
+     * only the built form reports the entry under the cursor before anything
+     * is confirmed. And it is needed, because a list of colour NAMES is the
+     * only list VSCode can render — quick pick labels take codicons but never
+     * a colour, so nothing in the list itself can show what "Indigo" looks
+     * like under the current theme. The folder shows it instead.
+     *
+     * The preview writes nothing: it is an overlay held by the view
+     * (ui/colors.ts), so closing the list without choosing restores what the
+     * folder held, and no other window ever sees it.
+     */
     vscode.commands.registerCommand('kohVibe.colorGroup', async (node: unknown) => {
       const id = groupIdOfNode(node);
       if (id === undefined) return;
-      const pick = await vscode.window.showQuickPick(
-        [NO_COLOR_LABEL, ...GROUP_COLORS.map((c) => c.label)],
-        { placeHolder: vscode.l10n.t('Folder colour') },
-      );
-      // Fermer la liste n'efface rien : la distinction vit dans colorChoice.
-      const choice = colorChoice(pick);
+      const items: vscode.QuickPickItem[] = [
+        { label: NO_COLOR_LABEL },
+        ...GROUP_COLORS.map((c) => ({ label: c.label })),
+      ];
+      const picker = vscode.window.createQuickPick();
+      picker.items = items;
+      picker.placeholder = vscode.l10n.t('Folder colour');
+      // Opens on the colour the folder already has, so the list says what it
+      // is today before saying what it could be.
+      const current = (await readGroups(groupsPath)).groups.find((g) => g.id === id)?.color;
+      const currentLabel = GROUP_COLORS.find((c) => c.id === current)?.label ?? NO_COLOR_LABEL;
+      picker.activeItems = items.filter((i) => i.label === currentLabel);
+      // The accepted label, and nothing else: every way out of the list that is
+      // not a choice — Escape, a click elsewhere — leaves this `undefined`,
+      // which `colorChoice` already reads as "closed without choosing".
+      let accepted: string | undefined;
+      picker.onDidChangeActive((active) => {
+        const seen = colorChoice(active[0]?.label);
+        // A label the palette does not know previews nothing rather than
+        // clearing the folder, the same rule `colorChoice` applies to a choice.
+        if (seen.kind === 'set') tree.setPreview(id, seen.color);
+      });
+      picker.onDidAccept(() => {
+        accepted = picker.selectedItems[0]?.label;
+        picker.hide();
+      });
+      await new Promise<void>((resolve) => {
+        picker.onDidHide(() => {
+          picker.dispose();
+          resolve();
+        });
+        picker.show();
+      });
+      // Before the write, and on every road out: the folder goes back to what
+      // it holds, and the write below — if there is one — is what changes it.
+      tree.clearPreview();
+      // Closing the list erases nothing: the distinction lives in colorChoice.
+      const choice = colorChoice(accepted);
       if (choice.kind === 'cancel') return;
       await runGroupAction(
         () => colorGroupCommand(groupsPath, id, choice.color),
