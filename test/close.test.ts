@@ -8,6 +8,7 @@ import {
   type RequestCloseDeps,
   type SleepHereDeps,
 } from '../src/close/close';
+import { shownSession } from '../src/claude/dormant';
 import type { Session } from '../src/events/types';
 
 const session = (over: Partial<Session> = {}): Session => ({
@@ -251,5 +252,46 @@ describe('requestCloseSession — the trash always files what it removes', () =>
     await requestCloseSession(session(), deps({ archive, route }));
     expect(route).toHaveBeenCalledTimes(1);
     expect(archive).not.toHaveBeenCalled();
+  });
+});
+
+// La couture qui a cassé une fois déjà : après un redémarrage de l éditeur, une
+// conversation marquée terminée dont l onglet a été restauré est AFFICHÉE
+// éveillée. C est cette ligne-là qu on clique, et c est donc elle que le geste
+// doit lire — le fichier d état brut, lui, porte encore sa fin et faisait
+// sortir la commande en silence.
+describe('sleepSessionHere — sur la conversation telle que sa ligne la montre', () => {
+  it('endort une conversation que son onglet restauré fait paraître éveillée', async () => {
+    const onDisk = session({ endedAt: 10 });
+    const restored = session({ dormant: true, lastEventAt: 0 });
+    const shown = shownSession(onDisk, restored);
+    expect(shown?.endedAt).toBeUndefined();
+
+    const calls: string[] = [];
+    await sleepSessionHere('s1', {
+      read: async () => shown,
+      closeTab: async () => {
+        calls.push('closeTab');
+        return 'closed';
+      },
+      markEnded: async () => {
+        calls.push('markEnded');
+      },
+      now: () => 1_000,
+    });
+
+    expect(calls).toEqual(['closeTab', 'markEnded']);
+  });
+
+  it('refuse toujours celle que RIEN ne fait paraître éveillée', async () => {
+    const onDisk = session({ endedAt: 10 });
+    const closeTab = vi.fn();
+    await sleepSessionHere('s1', {
+      read: async () => shownSession(onDisk, undefined),
+      closeTab,
+      markEnded: async () => undefined,
+      now: () => 1_000,
+    });
+    expect(closeTab).not.toHaveBeenCalled();
   });
 });

@@ -40,6 +40,8 @@ let closeCalls: CloseCalls;
 // What this window's Claude Code session list answers (claude/listed.ts).
 let listed = true;
 
+let opened: string[] = [];
+
 function makeBroker(): FocusBroker {
   const b = new FocusBroker(
     dirs,
@@ -55,6 +57,7 @@ function makeBroker(): FocusBroker {
       },
     },
     async () => listed,
+    (sessionId) => opened.push(sessionId),
   );
   brokers.push(b);
   return b;
@@ -81,6 +84,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   brokers = [];
   closeCalls = { closeHere: [], sleepHere: [], forget: [] };
+  opened = [];
 });
 
 afterEach(() => {
@@ -488,5 +492,120 @@ describe('requestClose', () => {
 
     expect(showError).toHaveBeenCalled();
     expect(executeCommand).not.toHaveBeenCalled();
+  });
+});
+
+// La mise en veille voyage par le même rail que la fermeture, et sa seule
+// divergence est le repli : une fermeture que personne ne consomme conclut
+// « aucune fenêtre, donc aucun onglet » et retire la ligne ; un sommeil conclut
+// la même chose et ne touche à rien, puisqu'il n'y a pas d'onglet à fermer.
+describe('requestSleep', () => {
+  it('endort ici, sans écrire de requête, quand cette fenêtre détient le dossier', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    const broker = makeBroker();
+
+    await broker.requestSleep(session());
+
+    expect(closeCalls.sleepHere).toEqual(['s1']);
+    expect(await readdir(dirs.requests)).toEqual([]);
+  });
+
+  it("écrit une requête quand une autre fenêtre détient le dossier", async () => {
+    const broker = makeBroker();
+
+    await broker.requestSleep(session());
+
+    const body: unknown = JSON.parse(await readFile(join(dirs.requests, 'sleep-s1.json'), 'utf8'));
+    expect(body).toMatchObject({ sessionId: 's1', cwd: '/Users/dev/projet', origin: 'vscode' });
+    expect(closeCalls.sleepHere).toEqual([]);
+  });
+
+  it("ne retire RIEN quand personne ne consomme — contrairement à la fermeture, il n'y a pas d'onglet à fermer", async () => {
+    vi.useFakeTimers();
+    try {
+      const broker = makeBroker();
+      await broker.requestSleep(session());
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.waitFor(async () => expect(await readdir(dirs.requests)).toEqual([]));
+      // Le repli d'une fermeture retire la ligne ; celui d'un sommeil ne touche
+      // à rien : sans fenêtre, il n'y a pas d'onglet, donc rien à endormir.
+      expect(closeCalls.forget).toEqual([]);
+      expect(closeCalls.sleepHere).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('consomme une requête de sommeil écrite pour un dossier qu elle détient', async () => {
+    const other = makeBroker();
+    await other.requestSleep(session({ id: 's-cross' }));
+
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    const broker = makeBroker();
+    const internal = broker as unknown as { consume: () => Promise<void> };
+    await internal.consume();
+
+    expect(closeCalls.sleepHere).toEqual(['s-cross']);
+    expect(await readdir(dirs.requests)).toEqual([]);
+  });
+
+  it("écarte une requête de sommeil sans origine éditeur, et n endort rien", async () => {
+    await writeFile(
+      join(dirs.requests, 'sleep-s-term.json'),
+      JSON.stringify({ sessionId: 's-term', cwd: '/Users/dev/projet', label: 'projet', origin: 'terminal', at: Date.now() }),
+      'utf8',
+    );
+
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    const broker = makeBroker();
+    const internal = broker as unknown as { consume: () => Promise<void> };
+    await internal.consume();
+
+    expect(closeCalls.sleepHere).toEqual([]);
+    expect(await readdir(dirs.requests)).toEqual([]);
+  });
+});
+
+// Le signal qui alimente la mémoire des onglets ouverts ici (claude/opened-here).
+// C'est le seul instant où cette fenêtre sait à quelle conversation appartient
+// l'onglet qui va apparaître : si le signal manque, la sélection de ligne
+// retombe sur le mémento de l'éditeur, qui retarde de plusieurs dizaines de
+// secondes. Rien ne le vérifiait.
+describe('FocusBroker — annonce la conversation dont il vient de demander l onglet', () => {
+  it('annonce après une révélation locale, avec l identifiant en argument', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    const broker = makeBroker();
+
+    await broker.request(session());
+
+    expect(opened).toEqual(['s1']);
+  });
+
+  it('annonce aussi pour une réouverture, qui ouvre un onglet tout autant', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    listed = true;
+    const broker = makeBroker();
+
+    await broker.requestReopen({ id: 's1', cwd: '/Users/dev/projet', project: 'projet', origin: 'vscode', closedAt: 0 });
+
+    expect(opened).toEqual(['s1']);
+  });
+
+  it("n annonce rien quand aucune commande n a été exécutée — un terminal n ouvre pas d onglet", async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    const broker = makeBroker();
+
+    await broker.request(session({ origin: 'terminal' }));
+
+    expect(opened).toEqual([]);
+  });
+
+  it("n annonce rien quand aucune fenêtre ne détient le dossier : la requête part, aucun onglet ne s ouvre ici", async () => {
+    const broker = makeBroker();
+
+    await broker.request(session());
+
+    expect(opened).toEqual([]);
   });
 });

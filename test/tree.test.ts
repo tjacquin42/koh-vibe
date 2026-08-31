@@ -870,3 +870,49 @@ describe('SessionsTree — reaching a row from outside', () => {
     expect(t.nodeFor('nowhere')).toBeUndefined();
   });
 });
+
+// La chaîne visible du sommeil, d un bout à l autre : le tri, la coupure entre
+// les deux blocs, et ce que les menus voient de la ligne. Chaque maillon est
+// testé isolément plus haut ; ce scénario les enchaîne, parce que c est leur
+// enchaînement que l utilisateur regarde et qu aucune régression ne doit
+// laisser une ligne endormie au milieu des vivantes.
+describe('endormir une conversation, vu depuis la vue', () => {
+  const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
+
+  const rowsOf = async (t: SessionsTree): Promise<string[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group)).map((n) => (n.kind === 'session' ? n.session.id : n.kind));
+  };
+  const menusOf = async (t: SessionsTree): Promise<(string | undefined)[]> => {
+    const [group] = await t.getChildren();
+    return (await t.getChildren(group))
+      .filter((n) => n.kind === 'session')
+      .map((n) => t.getTreeItem(n).contextValue);
+  };
+
+  it('déplace la ligne sous la coupure et lui retire sa lune, sans toucher aux autres', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b')], ['c', session('c')]]));
+
+    // Avant : trois conversations vivantes, aucune coupure, trois lunes.
+    expect(await rowsOf(t)).toEqual(['a', 'b', 'c']);
+    expect(await menusOf(t)).toEqual(['session', 'session', 'session']);
+
+    // La lune a fait son travail sur « b » : elle est marquée terminée.
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })], ['c', session('c')]]));
+
+    expect(await rowsOf(t)).toEqual(['a', 'c', 'spacer', 'b']);
+    // « b » n a plus d onglet à fermer ; « a » et « c » gardent le leur.
+    expect(await menusOf(t)).toEqual(['session', 'session', 'sessionAsleep']);
+  });
+
+  it('retire la coupure quand la dernière endormie est réveillée', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
+    expect(await rowsOf(t)).toEqual(['a', 'spacer', 'b']);
+
+    t.setSessions(new Map([['a', session('a')], ['b', session('b')]]));
+    expect(await rowsOf(t)).toEqual(['a', 'b']);
+    expect(await menusOf(t)).toEqual(['session', 'session']);
+  });
+});
