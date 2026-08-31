@@ -17,6 +17,8 @@ export interface RequestCloseDeps {
   confirm: (s: Session) => Promise<boolean>;
   /** Sends the close to the window that holds the project (the broker). */
   route: (s: Session) => Promise<void>;
+  /** Files the conversation under « recently closed ». Idempotent: `remember` deduplicates by id. */
+  archive: (s: Session) => Promise<void>;
   /** Removes the row, closing nothing and archiving nothing. */
   forget: (id: string) => Promise<void>;
 }
@@ -31,6 +33,18 @@ export interface RequestCloseDeps {
  * somewhere the user is not looking.
  */
 export async function requestCloseSession(s: Session, deps: RequestCloseDeps): Promise<void> {
+  // An asleep row: its tab is already gone and nothing runs behind it, so
+  // there is nothing to route and nothing to ask. It is archived HERE because
+  // the moon deliberately did not — a conversation put to sleep is still on
+  // the dashboard, and filing it then would have shown it in two places at
+  // once. This is the moment it leaves, so this is the moment it is filed.
+  // A conversation that ended on its own was archived by the drain; archiving
+  // again costs nothing, `remember` deduplicating by id.
+  if (s.endedAt !== undefined) {
+    await deps.archive(s);
+    await deps.forget(s.id);
+    return;
+  }
   if (closePlan(s.origin).kind === 'forget') {
     await deps.forget(s.id);
     return;

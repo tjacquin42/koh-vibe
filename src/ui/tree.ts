@@ -308,23 +308,38 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Applique l'ordre choisi à la main. Les sessions qu'il nomme viennent en
-   * tête, dans cet ordre ; celles qu'il ignore suivent, dans le tri du tableau
-   * de bord — une session ouverte après un rangement se pose donc à la fin sans
-   * bousculer ce qui a été placé.
+   * Applique l'ordre choisi à la main, BLOC PAR BLOC : d'abord les
+   * conversations éveillées, puis celles qui dorment. Dans chaque bloc, les
+   * sessions que l'ordre nomme viennent en tête, dans cet ordre ; celles qu'il
+   * ignore suivent, dans le tri du tableau de bord — une session ouverte après
+   * un rangement se pose donc à la fin sans bousculer ce qui a été placé.
    *
-   * `sessions` arrive déjà trié (setSessions) : les restantes gardent cet ordre.
+   * La séparation en deux blocs vient AVANT l'ordre manuel, et c'est le seul
+   * point qui ne se négocie pas. Sans elle, un dossier rangé à la main classait
+   * ses sessions nommées en tête sans regarder `endedAt` : mettre l'une d'elles
+   * en veille la grisait sur place sans jamais la déplacer, et une conversation
+   * vivante pouvait se retrouver sous la ligne de séparation. Ce que l'ordre
+   * choisi décide, c'est la place d'une session PARMI SES SEMBLABLES ; le
+   * sommeil décide, lui, de quel côté de la coupure elle tombe.
+   *
+   * `sessions` arrive déjà trié (setSessions) : les restantes gardent cet ordre,
+   * et le filtrage par bloc le préserve.
    */
   private ordered(sessions: readonly Session[], groupId: string | undefined): Session[] {
+    const awake = sessions.filter((s) => s.endedAt === undefined);
+    const asleep = sessions.filter((s) => s.endedAt !== undefined);
     const wanted = sessionOrderOf(this.groups, groupId);
-    if (wanted.length === 0) return [...sessions];
+    if (wanted.length === 0) return [...awake, ...asleep];
     const rank = new Map(wanted.map((id, i) => [id, i]));
-    const placed = sessions
-      .filter((s) => rank.has(s.id))
-      .map((s) => ({ s, at: rank.get(s.id) ?? 0 }))
-      .sort((a, b) => a.at - b.at)
-      .map((x) => x.s);
-    return [...placed, ...sessions.filter((s) => !rank.has(s.id))];
+    const arrange = (block: readonly Session[]): Session[] => {
+      const placed = block
+        .filter((s) => rank.has(s.id))
+        .map((s) => ({ s, at: rank.get(s.id) ?? 0 }))
+        .sort((a, b) => a.at - b.at)
+        .map((x) => x.s);
+      return [...placed, ...block.filter((s) => !rank.has(s.id))];
+    };
+    return [...arrange(awake), ...arrange(asleep)];
   }
 
   /**

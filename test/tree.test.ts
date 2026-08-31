@@ -721,6 +721,61 @@ describe('a folder separates what is awake from what is asleep', () => {
     expect(await kindsUnder(t)).toEqual(['session', 'session']);
   });
 
+  // The bug this pair pins down: a folder arranged by hand ranked EVERY named
+  // session ahead of the rest, asleep ones included, so putting one to sleep
+  // greyed it where it stood and never moved it. The chosen order still has to
+  // be honoured — but inside each block, not across the break.
+  it('drops an asleep conversation into its block even in a folder arranged by hand', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['s1', session('s1')],
+        ['s2', session('s2', { endedAt: 10 })],
+        ['s3', session('s3')],
+      ]),
+    );
+    t.setGroups(
+      groups({
+        groups: [{ id: 'g1', name: 'Dossier', order: 0 }],
+        assignments: { s1: 'g1', s2: 'g1', s3: 'g1' },
+        sessionOrder: { g1: ['s1', 's2', 's3'] },
+      }),
+    );
+    const [group] = await t.getChildren();
+    const rows = await t.getChildren(group);
+    expect(rows.map((n) => (n.kind === 'session' ? n.session.id : n.kind))).toEqual(['s1', 's3', 'spacer', 's2']);
+  });
+
+  it('keeps the chosen order inside each block, awake and asleep alike', async () => {
+    const t = make();
+    t.setSessions(
+      new Map([
+        ['s1', session('s1', { endedAt: 10 })],
+        ['s2', session('s2')],
+        ['s3', session('s3', { endedAt: 20 })],
+        ['s4', session('s4')],
+      ]),
+    );
+    t.setGroups(
+      groups({
+        groups: [{ id: 'g1', name: 'Dossier', order: 0 }],
+        assignments: { s1: 'g1', s2: 'g1', s3: 'g1', s4: 'g1' },
+        sessionOrder: { g1: ['s4', 's3', 's2', 's1'] },
+      }),
+    );
+    const [group] = await t.getChildren();
+    const rows = await t.getChildren(group);
+    // s4 then s2 among the awake, s3 then s1 among the asleep: the hand-picked
+    // sequence survives inside each block.
+    expect(rows.map((n) => (n.kind === 'session' ? n.session.id : n.kind))).toEqual([
+      's4',
+      's2',
+      'spacer',
+      's3',
+      's1',
+    ]);
+  });
+
   it('gives each folder its own separator, which VSCode tells apart by id', async () => {
     const t = make();
     t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));

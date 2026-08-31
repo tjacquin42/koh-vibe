@@ -871,11 +871,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const s = dormant.get(id) ?? (await readSession(dirs, id));
       // Already gone from the spool: nothing to close, and nothing to remove.
       if (s === undefined) return;
-      // Nothing runs behind an ended row: the trash removes it for good.
-      if (s.endedAt !== undefined) {
-        await forget(id);
-        return;
-      }
+      // The ended case is no longer decided here: `requestCloseSession` archives
+      // then forgets it, so the rule lives with its twin and is tested with it.
       await requestCloseSession(s, {
         confirm: async (target) =>
           (await vscode.window.showWarningMessage(
@@ -887,6 +884,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.l10n.t('Close'),
           )) !== undefined,
         route: (target) => broker.requestClose(target),
+        archive,
         forget,
       }).catch(() => {
         // Surfaced, never swallowed: the click would otherwise do and say

@@ -41,6 +41,10 @@ function requestDeps(c: Calls, answer = true): RequestCloseDeps {
       c.confirmed.push(s.id);
       return answer;
     },
+    archive: async (s: Session) => {
+      c.log.push('archive');
+      c.archived.push(s.id);
+    },
     route: async (s: Session) => {
       c.log.push('route');
       c.routed.push(s.id);
@@ -200,5 +204,52 @@ describe('sleepSessionHere — closes the tab and keeps the row', () => {
     await sleepSessionHere('s1', deps({ read: async () => undefined, closeTab, markEnded }));
     expect(closeTab).not.toHaveBeenCalled();
     expect(markEnded).not.toHaveBeenCalled();
+  });
+});
+
+// The trash's contract, stated against the moon's — the two are twins and easy
+// to confuse. Whatever the row, one click archives the conversation and takes
+// it off the dashboard; it is then reachable in "recently closed" and nowhere
+// else.
+describe('requestCloseSession — the trash always files what it removes', () => {
+  const deps = (over: Partial<RequestCloseDeps> = {}): RequestCloseDeps => ({
+    confirm: async () => true,
+    route: async () => undefined,
+    archive: async () => undefined,
+    forget: async () => undefined,
+    ...over,
+  });
+
+  it('archives an asleep conversation before removing it — the moon never filed it', async () => {
+    const calls: string[] = [];
+    await requestCloseSession(session({ endedAt: 10 }), deps({
+      archive: async (s) => {
+        calls.push(`archive:${s.id}`);
+      },
+      forget: async (id) => {
+        calls.push(`forget:${id}`);
+      },
+    }));
+    expect(calls).toEqual(['archive:s1', 'forget:s1']);
+  });
+
+  it('never asks before removing an asleep row — nothing runs behind it', async () => {
+    const confirm = vi.fn();
+    await requestCloseSession(session({ endedAt: 10, status: 'running' }), deps({ confirm }));
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('closes no tab for an asleep row — its tab went when it fell asleep', async () => {
+    const route = vi.fn();
+    await requestCloseSession(session({ endedAt: 10 }), deps({ route }));
+    expect(route).not.toHaveBeenCalled();
+  });
+
+  it('still routes a live conversation rather than archiving it here — the closing window does that', async () => {
+    const archive = vi.fn();
+    const route = vi.fn();
+    await requestCloseSession(session(), deps({ archive, route }));
+    expect(route).toHaveBeenCalledTimes(1);
+    expect(archive).not.toHaveBeenCalled();
   });
 });
