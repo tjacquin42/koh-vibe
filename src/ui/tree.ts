@@ -196,6 +196,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // The ended rows a click is bringing back (ui/reopening.ts): a spinner in
   // place of the dot, and no command until they show up or give up.
   private reopening: ReadonlySet<string> = new Set();
+  // Les conversations dont CETTE fenêtre sait désigner l'onglet. `undefined` =
+  // rien n'a encore été mesuré : tout est réputé joignable, sinon une vue qui
+  // vient de s'ouvrir barrerait toutes ses lunes le temps du premier rendu.
+  private reachable: ReadonlySet<string> | undefined;
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -264,6 +268,18 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
+   * Les conversations dont l'onglet est identifiable ici, mesurées par le
+   * rendu (extension.ts) et jamais calculées par la vue : la réponse dépend
+   * du mémento de l'éditeur et de la liste vivante des onglets, deux choses
+   * dont un arbre n'a pas à connaître l'existence — même principe que
+   * `checkHooksInstalled` et `setReopening`.
+   */
+  setReachable(ids: ReadonlySet<string>): void {
+    this.reachable = ids;
+    this.refresh();
+  }
+
+  /**
    * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
    *
    * Pas l'état brut : `lastEventAt` change à chaque événement, mais l'âge
@@ -286,6 +302,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
         this.reopening.has(s.id),
+        this.reachable === undefined || this.reachable.has(s.id),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -477,8 +494,20 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // terminal n'en a jamais eu : ni l'une ni l'autre ne doit montrer un bouton
     // qui ne ferait rien. Le préfixe commun laisse les menus partagés — sons,
     // retirer, corbeille, copier l'ID — cibler les trois d'un seul `=~`.
+    // `sessionUnreachable` : la conversation a bien un onglet quelque part, mais
+    // cette fenêtre ne sait pas lequel — le mémento de l'éditeur, seule table
+    // qui relie un onglet à sa session, est de l'état persisté et retarde sur
+    // la liste vivante. La lune s'y montre barrée plutôt qu'absente : le geste
+    // existe, il est momentanément impossible, et le dire vaut mieux qu'un
+    // bouton qui ne fait rien.
     item.contextValue =
-      s.endedAt !== undefined ? 'sessionAsleep' : s.origin === 'vscode' ? 'session' : 'sessionNoTab';
+      s.endedAt !== undefined
+        ? 'sessionAsleep'
+        : s.origin !== 'vscode'
+          ? 'sessionNoTab'
+          : this.reachable === undefined || this.reachable.has(s.id)
+            ? 'session'
+            : 'sessionUnreachable';
     item.accessibilityInformation = { label: `${sessionLabel(s)}, ${statusLabel(s.status)}` };
     // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
     // chemins. La conversion reste ici pour que statusIconPath() n'ait pas

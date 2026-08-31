@@ -26,6 +26,7 @@
   "command.kohVibe.forgetSession.title": "Remove from the list",
   "command.kohVibe.copySessionId.title": "Copy conversation ID",
   "command.kohVibe.sleepSession.title": "Put to sleep",
+  "command.kohVibe.sleepUnavailable.title": "Cannot be put to sleep — open it once so this window can tell its tab apart",
   "command.kohVibe.closeSession.title": "Close conversation",
   "command.kohVibe.refreshUsage.title": "Refresh usage",
   "view.kohVibe.closed.name": "Recently closed",

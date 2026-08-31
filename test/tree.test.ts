@@ -806,6 +806,33 @@ describe('SessionsTree — a row says what can be done to it', () => {
     expect(await contextsUnder(t)).toEqual(['session', 'sessionAsleep']);
   });
 
+  // Reachability: whether THIS window can tell which tab belongs to the
+  // conversation. It is not a property of the session but of what the editor
+  // has persisted, so it is fed in like `reopening`, never computed here.
+  it('marks a conversation whose tab cannot be identified, so the moon can show as barred', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')], ['b', session('b')]]));
+    t.setReachable(new Set(['a']));
+    expect(await contextsUnder(t)).toEqual(['session', 'sessionUnreachable']);
+  });
+
+  it('treats an unfed reachability as "everything reachable" — a fresh view must not bar every moon', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')]]));
+    expect(await contextsUnder(t)).toEqual(['session']);
+  });
+
+  it('redraws when reachability alone changes — otherwise the barred moon would never lift', async () => {
+    const t = make();
+    t.setSessions(new Map([['a', session('a')]]));
+    let fired = 0;
+    t.onDidChangeTreeData(() => (fired += 1));
+    t.setReachable(new Set());
+    expect(fired).toBe(1);
+    t.setReachable(new Set());
+    expect(fired).toBe(1);
+  });
+
   it('marks a live conversation that has no tab apart too — nothing to put to sleep there', async () => {
     const t = make();
     t.setSessions(new Map([['a', session('a', { origin: 'terminal' })]]));
