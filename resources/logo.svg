@@ -7,8 +7,6 @@
   </defs>
   <rect width="256" height="256" rx="56" fill="url(#sea)"/>
   <path d="M53 139A75 75 0 0 1 203 139Z" fill="#FFB765"/>
-  <g fill="none" stroke="#4FC3D9" stroke-width="21" stroke-linecap="round">
-    <path d="M43 181H149"/>
-    <path d="M107 219H213"/>
-  </g>
+  <path d="M43 181H149" fill="none" stroke="#4FC3D9" stroke-width="21" stroke-linecap="round"/>
+  <path d="M107 219H213" fill="none" stroke="#2E8494" stroke-width="21" stroke-linecap="round"/>
 </svg>
