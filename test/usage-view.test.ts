@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escape, percentColor, resetText, usageHtml } from '../src/ui/usage-view';
+import { escape, percentColor, resetExact, resetText, usageHtml } from '../src/ui/usage-view';
 import { parseUsage } from '../src/usage/model';
 import type { UsageReading } from '../src/usage/reader';
 
@@ -61,6 +61,45 @@ describe('resetText', () => {
   });
 });
 
+describe('resetExact', () => {
+  const now = 1_700_000_000_000;
+  const at = (secondsFromNow: number) => ({ percent: 10, resetsAt: Math.floor(now / 1000) + secondsFromNow });
+
+  it('gives the wall clock time of a five-hour reset', () => {
+    const w = at(2 * 3600);
+    const when = new Date(w.resetsAt * 1000);
+    const hhmm = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+    expect(resetExact(w, now, 'time', 'fr')).toBe(hhmm);
+  });
+
+  it('gives the day of a seven-day reset, and no hour', () => {
+    const w = at(6 * 86_400);
+    const text = resetExact(w, now, 'date', 'fr');
+    expect(text).toContain(String(new Date(w.resetsAt * 1000).getDate()));
+    expect(text).not.toMatch(/\d:\d/);
+  });
+
+  it('names the weekday, which reads faster than a number inside a single week', () => {
+    const w = at(6 * 86_400);
+    const weekday = new Intl.DateTimeFormat('fr', { weekday: 'short' }).format(new Date(w.resetsAt * 1000));
+    expect(resetExact(w, now, 'date', 'fr')).toContain(weekday);
+  });
+
+  it('follows the editor language rather than the host locale', () => {
+    expect(resetExact(at(2 * 3600), now, 'time', 'en')).toMatch(/AM|PM/);
+    expect(resetExact(at(2 * 3600), now, 'time', 'fr')).not.toMatch(/AM|PM/);
+  });
+
+  it('says nothing once the deadline has passed, where the relative text already says reset', () => {
+    expect(resetExact(at(-60), now, 'time', 'fr')).toBe('');
+  });
+
+  it('says nothing without a deadline', () => {
+    expect(resetExact({ percent: 10, resetsAt: undefined }, now, 'time', 'fr')).toBe('');
+    expect(resetExact(undefined, now, 'date', 'fr')).toBe('');
+  });
+});
+
 describe('usageHtml', () => {
   const now = 1_700_000_000_000;
 
@@ -80,6 +119,31 @@ describe('usageHtml', () => {
     expect(html).toContain(`<span class="pct" style="color:${percentColor(13)}">13 %</span>`);
     expect(html).toContain('in 1 d');
     expect(html.indexOf('7 d Fable')).toBeGreaterThan(html.indexOf('<span class="kind">7 d</span>'));
+  });
+
+  const bothDeadlines = (): UsageReading => ({
+    usage: parseUsage({
+      five_hour: { utilization: 30, resets_at: Math.floor(now / 1000) + 7200 },
+      seven_day: { utilization: 5, resets_at: Math.floor(now / 1000) + 6 * 86_400 },
+    })!,
+    source: 'api',
+    at: now,
+  });
+
+  const cellOf = (html: string, kind: string): string =>
+    html.split('<span class="kind">').find((part) => part.startsWith(`${kind}<`)) ?? '';
+
+  it('puts a clock time behind the five-hour countdown, and a date behind the seven-day one', () => {
+    const html = usageHtml(bothDeadlines(), now);
+    expect(cellOf(html, '5 h')).toMatch(/in 2 h \(\d{1,2}:\d{2}/);
+    expect(cellOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
+    expect(cellOf(html, '7 d')).not.toMatch(/\d:\d/);
+  });
+
+  it('dates a model row like the weekly window it is', () => {
+    const row = cellOf(usageHtml(withModel('Fable', 13, Math.floor(now / 1000) + 86_400), now), '7 d Fable');
+    expect(row).toMatch(/in 1 d \([^)]+\)/);
+    expect(row).not.toMatch(/\d:\d/);
   });
 
   it('escapes the model name: it is data from the API, not a label of ours', () => {

@@ -39,6 +39,42 @@ export function resetText(w: UsageWindow | undefined, now: number): string {
   return vscode.l10n.t('in {0} d', Math.floor(hours / 24));
 }
 
+/** L'heure pour une fenêtre de 5 h, le jour pour une fenêtre de 7 j. */
+export type ResetPrecision = 'time' | 'date';
+
+/**
+ * L'échéance en clair, à côté du délai.
+ *
+ * « dans 6 j » dit combien il reste, et c'est ce qu'on veut savoir d'abord —
+ * mais ça ne se pose pas dans un agenda. Les deux ensemble répondent aux deux
+ * questions : combien de temps, et quand exactement.
+ *
+ * La précision suit la fenêtre plutôt que le délai restant : une fenêtre de
+ * 5 h se rouvre dans la journée, donc une heure suffit et une date serait du
+ * bruit ; une fenêtre de 7 j se rouvre un autre jour, donc l'heure ne dit rien
+ * sans le jour. Le nom du jour accompagne le quantième : dans une semaine,
+ * « mar. » se lit plus vite que « 9 ».
+ *
+ * Rien à dire une fois l'échéance passée : `resetText` affiche alors « reset »,
+ * et l'heure d'une remise à zéro déjà faite n'apprend plus rien.
+ */
+export function resetExact(
+  w: UsageWindow | undefined,
+  now: number,
+  precision: ResetPrecision,
+  locale: string,
+): string {
+  if (w?.resetsAt === undefined) return '';
+  const at = w.resetsAt * 1000;
+  if (at - now <= 0) return '';
+  return new Intl.DateTimeFormat(
+    locale,
+    precision === 'time'
+      ? { hour: '2-digit', minute: '2-digit' }
+      : { weekday: 'short', day: 'numeric', month: 'short' },
+  ).format(new Date(at));
+}
+
 const SOURCE: Record<UsageSource, () => string> = {
   api: () => 'Anthropic',
   statusline: () => vscode.l10n.t('Claude Code status line'),
@@ -61,20 +97,37 @@ export function escape(text: string): string {
  * share the columns — and a grid places cells by count: a row short of one
  * would pull every following row one cell to the left.
  */
-function row(label: string, w: UsageWindow | undefined, now: number): string {
+function row(
+  label: string,
+  w: UsageWindow | undefined,
+  now: number,
+  precision: ResetPrecision,
+  locale: string,
+): string {
   if (w === undefined) return '';
   const percent = Math.round(w.percent);
-  const reset = resetText(w, now);
+  // Une seule chaîne échappée, pas deux : les parenthèses sont de la ponctuation
+  // et n'ont pas à traverser `escape`, mais tout ce qui vient d'un format ou
+  // d'un bundle doit y passer — d'où l'assemblage AVANT l'échappement.
+  const relative = resetText(w, now);
+  const exact = resetExact(w, now, precision, locale);
+  const reset = relative === '' || exact === '' ? relative : `${relative} (${exact})`;
   return `<span class="kind">${escape(label)}</span><span class="pct" style="color:${percentColor(percent)}">${percent} %</span><span class="reset">${reset === '' ? '' : `• ${escape(reset)}`}</span>
 `;
 }
 
 /** Le corps de la vue, séparé du webview pour être éprouvable sans éditeur. */
-export function usageHtml(reading: UsageReading | undefined, now: number): string {
+export function usageHtml(
+  reading: UsageReading | undefined,
+  now: number,
+  // La langue d'AFFICHAGE de l'éditeur, pas celle du système : la vue est déjà
+  // traduite par `l10n`, et un « 9 sept. » sous une interface anglaise jurerait.
+  locale: string = vscode.env.language,
+): string {
   const body =
     reading === undefined
       ? `<div class="empty">${escape(vscode.l10n.t('Usage unknown — click to refresh.'))}</div>`
-      : rowsOf(reading.usage, now) + footer(reading, now);
+      : rowsOf(reading.usage, now, locale) + footer(reading, now);
   return `<style>
     body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
            color: var(--vscode-foreground); padding: 4px 12px 8px; }
@@ -93,13 +146,17 @@ export function usageHtml(reading: UsageReading | undefined, now: number): strin
   </script>`;
 }
 
-function rowsOf(u: Usage, now: number): string {
+function rowsOf(u: Usage, now: number, locale: string): string {
   // The window names are abbreviations of durations, and abbreviations differ:
   // French writes days "j", English "d". A model's row carries the model's
   // name after the duration: the name is data from the API, escaped by `row`
   // like every label, never trusted for being short.
-  const shared = row(vscode.l10n.t('5 h'), u.fiveHour, now) + row(vscode.l10n.t('7 d'), u.sevenDay, now);
-  const models = u.models.map((m) => row(vscode.l10n.t('7 d {0}', m.name), m, now)).join('');
+  const shared =
+    row(vscode.l10n.t('5 h'), u.fiveHour, now, 'time', locale) +
+    row(vscode.l10n.t('7 d'), u.sevenDay, now, 'date', locale);
+  // A model window is a weekly one: it takes the date its unnamed twin takes,
+  // or two neighbouring rows would date the same deadline differently.
+  const models = u.models.map((m) => row(vscode.l10n.t('7 d {0}', m.name), m, now, 'date', locale)).join('');
   return `<div class="rows">${shared}${models}</div>`;
 }
 
