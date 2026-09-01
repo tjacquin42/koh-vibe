@@ -12,7 +12,7 @@
   "categories": ["Other"],
   "keywords": ["claude", "claude code", "anthropic", "sessions", "tableau de bord", "dashboard", "hooks"],
   "icon": "resources/logo.png",
-  "galleryBanner": { "color": "#0A1F28", "theme": "dark" },
+  "galleryBanner": { "color": "#0D1114", "theme": "dark" },
   "packageManager": "pnpm@10.25.0",
   "l10n": "./l10n",
   "main": "./out/extension.js",

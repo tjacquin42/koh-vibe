@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="sea" x1="0.1" y1="0" x2="0.55" y2="1">
-      <stop offset="0" stop-color="#17505E"/>
-      <stop offset="1" stop-color="#0A1F28"/>
+    <linearGradient id="panel" x1="0.1" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#232A2E"/>
+      <stop offset="1" stop-color="#0D1114"/>
     </linearGradient>
   </defs>
-  <rect width="256" height="256" rx="56" fill="url(#sea)"/>
-  <path d="M53 139A75 75 0 0 1 203 139Z" fill="#FFB765"/>
-  <path d="M43 181H149" fill="none" stroke="#4FC3D9" stroke-width="21" stroke-linecap="round"/>
-  <path d="M107 219H213" fill="none" stroke="#2E8494" stroke-width="21" stroke-linecap="round"/>
+  <rect width="256" height="256" rx="56" fill="url(#panel)"/>
+  <path d="M53 139A75 75 0 0 1 203 139Z" fill="#D18616"/>
+  <path d="M43 181H149" fill="none" stroke="#59A4F9" stroke-width="21" stroke-linecap="round"/>
+  <path d="M107 219H213" fill="none" stroke="#89D185" stroke-width="21" stroke-linecap="round"/>
 </svg>
