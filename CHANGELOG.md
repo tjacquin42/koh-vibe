@@ -14,6 +14,61 @@ time. The detail underneath is written by hand, in the follow-up pull request th
 entry — `main` is protected, so the delivery can never push this file itself, and an entry
 that arrives as a bare link is an entry still waiting for that pull request.
 
+## [1.3.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.3.0) — 2026-09-01
+
+`minor` · [#25](https://github.com/tjacquin42/koh-vibe/pull/25) — A dashboard that says more at a glance: folder colours, sleep, and status dots that turn
+
+Carries [#21](https://github.com/tjacquin42/koh-vibe/pull/21), [#23](https://github.com/tjacquin42/koh-vibe/pull/23) and [#24](https://github.com/tjacquin42/koh-vibe/pull/24).
+
+The dashboard says more without saying it in words. A folder can be told from its neighbours
+by colour, a conversation can be put aside without losing it, and a status dot now carries
+what a row is asking of you — in its glow, and in a ring that turns while the work happens.
+
+### Added
+
+- **Ten folder colours, previewed on the folder itself.** Six became ten: `charts.*` holds
+  only six hues and the palette had used every one, so indigo, cyan, lime and pink come from
+  the other family every theme defines. A list of colour *names* says very little, and nothing
+  in a quick pick can say more — its labels take icons but never a colour — so the folder
+  shows each one as you move through the list. Closing without choosing restores what it had.
+- **Putting a conversation to sleep.** A moon beside the trash closes the tab and leaves the
+  row where it was, greyed, in its folder; a click reopens it. The trash is unchanged: it
+  removes the row and files the conversation under "Recently closed". Sleeping rows gather in
+  their own block at the bottom, separated by a blank line.
+- **Copying a conversation ID**, from a right-click on any row, in either view.
+- **The tab selects its row.** Clicking a Claude Code tab highlights the matching conversation
+  in the dashboard, without taking the keyboard away from the editor. When two tabs share a
+  title — untitled conversations all read "Claude Code" — it selects nobody rather than
+  guessing wrong.
+- **A setting for animated status dots**, on by default. Unchecked, the same rings are shown
+  still, so nothing about a row becomes harder to read. Separate from the system's
+  reduced-motion preference, which the icons honour on their own either way.
+
+### Changed
+
+- **A new logo**: a setting sun over a night-teal sea, replacing the island.
+- **Status dots glow, and turn.** The halo is strongest on a conversation that waits for you —
+  the only state that will not resolve itself — and quietest on the greys. Around it, a ring
+  says where the work is: dashed and turning while running, open at one point while waiting,
+  closed and still when done. A conversation that is merely idle, or asleep, carries no ring:
+  nothing is running behind it.
+- **The "stale" state is gone.** It marked a running conversation gone quiet after five
+  minutes, and was never seen in practice. The cost of removing it is real and worth knowing:
+  a conversation whose process is killed in the middle of a tool call now stays shown as
+  running, because nothing else notices a row that simply goes silent.
+
+### Fixed
+
+- **A greyed conversation could become impossible to reopen.** The flag marking "a tab this
+  window restored" was being written to the shared state, where it outlived the tab it
+  described. Files already spoiled by it heal themselves on the next read.
+- **Removing a row no longer brings it back.** Closing the tab is itself what makes this
+  window recount its Claude tabs, which started a rescan that wrote the row back while its
+  process was still registered.
+- **Ticking one checkbox no longer toggles another.** Adding a third setting to a list of two
+  silently sent it to the wrong place.
+- **Every row no longer flashes grey** for a frame when a conversation is put to sleep.
+
 ## [1.2.1](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.2.1) — 2026-08-29
 
 `patch` · [#20](https://github.com/tjacquin42/koh-vibe/pull/20) — A listing ready for the Marketplace: a changelog that is up to date, a README that shows the panel
