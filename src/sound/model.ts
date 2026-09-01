@@ -3,9 +3,9 @@ import type { Session, Status } from '../events/types';
 /**
  * L'événement qui mérite un son, et son réglage.
  *
- * Pas « tout changement de statut » : une session passe d'elle-même de
- * `running` à `idle` puis à `stale` sans que rien ne se soit produit pour
- * l'utilisateur, et un carillon à chaque bascule deviendrait un bruit de fond
+ * Not "every status change": a session goes from `running` to `idle` on its
+ * own without anything having happened for the user, and a chime at every
+ * such step would become background noise
  * qu'on apprend à ignorer — donc un signal mort. Ne sonnent que les deux
  * transitions qui appellent une action.
  */

@@ -35,8 +35,8 @@ describe('the settings view — the two checkboxes', () => {
     tree.onDidChangeTreeData(() => {
       fired += 1;
     });
-    tree.setToggles({ persistent: false, expireTemporary: true });
-    tree.setToggles({ persistent: false, expireTemporary: true });
+    tree.setToggles({ persistent: false, expireTemporary: true, animate: true });
+    tree.setToggles({ persistent: false, expireTemporary: true, animate: true });
     expect(fired).toBe(1);
     expect(tree.getChildren()[0]).toEqual({ kind: 'toggle', key: 'persistent', on: false });
     expect(tree.getChildren()[1]).toEqual({ kind: 'toggle', key: 'expireTemporary', on: true });

@@ -27,7 +27,6 @@ describe('labels', () => {
     expect(statusLabel('waiting')).toBe('waiting for you');
     expect(statusLabel('done_unseen')).toBe('done');
     expect(statusLabel('idle')).toBe('idle');
-    expect(statusLabel('stale')).toBe('stale');
   });
 
   it('formate les durées court', () => {
@@ -85,7 +84,7 @@ describe('labels', () => {
 
   it('n écrit jamais le statut en toutes lettres dans la description', () => {
     // Le mot ferait doublon avec la pastille ; il reste dans l infobulle.
-    for (const status of ['running', 'waiting', 'done_unseen', 'idle', 'stale'] as const) {
+    for (const status of ['running', 'waiting', 'done_unseen', 'idle'] as const) {
       const d = sessionDescription({ ...s, status, currentAction: undefined }, 0);
       expect(d).not.toContain(statusLabel(status));
     }

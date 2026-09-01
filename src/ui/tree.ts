@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import type { Session, Status } from '../events/types';
-import { withStaleness } from '../store/staleness';
 import { sessionDescription, sessionLabel, sessionTooltip, statusLabel } from './labels';
 import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
-import { themeColorOf } from './colors';
+import { shownColor, themeColorOf, type ColorPreview } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
@@ -42,7 +41,7 @@ export type TreeNode =
  * Le choix de l'image contre le codicon coloré est expliqué dans ./status-icon.
  */
 
-const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3, stale: 4 };
+const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
 
 /**
  * Three tiers before any status: what runs, then the tabs nobody has woken,
@@ -196,6 +195,14 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // The ended rows a click is bringing back (ui/reopening.ts): a spinner in
   // place of the dot, and no command until they show up or give up.
   private reopening: ReadonlySet<string> = new Set();
+  // The colour a folder shows while its picker is open (ui/colors.ts). A
+  // per-window overlay over `groups`, cleared when the picker closes: nothing
+  // here is ever written to the shared file.
+  private preview: ColorPreview | undefined;
+  // Whether the dots turn, from the shared settings. `true` until the first
+  // read says otherwise — the moving set is what ships, and a first frame of
+  // still dots would flicker for nothing on every window that keeps them.
+  private animate = true;
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -229,10 +236,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   ) {}
 
   setSessions(map: Map<string, Session>): void {
-    const now = Date.now();
-    this.sessions = [...map.values()]
-      .map((s) => withStaleness(s, now))
-      .sort(compareSessions);
+    this.sessions = [...map.values()].sort(compareSessions);
     this.refresh();
   }
 
@@ -257,9 +261,35 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     this.refresh();
   }
 
+  /** Fed by the render loop, from the shared settings file. */
+  setAnimate(on: boolean): void {
+    this.animate = on;
+    this.refresh();
+  }
+
   /** Fed by the `Reopening` set's own notification, never computed here. */
   setReopening(ids: ReadonlySet<string>): void {
     this.reopening = ids;
+    this.refresh();
+  }
+
+  /**
+   * Shows a colour on one folder without writing it anywhere — what the colour
+   * picker calls as the highlighted entry moves.
+   *
+   * `color: undefined` previews "None", which is why it is passed rather than
+   * inferred: removing a colour has to be as visible before confirming as
+   * setting one. Only `clearPreview` ends the preview.
+   */
+  setPreview(groupId: string, color: string | undefined): void {
+    this.preview = { groupId, color };
+    this.refresh();
+  }
+
+  /** Back to what the folders actually hold — the picker closed, either way. */
+  clearPreview(): void {
+    if (this.preview === undefined) return;
+    this.preview = undefined;
     this.refresh();
   }
 
@@ -289,6 +319,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
+      // Without this, a preview changed nothing VSCode could see: `refresh`
+      // compares what is DISPLAYED, and the displayed colour of a folder is no
+      // longer `groups` alone.
+      this.preview ?? null,
+      // Same reason: it decides which file every dot points at.
+      this.animate,
     ]);
   }
 
@@ -308,23 +344,38 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Applique l'ordre choisi à la main. Les sessions qu'il nomme viennent en
-   * tête, dans cet ordre ; celles qu'il ignore suivent, dans le tri du tableau
-   * de bord — une session ouverte après un rangement se pose donc à la fin sans
-   * bousculer ce qui a été placé.
+   * Applique l'ordre choisi à la main, BLOC PAR BLOC : d'abord les
+   * conversations éveillées, puis celles qui dorment. Dans chaque bloc, les
+   * sessions que l'ordre nomme viennent en tête, dans cet ordre ; celles qu'il
+   * ignore suivent, dans le tri du tableau de bord — une session ouverte après
+   * un rangement se pose donc à la fin sans bousculer ce qui a été placé.
    *
-   * `sessions` arrive déjà trié (setSessions) : les restantes gardent cet ordre.
+   * La séparation en deux blocs vient AVANT l'ordre manuel, et c'est le seul
+   * point qui ne se négocie pas. Sans elle, un dossier rangé à la main classait
+   * ses sessions nommées en tête sans regarder `endedAt` : mettre l'une d'elles
+   * en veille la grisait sur place sans jamais la déplacer, et une conversation
+   * vivante pouvait se retrouver sous la ligne de séparation. Ce que l'ordre
+   * choisi décide, c'est la place d'une session PARMI SES SEMBLABLES ; le
+   * sommeil décide, lui, de quel côté de la coupure elle tombe.
+   *
+   * `sessions` arrive déjà trié (setSessions) : les restantes gardent cet ordre,
+   * et le filtrage par bloc le préserve.
    */
   private ordered(sessions: readonly Session[], groupId: string | undefined): Session[] {
+    const awake = sessions.filter((s) => s.endedAt === undefined);
+    const asleep = sessions.filter((s) => s.endedAt !== undefined);
     const wanted = sessionOrderOf(this.groups, groupId);
-    if (wanted.length === 0) return [...sessions];
+    if (wanted.length === 0) return [...awake, ...asleep];
     const rank = new Map(wanted.map((id, i) => [id, i]));
-    const placed = sessions
-      .filter((s) => rank.has(s.id))
-      .map((s) => ({ s, at: rank.get(s.id) ?? 0 }))
-      .sort((a, b) => a.at - b.at)
-      .map((x) => x.s);
-    return [...placed, ...sessions.filter((s) => !rank.has(s.id))];
+    const arrange = (block: readonly Session[]): Session[] => {
+      const placed = block
+        .filter((s) => rank.has(s.id))
+        .map((s) => ({ s, at: rank.get(s.id) ?? 0 }))
+        .sort((a, b) => a.at - b.at)
+        .map((x) => x.s);
+      return [...placed, ...block.filter((s) => !rank.has(s.id))];
+    };
+    return [...arrange(awake), ...arrange(asleep)];
   }
 
   /**
@@ -341,6 +392,36 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   private visibleOrder(groupId: string | undefined): string[] {
     const sessions = this.sessions.filter((s) => this.groupOfSession(s.id) === groupId);
     return this.ordered(sessions, groupId).map((s) => s.id);
+  }
+
+  /**
+   * Le parent d'une ligne, exigé par `TreeView.reveal` : VSCode remonte
+   * jusqu'à la racine pour déplier ce qu'il faut avant de sélectionner.
+   *
+   * Le dossier est reconstruit avec SES sessions, pas rendu en coquille vide :
+   * VSCode peut redemander les enfants du parent qu'on lui donne, et un dossier
+   * sans contenu replierait la vue au lieu de l'ouvrir. Le filtrage et le tri
+   * sont exactement ceux de `getChildren` — les deux ne doivent jamais diverger.
+   */
+  getParent(node: TreeNode): TreeNode | undefined {
+    if (node.kind !== 'session') return undefined;
+    const id = this.groupOfSession(node.session.id);
+    const group = id === undefined ? undefined : this.groups.groups.find((g) => g.id === id);
+    const sessions = this.ordered(
+      this.sessions.filter((s) => this.groupOfSession(s.id) === id),
+      id,
+    );
+    return { kind: 'group', group, sessions };
+  }
+
+  /**
+   * La ligne d'une conversation, nommée par son identifiant. Ce qui appelle —
+   * l'onglet actif, côté éditeur — connaît une session, pas la forme des nœuds
+   * de cet arbre, et n'a pas à l'apprendre.
+   */
+  nodeFor(sessionId: string): TreeNode | undefined {
+    const session = this.sessions.find((s) => s.id === sessionId);
+    return session === undefined ? undefined : { kind: 'session', session };
   }
 
   async getChildren(node?: TreeNode): Promise<TreeNode[]> {
@@ -379,7 +460,30 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       }
       return withSpacers(nodes);
     }
-    if (node.kind === 'group') return node.sessions.map((session) => ({ kind: 'session', session }));
+    if (node.kind === 'group') {
+      // Deux blocs dans un dossier : ce qui est éveillé, puis ce qui dort.
+      // `compareSessions` les a déjà rangés dans cet ordre ; il ne manquait que
+      // la respiration entre les deux, sans laquelle une conversation grisée se
+      // lit comme la suite de la liste vivante. Le séparateur porte l'id du
+      // dossier : VSCode distingue les lignes par leur identité, et deux
+      // séparateurs identiques se marcheraient dessus au rafraîchissement —
+      // même raison que dans `withSpacers`.
+      const rows: TreeNode[] = [];
+      let awake = false;
+      let broken = false;
+      for (const session of node.sessions) {
+        if (session.endedAt === undefined) awake = true;
+        // La coupure marque le PASSAGE de l'éveillé à l'endormi, pas la simple
+        // présence d'une ligne au-dessus : un dossier entièrement endormi n'a
+        // aucune frontière à montrer.
+        else if (!broken && awake) {
+          rows.push({ kind: 'spacer', after: `asleep:${node.group?.id ?? 'unfiled'}` });
+          broken = true;
+        }
+        rows.push({ kind: 'session', session });
+      }
+      return rows;
+    }
     return [];
   }
 
@@ -414,7 +518,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
           : vscode.l10n.t('{0} session', node.sessions.length);
       // « Sans dossier » n'est pas un dossier : il ne se colore pas, faute de
       // pouvoir porter un choix de l'utilisateur.
-      const theme = themeColorOf(node.group?.color);
+      const theme = themeColorOf(shownColor(node.group, this.preview));
       item.iconPath = new vscode.ThemeIcon(GROUP_GLYPH, theme === undefined ? undefined : new vscode.ThemeColor(theme));
       // Le libellé suit l'icône : c'est le fournisseur de décorations qui le
       // colore, seul moyen offert par VSCode d'atteindre le texte d'une ligne.
@@ -432,7 +536,15 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     item.id = nodeId(node);
     item.description = sessionDescription(s, now);
     item.tooltip = sessionTooltip(s, now);
-    item.contextValue = 'session';
+    // Trois valeurs, parce que trois lignes n'offrent pas les mêmes gestes. La
+    // lune ferme un onglet : elle n'a de sens que sur une conversation vivante
+    // ISSUE D'UN ÉDITEUR — `closePlan` (close/plan.ts) ne reconnaît d'onglet
+    // qu'à `vscode`. Une ligne grisée n'a plus d'onglet, une conversation de
+    // terminal n'en a jamais eu : ni l'une ni l'autre ne doit montrer un bouton
+    // qui ne ferait rien. Le préfixe commun laisse les menus partagés — sons,
+    // retirer, corbeille, copier l'ID — cibler les trois d'un seul `=~`.
+    item.contextValue =
+      s.endedAt !== undefined ? 'sessionAsleep' : s.origin === 'vscode' ? 'session' : 'sessionNoTab';
     item.accessibilityInformation = { label: `${sessionLabel(s)}, ${statusLabel(s.status)}` };
     // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
     // chemins. La conversion reste ici pour que statusIconPath() n'ait pas
@@ -441,7 +553,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // and the label greyed with it, through the same decoration provider the
     // folders use: the only way VSCode offers to colour a row's text.
     // Only an ENDED row is muted: a restored tab is open, and reads as idle.
-    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended');
+    const pastille = statusIconPath(this.extensionPath, s.endedAt === undefined ? s.status : 'ended', this.animate);
     item.iconPath = { light: vscode.Uri.file(pastille.light), dark: vscode.Uri.file(pastille.dark) };
     if (s.endedAt !== undefined) item.resourceUri = vscode.Uri.from(decorationUriParts('session', s.id, 'disabledForeground'));
     if (this.reopening.has(s.id)) {

@@ -16,7 +16,6 @@ const STATUS: Record<Status, () => string> = {
   waiting: () => vscode.l10n.t('waiting for you'),
   done_unseen: () => vscode.l10n.t('done'),
   idle: () => vscode.l10n.t('idle'),
-  stale: () => vscode.l10n.t('stale'),
 };
 
 export function statusLabel(status: Status): string {

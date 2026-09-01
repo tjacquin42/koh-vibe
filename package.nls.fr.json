@@ -24,6 +24,8 @@
   "command.kohVibe.soundSession.waiting.title": "Son de la conversation quand ça t'attend",
   "command.kohVibe.soundSession.done.title": "Son de la conversation quand c'est terminé",
   "command.kohVibe.forgetSession.title": "Retirer de la liste",
+  "command.kohVibe.copySessionId.title": "Copier l'ID de la conversation",
+  "command.kohVibe.sleepSession.title": "Mettre en veille",
   "command.kohVibe.closeSession.title": "Fermer la conversation",
   "command.kohVibe.refreshUsage.title": "Rafraîchir la consommation",
   "view.kohVibe.closed.name": "Fermé récemment",

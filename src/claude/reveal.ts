@@ -57,6 +57,54 @@ export function locateClaudeTab(
   return undefined;
 }
 
+/** Si la place indiquée porte bien une conversation, et non un fichier ou rien. */
+export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): boolean {
+  const tab = groups[at.group]?.tabs[at.index];
+  return tab !== undefined && isClaudeTab(tab);
+}
+
+/**
+ * The conversation a tab belongs to — `locateClaudeTab` read backwards.
+ *
+ * A click in the editor has to select the matching row in the dashboard, and
+ * the memento is the only table that ties a tab to a conversation: nothing on
+ * a `Tab` carries a session id.
+ *
+ * The same two steps, and the same refusal to guess. The memento's own
+ * position is trusted when a Claude tab of that title still sits there;
+ * failing that, a title that belongs to ONE conversation in the memento
+ * identifies it wherever the tab has moved. Two conversations of one title —
+ * untitled ones all read "Claude Code" — cannot be told apart, and selecting
+ * the wrong row is worse than selecting none.
+ */
+export function sessionOfClaudeTab(
+  memento: readonly MementoTab[],
+  groups: readonly GroupLike[],
+  at: TabPosition,
+): string | undefined {
+  const tab = groups[at.group]?.tabs[at.index];
+  if (tab === undefined || !isClaudeTab(tab)) return undefined;
+  // Deux onglets OUVERTS du même nom, et le nom ne prouve plus rien.
+  //
+  // Une conversation neuve s'appelle « Claude Code » comme toutes les autres :
+  // il suffit d'en ouvrir deux. Le mémento n'en connaît alors souvent qu'une,
+  // si bien que les deux onglets renvoyaient vers la même ligne — et l'un des
+  // deux était forcément le mauvais. La position ne rattrape rien ici : elle
+  // est de l'état persisté et glisse dès qu'un onglet s'ouvre ou se ferme,
+  // donc rien ne dit lequel des deux jumeaux le mémento décrivait.
+  //
+  // Ce comptage regarde les onglets RÉELLEMENT ouverts, là où le garde-fou
+  // ci-dessous ne regarde que le mémento : deux ambiguïtés distinctes, et
+  // seule la seconde était couverte.
+  let sameLabel = 0;
+  for (const g of groups) for (const t of g.tabs) if (isClaudeTab(t) && t.label === tab.label) sameLabel += 1;
+  if (sameLabel > 1) return undefined;
+  const here = memento.find((t) => t.group === at.group && t.index === at.index && t.title === tab.label);
+  if (here !== undefined) return here.sessionId;
+  const owners = new Set(memento.filter((t) => t.title === tab.label).map((t) => t.sessionId));
+  return owners.size === 1 ? [...owners][0] : undefined;
+}
+
 const FOCUS_GROUP: readonly string[] = [
   'workbench.action.focusFirstEditorGroup',
   'workbench.action.focusSecondEditorGroup',
