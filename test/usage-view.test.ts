@@ -130,20 +130,68 @@ describe('usageHtml', () => {
     at: now,
   });
 
-  const cellOf = (html: string, kind: string): string =>
-    html.split('<span class="kind">').find((part) => part.startsWith(`${kind}<`)) ?? '';
+  // The deadline cell of one row, and nothing else. A row ends at its newline
+  // — the last one is followed by the whole page — and the cells before it
+  // carry brackets of their own, `var(--vscode-charts-green)` among them,
+  // which would answer for a date the row does not carry.
+  const resetOf = (html: string, kind: string): string => {
+    const found = html.split('<span class="kind">').find((part) => part.startsWith(`${kind}<`)) ?? '';
+    return found.split('\n')[0]?.split('<span class="reset">')[1] ?? '';
+  };
 
   it('puts a clock time behind the five-hour countdown, and a date behind the seven-day one', () => {
     const html = usageHtml(bothDeadlines(), now);
-    expect(cellOf(html, '5 h')).toMatch(/in 2 h \(\d{1,2}:\d{2}/);
-    expect(cellOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
-    expect(cellOf(html, '7 d')).not.toMatch(/\d:\d/);
+    expect(resetOf(html, '5 h')).toMatch(/in 2 h \(\d{1,2}:\d{2}/);
+    expect(resetOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
+    expect(resetOf(html, '7 d')).not.toMatch(/\d:\d/);
   });
 
   it('dates a model row like the weekly window it is', () => {
-    const row = cellOf(usageHtml(withModel('Fable', 13, Math.floor(now / 1000) + 86_400), now), '7 d Fable');
+    const row = resetOf(usageHtml(withModel('Fable', 13, Math.floor(now / 1000) + 86_400), now), '7 d Fable');
     expect(row).toMatch(/in 1 d \([^)]+\)/);
     expect(row).not.toMatch(/\d:\d/);
+  });
+
+  it('leaves a model row undated when it repeats the date of the row above it', () => {
+    const sameDay = Math.floor(now / 1000) + 6 * 86_400;
+    const html = usageHtml(
+      {
+        usage: parseUsage({
+          five_hour: { utilization: 30 },
+          seven_day: { utilization: 5, resets_at: sameDay },
+          limits: [{ kind: 'weekly_scoped', percent: 12, resets_at: sameDay, scope: { model: { display_name: 'Fable' } } }],
+        })!,
+        source: 'api',
+        at: now,
+      },
+      now,
+    );
+    expect(resetOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
+    expect(resetOf(html, '7 d Fable')).toContain('in 6 d');
+    expect(resetOf(html, '7 d Fable')).not.toContain('(');
+  });
+
+  it('dates a model row that reopens on another day than the shared window', () => {
+    const html = usageHtml(
+      {
+        usage: parseUsage({
+          five_hour: { utilization: 30 },
+          seven_day: { utilization: 5, resets_at: Math.floor(now / 1000) + 6 * 86_400 },
+          limits: [
+            {
+              kind: 'weekly_scoped',
+              percent: 12,
+              resets_at: Math.floor(now / 1000) + 2 * 86_400,
+              scope: { model: { display_name: 'Fable' } },
+            },
+          ],
+        })!,
+        source: 'api',
+        at: now,
+      },
+      now,
+    );
+    expect(resetOf(html, '7 d Fable')).toMatch(/in 2 d \([^)]+\)/);
   });
 
   it('escapes the model name: it is data from the API, not a label of ours', () => {

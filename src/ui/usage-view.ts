@@ -97,20 +97,13 @@ export function escape(text: string): string {
  * share the columns — and a grid places cells by count: a row short of one
  * would pull every following row one cell to the left.
  */
-function row(
-  label: string,
-  w: UsageWindow | undefined,
-  now: number,
-  precision: ResetPrecision,
-  locale: string,
-): string {
+function row(label: string, w: UsageWindow | undefined, now: number, exact: string): string {
   if (w === undefined) return '';
   const percent = Math.round(w.percent);
   // Une seule chaîne échappée, pas deux : les parenthèses sont de la ponctuation
   // et n'ont pas à traverser `escape`, mais tout ce qui vient d'un format ou
   // d'un bundle doit y passer — d'où l'assemblage AVANT l'échappement.
   const relative = resetText(w, now);
-  const exact = resetExact(w, now, precision, locale);
   const reset = relative === '' || exact === '' ? relative : `${relative} (${exact})`;
   return `<span class="kind">${escape(label)}</span><span class="pct" style="color:${percentColor(percent)}">${percent} %</span><span class="reset">${reset === '' ? '' : `• ${escape(reset)}`}</span>
 `;
@@ -151,12 +144,21 @@ function rowsOf(u: Usage, now: number, locale: string): string {
   // French writes days "j", English "d". A model's row carries the model's
   // name after the duration: the name is data from the API, escaped by `row`
   // like every label, never trusted for being short.
+  const weekly = resetExact(u.sevenDay, now, 'date', locale);
   const shared =
-    row(vscode.l10n.t('5 h'), u.fiveHour, now, 'time', locale) +
-    row(vscode.l10n.t('7 d'), u.sevenDay, now, 'date', locale);
-  // A model window is a weekly one: it takes the date its unnamed twin takes,
-  // or two neighbouring rows would date the same deadline differently.
-  const models = u.models.map((m) => row(vscode.l10n.t('7 d {0}', m.name), m, now, 'date', locale)).join('');
+    row(vscode.l10n.t('5 h'), u.fiveHour, now, resetExact(u.fiveHour, now, 'time', locale)) +
+    row(vscode.l10n.t('7 d'), u.sevenDay, now, weekly);
+  // A model window is a weekly one, so it is dated like the row above it —
+  // and therefore NOT dated when that would repeat it word for word. Three
+  // identical dates stacked up say no more than one, and the noise is what
+  // the eye reads first. The date comes back the moment a model reopens on
+  // another day, which is the only case where it carries anything.
+  const models = u.models
+    .map((m) => {
+      const exact = resetExact(m, now, 'date', locale);
+      return row(vscode.l10n.t('7 d {0}', m.name), m, now, exact === weekly ? '' : exact);
+    })
+    .join('');
   return `<div class="rows">${shared}${models}</div>`;
 }
 
