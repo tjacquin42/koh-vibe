@@ -113,6 +113,13 @@ export class TreeItem {
  * language the sources are written in. Tests therefore assert the English
  * strings, and they assert them through the same call the extension makes.
  */
+/**
+ * The editor's DISPLAY language, which is what date and time formats follow.
+ * English here, like `l10n` above: the tests assert the English rendering
+ * through the same call the extension makes.
+ */
+export const env = { language: 'en' };
+
 export const l10n = {
   t(message: string, ...args: Array<string | number>): string {
     return message.replace(/\{(\d+)\}/g, (whole, index: string) => {
