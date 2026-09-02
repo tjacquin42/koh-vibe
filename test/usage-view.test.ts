@@ -141,14 +141,20 @@ describe('usageHtml', () => {
 
   it('puts a clock time behind the five-hour countdown, and a date behind the seven-day one', () => {
     const html = usageHtml(bothDeadlines(), now);
-    expect(resetOf(html, '5 h')).toMatch(/in 2 h \(\d{1,2}:\d{2}/);
-    expect(resetOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
+    expect(resetOf(html, '5 h')).toMatch(/in 2 h <i>\(\d{1,2}:\d{2}/);
+    expect(resetOf(html, '7 d')).toMatch(/in 6 d <i>\([^)]+\)<\/i>/);
     expect(resetOf(html, '7 d')).not.toMatch(/\d:\d/);
+  });
+
+  it('sets the exact moment in italic, one step quieter than the delay it follows', () => {
+    const reset = resetOf(usageHtml(bothDeadlines(), now), '7 d');
+    expect(reset).toMatch(/^• in 6 d <i>\([^<]+\)<\/i>/);
+    expect(reset).not.toMatch(/<i>in 6 d/);
   });
 
   it('dates a model row like the weekly window it is', () => {
     const row = resetOf(usageHtml(withModel('Fable', 13, Math.floor(now / 1000) + 86_400), now), '7 d Fable');
-    expect(row).toMatch(/in 1 d \([^)]+\)/);
+    expect(row).toMatch(/in 1 d <i>\([^)]+\)<\/i>/);
     expect(row).not.toMatch(/\d:\d/);
   });
 
@@ -166,9 +172,9 @@ describe('usageHtml', () => {
       },
       now,
     );
-    expect(resetOf(html, '7 d')).toMatch(/in 6 d \([^)]+\)/);
+    expect(resetOf(html, '7 d')).toMatch(/in 6 d <i>\([^)]+\)<\/i>/);
     expect(resetOf(html, '7 d Fable')).toContain('in 6 d');
-    expect(resetOf(html, '7 d Fable')).not.toContain('(');
+    expect(resetOf(html, '7 d Fable')).not.toContain('<i>');
   });
 
   it('dates a model row that reopens on another day than the shared window', () => {
@@ -191,7 +197,7 @@ describe('usageHtml', () => {
       },
       now,
     );
-    expect(resetOf(html, '7 d Fable')).toMatch(/in 2 d \([^)]+\)/);
+    expect(resetOf(html, '7 d Fable')).toMatch(/in 2 d <i>\([^)]+\)<\/i>/);
   });
 
   it('escapes the model name: it is data from the API, not a label of ours', () => {

@@ -104,8 +104,14 @@ function row(label: string, w: UsageWindow | undefined, now: number, exact: stri
   // et n'ont pas à traverser `escape`, mais tout ce qui vient d'un format ou
   // d'un bundle doit y passer — d'où l'assemblage AVANT l'échappement.
   const relative = resetText(w, now);
-  const reset = relative === '' || exact === '' ? relative : `${relative} (${exact})`;
-  return `<span class="kind">${escape(label)}</span><span class="pct" style="color:${percentColor(percent)}">${percent} %</span><span class="reset">${reset === '' ? '' : `• ${escape(reset)}`}</span>
+  // L'italique met le moment exact un cran en retrait du délai : il répond à
+  // une question qu'on ne se pose qu'ensuite. Chaque morceau est échappé
+  // séparément — la balise, elle, est à nous, pas au format ni au bundle.
+  const reset =
+    relative === '' || exact === ''
+      ? escape(relative)
+      : `${escape(relative)} <i>(${escape(exact)})</i>`;
+  return `<span class="kind">${escape(label)}</span><span class="pct" style="color:${percentColor(percent)}">${percent} %</span><span class="reset">${reset === '' ? '' : `• ${reset}`}</span>
 `;
 }
 
