@@ -226,10 +226,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Le tag fait foi sur le numéro livré ; package.json fait foi sur celui que
-      # vsce publiera. Ils divergent dans un cas précis et déjà prévu : la PR de
-      # promotion a oublié le bump, et bump-version.sh a appliqué le niveau d'office.
-      # Sans ce contrôle, vsce partirait publier un numéro déjà en ligne et
-      # échouerait sur un message de la place de marché, qui ne dit rien du vrai
+      # les deux places recevront. Ils divergent dans un cas précis et déjà prévu :
+      # la PR de promotion a oublié le bump, et bump-version.sh a appliqué le niveau
+      # d'office. Sans ce contrôle, la publication partirait sur un numéro déjà en
+      # ligne et échouerait sur un message de registre, qui ne dit rien du vrai
       # problème. Celui-ci le dit.
       - name: Le manifeste et le tag disent-ils la même chose ?
         env:
@@ -238,46 +238,99 @@ jobs:
           set -euo pipefail
           MANIFESTE=$(node -p "require('./package.json').version")
           if [ "v$MANIFESTE" != "$TAG" ]; then
-            echo "::error::$TAG a été posée, mais package.json porte $MANIFESTE — rien n'est publié. Reporte le numéro dans package.json par une PR, puis publie à la main : « npx vsce publish --no-dependencies »."
+            echo "::error::$TAG a été posée, mais package.json porte $MANIFESTE — rien n'est publié. Reporte le numéro dans package.json par une PR, puis publie à la main : « npx vsce publish --no-dependencies » et « npx ovsx publish »."
             exit 1
           fi
           echo "Publication de **$TAG**." >> "$GITHUB_STEP_SUMMARY"
 
+      # Un seul empaquetage pour les deux places : c'est le même .vsix, octet pour
+      # octet, qui part sur l'une et sur l'autre. Publier deux fois depuis les
+      # sources en reconstruirait deux — identiques en principe, mais rien ne le
+      # garantit, et un écart entre les deux registres ne se verrait qu'une fois
+      # installé chez quelqu'un.
+      #
       # « --no-dependencies » parce que le dépôt est en pnpm : sans lui, vsce part
       # sur un « npm ls » qui échoue. C'est sans risque ici, l'extension n'ayant
       # aucune dépendance d'exécution — tout ce qu'elle embarque est dans out/, et
       # .vscodeignore est une liste blanche.
       #
-      # vsce lance « vscode:prepublish », donc compile : ce qui part sur la place de
-      # marché est le code de ce commit, pas un out/ resté d'un run précédent.
+      # vsce lance « vscode:prepublish », donc compile : ce qui est empaqueté est le
+      # code de ce commit, pas un out/ resté d'un run précédent.
+      - name: Empaqueter, une fois pour les deux places
+        id: paquet
+        run: |
+          set -euo pipefail
+          VSIX="koh-vibe-$(node -p "require('./package.json').version").vsix"
+          pnpm exec vsce package --no-dependencies --out "$VSIX"
+          echo "vsix=$VSIX" >> "$GITHUB_OUTPUT"
+
       - name: Publier sur la place de marché
+        id: marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VSIX: ${{ steps.paquet.outputs.vsix }}
         run: |
           set -euo pipefail
           if [ -z "${VSCE_PAT:-}" ]; then
             echo "::error::Le secret VSCE_PAT manque. Crée un jeton Azure DevOps (Marketplace → Manage, « All accessible organizations »), pose-le en secret du dépôt sous ce nom, et relance ce job."
             exit 1
           fi
-          pnpm exec vsce publish --no-dependencies
+          pnpm exec vsce publish --no-dependencies --packagePath "$VSIX"
 
-      # Le PAT Azure DevOps expire au bout d'un an au maximum, et son expiration ne
-      # se voit nulle part avant la livraison qu'elle bloque. Le tag et la Release
-      # sont déjà posés à ce stade : la version existe, elle n'est simplement pas en
-      # ligne, et c'est cette phrase-là qu'il faut retrouver dans le run.
+      # Open VSX est la place des forks : Cursor, Windsurf, VSCodium et Antigravity
+      # n'atteignent pas celle de Microsoft, et ce sont les éditeurs dans lesquels
+      # cette extension est réellement utilisée. Sans cette étape, la moitié du
+      # public n'a d'autre chemin que de compiler le paquet elle-même.
+      #
+      # « !cancelled() » plutôt que la réussite de l'étape précédente : une panne
+      # d'un registre ne doit pas priver l'autre de sa version. Le job reste rouge,
+      # et le résumé ci-dessous dit laquelle des deux places a reçu quoi. La seule
+      # condition retenue est l'empaquetage : sans .vsix, il n'y a rien à envoyer.
+      - name: Publier sur Open VSX
+        id: openvsx
+        if: ${{ !cancelled() && steps.paquet.outcome == 'success' }}
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VSIX: ${{ steps.paquet.outputs.vsix }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OVSX_PAT:-}" ]; then
+            echo "::error::Le secret OVSX_PAT manque. Crée un jeton sur open-vsx.org (Profile → Access Tokens), pose-le en secret du dépôt sous ce nom, et relance ce job."
+            exit 1
+          fi
+          pnpm exec ovsx publish "$VSIX"
+
+      # Les deux jetons expirent, et leur expiration ne se voit nulle part avant la
+      # livraison qu'elle bloque — un an au plus pour celui d'Azure DevOps. Le tag et
+      # la Release sont déjà posés à ce stade : la version existe, elle n'est
+      # simplement pas en ligne partout, et c'est ce tableau-là qu'il faut retrouver
+      # dans le run plutôt qu'un échec sans adresse.
       - name: Ce qui reste à faire si la publication a échoué
         if: failure()
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          MARKETPLACE: ${{ steps.marketplace.outcome }}
+          OPENVSX: ${{ steps.openvsx.outcome }}
         run: |
+          etat() { case "${1:-}" in success) echo "en ligne" ;; failure) echo "**échec**" ;; *) echo "non tentée" ;; esac; }
+          NUMERO="${TAG#v}"
           {
-            echo "### La version est posée, mais pas publiée"
+            echo "### $TAG est posée, mais pas publiée partout"
             echo
-            echo "Le tag et la Release existent. Seule la place de marché n'a rien reçu."
+            echo "Le tag et la Release existent : la version est livrée. Reste à savoir où elle est arrivée."
             echo
-            echo "Vérifie d'abord que \`VSCE_PAT\` n'a pas expiré — un jeton Azure DevOps"
-            echo "vit un an au plus. Puis, depuis une copie à jour de \`main\` :"
+            echo "| Place | État |"
+            echo "|---|---|"
+            echo "| Place de marché VSCode | $(etat "${MARKETPLACE:-}") |"
+            echo "| Open VSX | $(etat "${OPENVSX:-}") |"
+            echo
+            echo "Vérifie d'abord que le jeton correspondant n'a pas expiré."
+            echo "Puis, depuis une copie à jour de \`main\`, ne relance que la place manquante :"
             echo
             echo '```bash'
             echo "pnpm install --frozen-lockfile"
-            echo "npx vsce publish --no-dependencies"
+            echo "pnpm exec vsce package --no-dependencies --out koh-vibe-$NUMERO.vsix"
+            echo "npx vsce publish --no-dependencies --packagePath koh-vibe-$NUMERO.vsix   # place de marché"
+            echo "npx ovsx publish koh-vibe-$NUMERO.vsix                                   # Open VSX"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

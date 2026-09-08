@@ -9,8 +9,8 @@
   "bugs": { "url": "https://github.com/tjacquin42/koh-vibe/issues" },
   "homepage": "https://github.com/tjacquin42/koh-vibe#readme",
   "engines": { "vscode": "^1.94.0", "node": ">=22" },
-  "categories": ["Other"],
-  "keywords": ["claude", "claude code", "anthropic", "sessions", "tableau de bord", "dashboard", "hooks"],
+  "categories": ["AI", "Other"],
+  "keywords": ["claude code", "claude", "anthropic", "cursor", "sessions", "dashboard", "tableau de bord", "hooks"],
   "icon": "resources/logo.png",
   "galleryBanner": { "color": "#0D1114", "theme": "dark" },
   "packageManager": "pnpm@10.25.0",
@@ -112,6 +112,7 @@
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.94.0",
     "@vscode/vsce": "^3.2.0",
+    "ovsx": "^1.1.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

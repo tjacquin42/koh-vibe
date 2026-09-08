@@ -51,8 +51,17 @@ announced level. It warns; it does not block.
 
 Once the pull request is merged, the `version` job of `.github/workflows/cd.yml` **reads the
 number from `package.json`** and posts the `vX.Y.Z` tag, the GitHub Release, the label and the
-milestone. The `publish` job then puts that build on the Marketplace, under the `tjacquin42`
-publisher, using the `VSCE_PAT` repository secret.
+milestone. The `publish` job then packages that commit **once** and sends the same `.vsix` to
+both registries, under the `tjacquin42` publisher: the Visual Studio Marketplace, with the
+`VSCE_PAT` repository secret, and [Open VSX](https://open-vsx.org/extension/tjacquin42/koh-vibe)
+with `OVSX_PAT`. Open VSX is not a nicety — Cursor, Windsurf, VSCodium and Antigravity cannot
+reach Microsoft's marketplace, and they are the editors this extension is actually used in.
+
+One package for both, rather than one publication each from source: two builds would be
+identical in principle and nothing guarantees it, and a divergence between the registries
+would only show up once installed. A registry that is down does not deprive the other of its
+version either — the two steps are independent, the job goes red, and its summary says which
+of the two received what.
 
 **The publication lives in the same run, and it has to.** A tag and a Release created with the
 Actions token trigger no workflow — GitHub cuts the recursion at the source — so a workflow
