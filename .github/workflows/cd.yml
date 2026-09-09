@@ -170,13 +170,20 @@ jobs:
       # qui s'applique. Le tag et la Release, eux, sont déjà posés et portent le
       # même texte : la version est livrée quoi qu'il arrive ici, et le
       # mainteneur n'a plus qu'à reporter l'entrée par une PR.
+      # Le fichier ne bouge pas quand la PR de promotion a écrit son entrée elle-même,
+      # ce qui est le cas nominal : c'est le seul endroit d'où elle puisse atteindre
+      # le dépôt. Il n'y a alors rien à committer, et surtout rien à signaler — une
+      # livraison n'a pas à se plaindre du travail correctement fait en amont.
+      #
+      # Le reste de cette étape est le filet : bump-version.sh a dû insérer un titre
+      # nu faute d'entrée, il a déjà averti, et ce titre ne pourra pas être poussé.
       - name: Publier l'entrée de CHANGELOG
         if: steps.pr.outputs.numero != ''
         run: |
           set -euo pipefail
           if git diff --quiet CHANGELOG.md; then
-            echo "Le tag et la Release sont posés, mais CHANGELOG.md n'a pas bougé." >&2
-            exit 1
+            echo "L'entrée de CHANGELOG était déjà écrite : la PR de promotion l'a portée." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           git add CHANGELOG.md
           git commit -m "chore(version): entrée de CHANGELOG pour la PR #${{ steps.pr.outputs.numero }}"

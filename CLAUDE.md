@@ -86,17 +86,24 @@ It refuses to publish when `package.json` and the tag disagree — the case wher
 pull request forgot the bump and the script applied the level itself. The version exists then,
 but is not online; the run summary carries the two commands that finish the job by hand.
 
-The `CHANGELOG.md` entry is the exception: the job writes it, but cannot push it, for the reason
-above. It waits in the job summary under « Entrée de CHANGELOG à reporter », and it is up to a
-follow-up pull request to carry it. Without that follow-up, `CHANGELOG.md` contradicts the tags —
-which is what happened to `v0.1.0`, `v1.0.0`, and again to `v1.0.1`, `v1.1.0` and `v1.2.0`.
+### The `CHANGELOG.md` entry goes in the promotion pull request
 
-**What the job writes is a heading, not an entry.** It knows the number, the date, the level
-and the pull request title, and nothing else — so the follow-up pull request that reports it
-also writes what changed underneath, in `Added` / `Changed` / `Fixed` sections, from the body
-of the promotion pull request and of the ones it carried. The changelog is read on the
-Marketplace, in its own tab, by people who will never open a pull request: a bare link tells
-them nothing. An entry that is still a bare link is an entry still waiting for that follow-up.
+**Write it next to the version number, before the merge.** For the same reason the number goes
+there: `main` is protected and the Actions token has no bypass, so the promotion is the only
+place from which an entry can reach the repository at all.
+
+This was learnt the hard way. The entry used to be left to a follow-up pull request, and the
+follow-up is the step nobody runs: `v0.1.0`, `v1.0.0`, `v1.0.1`, `v1.1.0`, `v1.2.0` and
+`v1.3.1` all shipped without one, and `CHANGELOG.md` contradicted the tags for weeks at a time.
+
+`scripts/bump-version.sh` is now only the safety net. It leaves the file alone when the entry
+is already there, and inserts a bare heading — with a warning — when it is not. That heading
+still cannot be pushed, so it is a signal, not a fix: a bare link in this file means a version
+whose promotion forgot to describe it, and it has to be caught by the next pull request.
+
+**Write what changed for a user**, in `Added` / `Changed` / `Fixed` sections, from the body of
+the promotion pull request and of the ones it carries. The changelog is read on the
+Marketplace, in its own tab, by people who will never open a pull request.
 
 If `package.json` was not bumped, the delivery does not stop: it applies the announced level to
 the current number and says so loudly. A version that ships without a number is a permanent hole
