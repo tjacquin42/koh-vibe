@@ -63,6 +63,19 @@ would only show up once installed. A registry that is down does not deprive the 
 version either — the two steps are independent, the job goes red, and its summary says which
 of the two received what.
 
+**Only Open VSX is automated today.** `VSCE_PAT` is deliberately not set: obtaining one means
+opening an Azure DevOps organisation with no other use here, for a token Microsoft retires on
+1 December 2026 in favour of Entra ID federation. The Marketplace half therefore stays what it
+already was — the `.vsix` uploaded by hand from
+<https://marketplace.visualstudio.com/manage/publishers/tjacquin42>, the package kept as a run
+artifact for 90 days.
+
+The step **skips** when the token is absent rather than failing. A delivery that goes red at
+every version, for an absence that was chosen, is a delivery nobody reads any more — and that
+is how a real failure slips through. It emits a warning and a summary carrying the upload that
+is left to do. Posting `VSCE_PAT` is all it takes to turn the automation on; nothing else
+changes.
+
 **The publication lives in the same run, and it has to.** A tag and a Release created with the
 Actions token trigger no workflow — GitHub cuts the recursion at the source — so a workflow
 listening on `release: [published]` or on `push: tags` would never start, and would never say

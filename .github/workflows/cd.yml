@@ -264,6 +264,17 @@ jobs:
           pnpm exec vsce package --no-dependencies --out "$VSIX"
           echo "vsix=$VSIX" >> "$GITHUB_OUTPUT"
 
+      # Sans jeton, cette étape se saute au lieu d'échouer. C'est un choix, pas un
+      # oubli : la publication sur la place de marché se fait à la main, par
+      # téléversement du .vsix, et les PAT globaux d'Azure DevOps disparaissent le
+      # 1er décembre 2026 — poser un jeton aujourd'hui pour le remplacer dans trois
+      # mois par une identité fédérée ne vaut pas l'organisation qu'il faut ouvrir
+      # pour l'obtenir.
+      #
+      # Échouer ici rendrait la livraison rouge à CHAQUE version, pour une absence
+      # voulue. Un pipeline rouge en permanence est un pipeline qu'on cesse de lire,
+      # et c'est ainsi qu'une vraie panne passe inaperçue. Le job reste donc vert et
+      # le résumé porte le téléversement restant.
       - name: Publier sur la place de marché
         id: marketplace
         env:
@@ -272,10 +283,33 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${VSCE_PAT:-}" ]; then
-            echo "::error::Le secret VSCE_PAT manque. Crée un jeton Azure DevOps (Marketplace → Manage, « All accessible organizations »), pose-le en secret du dépôt sous ce nom, et relance ce job."
-            exit 1
+            echo "publie=non" >> "$GITHUB_OUTPUT"
+            echo "::warning::Pas de VSCE_PAT : la place de marché n'a rien reçu. Téléverse $VSIX à la main sur marketplace.visualstudio.com/manage/publishers/tjacquin42 — Open VSX, lui, est publié."
+            {
+              echo "### Reste à téléverser sur la place de marché"
+              echo
+              echo "Open VSX a reçu cette version. La place de marché de Microsoft attend un"
+              echo "téléversement manuel de \`$VSIX\`, récupérable dans les artefacts de ce run :"
+              echo
+              echo "<https://marketplace.visualstudio.com/manage/publishers/tjacquin42>"
+              echo
+              echo "Pour automatiser cette moitié, il faut un \`VSCE_PAT\` — voir CLAUDE.md."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+          echo "publie=oui" >> "$GITHUB_OUTPUT"
           pnpm exec vsce publish --no-dependencies --packagePath "$VSIX"
+
+      # Le .vsix survit au run : c'est celui qu'il faut téléverser à la main tant que
+      # la place de marché n'est pas automatisée, et c'est aussi la seule copie du
+      # paquet réellement publié sur Open VSX.
+      - name: Garder le paquet du run
+        if: ${{ !cancelled() && steps.paquet.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.paquet.outputs.vsix }}
+          path: ${{ steps.paquet.outputs.vsix }}
+          retention-days: 90
 
       # Open VSX est la place des forks : Cursor, Windsurf, VSCodium et Antigravity
       # n'atteignent pas celle de Microsoft, et ce sont les éditeurs dans lesquels
@@ -310,9 +344,14 @@ jobs:
         env:
           TAG: ${{ needs.version.outputs.tag }}
           MARKETPLACE: ${{ steps.marketplace.outcome }}
+          MARKETPLACE_PUBLIE: ${{ steps.marketplace.outputs.publie }}
           OPENVSX: ${{ steps.openvsx.outcome }}
         run: |
           etat() { case "${1:-}" in success) echo "en ligne" ;; failure) echo "**échec**" ;; *) echo "non tentée" ;; esac; }
+          # Une étape sautée faute de jeton est « success » : sans ce correctif, le
+          # tableau annoncerait en ligne une version que personne n'a téléversée.
+          if [ "${MARKETPLACE_PUBLIE:-}" = "non" ]; then MARKETPLACE=sautee; fi
+          etat_marketplace() { if [ "$MARKETPLACE" = "sautee" ]; then echo "sautée — téléversement manuel"; else etat "$MARKETPLACE"; fi; }
           NUMERO="${TAG#v}"
           {
             echo "### $TAG est posée, mais pas publiée partout"
@@ -321,7 +360,7 @@ jobs:
             echo
             echo "| Place | État |"
             echo "|---|---|"
-            echo "| Place de marché VSCode | $(etat "${MARKETPLACE:-}") |"
+            echo "| Place de marché VSCode | $(etat_marketplace) |"
             echo "| Open VSX | $(etat "${OPENVSX:-}") |"
             echo
             echo "Vérifie d'abord que le jeton correspondant n'a pas expiré."
