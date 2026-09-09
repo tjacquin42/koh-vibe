@@ -51,7 +51,40 @@ announced level. It warns; it does not block.
 
 Once the pull request is merged, the `version` job of `.github/workflows/cd.yml` **reads the
 number from `package.json`** and posts the `vX.Y.Z` tag, the GitHub Release, the label and the
-milestone.
+milestone. The `publish` job then packages that commit **once** and sends the same `.vsix` to
+both registries, under the `tjacquin42` publisher: the Visual Studio Marketplace, with the
+`VSCE_PAT` repository secret, and [Open VSX](https://open-vsx.org/extension/tjacquin42/koh-vibe)
+with `OVSX_PAT`. Open VSX is not a nicety — Cursor, Windsurf, VSCodium and Antigravity cannot
+reach Microsoft's marketplace, and they are the editors this extension is actually used in.
+
+One package for both, rather than one publication each from source: two builds would be
+identical in principle and nothing guarantees it, and a divergence between the registries
+would only show up once installed. A registry that is down does not deprive the other of its
+version either — the two steps are independent, the job goes red, and its summary says which
+of the two received what.
+
+**Only Open VSX is automated today.** `VSCE_PAT` is deliberately not set: obtaining one means
+opening an Azure DevOps organisation with no other use here, for a token Microsoft retires on
+1 December 2026 in favour of Entra ID federation. The Marketplace half therefore stays what it
+already was — the `.vsix` uploaded by hand from
+<https://marketplace.visualstudio.com/manage/publishers/tjacquin42>, the package kept as a run
+artifact for 90 days.
+
+The step **skips** when the token is absent rather than failing. A delivery that goes red at
+every version, for an absence that was chosen, is a delivery nobody reads any more — and that
+is how a real failure slips through. It emits a warning and a summary carrying the upload that
+is left to do. Posting `VSCE_PAT` is all it takes to turn the automation on; nothing else
+changes.
+
+**The publication lives in the same run, and it has to.** A tag and a Release created with the
+Actions token trigger no workflow — GitHub cuts the recursion at the source — so a workflow
+listening on `release: [published]` or on `push: tags` would never start, and would never say
+so. `publish` therefore hangs off `needs: version`, and reads the number actually posted from
+that job's `tag` output, which `bump-version.sh` writes to `$GITHUB_OUTPUT`.
+
+It refuses to publish when `package.json` and the tag disagree — the case where the promotion
+pull request forgot the bump and the script applied the level itself. The version exists then,
+but is not online; the run summary carries the two commands that finish the job by hand.
 
 The `CHANGELOG.md` entry is the exception: the job writes it, but cannot push it, for the reason
 above. It waits in the job summary under « Entrée de CHANGELOG à reporter », and it is up to a
