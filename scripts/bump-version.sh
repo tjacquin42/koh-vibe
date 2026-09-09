@@ -71,6 +71,16 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG existe déjà." >&2; exit 1; }
 fi
 
+# Le job « publish » enchaîne dans le même run et a besoin du numéro RÉELLEMENT
+# posé — pas de celui de package.json, dont le repli ci-dessus peut s'écarter.
+# En bloc `if`, jamais en « [ -n … ] && echo … » : sous `set -e`, un test faux en
+# fin de liste ET tuerait le script, ce qui abandonnerait la livraison pour une
+# ligne qui ne sert qu'à la CI. Hors Actions la variable n'existe pas, et ce bloc
+# ne fait rien.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+fi
+
 SHA=$(gh pr view "$PR" --repo "$REPO" --json mergeCommit -q .mergeCommit.oid)
 TITLE=$(gh pr view "$PR" --repo "$REPO" --json title -q .title)
 DATE=$(date +%Y-%m-%d)
@@ -87,7 +97,19 @@ ENTRY=$(printf '## [%s](%s/releases/tag/%s) — %s\n\n`%s` · [#%s](%s/pull/%s) 
 # dans une liste « && », set -e ne tue pas le script sur l'échec de la commande de gauche,
 # si bien que la première version posée pour de vrai a créé son tag et sa Release sans
 # jamais écrire son entrée, sans un mot.
-if [ -f CHANGELOG.md ]; then
+#
+# Le cas nominal est que l'entrée soit DÉJÀ là : elle s'écrit à la main dans la PR
+# de promotion, seul endroit d'où elle puisse atteindre le dépôt — main est
+# protégée et le jeton d'Actions n'a pas de dérogation. Insérer un second titre
+# pour le même numéro produirait un doublon que la livraison ne pourrait de toute
+# façon pas pousser, et un avertissement mensonger à chaque version.
+#
+# L'insertion ci-dessous n'est donc plus le chemin normal mais le filet : la
+# promotion a oublié l'entrée, et il vaut mieux un titre nu, signalé, qu'un trou.
+if [ -f CHANGELOG.md ] && grep -q "^## \[$V\]" CHANGELOG.md; then
+  echo "L'entrée $V est déjà dans CHANGELOG.md — portée par la PR de promotion, rien à insérer."
+elif [ -f CHANGELOG.md ]; then
+  echo "::warning::La PR #$PR n'a pas écrit l'entrée $V dans CHANGELOG.md. Un titre nu est inséré ; il reste à écrire ce que la version change, et main étant protégée, ce titre ne pourra pas être poussé d'ici."
   ENTRY="$ENTRY" awk 'BEGIN{done=0} /^## /&&!done{print ENVIRON["ENTRY"]"\n";done=1} {print} END{if(!done)print "\n"ENVIRON["ENTRY"]}' \
       CHANGELOG.md > CHANGELOG.tmp
   mv CHANGELOG.tmp CHANGELOG.md

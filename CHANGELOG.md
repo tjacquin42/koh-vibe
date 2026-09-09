@@ -9,10 +9,84 @@ documentation.
 Each entry names the promotion pull request that delivered it, the pull requests it carried,
 and then says what actually changed for someone using the extension.
 
-`scripts/bump-version.sh` writes the heading and the promotion line on its own at release
-time. The detail underneath is written by hand, in the follow-up pull request that reports the
-entry — `main` is protected, so the delivery can never push this file itself, and an entry
-that arrives as a bare link is an entry still waiting for that pull request.
+The entry is written by hand **in the promotion pull request**, before the merge. `main` is
+protected, so the delivery can never push this file itself: the promotion is the only place an
+entry can reach the repository from. `scripts/bump-version.sh` steps in only when the entry is
+missing — it inserts a bare heading and says so — and an entry that stands as a bare link is a
+version whose promotion forgot to describe it.
+
+## [1.4.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.4.0) — 2026-09-09
+
+`minor` · [#31](https://github.com/tjacquin42/koh-vibe/pull/31) — Koh-Vibe 1.4.0 — every version reaches Open VSX on its own
+
+Carries [#29](https://github.com/tjacquin42/koh-vibe/pull/29) and [#30](https://github.com/tjacquin42/koh-vibe/pull/30).
+
+Koh-Vibe can now be installed from the editors it was written for. Cursor, Windsurf,
+VSCodium and Antigravity never reached Microsoft's marketplace, and what they were told until
+now was to build the package themselves — a wall, not an instruction. Elsewhere, a usage
+window says *when* it reopens, and not only in how long.
+
+### Added
+
+- **Koh-Vibe is on [Open VSX](https://open-vsx.org/extension/tjacquin42/koh-vibe).** Search it
+  from Cursor, Windsurf, VSCodium or Antigravity as you would any other extension, or install
+  the `.vsix` from that page. Every version from this one on lands there by itself, from the
+  same package that goes to the Marketplace.
+- **The exact moment a usage window reopens**, in brackets after the delay: `in 1 h (04:47 PM)`
+  for a five-hour window, `in 5 d (Tue, Sep 8)` for a weekly one. A delay answers how long you
+  have and nothing else — it does not go into a diary, and it rounds down, so 1 h 59 reads as
+  `in 1 h`. The precision follows the window: a clock time when it reopens within the day, a
+  weekday and a date when it does not. Nothing is added once the window has already reset,
+  where the hour of a reset that has passed teaches nothing.
+
+### Changed
+
+- **A model row no longer repeats the date above it.** Weekly windows almost always reopen at
+  the same moment, so every model row carried the same date as the shared row above it — three
+  identical dates stacked, and the repetition was what the eye read first. The date comes back
+  as soon as it differs, which is exactly when it is the only thing saying so. The delay stays
+  on every row: it is that row's own number, not a copy of its neighbour's.
+- **The exact moment sits in italic**, so a row reads as one answer with a footnote rather than
+  as two figures of equal weight.
+- **Dates and times follow the editor's display language**, not the machine's locale. The view
+  is already translated, and a French `8 sept.` under an English interface would be an
+  inconsistency nobody could explain.
+- **The README points fork users to Open VSX** instead of to a compiler, in both languages. Its
+  two Marketplace badges had been dead since shields.io retired that family — they rendered as
+  *retired badge* — and are replaced, beside a new Open VSX one.
+- **The listing is filed under `AI`**, and `cursor` joins its keywords, so browsing the
+  Marketplace finds it and not only an exact search.
+
+### Fixed
+
+- **The changelog no longer skips versions.** An entry is written in the promotion pull request
+  from now on, instead of being left to a follow-up that may never come. `main` is protected,
+  so the delivery has never been able to push this file itself — which is why `v1.3.1` shipped
+  without an entry, and `v1.0.1`, `v1.1.0` and `v1.2.0` before it. The 1.3.1 entry below is
+  written here, four versions late.
+
+## [1.3.1](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.3.1) — 2026-09-01
+
+`patch` · [#27](https://github.com/tjacquin42/koh-vibe/pull/27) — The listing catches up, in words and in colour
+
+Carries [#26](https://github.com/tjacquin42/koh-vibe/pull/26) and [#28](https://github.com/tjacquin42/koh-vibe/pull/28).
+
+No source file changed. Both halves land on the same page — the Marketplace listing. One
+writes down what 1.3.0 changed; the other changes what the card looks like.
+
+### Changed
+
+- **The mark carries the sidebar's colours.** It had a palette of its own, a light amber sun
+  over two cyan lines, while the panel it opens carried another. The sun is now `waiting`
+  `#D18616`, the leading line `running` `#59A4F9`, the one behind it `done_unseen` `#89D185`:
+  a colour means the same thing on the Marketplace card as in a tree row. The ground follows,
+  from the sea gradient to the panel's own near-black `#232A2E` → `#0D1114`. Not taste dragged
+  along — on the teal, the blue line sat in the same hue family as the water and read as part
+  of it, while the other two read as marks on it. On a neutral ground the three carry equal
+  weight.
+- **The Changelog tab describes 1.3.0.** Its entry had been written by the delivery and refused
+  by the branch ruleset, which accepts changes only through a pull request. Until it landed,
+  the published page described an extension that stopped at 1.2.1 while shipping 1.3.0.
 
 ## [1.3.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.3.0) — 2026-09-01
 

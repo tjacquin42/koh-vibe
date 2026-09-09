@@ -2,8 +2,8 @@
 
 *[English version](README.md)*
 
-[![Place de marché](https://img.shields.io/visual-studio-marketplace/v/tjacquin42.koh-vibe?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=tjacquin42.koh-vibe)
-[![Installations](https://img.shields.io/visual-studio-marketplace/i/tjacquin42.koh-vibe)](https://marketplace.visualstudio.com/items?itemName=tjacquin42.koh-vibe)
+[![Place de marché](https://vsmarketplacebadges.dev/version-short/tjacquin42.koh-vibe.svg?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=tjacquin42.koh-vibe)
+[![Open VSX](https://img.shields.io/open-vsx/v/tjacquin42/koh-vibe?label=open%20vsx)](https://open-vsx.org/extension/tjacquin42/koh-vibe)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
 Toutes vos sessions Claude Code dans une seule vue : celles de tous les projets, de toutes
@@ -37,9 +37,14 @@ ext install tjacquin42.koh-vibe
 Rechargez ensuite la fenêtre, ouvrez la vue Koh-Vibe dans la barre d'activité, et posez les
 hooks.
 
-Les forks de VSCode — Cursor, Windsurf, VSCodium — n'atteignent pas la place de marché de
-Microsoft. Pour ceux-là, construisez le paquet vous-même ; c'est une commande,
-[plus bas](#depuis-les-sources).
+Les forks de VSCode — Cursor, Windsurf, VSCodium, Antigravity — n'atteignent pas la place de
+marché de Microsoft : ils lisent [Open VSX](https://open-vsx.org/extension/tjacquin42/koh-vibe),
+où Koh-Vibe est publiée également, dans la même version. Cherchez-y **Koh-Vibe**, ou
+récupérez le `.vsix` depuis cette page et posez-le par *Extensions : Installer à partir d'un
+VSIX…*.
+
+Construire le paquet vous-même reste possible, [plus bas](#depuis-les-sources) ; c'est une
+commande.
 
 ### Poser les hooks
 
