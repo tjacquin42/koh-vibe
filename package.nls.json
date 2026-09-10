@@ -34,5 +34,6 @@
   "view.kohVibe.settings.name": "Settings",
   "command.kohVibe.killProcess.title": "Terminate process",
   "command.kohVibe.copyProcessPid.title": "Copy pid",
-  "command.kohVibe.copyProcessCommand.title": "Copy command"
+  "command.kohVibe.copyProcessCommand.title": "Copy command",
+  "view.kohVibe.processes.name": "Processes"
 }

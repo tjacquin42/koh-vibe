@@ -146,5 +146,15 @@
   "Koh-Vibe: {0} processes terminated": "Koh-Vibe : {0} processus terminés",
   "Koh-Vibe: pid {0} copied": "Koh-Vibe : pid {0} copié",
   "Koh-Vibe: command copied": "Koh-Vibe : commande copiée",
-  "Koh-Vibe: this process has no command line": "Koh-Vibe : ce processus n’a pas de ligne de commande"
+  "Koh-Vibe: this process has no command line": "Koh-Vibe : ce processus n’a pas de ligne de commande",
+  "Nothing is running": "Rien ne tourne",
+  "MCP servers": "Serveurs MCP",
+  "No session": "Sans session",
+  "no session": "sans session",
+  "{0} server": "{0} serveur",
+  "{0} servers": "{0} serveurs",
+  "{0} process": "{0} processus",
+  "{0} processes": "{0} processus",
+  "unknown conversation": "conversation inconnue",
+  "Processes no conversation carries any more: their session is gone, and the system reparented them. A forgotten development server still holding its port is the usual case.": "Des processus qu’aucune conversation ne porte plus : leur session a disparu, et le système les a rattachés ailleurs. Le cas courant est un serveur de développement oublié qui tient encore son port."
 }

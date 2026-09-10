@@ -16,9 +16,21 @@ export const PROCESS_GLYPH: Record<ProcKind, string> = {
   work: 'gear',
 };
 
-/** What the session started itself, as opposed to what those started in turn. */
+/**
+ * What the session started itself, as opposed to what those started in turn.
+ *
+ * MCP servers are left out: they belong to the Processes view, where they are
+ * shown once for the whole machine. Under a session they were three identical
+ * rows repeated in every conversation, which is what pushed the work — the one
+ * thing that differs from one session to the next — out of sight.
+ */
 export function rootsOf(procs: readonly SessionProcess[]): SessionProcess[] {
-  return procs.filter((p) => p.depth === 0);
+  return procs.filter((p) => p.depth === 0 && p.kind !== 'mcp');
+}
+
+/** The MCP servers a session holds, and what those started in turn. */
+export function mcpOf(procs: readonly SessionProcess[]): SessionProcess[] {
+  return procs.filter((p) => p.kind === 'mcp');
 }
 
 export function childrenOf(procs: readonly SessionProcess[], pid: number): SessionProcess[] {

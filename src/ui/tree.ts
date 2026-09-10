@@ -613,9 +613,13 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // Collapsed, never expanded: what a session runs is detail on demand. An
     // expanded default would push the conversations below it off the screen,
     // and the list of conversations is what this view is for.
+    //
+    // The arrow follows `rootsOf`, not the whole list: a session running only
+    // its MCP servers has nothing to unfold here — those live in the Processes
+    // view now — and an arrow opening onto an empty list is a broken promise.
     const item = new vscode.TreeItem(
       sessionLabel(s),
-      procs.length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed,
+      rootsOf(procs).length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed,
     );
     item.id = nodeId(node);
     const running = processCount(procs);

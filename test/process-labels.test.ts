@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { childrenOf, processCount, processDescription, processTooltip, rootsOf, PROCESS_GLYPH } from '../src/ui/process-labels';
+import { childrenOf, mcpOf, processCount, processDescription, processTooltip, rootsOf, PROCESS_GLYPH } from '../src/ui/process-labels';
 import { classify } from '../src/process/classify';
 import { descendantsOf, parsePs } from '../src/process/scan';
 
@@ -21,8 +21,15 @@ const TREE = classify(
 );
 
 describe('rootsOf and childrenOf', () => {
-  it('takes for roots what the session started itself', () => {
-    expect(rootsOf(TREE).map((p) => p.pid)).toEqual([200, 400]);
+  it('takes for roots the work the session started, leaving its servers out', () => {
+    // The MCP servers moved to the Processes view: under a session they were
+    // identical rows repeated in every conversation, burying the work that
+    // actually differs from one to the next.
+    expect(rootsOf(TREE).map((p) => p.pid)).toEqual([400]);
+  });
+
+  it('keeps the servers reachable, for the view that does show them', () => {
+    expect(mcpOf(TREE).map((p) => p.pid)).toEqual([200, 300]);
   });
 
   it('finds what one process started', () => {

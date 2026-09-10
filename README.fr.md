@@ -98,14 +98,22 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   conversation qui se termine avant son premier message — Claude Code en démarre une pour chaque
   panneau qu'il ouvre — ne laisse ni ligne ni historique : il n'y a rien où revenir.
 - **Ce que chaque session fait tourner**, en direct. Dépliez une ligne vivante et vous voyez les
-  processus qu'elle a lancés : ses serveurs MCP, chaque commande en cours de l'outil Bash, et ce
-  que ces commandes ont laissé derrière elles — un `pnpm dev` encore debout une heure après le
-  retour de la commande qui l'a lancé, par exemple. Le compte affiché sur la ligne de session
-  laisse les serveurs MCP de côté : ils sont là pour toute la conversation et ne diraient rien.
-  Clic droit sur un processus pour *copier la commande*, entière là où la ligne a dû la couper,
-  *copier le pid*, ou *terminer le processus* avec tout ce qu'il a lancé, après une confirmation
-  qui nomme la commande. Un processus qui se détache (`nohup`, un service `launchd`) sort de
-  l'arbre de sa session et ne peut pas être montré ici.
+  processus qu'elle a lancés : chaque commande en cours de l'outil Bash, et ce que ces commandes
+  ont laissé derrière elles — un `pnpm dev` encore debout une heure après le retour de la
+  commande qui l'a lancé, par exemple. Clic droit sur un processus pour *copier la commande*,
+  entière là où la ligne a dû la couper, *copier le pid*, ou *terminer le processus* avec tout ce
+  qu'il a lancé, après une confirmation qui nomme la commande.
+- **Processus**, une vue à part, pour ce qu'aucune conversation ne porte à elle seule. Les
+  *serveurs MCP* de toutes les sessions y vivent, plutôt que sous chaque conversation : Claude
+  Code démarre son propre jeu par conversation, donc répéter trois lignes identiques dans chaque
+  session noyait le travail qui, lui, diffère. En dessous, *Sans session* liste les processus que
+  plus rien ne porte — un serveur de développement dont la conversation a disparu, qui tient
+  encore son port. Ceux-là ne peuvent pas apparaître sous une session par construction : un
+  processus qui perd son parent est rattaché au processus 1, ce qui le sort de l'arbre de toutes
+  les sessions. On les trouve en cherchant les moteurs de développement parmi les rattachés, puis
+  en gardant ceux qui travaillent dans un dossier ouvert par cette fenêtre ou dans le répertoire
+  d'une conversation. Un processus qui travaille ailleurs, ou qu'un terminal ouvert tient encore,
+  n'est volontairement pas listé.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une

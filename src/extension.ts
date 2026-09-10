@@ -7,10 +7,12 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { snapshot } from './process/scan';
+import { descendantsOf, snapshot, type ProcRow } from './process/scan';
 import { processesBySession } from './process/sessions';
+import { findOrphans, type Orphan } from './process/orphans';
 import { killAll, killPlan } from './process/kill';
-import { copyableCommand, type SessionProcess } from './process/classify';
+import { classify, copyableCommand, type SessionProcess } from './process/classify';
+import { ProcessesTree, orphanOfNode } from './ui/process-tree';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
 import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
@@ -434,6 +436,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // aucun moyen d'épingler une ligne au bas d'un arbre, et tout ce qu'on y
   // mettait défilait avec les conversations.
   const closedTree = new ClosedTree();
+  // What runs that no single conversation accounts for: the MCP servers of
+  // every session, shown once here rather than repeated under each, and the
+  // processes nothing carries any more. Its own view, between the
+  // conversations and the usage.
+  const processesTree = new ProcessesTree();
+  const processesView = vscode.window.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -461,6 +469,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // récemment » (seulement quand les sessions ne sont pas persistantes), la
     // consommation, puis les réglages. L'ordre vient de package.json, pas d'ici.
     vscode.window.createTreeView('kohVibe.closed', { treeDataProvider: closedTree }),
+    processesView,
     vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
     settingsView,
     // The checkbox itself; the rest of the row goes through the command.
@@ -501,14 +510,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * Kept for the commands, which act on a click and must not launch a scan of
    * their own to know what the row they were given stands for.
    */
+  // The conversations the last render displayed. Read by `orphanRoots` and by
+  // the Processes view, which names the conversation each server belongs to.
+  let lastShown: ReadonlyMap<string, Session> = new Map();
   let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
+  // The rows of the last scan, kept for the one thing the per-session map
+  // cannot answer: the descendants of an orphan, which belong to no session by
+  // definition and so appear in no list above.
+  let lastRows: readonly ProcRow[] = [];
+  let lastOrphans: readonly Orphan[] = [];
   const scanProcesses = async (): Promise<ReadonlyMap<string, SessionProcess[]>> => {
-    if (!view.visible) {
+    if (!view.visible && !processesView.visible) {
       lastProcesses = new Map();
+      lastRows = [];
+      lastOrphans = [];
       return lastProcesses;
     }
-    lastProcesses = processesBySession(await snapshot(), await readLiveSessions(registryDir));
+    lastRows = await snapshot();
+    lastProcesses = processesBySession(lastRows, await readLiveSessions(registryDir));
+    // The orphan hunt costs a second reading — one `lsof` over a handful of
+    // candidates — and only the Processes view shows its result. It is skipped
+    // whenever that view is closed, exactly as the whole scan is skipped when
+    // both are.
+    lastOrphans = processesView.visible ? await findOrphans(lastRows, orphanRoots()) : [];
     return lastProcesses;
+  };
+
+  /**
+   * Where a lost process has to be working for us to claim it: the folders this
+   * window has open, and the working directory of every conversation on the
+   * list.
+   *
+   * Never a hard-coded root. What makes a listed process recognisably the
+   * user's own is that it works inside something they are working on, and the
+   * dashboard already knows what that is. With no root at all — an editor
+   * opened on no folder, no session yet — nothing is listed, rather than the
+   * three hundred daemons of a running system.
+   */
+  const orphanRoots = (): string[] => {
+    const roots = new Set(workspaceFolders());
+    for (const session of lastShown.values()) roots.add(session.cwd);
+    return [...roots];
   };
 
   /**
@@ -527,6 +569,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (target === undefined) return undefined;
     const among = lastProcesses.get(target.sessionId) ?? [];
     const proc = among.find((p) => p.pid === target.pid);
+    return proc === undefined ? undefined : { proc, among };
+  };
+
+  /**
+   * The same, for an orphan row of the Processes view.
+   *
+   * Its subtree is built here rather than looked up: no session carries this
+   * process, so no list holds it and its children. Classified from the raw
+   * table like any other, which files it as `work` — it is not, and cannot be,
+   * anyone's MCP server.
+   */
+  const orphanAt = (node: unknown): { proc: SessionProcess; among: SessionProcess[] } | undefined => {
+    const pid = orphanOfNode(node);
+    if (pid === undefined) return undefined;
+    const self = lastRows.find((r) => r.pid === pid);
+    if (self === undefined) return undefined;
+    const among = classify([{ ...self, depth: 0 }, ...descendantsOf(lastRows, pid).map((d) => ({ ...d, depth: d.depth + 1 }))]);
+    const proc = among.find((p) => p.pid === pid);
     return proc === undefined ? undefined : { proc, among };
   };
 
@@ -624,7 +684,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // (see SessionsTree.setHooksInstalled). The cost is one small file
         // read per tick, paid only on an empty dashboard.
         if (shown.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
-        tree.setProcesses(await scanProcesses());
+        // Set before the scan: `orphanRoots` reads it to know which projects
+        // are ours, and a scan running on the previous tick's list would miss
+        // a conversation opened since.
+        lastShown = shown;
+        const processes = await scanProcesses();
+        tree.setProcesses(processes);
+        processesTree.setProcesses(processes, shown);
+        processesTree.setOrphans(lastOrphans);
         tree.setSessions(shown);
         tree.setGroups(groups);
         // The status bar counts what runs: an ended or dormant row is a
@@ -1277,7 +1344,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      * `killAll` treats as the ordinary race it is.
      */
     vscode.commands.registerCommand('kohVibe.killProcess', async (node: unknown) => {
-      const found = processAt(node);
+      // An orphan is resolved differently, and has to be: it belongs to no
+      // session, so it appears in no per-session list. Its descendants are
+      // walked from the raw table instead — the same table the row came from.
+      const found = processAt(node) ?? orphanAt(node);
       if (found === undefined) return;
       const plan = killPlan(found.among, found.proc);
       const confirm = vscode.l10n.t('Terminate');
@@ -1308,13 +1378,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      * kill: what is copied is what the row showed.
      */
     vscode.commands.registerCommand('kohVibe.copyProcessPid', async (node: unknown) => {
-      const found = processAt(node);
+      const found = processAt(node) ?? orphanAt(node);
       if (found === undefined) return;
       await vscode.env.clipboard.writeText(String(found.proc.pid));
       vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: pid {0} copied', found.proc.pid), 3000);
     }),
     vscode.commands.registerCommand('kohVibe.copyProcessCommand', async (node: unknown) => {
-      const found = processAt(node);
+      const found = processAt(node) ?? orphanAt(node);
       if (found === undefined) return;
       const command = copyableCommand(found.proc.command);
       // Nothing to copy is not a failure worth a dialog, but silently leaving

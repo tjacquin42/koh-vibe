@@ -27,6 +27,7 @@
       "koh-vibe": [
         { "id": "kohVibe.sessions", "name": "%view.kohVibe.sessions.name%", "icon": "resources/logo-mono.svg", "initialSize": 20 },
         { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.processes", "name": "%view.kohVibe.processes.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
         { "id": "kohVibe.usage", "name": "%view.kohVibe.usage.name%", "type": "webview", "icon": "resources/logo-mono.svg", "initialSize": 3 },
         { "id": "kohVibe.settings", "name": "%view.kohVibe.settings.name%", "icon": "resources/logo-mono.svg", "initialSize": 4 }
       ]
@@ -82,10 +83,10 @@
         { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },
         { "command": "kohVibe.soundGroup.done", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@2" },
         { "command": "kohVibe.deleteGroup", "when": "view == kohVibe.sessions && viewItem == group", "group": "zzz@1" },
-        { "command": "kohVibe.copyProcessCommand", "when": "view == kohVibe.sessions && viewItem =~ /^process/", "group": "copy@1" },
-        { "command": "kohVibe.copyProcessPid", "when": "view == kohVibe.sessions && viewItem =~ /^process/", "group": "copy@2" },
-        { "command": "kohVibe.killProcess", "when": "view == kohVibe.sessions && viewItem =~ /^process/", "group": "inline" },
-        { "command": "kohVibe.killProcess", "when": "view == kohVibe.sessions && viewItem =~ /^process/", "group": "process@1" },
+        { "command": "kohVibe.copyProcessCommand", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@1" },
+        { "command": "kohVibe.copyProcessPid", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@2" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "inline" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "process@1" },
         { "command": "kohVibe.copySessionId", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "copy@1" },
         { "command": "kohVibe.copySessionId", "when": "view == kohVibe.closed && viewItem == closedSession", "group": "copy@1" },
         { "command": "kohVibe.soundSession.waiting", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "son@1" },

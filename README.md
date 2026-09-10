@@ -90,13 +90,20 @@ reinstalling under the same number leaves the editor serving what it already had
   it for good. A conversation that ends before its first message — Claude Code starts one for
   every panel it opens — leaves no row and no history: there is nothing to come back to.
 - **What each session is running**, right now. Unfold a live row and you get the processes it
-  started: its MCP servers, each command the Bash tool is running, and whatever those left
-  behind — a `pnpm dev` still up an hour after the command that started it returned, say. The
-  count on the session row leaves the MCP servers out, since those are there for the whole
-  conversation and would say nothing. Right-click a process to **copy its command** — whole,
-  where the row had to cut it — or **its pid**, and to **terminate** it along with everything
-  it started, after a confirmation naming the command. A process that detaches itself
-  (`nohup`, a `launchd` job) leaves its session's tree and cannot be shown here.
+  started: each command the Bash tool is running, and whatever those left behind — a
+  `pnpm dev` still up an hour after the command that started it returned, say. Right-click a
+  process to **copy its command** — whole, where the row had to cut it — or **its pid**, and to
+  **terminate** it along with everything it started, after a confirmation naming the command.
+- **Processes**, a view of its own, for what no single conversation accounts for. The **MCP
+  servers** of every session live there rather than under each conversation: Claude Code starts
+  its own set per conversation, so repeating three identical rows in every session buried the
+  work that actually differs. Below them, **No session** lists the processes nothing carries any
+  more — a development server whose conversation is gone, still holding its port. Those cannot
+  appear under a session by construction: a process that loses its parent is adopted by the
+  process 1, which takes it out of every session's subtree. They are found by looking for
+  development runtimes among the adopted, then keeping the ones working inside a folder this
+  window has open or a conversation's own directory. A process that works somewhere else, or
+  one still held by an open terminal, is deliberately not listed.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.

@@ -52,7 +52,7 @@ describe('SessionsTree — the processes of a session', () => {
     expect(item.collapsibleState).toBe(TreeItemCollapsibleState.None);
   });
 
-  it('unfolds a session into what it started itself, not into the whole tree flattened', async () => {
+  it('unfolds a session into the work it started, and not into its servers', async () => {
     const t = newTree();
     t.setSessions(new Map([['s1', session('s1')]]));
     t.setProcesses(new Map([['s1', tree('10')]]));
@@ -60,7 +60,19 @@ describe('SessionsTree — the processes of a session', () => {
     const node = await sessionNode(t, 's1');
     expect(t.getTreeItem(node).collapsibleState).toBe(TreeItemCollapsibleState.Collapsed);
     const rows = await t.getChildren(node);
-    expect(rows.map((r) => t.getTreeItem(r).label)).toEqual(['uv tool uvx alpaca-mcp-server', 'pnpm dev']);
+    expect(rows.map((r) => t.getTreeItem(r).label)).toEqual(['pnpm dev']);
+  });
+
+  it('leaves a session running nothing but its servers unfoldable-free', async () => {
+    // The arrow has to follow what is actually under it. An arrow opening onto
+    // an empty list is a broken promise, and every session has MCP servers.
+    const t = newTree();
+    t.setSessions(new Map([['s1', session('s1')]]));
+    t.setProcesses(new Map([['s1', tree('10').filter((p) => p.kind === 'mcp')]]));
+
+    const node = await sessionNode(t, 's1');
+    expect(t.getTreeItem(node).collapsibleState).toBe(TreeItemCollapsibleState.None);
+    expect(await t.getChildren(node)).toEqual([]);
   });
 
   it('unfolds a process into what that process started', async () => {
@@ -90,16 +102,16 @@ describe('SessionsTree — the processes of a session', () => {
     t.setProcesses(new Map([['s1', tree('10')]]));
 
     const rows = await t.getChildren(await sessionNode(t, 's1'));
-    expect(rows.map((r) => t.getTreeItem(r).command)).toEqual([undefined, undefined]);
+    expect(rows.map((r) => t.getTreeItem(r).command)).toEqual([undefined]);
   });
 
-  it('marks an MCP row apart, so the confirmation can warn about it', async () => {
+  it('marks a work row so one context menu can serve it', async () => {
     const t = newTree();
     t.setSessions(new Map([['s1', session('s1')]]));
     t.setProcesses(new Map([['s1', tree('10')]]));
 
     const rows = await t.getChildren(await sessionNode(t, 's1'));
-    expect(rows.map((r) => t.getTreeItem(r).contextValue)).toEqual(['processMcp', 'process']);
+    expect(rows.map((r) => t.getTreeItem(r).contextValue)).toEqual(['process']);
   });
 
   it('never gives two sessions running the same pid the same row identity', () => {
