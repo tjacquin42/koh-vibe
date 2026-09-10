@@ -60,6 +60,23 @@ export function classify(nodes: readonly ProcNode[]): SessionProcess[] {
 }
 
 /**
+ * The same, for a subtree that hangs off no session at all.
+ *
+ * `kindOf` reads depth 0 as "started by a conversation", which is what makes an
+ * MCP server recognisable there. Applied to a process the system has adopted,
+ * that rule says the opposite of the truth: nothing about an orphan is anyone's
+ * MCP server, and the only distinction left worth drawing is the shell a
+ * command ran in from the command itself.
+ */
+export function classifyDetached(nodes: readonly ProcNode[]): SessionProcess[] {
+  return nodes.map((node) => ({
+    ...node,
+    kind: node.command.includes(TOOL_SHELL) ? ('shell' as const) : ('work' as const),
+    label: displayCommand(node.command),
+  }));
+}
+
+/**
  * What the command actually was, short enough to read on a tree row.
  *
  * A tool shell is unreadable as reported — a `source`, a couple of `setopt`,

@@ -7,11 +7,11 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { descendantsOf, snapshot, type ProcRow } from './process/scan';
+import { snapshot, type ProcRow } from './process/scan';
 import { processesBySession } from './process/sessions';
-import { findOrphans, type Orphan } from './process/orphans';
+import { findOrphans, subtreeOf, type Orphan } from './process/orphans';
 import { killAll, killPlan } from './process/kill';
-import { classify, copyableCommand, type SessionProcess } from './process/classify';
+import { copyableCommand, type SessionProcess } from './process/classify';
 import { ProcessesTree, orphanOfNode } from './ui/process-tree';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
@@ -583,9 +583,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const orphanAt = (node: unknown): { proc: SessionProcess; among: SessionProcess[] } | undefined => {
     const pid = orphanOfNode(node);
     if (pid === undefined) return undefined;
-    const self = lastRows.find((r) => r.pid === pid);
-    if (self === undefined) return undefined;
-    const among = classify([{ ...self, depth: 0 }, ...descendantsOf(lastRows, pid).map((d) => ({ ...d, depth: d.depth + 1 }))]);
+    const among = subtreeOf(lastRows, pid);
     const proc = among.find((p) => p.pid === pid);
     return proc === undefined ? undefined : { proc, among };
   };

@@ -90,6 +90,50 @@ describe('parseLsofCwds', () => {
   });
 });
 
+describe('orphansUnder — the subtree decides, not the adopted process alone', () => {
+  // The shape a session killed outright leaves behind, and the one that
+  // matters most: Claude Code takes its children with it on a clean exit, so a
+  // window reload leaves nothing. A crash, a `kill -9` or a machine put to
+  // sleep leaves the tool shell adopted by the process 1, with the server it
+  // started still under IT. The adopted process is then a `zsh` — no
+  // development runtime — and the server is not adopted at all.
+  const SHELL_GHOST = parsePs(
+    [
+      '800   1  10 1000 /bin/zsh -c python3 -m http.server 8934 --bind 127.0.0.1; true',
+      '801 800  10 210000 /opt/homebrew/Cellar/python@3.14/bin/Python -m http.server 8934',
+      '900   1  10 1000 /bin/zsh -c tail -f /var/log/system.log',
+      '901 900  10 1000 tail -f /var/log/system.log',
+    ].join('\n'),
+  );
+  const cwds = new Map([
+    [800, '/Users/jack/DEV/koh-vibe'],
+    [900, '/Users/jack/DEV/koh-vibe'],
+  ]);
+
+  it('keeps an adopted shell whose child is a development runtime', () => {
+    expect(orphansUnder(SHELL_GHOST, cwds, ['/Users/jack/DEV']).map((o) => o.root.pid)).toEqual([800]);
+  });
+
+  it('drops an adopted shell that runs nothing of the sort', () => {
+    // A `tail` left behind is not a forgotten dev server, and this view is not
+    // a process manager for the whole machine.
+    expect(orphansUnder(SHELL_GHOST, cwds, ['/Users/jack/DEV']).map((o) => o.root.pid)).not.toContain(900);
+  });
+
+  it('carries the subtree, so the server hidden under the shell can be seen', () => {
+    const [ghost] = orphansUnder(SHELL_GHOST, cwds, ['/Users/jack/DEV']);
+    expect(ghost?.tree.map((p) => p.pid)).toEqual([800, 801]);
+  });
+
+  it('never calls an orphan someone MCP server', () => {
+    // `kindOf` reads depth 0 as "started by a conversation". Applied here it
+    // would file the adopted shell as an MCP server, and the confirmation
+    // would warn about breaking a conversation that no longer exists.
+    const [ghost] = orphansUnder(SHELL_GHOST, cwds, ['/Users/jack/DEV']);
+    expect(ghost?.tree.map((p) => p.kind)).toEqual(['work', 'work']);
+  });
+});
+
 describe('orphansUnder', () => {
   const cwds = new Map([
     [300, '/Users/jack/DEV/projet/packages/web'],
@@ -99,7 +143,7 @@ describe('orphansUnder', () => {
 
   it('keeps a process working inside a known root, at any depth', () => {
     const roots = ['/Users/jack/DEV/projet'];
-    expect(orphansUnder(ROWS, cwds, roots).map((p) => p.pid)).toEqual([300]);
+    expect(orphansUnder(ROWS, cwds, roots).map((o) => o.root.pid)).toEqual([300]);
   });
 
   it('carries the directory, which is the only thing saying where it belongs', () => {
@@ -108,7 +152,7 @@ describe('orphansUnder', () => {
   });
 
   it('takes the root itself, not only what is under it', () => {
-    expect(orphansUnder(ROWS, cwds, ['/Users/jack/DEV/pity-tidy']).map((p) => p.pid)).toEqual([400]);
+    expect(orphansUnder(ROWS, cwds, ['/Users/jack/DEV/pity-tidy']).map((o) => o.root.pid)).toEqual([400]);
   });
 
   it('does not mistake a sibling directory for a child of the root', () => {

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { displayCommand } from './classify';
-import type { ProcRow } from './scan';
+import { classifyDetached, type SessionProcess } from './classify';
+import { descendantsOf, type ProcRow } from './scan';
 
 /**
  * A process no conversation carries any more: a development server whose
@@ -11,11 +11,13 @@ import type { ProcRow } from './scan';
  * of every session's subtree. Finding them again is the whole point of this
  * module.
  */
-export interface Orphan extends ProcRow {
+export interface Orphan {
+  /** The adopted process itself — a shell as often as a server. */
+  root: SessionProcess;
+  /** The root and everything under it, so what it hides can be unfolded. */
+  tree: SessionProcess[];
   /** Its working directory. Always known: it is what placed it under a root. */
   cwd: string;
-  /** The command line, made readable, as the session rows show it. */
-  label: string;
 }
 
 /**
@@ -131,6 +133,21 @@ function isUnder(cwd: string, root: string): boolean {
  * view with system daemons, which is the opposite of what it is for: the roots
  * are what make a listed process recognisably the user's own.
  */
+/**
+ * The subtree an adopted process carries: itself, then everything under it.
+ *
+ * Whole, because what was adopted is rarely what matters. A session killed
+ * outright leaves its tool shell adopted, with the server it started still
+ * under IT — so the shell is the orphan, a `zsh` and no development runtime,
+ * while the server that holds the port is not adopted at all. Judging the
+ * adopted process on its own missed exactly the case this view exists for.
+ */
+export function subtreeOf(rows: readonly ProcRow[], pid: number): SessionProcess[] {
+  const self = rows.find((r) => r.pid === pid);
+  if (self === undefined) return [];
+  return classifyDetached([{ ...self, depth: 0 }, ...descendantsOf(rows, pid).map((d) => ({ ...d, depth: d.depth + 1 }))]);
+}
+
 export function orphansUnder(
   rows: readonly ProcRow[],
   cwds: ReadonlyMap<number, string>,
@@ -141,7 +158,14 @@ export function orphansUnder(
   for (const row of unattached(rows)) {
     const cwd = cwds.get(row.pid);
     if (cwd === undefined || !roots.some((root) => isUnder(cwd, root))) continue;
-    out.push({ ...row, cwd, label: displayCommand(row.command) });
+    const tree = subtreeOf(rows, row.pid);
+    // The whole subtree is asked, not the root: see `subtreeOf`. A shell that
+    // runs nothing of interest — a `tail` left behind — is not what this view
+    // is for, and listing it would turn it into a process manager.
+    if (!tree.some((p) => looksLikeDevRuntime(p.command))) continue;
+    const root = tree.find((p) => p.depth === 0);
+    if (root === undefined) continue;
+    out.push({ root, tree, cwd });
   }
   return out;
 }
@@ -165,7 +189,13 @@ export async function findOrphans(
   timeoutMs = 3_000,
 ): Promise<Orphan[]> {
   if (roots.length === 0) return [];
-  const candidates = unattached(rows).filter((row) => looksLikeDevRuntime(row.command));
+  // The cheap filter, applied to the SUBTREE rather than to the adopted
+  // process: an adopted `zsh` holding a dev server is the shape that matters,
+  // and testing the root alone let it through unseen. The walk itself is in
+  // memory and costs nothing next to the reading that follows.
+  const candidates = unattached(rows).filter((row) =>
+    subtreeOf(rows, row.pid).some((p) => looksLikeDevRuntime(p.command)),
+  );
   if (candidates.length === 0) return [];
   const cwds = await readCwds(
     candidates.map((c) => c.pid),

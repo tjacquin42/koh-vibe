@@ -3,7 +3,7 @@ import { ProcessesTree, orphanOfNode, processNodeId } from '../src/ui/process-tr
 import type { Session } from '../src/events/types';
 import { classify } from '../src/process/classify';
 import { descendantsOf, parsePs } from '../src/process/scan';
-import type { Orphan } from '../src/process/orphans';
+import { subtreeOf, type Orphan } from '../src/process/orphans';
 import { TreeItemCollapsibleState } from './stubs/vscode';
 
 const SNAPSHOT = '/Users/jack/.claude/shell-snapshots/snap.sh';
@@ -34,15 +34,22 @@ const procs = (rootPid: number) =>
     ),
   );
 
-const orphan = (pid: number, project: string): Orphan => ({
-  pid,
-  ppid: 1,
-  elapsed: 3600,
-  rss: 210_000,
-  command: `/usr/local/bin/node /Users/dev/${project}/node_modules/.bin/vite`,
-  cwd: `/Users/dev/${project}`,
-  label: 'node vite',
-});
+/**
+ * A ghost in the shape the system actually leaves: an adopted shell, with the
+ * server that holds the port under it.
+ */
+const orphan = (pid: number, project: string): Orphan => {
+  const tree = subtreeOf(
+    parsePs(
+      [
+        `${pid}   1  01:00 1000 /bin/zsh -c node vite; true`,
+        `${pid + 1} ${pid}  01:00 210000 /usr/local/bin/node /Users/dev/${project}/node_modules/.bin/vite`,
+      ].join('\n'),
+    ),
+    pid,
+  );
+  return { root: tree[0]!, tree, cwd: `/Users/dev/${project}` };
+};
 
 const newTree = (): ProcessesTree => new ProcessesTree();
 
@@ -137,7 +144,7 @@ describe('ProcessesTree — the orphan section', () => {
     const sections = await tree.getChildren();
     const rows = await tree.getChildren(sections[0]);
     const item = tree.getTreeItem(rows[0]!);
-    expect(String(item.label)).toBe('node vite');
+    expect(String(item.label)).toBe('zsh -c node vite; true');
     expect(String(item.description)).toContain('pity-tidy');
   });
 
@@ -150,13 +157,33 @@ describe('ProcessesTree — the orphan section', () => {
     expect(tree.getTreeItem(rows[0]!).contextValue).toBe('orphan');
   });
 
-  it('has nothing to unfold: what it started is listed beside it or not at all', async () => {
+  it('unfolds onto what it hides, which is usually the process that matters', async () => {
+    // What the system adopted is a shell; the server holding the port is
+    // under it. A row that could not be unfolded would name the shell and
+    // hide the only thing worth seeing.
     const tree = newTree();
     tree.setOrphans([orphan(900, 'pity-tidy')]);
 
     const sections = await tree.getChildren();
     const rows = await tree.getChildren(sections[0]);
-    expect(tree.getTreeItem(rows[0]!).collapsibleState).toBe(TreeItemCollapsibleState.None);
+    expect(tree.getTreeItem(rows[0]!).collapsibleState).toBe(TreeItemCollapsibleState.Collapsed);
+    const kids = await tree.getChildren(rows[0]);
+    // Only the leading binary is shortened; the arguments stay whole, which is
+    // where the project shows.
+    expect(kids.map((k) => String(tree.getTreeItem(k).label))).toEqual([
+      'node /Users/dev/pity-tidy/node_modules/.bin/vite',
+    ]);
+  });
+
+  it('lets a menu act on a hidden child as well as on the root', async () => {
+    const tree = newTree();
+    tree.setOrphans([orphan(900, 'pity-tidy')]);
+
+    const sections = await tree.getChildren();
+    const rows = await tree.getChildren(sections[0]);
+    const kids = await tree.getChildren(rows[0]);
+    expect(tree.getTreeItem(kids[0]!).contextValue).toBe('orphan');
+    expect(orphanOfNode(kids[0])).toBe(901);
   });
 });
 
@@ -195,8 +222,10 @@ describe('orphanOfNode', () => {
   it('refuses anything else — the pid ends up in a kill', () => {
     expect(orphanOfNode(undefined)).toBeUndefined();
     expect(orphanOfNode({ kind: 'section' })).toBeUndefined();
-    expect(orphanOfNode({ kind: 'orphan', orphan: { pid: '900' } })).toBeUndefined();
-    expect(orphanOfNode({ kind: 'orphan', orphan: { pid: 0 } })).toBeUndefined();
+    expect(orphanOfNode({ kind: 'orphan', orphan: { root: { pid: '900' } } })).toBeUndefined();
+    expect(orphanOfNode({ kind: 'orphan', orphan: { root: { pid: 0 } } })).toBeUndefined();
+    expect(orphanOfNode({ kind: 'orphan', orphan: {} })).toBeUndefined();
+    expect(orphanOfNode({ kind: 'orphanChild', proc: { pid: -3 } })).toBeUndefined();
   });
 });
 

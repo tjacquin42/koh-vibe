@@ -110,10 +110,15 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   plus rien ne porte — un serveur de développement dont la conversation a disparu, qui tient
   encore son port. Ceux-là ne peuvent pas apparaître sous une session par construction : un
   processus qui perd son parent est rattaché au processus 1, ce qui le sort de l'arbre de toutes
-  les sessions. On les trouve en cherchant les moteurs de développement parmi les rattachés, puis
-  en gardant ceux qui travaillent dans un dossier ouvert par cette fenêtre ou dans le répertoire
-  d'une conversation. Un processus qui travaille ailleurs, ou qu'un terminal ouvert tient encore,
-  n'est volontairement pas listé.
+  les sessions. Ce qui a été rattaché est souvent le shell dans lequel une commande tournait, avec
+  le serveur qui tient le port juste en dessous : chaque ligne se déplie donc sur ce qu'elle cache.
+  On les trouve en cherchant un moteur de développement n'importe où dans l'arbre d'un processus
+  rattaché, puis en gardant ceux qui travaillent dans un dossier ouvert par cette fenêtre ou dans
+  le répertoire d'une conversation. Un processus qui travaille ailleurs, ou qu'un terminal ouvert
+  tient encore, n'est volontairement pas listé.
+
+  Une sortie propre ne laisse rien ici : Claude Code emporte ses enfants avec lui, donc recharger
+  une fenêtre n'en produit pas. Un plantage, un `kill -9` ou une machine mise en veille, si.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une

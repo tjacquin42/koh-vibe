@@ -22,6 +22,9 @@ export type ProcessNode =
   // `processOfNode` reads both and one context menu serves the two views.
   | { kind: 'process'; sessionId: string; proc: SessionProcess }
   | { kind: 'orphan'; orphan: Orphan }
+  // What an orphan hides. Carries its subtree rather than a session id: no
+  // session holds this process, so there is no list to look it up in later.
+  | { kind: 'orphanChild'; proc: SessionProcess; tree: SessionProcess[] }
   | { kind: 'empty' };
 
 export function processNodeId(node: ProcessNode): string {
@@ -31,7 +34,9 @@ export function processNodeId(node: ProcessNode): string {
     case 'process':
       return `process:${node.sessionId}:${node.proc.pid}`;
     case 'orphan':
-      return `orphan:${node.orphan.pid}`;
+      return `orphan:${node.orphan.root.pid}`;
+    case 'orphanChild':
+      return `orphan:${node.proc.pid}`;
     default:
       return 'empty';
   }
@@ -44,9 +49,10 @@ export function processNodeId(node: ProcessNode): string {
  */
 export function orphanOfNode(node: unknown): number | undefined {
   if (typeof node !== 'object' || node === null) return undefined;
-  const candidate = node as { kind?: unknown; orphan?: { pid?: unknown } };
-  if (candidate.kind !== 'orphan') return undefined;
-  const pid = candidate.orphan?.pid;
+  const candidate = node as { kind?: unknown; orphan?: { root?: { pid?: unknown } }; proc?: { pid?: unknown } };
+  // Both row kinds of the section answer here: a menu acts on the row it was
+  // opened over, and a child of an orphan is as killable as its root.
+  const pid = candidate.kind === 'orphan' ? candidate.orphan?.root?.pid : candidate.kind === 'orphanChild' ? candidate.proc?.pid : undefined;
   return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 ? pid : undefined;
 }
 
@@ -108,9 +114,13 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
       const procs = this.processes.get(node.sessionId) ?? [];
       return childrenOf(procs, node.proc.pid).map((proc) => ({ kind: 'process', sessionId: node.sessionId, proc }));
     }
-    // An orphan unfolds into nothing. What it started is adrift under it, not
-    // under a session, so it is either in this list on its own account or not
-    // ours to attribute — see process/orphans.
+    if (node.kind === 'orphan') {
+      const { tree, root } = node.orphan;
+      return childrenOf(tree, root.pid).map((proc) => ({ kind: 'orphanChild', proc, tree }));
+    }
+    if (node.kind === 'orphanChild') {
+      return childrenOf(node.tree, node.proc.pid).map((proc) => ({ kind: 'orphanChild', proc, tree: node.tree }));
+    }
     return [];
   }
 
@@ -142,21 +152,42 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
       return item;
     }
     if (node.kind === 'orphan') {
-      const { orphan } = node;
-      const item = new vscode.TreeItem(orphan.label, vscode.TreeItemCollapsibleState.None);
+      const { root, tree, cwd } = node.orphan;
+      // Unfoldable whenever it hides something, which is the usual case: what
+      // was adopted is often a shell, and the server holding the port is under
+      // it — see process/orphans.
+      const item = new vscode.TreeItem(
+        root.label,
+        tree.length > 1 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+      );
       item.id = processNodeId(node);
       // The directory is what makes a lost process recognisable — it is the
       // only thing left saying which project it came from.
-      item.description = `${projectOfPath(orphan.cwd)} · ${formatAgeCoarse(orphan.elapsed * 1000)}`;
+      item.description = `${projectOfPath(cwd)} · ${formatAgeCoarse(root.elapsed * 1000)}`;
       item.tooltip = [
-        orphan.command,
-        orphan.cwd,
-        `${vscode.l10n.t('no session')} · ${vscode.l10n.t('pid {0}', orphan.pid)} · ${formatAge(orphan.elapsed * 1000)}`,
-        vscode.l10n.t('{0} MB of memory', Math.round(orphan.rss / 1024)),
+        root.command,
+        cwd,
+        `${vscode.l10n.t('no session')} · ${vscode.l10n.t('pid {0}', root.pid)} · ${formatAge(root.elapsed * 1000)}`,
+        vscode.l10n.t('{0} MB of memory', Math.round(root.rss / 1024)),
       ].join('\n');
       item.iconPath = new vscode.ThemeIcon('question');
       item.contextValue = 'orphan';
-      item.accessibilityInformation = { label: `${orphan.label}, ${vscode.l10n.t('no session')}` };
+      item.accessibilityInformation = { label: `${root.label}, ${vscode.l10n.t('no session')}` };
+      return item;
+    }
+    if (node.kind === 'orphanChild') {
+      const { proc, tree } = node;
+      const hasChildren = tree.some((p) => p.ppid === proc.pid);
+      const item = new vscode.TreeItem(
+        proc.label,
+        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+      );
+      item.id = processNodeId(node);
+      item.description = processDescription(proc);
+      item.tooltip = processTooltip(proc);
+      item.iconPath = new vscode.ThemeIcon(PROCESS_GLYPH[proc.kind]);
+      item.contextValue = 'orphan';
+      item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
       return item;
     }
     const { proc } = node;
@@ -194,7 +225,13 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
         processDescription(proc),
         this.sessions.get(sessionId)?.title ?? null,
       ]),
-      this.orphans.map((o) => [o.pid, o.label, projectOfPath(o.cwd), formatAgeCoarse(o.elapsed * 1000)]),
+      this.orphans.map((o) => [
+        o.root.pid,
+        o.root.label,
+        projectOfPath(o.cwd),
+        formatAgeCoarse(o.root.elapsed * 1000),
+        o.tree.map((p) => [p.pid, p.label, processDescription(p)]),
+      ]),
     ]);
   }
 

@@ -100,10 +100,16 @@ reinstalling under the same number leaves the editor serving what it already had
   work that actually differs. Below them, **No session** lists the processes nothing carries any
   more — a development server whose conversation is gone, still holding its port. Those cannot
   appear under a session by construction: a process that loses its parent is adopted by the
-  process 1, which takes it out of every session's subtree. They are found by looking for
-  development runtimes among the adopted, then keeping the ones working inside a folder this
-  window has open or a conversation's own directory. A process that works somewhere else, or
-  one still held by an open terminal, is deliberately not listed.
+  process 1, which takes it out of every session's subtree. What was adopted is often the shell
+  a command ran in, with the server that holds the port underneath it, so each row unfolds onto
+  what it hides. They are found by looking for development runtimes anywhere in an adopted
+  subtree, then keeping the ones working inside a folder this window has open or a
+  conversation's own directory. A process that works somewhere else, or one still held by an
+  open terminal, is deliberately not listed.
+
+  Note that a clean exit leaves nothing here: Claude Code takes its children with it, so
+  reloading a window is not what produces these. A crash, a `kill -9` or a machine put to sleep
+  is.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
