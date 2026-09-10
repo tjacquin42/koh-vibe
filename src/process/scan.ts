@@ -49,6 +49,21 @@ export function parseElapsed(raw: string): number {
 }
 
 /**
+ * The escapes `ps` writes in place of the control characters a command line
+ * can hold, and their meaning. Tab, newline and carriage return, and nothing
+ * else: those are the ones that occur in a real command — a heredoc, a
+ * multi-line script passed to `-c` — and the ones whose absence is felt.
+ *
+ * **This decoding is ambiguous, and knowingly so.** `ps` does not escape a
+ * backslash, so a command holding the four literal characters `\012` reaches
+ * us exactly as a command holding a newline does; the two cannot be told
+ * apart. Decoding therefore rewrites the rare command that meant the literal
+ * text, and repairs the common one that meant the newline. Multi-line commands
+ * are what the Bash tool runs all day; `printf 'a\012b'` is not.
+ */
+const PS_ESCAPES: Record<string, string> = { '011': '\t', '012': '\n', '015': '\r' };
+
+/**
  * Turns the output of `ps` into rows, dropping anything that does not parse.
  *
  * Defensive on purpose, like the session registry: this feeds a view that
@@ -65,10 +80,18 @@ export function parsePs(stdout: string): ProcRow[] {
       ppid: Number.parseInt(m[2] ?? '', 10),
       elapsed: parseElapsed(m[3] ?? ''),
       rss: Number.parseInt(m[4] ?? '', 10),
-      command: (m[5] ?? '').trim(),
+      // Decoded HERE, after the line has been split into columns — never on the
+      // whole output before splitting. A `\012` turned into a real newline
+      // first would cut this command in two: its tail would be lost, or read as
+      // another process entirely.
+      command: decodeEscapes((m[5] ?? '').trim()),
     });
   }
   return rows;
+}
+
+function decodeEscapes(command: string): string {
+  return command.replace(/\\(011|012|015)/g, (whole, code: string) => PS_ESCAPES[code] ?? whole);
 }
 
 /**

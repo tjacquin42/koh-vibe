@@ -29,6 +29,31 @@ describe('parsePs', () => {
     expect(rows[0]?.command).toBe('node vite --port 3000');
   });
 
+  it('decodes the octal escapes ps puts in place of control characters', () => {
+    // `ps` never emits a raw newline or tab inside a command: it writes them as
+    // three-digit octal escapes, which is why a multi-line command still
+    // occupies exactly one line of output.
+    const rows = parsePs('12 1 5 100 sh -c echo a\\012echo b\\011tabbed\\015');
+    expect(rows[0]?.command).toBe('sh -c echo a\necho b\ttabbed\r');
+  });
+
+  it('decodes only the three escapes that mean something in a command', () => {
+    // \101 is "A" and \134 is a backslash. Decoding those would rewrite
+    // ordinary text for no gain, and \134 in particular would let one escape
+    // turn into another on a second pass.
+    const rows = parsePs('12 1 5 100 printf a\\101b\\134c');
+    expect(rows[0]?.command).toBe('printf a\\101b\\134c');
+  });
+
+  it('still reads a decoded command as ONE row', () => {
+    // The decoding happens after the line is split into columns, never before:
+    // turning \012 into a newline first would cut this command in two and lose
+    // its tail, or worse, parse the tail as another process.
+    const rows = parsePs('12 1 5 100 sh -c echo a\\012echo b\n13 1 5 100 second');
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.command).toBe('second');
+  });
+
   it('ignores a line missing a column rather than throwing', () => {
     expect(parsePs('garbage\n\n  12 34\n')).toEqual([]);
   });
