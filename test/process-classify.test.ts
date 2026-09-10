@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classify, displayCommand, kindOf } from '../src/process/classify';
+import { classify, copyableCommand, displayCommand, kindOf } from '../src/process/classify';
 import { descendantsOf, parsePs } from '../src/process/scan';
 
 const SNAPSHOT = '/Users/jack/.claude/shell-snapshots/snapshot-zsh-1789001593821-ptqxu0.sh';
@@ -89,5 +89,34 @@ describe('displayCommand', () => {
   it('never returns an empty label', () => {
     expect(displayCommand('')).toBe('?');
     expect(displayCommand('   ')).toBe('?');
+  });
+});
+
+describe('copyableCommand', () => {
+  it('gives back a tool shell command whole, where the label had to cut it', () => {
+    const long = `x --flag ${'y'.repeat(200)}`;
+    const shell = `/bin/zsh -c source ${SNAPSHOT} && eval '${long}' < /dev/null`;
+    expect(copyableCommand(shell)).toBe(long);
+    expect(displayCommand(shell).endsWith('…')).toBe(true);
+  });
+
+  it('keeps the newlines of a multi-line command, which the label flattens', () => {
+    // Flattening is right for a one-line row and WRONG for the clipboard:
+    // `echo a\necho b` pasted as `echo a echo b` is a different command.
+    const shell = `/bin/zsh -c source ${SNAPSHOT} && eval 'echo a\necho b' < /dev/null`;
+    expect(copyableCommand(shell)).toBe('echo a\necho b');
+    expect(displayCommand(shell)).toBe('echo a echo b');
+  });
+
+  it('keeps the full binary path of an ordinary process, which the label shortens', () => {
+    const command = '/opt/homebrew/bin/uv tool uvx alpaca-mcp-server';
+    expect(copyableCommand(command)).toBe(command);
+    expect(displayCommand(command)).toBe('uv tool uvx alpaca-mcp-server');
+  });
+
+  it('is empty for an empty command, never the "?" the label falls back to', () => {
+    // A row label needs something to draw; a clipboard does not, and pasting
+    // a question mark into a terminal would be worse than pasting nothing.
+    expect(copyableCommand('   ')).toBe('');
   });
 });

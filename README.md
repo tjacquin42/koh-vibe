@@ -93,7 +93,8 @@ reinstalling under the same number leaves the editor serving what it already had
   started: its MCP servers, each command the Bash tool is running, and whatever those left
   behind — a `pnpm dev` still up an hour after the command that started it returned, say. The
   count on the session row leaves the MCP servers out, since those are there for the whole
-  conversation and would say nothing. **Terminate** on a process row stops it and everything
+  conversation and would say nothing. Right-click a process to **copy its command** — whole,
+  where the row had to cut it — or **its pid**, and to **terminate** it along with everything
   it started, after a confirmation naming the command. A process that detaches itself
   (`nohup`, a `launchd` job) leaves its session's tree and cannot be shown here.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one

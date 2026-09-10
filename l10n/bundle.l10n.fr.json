@@ -143,5 +143,8 @@
   "Terminate \"{0}\" and the {1} processes it started?": "Terminer « {0} » et les {1} processus qu’elle a lancés ?",
   "This is a server Claude Code started for this conversation. The session loses its tools until it is reloaded.": "C’est un serveur lancé par Claude Code pour cette conversation. La session perd ses outils jusqu’à son rechargement.",
   "Koh-Vibe: process terminated": "Koh-Vibe : processus terminé",
-  "Koh-Vibe: {0} processes terminated": "Koh-Vibe : {0} processus terminés"
+  "Koh-Vibe: {0} processes terminated": "Koh-Vibe : {0} processus terminés",
+  "Koh-Vibe: pid {0} copied": "Koh-Vibe : pid {0} copié",
+  "Koh-Vibe: command copied": "Koh-Vibe : commande copiée",
+  "Koh-Vibe: this process has no command line": "Koh-Vibe : ce processus n’a pas de ligne de commande"
 }

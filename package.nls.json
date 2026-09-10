@@ -32,5 +32,7 @@
   "view.kohVibe.sessions.name": "Sessions",
   "view.kohVibe.usage.name": "Usage",
   "view.kohVibe.settings.name": "Settings",
-  "command.kohVibe.killProcess.title": "Terminate process"
+  "command.kohVibe.killProcess.title": "Terminate process",
+  "command.kohVibe.copyProcessPid.title": "Copy pid",
+  "command.kohVibe.copyProcessCommand.title": "Copy command"
 }

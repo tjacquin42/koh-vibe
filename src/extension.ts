@@ -10,7 +10,7 @@ import { rescanLiveSessions } from './claude/rescan';
 import { snapshot } from './process/scan';
 import { processesBySession } from './process/sessions';
 import { killAll, killPlan } from './process/kill';
-import type { SessionProcess } from './process/classify';
+import { copyableCommand, type SessionProcess } from './process/classify';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
 import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
@@ -509,6 +509,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     lastProcesses = processesBySession(await snapshot(), await readLiveSessions(registryDir));
     return lastProcesses;
+  };
+
+  /**
+   * The process a context-menu row stands for, taken from the list the row was
+   * rendered from.
+   *
+   * `undefined` whenever the row is not a process one, or names a process that
+   * has since exited: the table is a snapshot and the click comes later, which
+   * is the ordinary race, not an error to report.
+   *
+   * Comes with the session's whole list, which is what `killPlan` needs to
+   * know the descendants that go with the row.
+   */
+  const processAt = (node: unknown): { proc: SessionProcess; among: SessionProcess[] } | undefined => {
+    const target = processOfNode(node);
+    if (target === undefined) return undefined;
+    const among = lastProcesses.get(target.sessionId) ?? [];
+    const proc = among.find((p) => p.pid === target.pid);
+    return proc === undefined ? undefined : { proc, among };
   };
 
   async function render(): Promise<void> {
@@ -1258,12 +1277,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      * `killAll` treats as the ordinary race it is.
      */
     vscode.commands.registerCommand('kohVibe.killProcess', async (node: unknown) => {
-      const target = processOfNode(node);
-      if (target === undefined) return;
-      const procs = lastProcesses.get(target.sessionId) ?? [];
-      const proc = procs.find((p) => p.pid === target.pid);
-      if (proc === undefined) return;
-      const plan = killPlan(procs, proc);
+      const found = processAt(node);
+      if (found === undefined) return;
+      const plan = killPlan(found.among, found.proc);
       const confirm = vscode.l10n.t('Terminate');
       const answer = await vscode.window.showWarningMessage(
         plan.message,
@@ -1282,6 +1298,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // moment to be acted on, and a row that lingers reads as a kill that
       // did not work — and invites a second click.
       await render();
+    }),
+    /**
+     * The pid and the command line of a process row, for use outside the
+     * editor — a `kill -9` the view deliberately does not offer, an `lsof`, a
+     * command to rerun in a terminal.
+     *
+     * Both read from the rendered list rather than a fresh scan, like the
+     * kill: what is copied is what the row showed.
+     */
+    vscode.commands.registerCommand('kohVibe.copyProcessPid', async (node: unknown) => {
+      const found = processAt(node);
+      if (found === undefined) return;
+      await vscode.env.clipboard.writeText(String(found.proc.pid));
+      vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: pid {0} copied', found.proc.pid), 3000);
+    }),
+    vscode.commands.registerCommand('kohVibe.copyProcessCommand', async (node: unknown) => {
+      const found = processAt(node);
+      if (found === undefined) return;
+      const command = copyableCommand(found.proc.command);
+      // Nothing to copy is not a failure worth a dialog, but silently leaving
+      // the previous clipboard content in place would look like the copy
+      // worked and pasted the wrong thing.
+      if (command.length === 0) {
+        vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: this process has no command line'), 3000);
+        return;
+      }
+      await vscode.env.clipboard.writeText(command);
+      vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: command copied'), 3000);
     }),
     vscode.commands.registerCommand('kohVibe.copySessionId', async (node: unknown) => {
       const id = sessionIdOfNode(node) ?? closedIdOfNode(node);

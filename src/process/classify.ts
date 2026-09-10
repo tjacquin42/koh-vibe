@@ -70,7 +70,29 @@ export function classify(nodes: readonly ProcNode[]): SessionProcess[] {
 export function displayCommand(command: string): string {
   const trimmed = command.trim();
   if (trimmed.length === 0) return '?';
-  return shorten(trimmed.includes(TOOL_SHELL) ? insideEval(trimmed) : basename(trimmed));
+  // Flattened and cut, because a tree row is one line and eighty columns.
+  const shown = trimmed.includes(TOOL_SHELL) ? insideEval(trimmed) : basename(trimmed);
+  return shorten(shown.replace(/\s*\n\s*/g, ' '));
+}
+
+/**
+ * The same command, for the clipboard rather than for a row: whole, and with
+ * its newlines.
+ *
+ * Neither of the two things the label does to fit is acceptable here. Cutting
+ * at eighty characters gives a command that does not run, and flattening a
+ * multi-line one changes what it means — `echo a\necho b` pasted back as
+ * `echo a echo b` is a different command entirely.
+ *
+ * The plumbing of a tool shell is still stripped: nobody wants to paste a
+ * `source` of a shell snapshot and a `pwd` into a temporary file. What is
+ * copied is the command the user would have typed, which is also what the row
+ * showed them.
+ */
+export function copyableCommand(command: string): string {
+  const trimmed = command.trim();
+  if (trimmed.length === 0) return '';
+  return trimmed.includes(TOOL_SHELL) ? insideEval(trimmed) : trimmed;
 }
 
 /**
@@ -85,9 +107,9 @@ function insideEval(command: string): string {
   const body = command.slice(start + "eval '".length);
   const end = body.lastIndexOf("' <");
   const inner = (end === -1 ? body : body.slice(0, end)).trim();
-  // A heredoc or a multi-line script would otherwise break the row in two —
-  // and a tree label keeps only what precedes the newline anyway.
-  return inner.length === 0 ? 'zsh' : inner.replace(/\s*\n\s*/g, ' ');
+  // Returned as it stands, newlines included: `displayCommand` flattens it for
+  // its row, and `copyableCommand` must not — see there.
+  return inner.length === 0 ? 'zsh' : inner;
 }
 
 /** Drops the directories of the leading binary, keeps every argument. */

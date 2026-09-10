@@ -102,9 +102,10 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   que ces commandes ont laissé derrière elles — un `pnpm dev` encore debout une heure après le
   retour de la commande qui l'a lancé, par exemple. Le compte affiché sur la ligne de session
   laisse les serveurs MCP de côté : ils sont là pour toute la conversation et ne diraient rien.
-  *Terminer le processus* l'arrête, avec tout ce qu'il a lancé, après une confirmation qui nomme
-  la commande. Un processus qui se détache (`nohup`, un service `launchd`) sort de l'arbre de sa
-  session et ne peut pas être montré ici.
+  Clic droit sur un processus pour *copier la commande*, entière là où la ligne a dû la couper,
+  *copier le pid*, ou *terminer le processus* avec tout ce qu'il a lancé, après une confirmation
+  qui nomme la commande. Un processus qui se détache (`nohup`, un service `launchd`) sort de
+  l'arbre de sa session et ne peut pas être montré ici.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
