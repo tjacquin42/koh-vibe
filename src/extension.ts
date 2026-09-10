@@ -7,6 +7,10 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
+import { snapshot } from './process/scan';
+import { processesBySession } from './process/sessions';
+import { killAll, killPlan } from './process/kill';
+import type { SessionProcess } from './process/classify';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
 import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
@@ -43,7 +47,7 @@ import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
 import type { TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
-import { SessionsTree, groupIdOfNode, sessionIdOfNode } from './ui/tree';
+import { SessionsTree, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
 import { decorationColorOf } from './ui/decorations';
 import { StatusSummary } from './ui/statusbar';
 import { readBuildStamp, versionLabel } from './ui/version';
@@ -484,6 +488,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // motif que SpoolWatcher.tick() et FocusBroker.tick().
   const renderGuard = new ReentrantGuard(GUARD_TIMEOUT_MS);
 
+  /**
+   * What each live session is running right now (process/*), or nothing at all
+   * while the view is hidden.
+   *
+   * The guard is the whole reason this is a function and not two lines in the
+   * render: a `ps` of the machine costs some 40 ms, and the loop runs every
+   * REFRESH_MS for as long as the editor is open. Paying it behind a collapsed
+   * panel would be paying it for a list nobody can see — the same bargain
+   * `revealActiveSession` already makes.
+   *
+   * Kept for the commands, which act on a click and must not launch a scan of
+   * their own to know what the row they were given stands for.
+   */
+  let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
+  const scanProcesses = async (): Promise<ReadonlyMap<string, SessionProcess[]>> => {
+    if (!view.visible) {
+      lastProcesses = new Map();
+      return lastProcesses;
+    }
+    lastProcesses = processesBySession(await snapshot(), await readLiveSessions(registryDir));
+    return lastProcesses;
+  };
+
   async function render(): Promise<void> {
     return renderGuard.run(
       async () => {
@@ -578,6 +605,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // (see SessionsTree.setHooksInstalled). The cost is one small file
         // read per tick, paid only on an empty dashboard.
         if (shown.size === 0) tree.setHooksInstalled(await checkHooksInstalled());
+        tree.setProcesses(await scanProcesses());
         tree.setSessions(shown);
         tree.setGroups(groups);
         // The status bar counts what runs: an ended or dormant row is a
@@ -1216,6 +1244,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
      * standing in for an empty list, a folder — leaves the clipboard alone
      * rather than writing something wrong into it.
      */
+    /**
+     * Terminates a process a session started — and, with it, everything that
+     * process started (see process/kill.ts).
+     *
+     * Always behind a modal confirmation naming the command: this is the only
+     * gesture in the whole view that destroys something outside the extension,
+     * and a row in a dashboard is an easy thing to click by accident.
+     *
+     * The list acted upon is the one the row was rendered from, not a fresh
+     * scan: what the user agreed to kill is what they were looking at. A
+     * process that exited in between simply is not there any more, which
+     * `killAll` treats as the ordinary race it is.
+     */
+    vscode.commands.registerCommand('kohVibe.killProcess', async (node: unknown) => {
+      const target = processOfNode(node);
+      if (target === undefined) return;
+      const procs = lastProcesses.get(target.sessionId) ?? [];
+      const proc = procs.find((p) => p.pid === target.pid);
+      if (proc === undefined) return;
+      const plan = killPlan(procs, proc);
+      const confirm = vscode.l10n.t('Terminate');
+      const answer = await vscode.window.showWarningMessage(
+        plan.message,
+        { modal: true, ...(plan.detail === undefined ? {} : { detail: plan.detail }) },
+        confirm,
+      );
+      if (answer !== confirm) return;
+      const killed = killAll(plan.targets);
+      vscode.window.setStatusBarMessage(
+        killed > 1
+          ? vscode.l10n.t('Koh-Vibe: {0} processes terminated', killed)
+          : vscode.l10n.t('Koh-Vibe: process terminated'),
+        3000,
+      );
+      // The row must go now rather than at the next tick: a signal takes a
+      // moment to be acted on, and a row that lingers reads as a kill that
+      // did not work — and invites a second click.
+      await render();
+    }),
     vscode.commands.registerCommand('kohVibe.copySessionId', async (node: unknown) => {
       const id = sessionIdOfNode(node) ?? closedIdOfNode(node);
       if (id === undefined) return;

@@ -31,5 +31,6 @@
   "view.kohVibe.closed.name": "Fermé récemment",
   "view.kohVibe.sessions.name": "Sessions",
   "view.kohVibe.usage.name": "Consommation",
-  "view.kohVibe.settings.name": "Réglages"
+  "view.kohVibe.settings.name": "Réglages",
+  "command.kohVibe.killProcess.title": "Terminer le processus"
 }

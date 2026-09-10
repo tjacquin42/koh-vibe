@@ -89,6 +89,13 @@ reinstalling under the same number leaves the editor serving what it already had
   window has open — the row is simply removed from the list. On a greyed row, the icon removes
   it for good. A conversation that ends before its first message — Claude Code starts one for
   every panel it opens — leaves no row and no history: there is nothing to come back to.
+- **What each session is running**, right now. Unfold a live row and you get the processes it
+  started: its MCP servers, each command the Bash tool is running, and whatever those left
+  behind — a `pnpm dev` still up an hour after the command that started it returned, say. The
+  count on the session row leaves the MCP servers out, since those are there for the whole
+  conversation and would say nothing. **Terminate** on a process row stops it and everything
+  it started, after a confirmation naming the command. A process that detaches itself
+  (`nohup`, a `launchd` job) leaves its session's tree and cannot be shown here.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
@@ -220,6 +227,11 @@ but you have not opened since are listed like any idle session — the tab is op
 what counts. The editor resolves only the active tab, so no Claude Code process runs behind
 the others until they are shown: a click brings the tab to the front, and Claude Code resumes
 it. *Remove from the list* hides a conversation until its next activity.
+
+That same registry is what makes the process list possible: it is the only place tying a
+conversation to a pid, and everything a session starts stays among that pid's descendants.
+So the list is one reading of the system's process table, taken while the panel is open and
+walked once per session — no hook, and nothing to install.
 
 ## What's new
 

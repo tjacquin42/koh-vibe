@@ -97,6 +97,14 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon. Une
   conversation qui se termine avant son premier message — Claude Code en démarre une pour chaque
   panneau qu'il ouvre — ne laisse ni ligne ni historique : il n'y a rien où revenir.
+- **Ce que chaque session fait tourner**, en direct. Dépliez une ligne vivante et vous voyez les
+  processus qu'elle a lancés : ses serveurs MCP, chaque commande en cours de l'outil Bash, et ce
+  que ces commandes ont laissé derrière elles — un `pnpm dev` encore debout une heure après le
+  retour de la commande qui l'a lancé, par exemple. Le compte affiché sur la ligne de session
+  laisse les serveurs MCP de côté : ils sont là pour toute la conversation et ne diraient rien.
+  *Terminer le processus* l'arrête, avec tout ce qu'il a lancé, après une confirmation qui nomme
+  la commande. Un processus qui se détache (`nohup`, un service `launchd`) sort de l'arbre de sa
+  session et ne peut pas être montré ici.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -239,6 +247,11 @@ compte. L'éditeur ne résout que l'onglet actif, donc aucun processus Claude Co
 derrière les autres tant qu'ils ne sont pas affichés : un clic ramène l'onglet devant, et
 Claude Code le reprend. *Retirer de la liste* masque une conversation jusqu'à sa prochaine
 activité.
+
+C'est ce même registre qui rend la liste des processus possible : c'est le seul endroit qui
+relie une conversation à un pid, et tout ce qu'une session lance reste dans la descendance de
+ce pid. La liste est donc une lecture de la table des processus du système, prise tant que le
+panneau est ouvert et parcourue une fois par session — sans hook, et sans rien à installer.
 
 ## Nouveautés
 

@@ -6,12 +6,19 @@ import { shownColor, themeColorOf, type ColorPreview } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
+import type { SessionProcess } from '../process/classify';
+import { childrenOf, processCount, processDescription, processTooltip, rootsOf, PROCESS_GLYPH } from './process-labels';
 
 export type TreeNode =
   // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
   // rangées — pas un dossier au sens de l'utilisateur, voir contextValue plus bas.
   | { kind: 'group'; group: Group | undefined; sessions: Session[] }
   | { kind: 'session'; session: Session }
+  // A process the session started, unfolded under it. Carries the session it
+  // belongs to as well as the process: a pid alone is not a stable identity —
+  // the system reuses them — and the row has to be attributable to a
+  // conversation for the context menu to say what killing it would cost.
+  | { kind: 'process'; sessionId: string; proc: SessionProcess }
   // Une ligne vide entre deux dossiers. VSCode n'offre aucun réglage d'espacement
   // pour une vue d'arbre : la seule marge qu'une extension peut poser est une
   // ligne. Elle ne porte donc ni commande, ni contextValue, ni identifiant —
@@ -97,6 +104,11 @@ export function nodeId(node: TreeNode): string {
       return `group:${node.group?.id ?? 'unfiled'}`;
     case 'session':
       return `session:${node.session.id}`;
+    // Scoped by session, and not by pid alone: the system reuses pids, and two
+    // rows sharing an identity is how a refresh ends up redrawing the wrong
+    // one — the very failure `nodeId` exists to prevent.
+    case 'process':
+      return `process:${node.sessionId}:${node.proc.pid}`;
     case 'spacer':
       return `spacer:${node.after}`;
     default:
@@ -128,6 +140,19 @@ export function sessionIdOfNode(node: unknown): string | undefined {
   const candidate = node as { kind?: unknown; session?: { id?: unknown } };
   if (candidate.kind !== 'session' || candidate.session === undefined) return undefined;
   return typeof candidate.session.id === 'string' ? candidate.session.id : undefined;
+}
+
+/**
+ * The session and the pid a process row stands for, validated field by field
+ * like the two above — a context-menu argument arrives as `unknown`, and the
+ * pid ends up in a `kill`.
+ */
+export function processOfNode(node: unknown): { sessionId: string; pid: number } | undefined {
+  if (typeof node !== 'object' || node === null) return undefined;
+  const candidate = node as { kind?: unknown; sessionId?: unknown; proc?: { pid?: unknown } };
+  if (candidate.kind !== 'process' || typeof candidate.sessionId !== 'string') return undefined;
+  const pid = candidate.proc?.pid;
+  return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 ? { sessionId: candidate.sessionId, pid } : undefined;
 }
 
 export function groupIdOfNode(node: unknown): string | undefined {
@@ -203,6 +228,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // read says otherwise — the moving set is what ships, and a first frame of
   // still dots would flicker for nothing on every window that keeps them.
   private animate = true;
+  // What each live session is running, from the process table (process/*).
+  // Empty until the first scan, and empty again whenever the view is hidden:
+  // an invisible tree is not worth a `ps` every two seconds.
+  private processes: ReadonlyMap<string, SessionProcess[]> = new Map();
 
   constructor(
     // Reçoit la vérification plutôt que de la posséder : lire settings.json
@@ -237,6 +266,16 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
 
   setSessions(map: Map<string, Session>): void {
     this.sessions = [...map.values()].sort(compareSessions);
+    this.refresh();
+  }
+
+  /**
+   * The processes each session is running, fed by the render loop — the view
+   * scans nothing itself, same contract as `setGroups` and for the same
+   * reason: it stays testable without a process table.
+   */
+  setProcesses(processes: ReadonlyMap<string, SessionProcess[]>): void {
+    this.processes = processes;
     this.refresh();
   }
 
@@ -316,6 +355,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
         this.reopening.has(s.id),
+        // What the rows under this session DISPLAY, never the raw scan: the
+        // pid, the label and the coarse age, and nothing that moves on its
+        // own. `elapsed` counts seconds, so putting it here would change the
+        // signature on every tick and rebuild the whole tree twice a second —
+        // the exact behaviour this comparison exists to avoid.
+        (this.processes.get(s.id) ?? []).map((p) => [p.pid, p.ppid, p.label, processDescription(p), p.kind]),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -484,6 +529,17 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       }
       return rows;
     }
+    // A session unfolds into what it started, and each of those into what IT
+    // started: the shape of the process tree is kept rather than flattened,
+    // because that shape is the answer to "who launched this".
+    if (node.kind === 'session') {
+      const procs = this.processes.get(node.session.id) ?? [];
+      return rootsOf(procs).map((proc) => ({ kind: 'process', sessionId: node.session.id, proc }));
+    }
+    if (node.kind === 'process') {
+      const procs = this.processes.get(node.sessionId) ?? [];
+      return childrenOf(procs, node.proc.pid).map((proc) => ({ kind: 'process', sessionId: node.sessionId, proc }));
+    }
     return [];
   }
 
@@ -530,11 +586,41 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       item.contextValue = node.group === undefined ? 'unfiled' : 'group';
       return item;
     }
+    if (node.kind === 'process') {
+      const { proc } = node;
+      const hasChildren = childrenOf(this.processes.get(node.sessionId) ?? [], proc.pid).length > 0;
+      const item = new vscode.TreeItem(
+        proc.label,
+        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+      );
+      item.id = nodeId(node);
+      item.description = processDescription(proc);
+      item.tooltip = processTooltip(proc);
+      item.iconPath = new vscode.ThemeIcon(PROCESS_GLYPH[proc.kind]);
+      item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
+      // Two values, because killing an MCP server and killing a dev server are
+      // not the same gesture: the first breaks the conversation that owns it,
+      // and the confirmation has to say so (see kohVibe.killProcess).
+      item.contextValue = proc.kind === 'mcp' ? 'processMcp' : 'process';
+      // NO command: a click on a process must do nothing. The rows above open
+      // a conversation when clicked, and a list where some rows act and others
+      // do not is a list where the user stops trusting the click.
+      return item;
+    }
     const s = node.session;
     const now = Date.now();
-    const item = new vscode.TreeItem(sessionLabel(s), vscode.TreeItemCollapsibleState.None);
+    const procs = this.processes.get(s.id) ?? [];
+    // Collapsed, never expanded: what a session runs is detail on demand. An
+    // expanded default would push the conversations below it off the screen,
+    // and the list of conversations is what this view is for.
+    const item = new vscode.TreeItem(
+      sessionLabel(s),
+      procs.length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed,
+    );
     item.id = nodeId(node);
-    item.description = sessionDescription(s, now);
+    const running = processCount(procs);
+    item.description =
+      running === 0 ? sessionDescription(s, now) : `${sessionDescription(s, now)} · ${vscode.l10n.t('{0} running', running)}`;
     item.tooltip = sessionTooltip(s, now);
     // Trois valeurs, parce que trois lignes n'offrent pas les mêmes gestes. La
     // lune ferme un onglet : elle n'a de sens que sur une conversation vivante

@@ -130,5 +130,18 @@
   "Koh-Vibe: no window holds « {0} » — no tab to put to sleep.": "Koh-Vibe : aucune fenêtre ne détient « {0} » — aucun onglet à mettre en veille.",
   "Koh-Vibe: could not put « {0} » to sleep.": "Koh-Vibe : « {0} » n’a pas pu être mise en veille.",
   "Put « {0} » to sleep? This conversation is still active — closing its tab ends it.": "Mettre « {0} » en veille ? Cette conversation est encore active — fermer son onglet y met fin.",
-  "Put to sleep": "Mettre en veille"
+  "Put to sleep": "Mettre en veille",
+  "MCP": "MCP",
+  "MCP server": "serveur MCP",
+  "command run by the session": "commande lancée par la session",
+  "started by that command": "lancé par cette commande",
+  "pid {0}": "pid {0}",
+  "{0} MB of memory": "{0} Mo de mémoire",
+  "{0} running": "{0} en cours",
+  "Terminate": "Terminer",
+  "Terminate \"{0}\"?": "Terminer « {0} » ?",
+  "Terminate \"{0}\" and the {1} processes it started?": "Terminer « {0} » et les {1} processus qu’elle a lancés ?",
+  "This is a server Claude Code started for this conversation. The session loses its tools until it is reloaded.": "C’est un serveur lancé par Claude Code pour cette conversation. La session perd ses outils jusqu’à son rechargement.",
+  "Koh-Vibe: process terminated": "Koh-Vibe : processus terminé",
+  "Koh-Vibe: {0} processes terminated": "Koh-Vibe : {0} processus terminés"
 }
