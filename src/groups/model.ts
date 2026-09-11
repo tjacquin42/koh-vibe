@@ -220,12 +220,6 @@ export function renameGroup(s: GroupsState, id: string, label: string): GroupsSt
 }
 
 /**
- * `color === undefined` retire la couleur au lieu de l'ignorer : « aucune » est
- * un choix de l'utilisateur, pas une absence de choix. La propriété est alors
- * retirée de l'objet, pour qu'un dossier sans couleur ne laisse pas une clé
- * morte dans le fichier partagé.
- */
-/**
  * Le son qui s'applique à une conversation, dans l'ordre de priorité voulu :
  * celui de la conversation, sinon celui de son dossier, sinon le réglage
  * global. Une chaîne vide à un niveau ne « perce » pas vers le suivant — c'est
@@ -276,6 +270,12 @@ export function setGroupSound(
   };
 }
 
+/**
+ * `color === undefined` retire la couleur au lieu de l'ignorer : « aucune » est
+ * un choix de l'utilisateur, pas une absence de choix. La propriété est alors
+ * retirée de l'objet, pour qu'un dossier sans couleur ne laisse pas une clé
+ * morte dans le fichier partagé.
+ */
 export function setGroupColor(s: GroupsState, id: string, color: string | undefined): GroupsState {
   return {
     ...s,

@@ -121,16 +121,6 @@ function isSessionNode(node: TreeNode): node is Extract<TreeNode, { kind: 'sessi
 }
 
 /**
- * Retrouve l'identifiant du dossier ciblé par un menu contextuel
- * (kohVibe.renameGroup, kohVibe.deleteGroup) : pour une commande de
- * `view/item/context`, VSCode passe l'élément de l'arbre tel quel — jamais un
- * `TreeItem` — donc potentiellement n'importe quoi du point de vue du
- * typage. Validé sans cast, comme `handleDrop` : seul un nœud de dossier
- * NOMMÉ porte un identifiant ; « Sans dossier » (`group: undefined`) est déjà
- * exclu par le `when` du menu (`viewItem == group`), mais défendu ici quand
- * même plutôt que supposé.
- */
-/**
  * L'identifiant de session ciblé par un menu contextuel. Même prudence que
  * `groupIdOfNode` : VSCode passe l'élément tel quel, donc n'importe quoi du
  * point de vue du typage.
@@ -155,6 +145,16 @@ export function processOfNode(node: unknown): { sessionId: string; pid: number }
   return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 ? { sessionId: candidate.sessionId, pid } : undefined;
 }
 
+/**
+ * Retrouve l'identifiant du dossier ciblé par un menu contextuel
+ * (kohVibe.renameGroup, kohVibe.deleteGroup) : pour une commande de
+ * `view/item/context`, VSCode passe l'élément de l'arbre tel quel — jamais un
+ * `TreeItem` — donc potentiellement n'importe quoi du point de vue du
+ * typage. Validé sans cast, comme `handleDrop` : seul un nœud de dossier
+ * NOMMÉ porte un identifiant ; « Sans dossier » (`group: undefined`) est déjà
+ * exclu par le `when` du menu (`viewItem == group`), mais défendu ici quand
+ * même plutôt que supposé.
+ */
 export function groupIdOfNode(node: unknown): string | undefined {
   if (typeof node !== 'object' || node === null) return undefined;
   const candidate = node as { kind?: unknown; group?: { id?: unknown } };

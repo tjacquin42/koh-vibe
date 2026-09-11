@@ -40,6 +40,22 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
 }
 
 /**
+ * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
+ * one is gone, and koh-vibe does not know which one it was.
+ */
+export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
+  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
+  terminal.sendText(plan.command);
+  terminal.show();
+}
+
+/**
+ * What a reopen did: whether anything is now on its way. `explain` and
+ * `failed` mean nothing is — the caller shows no wait for them.
+ */
+export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
+
+/**
  * Executes what a click on a closed conversation's row asks for. Extracted
  * of the click on an ended row (`kohVibe.focusSession`, extension.ts) for
  * the same reason `acknowledgeVisibleSessions`/`acknowledgeClickedSession`
@@ -60,22 +76,6 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
  * `FocusBroker.requestReopen` deliberately does nothing for it — the caller
  * opens the terminal locally, before `requestReopen` is even invoked.
  */
-/**
- * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
- * one is gone, and koh-vibe does not know which one it was.
- */
-export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
-  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
-  terminal.sendText(plan.command);
-  terminal.show();
-}
-
-/**
- * What a reopen did: whether anything is now on its way. `explain` and
- * `failed` mean nothing is — the caller shows no wait for them.
- */
-export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
-
 export async function reopenClosedSession(
   entry: ClosedEntry,
   requestReopen: (e: ClosedEntry) => Promise<void>,

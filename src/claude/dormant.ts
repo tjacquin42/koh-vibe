@@ -113,20 +113,6 @@ export function readStateItem(stateDb: string, key: string): Promise<string | un
 }
 
 /**
- * The conversations that exist only as a tab: restored by the editor, never
- * shown since, hence without a process — and unknown to the hooks and to the
- * registry alike. Shown so that the list matches the tab bar, and woken by a
- * click like any other conversation of this editor.
- *
- * Two filters, both necessary. `liveLabels` are the titles of the Claude tabs
- * open in this window right now: the memento is persisted state, and a tab
- * closed a moment ago may still be in it. `known` are the ids that have a
- * process or a state file: those are real sessions, and the real one wins.
- *
- * Dated zero on purpose: nothing has happened, and the labels say "tab not
- * started" instead of an age. It also sorts the dormant rows last.
- */
-/**
  * Lays this window's dormant tabs over the sessions on disk. An unknown one is
  * added. A known one that has ENDED is shown as dormant instead: its tab is
  * right there in the tab bar — the editor restored it and nobody has opened it
@@ -161,6 +147,20 @@ export function shownSession(onDisk: Session | undefined, restored: Session | un
   return next;
 }
 
+/**
+ * The conversations that exist only as a tab: restored by the editor, never
+ * shown since, hence without a process — and unknown to the hooks and to the
+ * registry alike. Shown so that the list matches the tab bar, and woken by a
+ * click like any other conversation of this editor.
+ *
+ * Two filters, both necessary. `liveLabels` are the titles of the Claude tabs
+ * open in this window right now: the memento is persisted state, and a tab
+ * closed a moment ago may still be in it. `known` are the ids that have a
+ * process or a state file: those are real sessions, and the real one wins.
+ *
+ * Dated zero on purpose: nothing has happened, and the labels say "tab not
+ * started" instead of an age. It also sorts the dormant rows last.
+ */
 export function dormantSessions(
   tabs: readonly ClaudeTab[],
   liveLabels: ReadonlySet<string>,

@@ -230,12 +230,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return sessionListedIn(claudeRoot, listingFolder(workspaceFolders()), id, hidden);
   };
   /**
-   * Brings back the conversations whose process runs but whose state file is
-   * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
-   * fails: the registry and the editor's memory are conveniences over the
-   * hooks, and an unreadable one simply brings nothing back.
-   */
-  /**
    * Whether a conversation ever got a message. Claude Code writes the
    * transcript on the first one; a session that ends without it never was a
    * conversation — it starts one for every panel it opens, and drops it
@@ -243,6 +237,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   const hasTranscript = async (s: Session): Promise<boolean> =>
     (s.transcriptPath !== undefined && existsSync(s.transcriptPath)) || (await findTranscript(claudeRoot, s.id)) !== undefined;
+  /**
+   * Brings back the conversations whose process runs but whose state file is
+   * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
+   * fails: the registry and the editor's memory are conveniences over the
+   * hooks, and an unreadable one simply brings nothing back.
+   */
   const rescan = async (): Promise<string[]> => {
     try {
       const live = await readLiveSessions(registryDir);
@@ -763,11 +763,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return rememberClosed(closedPath, toClosedEntry(source, Date.now())).then(() => undefined);
   };
 
-  /**
-   * Removes a conversation from the dashboard: its state file, then its place
-   * in the folder layout — leaving the latter would resurrect a ghost ranking
-   * if the id ever came back, and would grow the shared file without end.
-   */
   /** The row of a tab just closed: gone for good, and never back through the memento. */
   const remove = async (id: string): Promise<void> => {
     dormant.delete(id);
@@ -912,18 +907,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   /**
-   * Le geste inverse du clic sur une ligne : l'onglet que l'utilisateur vient
-   * de choisir désigne sa conversation dans le tableau de bord.
-   *
-   * `select` sans `focus` : le curseur doit rester là où on tape. Montrer où
-   * l'on est est tout l'intérêt ; voler le clavier à chaque changement
-   * d'onglet n'en est pas un.
-   *
-   * Rien n'arrive quand l'onglet actif n'est pas une conversation, ni quand le
-   * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
-   * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
-   */
-  /**
    * Les onglets que CETTE fenêtre a elle-même fait ouvrir, retenus au vol.
    *
    * Le mémento de l'éditeur est la seule table qui relie un onglet à sa
@@ -941,6 +924,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   const openedHere = new OpenedHere();
   let lastRevealed: string | undefined;
+  /**
+   * Le geste inverse du clic sur une ligne : l'onglet que l'utilisateur vient
+   * de choisir désigne sa conversation dans le tableau de bord.
+   *
+   * `select` sans `focus` : le curseur doit rester là où on tape. Montrer où
+   * l'on est est tout l'intérêt ; voler le clavier à chaque changement
+   * d'onglet n'en est pas un.
+   *
+   * Rien n'arrive quand l'onglet actif n'est pas une conversation, ni quand le
+   * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
+   * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
+   */
   const revealActiveSession = (): void => {
     // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
     if (!view.visible) return;
@@ -1338,15 +1333,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     ]),
     /**
-     * Copies the id of a conversation, from either view.
-     *
-     * The two trees do not share a node shape, and neither should have to know
-     * about the other's: the id is asked of each in turn, and the first one
-     * that recognises the row answers. A click that matches neither — the row
-     * standing in for an empty list, a folder — leaves the clipboard alone
-     * rather than writing something wrong into it.
-     */
-    /**
      * Terminates a process a session started — and, with it, everything that
      * process started (see process/kill.ts).
      *
@@ -1413,6 +1399,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.env.clipboard.writeText(command);
       vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: command copied'), 3000);
     }),
+    /**
+     * Copies the id of a conversation, from either view.
+     *
+     * The two trees do not share a node shape, and neither should have to know
+     * about the other's: the id is asked of each in turn, and the first one
+     * that recognises the row answers. A click that matches neither — the row
+     * standing in for an empty list, a folder — leaves the clipboard alone
+     * rather than writing something wrong into it.
+     */
     vscode.commands.registerCommand('kohVibe.copySessionId', async (node: unknown) => {
       const id = sessionIdOfNode(node) ?? closedIdOfNode(node);
       if (id === undefined) return;
