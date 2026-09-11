@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { releaseLabel, versionLabel } from '../src/ui/version';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = join(__dirname, '..');
 
 /**
  * The whole chain from the manifest to the label the view shows, run for real.
@@ -23,16 +23,16 @@ describe('the build stamp', () => {
     // Rewrites `build-info.json`, which is exactly what `pnpm build` does
     // before every test run anyway.
     execFileSync('node', ['scripts/stamp-build.cjs'], { cwd: ROOT, stdio: 'ignore' });
-    const stamp: unknown = JSON.parse(await readFile(`${ROOT}build-info.json`, 'utf8'));
+    const stamp: unknown = JSON.parse(await readFile(join(ROOT, 'build-info.json'), 'utf8'));
 
     expect(releaseLabel(stamp)).toBeDefined();
     expect(versionLabel(stamp)).not.toContain('no version');
   });
 
   it('names the version of the manifest, which is the source of truth', async () => {
-    const manifest: unknown = JSON.parse(await readFile(`${ROOT}package.json`, 'utf8'));
+    const manifest: unknown = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
     const version = (manifest as { version?: unknown }).version;
-    const stamp: unknown = JSON.parse(await readFile(`${ROOT}build-info.json`, 'utf8'));
+    const stamp: unknown = JSON.parse(await readFile(join(ROOT, 'build-info.json'), 'utf8'));
 
     expect(releaseLabel(stamp)).toContain(String(version));
   });
