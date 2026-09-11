@@ -45,7 +45,7 @@ export interface Group {
 /** Les sons propres aux conversations, rangés par événement. */
 export type SessionSounds = Readonly<Record<ChimeEvent, Readonly<Record<string, string>>>>;
 
-export function emptySessionSounds(): SessionSounds {
+function emptySessionSounds(): SessionSounds {
   return { waiting: {}, done: {} };
 }
 
@@ -71,14 +71,14 @@ export interface GroupsState {
 const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds']);
 
 /** La clé d'ordre de « Sans dossier ». */
-export const UNFILED = '';
+const UNFILED = '';
 
 export function emptyGroups(): GroupsState {
   return { groups: [], assignments: {}, sessionOrder: {}, sessionSounds: emptySessionSounds(), unknown: {} };
 }
 
 /** `undefined` (« Sans dossier ») et la chaîne vide désignent le même seau. */
-export function orderKey(groupId: string | undefined): string {
+function orderKey(groupId: string | undefined): string {
   return groupId ?? UNFILED;
 }
 

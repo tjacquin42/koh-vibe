@@ -110,7 +110,7 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       // Garde d'exhaustivité : un futur membre d'`EventName` non traité ici
       // devient une erreur de compilation plutôt qu'un trou silencieux.
       const exhaustive: never = ev.event;
-      throw new Error(`événement non géré par le réducteur : ${String(exhaustive)}`);
+      throw new Error(`event the reducer does not handle: ${String(exhaustive)}`);
     }
   }
 

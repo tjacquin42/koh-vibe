@@ -16,7 +16,7 @@ export const KOH_MARKER = 'koh-vibe-bridge';
  * Reconnu à la désinstallation et au nettoyage, jamais écrit : une installation
  * neuve ne pose que le nom courant.
  */
-export const KOH_LEGACY_MARKER = 'koh-claude-bridge';
+const KOH_LEGACY_MARKER = 'koh-claude-bridge';
 
 function isMarker(path: string, marker: string): boolean {
   return path === marker || path.endsWith(`/${marker}`);
@@ -225,7 +225,7 @@ export function foreignFingerprint(settings: unknown): string[] {
 }
 
 /** Marqueur qui rend notre entrée de statusline reconnaissable, comme KOH_MARKER pour les hooks. */
-export const KOH_STATUSLINE_MARKER = 'koh-vibe-statusline';
+const KOH_STATUSLINE_MARKER = 'koh-vibe-statusline';
 
 // Le gabarit exact que nous écrivons, et lui seul. Le chemin du pont est capturé
 // une fois et retrouvé par rétro-référence : les deux occurrences ne peuvent pas

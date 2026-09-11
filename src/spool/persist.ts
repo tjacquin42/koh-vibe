@@ -34,10 +34,6 @@ export async function ensureDirs(dirs: SpoolDirs): Promise<void> {
 let writeSessionSeq = 0;
 
 /**
- * Écriture atomique : un lecteur concurrent voit l'ancien fichier ou le nouveau,
- * jamais un fichier à moitié écrit.
- */
-/**
  * Ce qu'une session laisse sur le disque.
  *
  * `dormant` n'est pas un état de la conversation : c'est ce que CETTE fenêtre
@@ -57,6 +53,10 @@ function persisted(s: Session): Session {
   return rest;
 }
 
+/**
+ * Écriture atomique : un lecteur concurrent voit l'ancien fichier ou le nouveau,
+ * jamais un fichier à moitié écrit.
+ */
 export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const seq = (writeSessionSeq += 1);
   const target = join(dirs.sessions, `${s.id}.json`);

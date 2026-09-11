@@ -134,7 +134,7 @@ function extract(archive: string, into: string): Promise<void> {
   });
 }
 
-export const defaultLibraryDeps: LibraryDeps = { download, extract };
+const defaultLibraryDeps: LibraryDeps = { download, extract };
 
 async function wavFiles(dir: string): Promise<string[]> {
   const out: string[] = [];

@@ -23,11 +23,13 @@ import { librarySoundsDir } from './library';
  * les sons embarqués — un oubli qui rendrait muet le réglage par défaut sans
  * rien afficher d'anormal.
  */
-export function soundDirs(home: string, extensionPath: string): string[] {
+export function soundDirs(kohHome: string, extensionPath: string): string[] {
+  // `kohHome` is koh-vibe's own root, the one a test can redirect; the user's
+  // `~/Library/Sounds` deliberately is not, and comes from the real home.
   return [
     '/System/Library/Sounds',
     join(homedir(), 'Library', 'Sounds'),
-    librarySoundsDir(home),
+    librarySoundsDir(kohHome),
     bundledSoundsDir(extensionPath),
   ];
 }

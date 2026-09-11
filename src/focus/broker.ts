@@ -308,6 +308,29 @@ export class FocusBroker {
     );
   }
 
+  /**
+   * The close and the sleep another window asked of this one. They differ
+   * only in what follows the tab closing (close/close.ts), hence one method.
+   *
+   * A failure here must still be surfaced: the request file is already
+   * unlinked and the clicking window's own fallback has already found
+   * nothing, so silence on both ends would leave the user with no idea
+   * anything went wrong. Caught HERE, not by the loop's `catch` — that one
+   * exists to keep one bad request from stopping the whole loop, and would
+   * swallow this in total silence. Same messages as the local path
+   * (extension.ts, kohVibe.closeSession and kohVibe.sleepSession).
+   */
+  private async closeTabHere(action: 'close' | 'sleep', sessionId: string, label: string): Promise<void> {
+    const done = action === 'close' ? this.close.closeHere(sessionId) : this.close.sleepHere(sessionId);
+    await done.catch(() => {
+      void vscode.window.showErrorMessage(
+        action === 'close'
+          ? vscode.l10n.t('Koh-Vibe: could not close « {0} ».', label)
+          : vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', label),
+      );
+    });
+  }
+
   /** Ne consomme que les requêtes qui concernent les dossiers de cette fenêtre. */
   private async consume(): Promise<void> {
     let names: string[];
@@ -345,38 +368,15 @@ export class FocusBroker {
         // already proven to be a `string` earlier in the loop — otherwise the
         // request would have been ignored before reaching here.
         const origin = (parsed as { origin?: unknown }).origin;
-        if (name.startsWith('close-')) {
-          // A close request should never carry a non-editor origin: `closePlan`
+        if (name.startsWith('close-') || name.startsWith('sleep-')) {
+          // Neither request should ever carry a non-editor origin: `closePlan`
           // turns those into a plain forget before any file is written.
           // Honouring one would close a tab in a window where the user asked
           // for nothing. No message on success, unlike focus and reopen: the
           // effect is already visible on both sides — a tab disappears here, a
           // row disappears where the click happened.
           if (closePlan(origin).kind === 'tab') {
-            // A failure here must still be surfaced: the request file is
-            // already unlinked and the clicking window's own fallback has
-            // already found nothing, so silence on both ends would leave the
-            // user with no idea anything went wrong. `catch`, not the outer
-            // `try`/`catch` below — that one exists to keep one bad request
-            // from stopping the whole loop, and would swallow this in total
-            // silence. Same message as the local path (extension.ts,
-            // kohVibe.closeSession).
-            await this.close.closeHere(sessionId).catch(() => {
-              void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not close « {0} ».', label));
-            });
-          }
-          continue;
-        }
-        if (name.startsWith('sleep-')) {
-          // Same origin guard as the close above, and for the same reason: a
-          // request carrying a non-editor origin would close a tab in a window
-          // where nobody asked for anything.
-          if (closePlan(origin).kind === 'tab') {
-            await this.close.sleepHere(sessionId).catch(() => {
-              void vscode.window.showErrorMessage(
-                vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', label),
-              );
-            });
+            await this.closeTabHere(name.startsWith('close-') ? 'close' : 'sleep', sessionId, label);
           }
           continue;
         }

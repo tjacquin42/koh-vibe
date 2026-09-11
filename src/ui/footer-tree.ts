@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { NO_SOUND } from '../sound/player';
 import type { ChimeEvent } from '../sound/model';
+import type { AppSettingsToggle } from '../settings/model';
+import { keysOf } from '../lib/record';
 
 /**
  * Les réglages, dans une vue SÉPARÉE de la liste des sessions.
@@ -16,18 +18,25 @@ export interface SoundSettings {
   volume: number;
 }
 
-/** The on/off settings, as the shared file names them (settings/model.ts). */
-export type SettingToggle = 'persistent' | 'expireTemporary' | 'animate';
-
-export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary', 'animate'];
+/**
+ * The on/off settings: every boolean field of the shared file, derived from
+ * it (settings/model.ts) rather than listed again by hand. A hand-written
+ * copy is what let a fourth toggle exist in the model with no checkbox here.
+ */
+export type SettingToggle = AppSettingsToggle;
 
 /**
- * The glyph beside each checkbox. A record rather than a ternary, so that a
- * toggle added tomorrow fails to compile until it has an icon: the third one
- * was added after a two-way ternary was written, and fell into the second's
- * branch — a clock for the motion of the dots.
+ * The glyph beside each checkbox, and the one list of the toggles: the
+ * record has to name every member of `SettingToggle` or it does not compile,
+ * so a toggle added tomorrow gets its checkbox and its icon the moment it
+ * exists. The third one was added after a two-way ternary had chosen the
+ * icons, and fell into the second's branch — a clock for the motion of the
+ * dots.
  */
 const TOGGLE_ICON: Record<SettingToggle, string> = { persistent: 'pin', expireTemporary: 'clock', animate: 'pulse' };
+
+/** In the order the checkboxes are shown. */
+export const SETTING_TOGGLES: readonly SettingToggle[] = keysOf(TOGGLE_ICON);
 
 export type FooterNode =
   | { kind: 'toggle'; key: SettingToggle; on: boolean }
