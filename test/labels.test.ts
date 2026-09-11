@@ -35,6 +35,14 @@ describe('labels', () => {
     expect(formatAge(3 * 3_600_000)).toBe('3 h');
   });
 
+  it('counts in days past the first one, as the usage view already does', () => {
+    // The closed history is capped by count, not by age: an entry ten days
+    // old is ordinary, and "closed 240 h" is not how anyone says it.
+    expect(formatAge(47 * 3_600_000)).toBe('1 d');
+    expect(formatAge(10 * 86_400_000)).toBe('10 d');
+    expect(formatAgeCoarse(2 * 86_400_000)).toBe('2 d');
+  });
+
   it('formate les tokens', () => {
     expect(formatTokens(950)).toBe('950');
     expect(formatTokens(128_000)).toBe('128k');
