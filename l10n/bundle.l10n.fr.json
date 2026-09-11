@@ -45,6 +45,7 @@
   "Koh-Vibe: the Claude Code extension does not expose a command to open a conversation in this version.": "Koh-Vibe : l'extension Claude Code n'expose pas de commande pour ouvrir une conversation dans cette version.",
   "Koh-Vibe: the extension was renamed. Your folders and sessions were carried over; run \"Install hooks\" again so that Claude Code points at the new bridge.": "Koh-Vibe : l'extension a changé de nom. Vos dossiers et vos sessions ont été repris ; relancez « Installer les hooks » pour que Claude Code pointe vers le nouveau pont.",
   "Koh-Vibe: the library could not be installed — network unreachable?": "Koh-Vibe : la bibliothèque n'a pas pu être installée — réseau injoignable ?",
+  "Koh-Vibe: the library could not be removed — is its folder writable?": "Koh-Vibe : la bibliothèque n'a pas pu être retirée — son dossier est-il accessible en écriture ?",
   "Koh-Vibe: the library is already installed ({0} sounds).": "Koh-Vibe : la bibliothèque est déjà installée ({0} sons).",
   "Koh-Vibe: the library is not installed.": "Koh-Vibe : la bibliothèque n'est pas installée.",
   "Koh-Vibe: this conversation could not be removed.": "Koh-Vibe : cette conversation n'a pas pu être retirée.",

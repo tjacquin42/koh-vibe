@@ -205,9 +205,16 @@ export async function installLibrary(
   }
 }
 
-/** Retire la bibliothèque. Retourne le nombre de fichiers effacés. */
+/**
+ * Removes the library and says how many sounds actually went.
+ *
+ * Counted again after the removal rather than assumed from before it: a
+ * removal that fails — a folder nobody may write to — used to be announced as
+ * "N sounds removed" over N files still on disk. Zero is the honest answer
+ * then, and the caller says so.
+ */
 export async function removeLibrary(target: string): Promise<number> {
-  const count = await installedCount(target);
+  const before = await installedCount(target);
   await rm(target, { recursive: true, force: true }).catch(() => undefined);
-  return count;
+  return before - (await installedCount(target));
 }

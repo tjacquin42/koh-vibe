@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -154,6 +154,22 @@ describe('installedCount et removeLibrary', () => {
     expect(existsSync(target)).toBe(false);
     // Deux fois de suite : retirer ce qui n est plus là ne doit pas lever.
     expect(await removeLibrary(target)).toBe(0);
+  });
+
+  it('says zero when nothing could be removed', async () => {
+    // A folder nobody may write to: every unlink fails. The count used to be
+    // taken BEFORE the removal, and "2 sounds removed" was announced over two
+    // files still on disk.
+    const target = join(scratch(), 'sounds');
+    await installLibrary(target, fake(['select_001.wav', 'error_001.wav']));
+    chmodSync(target, 0o555);
+    try {
+      expect(await removeLibrary(target)).toBe(0);
+      expect(await installedCount(target)).toBe(2);
+    } finally {
+      chmodSync(target, 0o755);
+      rmSync(target, { recursive: true, force: true });
+    }
   });
 });
 

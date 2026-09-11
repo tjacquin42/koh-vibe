@@ -1298,9 +1298,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         remove,
       );
       if (go !== remove) return;
-      void vscode.window.showInformationMessage(
-        vscode.l10n.t('Koh-Vibe: {0} sounds removed.', await removeLibrary(target)),
-      );
+      const gone = await removeLibrary(target);
+      // Zero means the removal failed, not that there was nothing: the count
+      // of what was there was checked just above.
+      if (gone === 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t('Koh-Vibe: the library could not be removed — is its folder writable?'),
+        );
+      } else {
+        void vscode.window.showInformationMessage(vscode.l10n.t('Koh-Vibe: {0} sounds removed.', gone));
+      }
       await render();
     }),
     // Deux commandes par niveau, une par événement, plutôt qu'une seule qui
