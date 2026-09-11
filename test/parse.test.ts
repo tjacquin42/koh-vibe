@@ -14,6 +14,22 @@ describe('parseSpoolFile', () => {
     expect(ev?.toolName).toBeDefined();
   });
 
+  it('reads the agent behind a subagent call, and nothing for the conversation itself', () => {
+    // Claude Code puts `agent_id` and `agent_type` on the calls a subagent
+    // makes; a call the conversation makes carries neither. Absent means
+    // "the conversation did this", so an empty or odd value must read as
+    // absent too — it ends up as a map key and an icon.
+    const call = (extra: string): ReturnType<typeof parseSpoolFile> =>
+      parseSpoolFile(`{"event":"PreToolUse","at":1,"payload":{"session_id":"s","cwd":"/x","tool_name":"Bash"${extra}}}`);
+    const byAgent = call(',"agent_id":"a75a44d961c4d575b","agent_type":"general-purpose"');
+    expect(byAgent?.agentId).toBe('a75a44d961c4d575b');
+    expect(byAgent?.agentType).toBe('general-purpose');
+    expect(call('')?.agentId).toBeUndefined();
+    expect(call('')?.agentType).toBeUndefined();
+    expect(call(',"agent_id":"","agent_type":7')?.agentId).toBeUndefined();
+    expect(call(',"agent_id":"","agent_type":7')?.agentType).toBeUndefined();
+  });
+
   it('rejette un JSON invalide sans lever', () => {
     expect(parseSpoolFile('{ pas du json')).toBeUndefined();
   });

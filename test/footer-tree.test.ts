@@ -53,3 +53,12 @@ describe('the settings view — the two checkboxes', () => {
     expect(tree.getChildren()[1]).toEqual({ kind: 'toggle', key: 'expireTemporary', on: true });
   });
 });
+
+describe('the settings view — the library row', () => {
+  it('offers to install the library while it holds no sound', () => {
+    const tree = new FooterTree();
+    tree.setLibrary(0);
+    const row = tree.getChildren().find((n) => n.kind === 'library');
+    expect(row === undefined ? undefined : tree.getTreeItem(row).label).toBe('Sound library: install…');
+  });
+});

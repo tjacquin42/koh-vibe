@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs } from '../src/paths';
+import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs, statusFile, usageFile } from '../src/paths';
 
 describe('paths', () => {
   it('utilise KOH_VIBE_HOME quand il est posé', () => {
@@ -24,6 +24,11 @@ describe('paths', () => {
 
   it('puts the closed list at the root of the koh-vibe home', () => {
     expect(closedFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/closed.json');
+  });
+
+  it('puts the statusline snapshot and the usage cache at the root too', () => {
+    expect(statusFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/status.json');
+    expect(usageFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/usage.json');
   });
 });
 

@@ -550,6 +550,27 @@ describe("drain — écriture tardive après abandon (N2 suite)", () => {
   });
 });
 
+describe('drain — the tool calls it hands to the process view', () => {
+  it('collects the Bash calls it applied, with the agent behind them, and nothing else', async () => {
+    await dropEvent(
+      '1-1-PreToolUse.json',
+      hook('PreToolUse', 1, { tool_name: 'Bash', tool_input: { command: 'pnpm dev' }, agent_id: 'a1', agent_type: 'general-purpose' }),
+    );
+    // Not a Bash call: it starts no process, and the process view has no use for it.
+    await dropEvent('2-1-PreToolUse.json', hook('PreToolUse', 2, { tool_name: 'Read', tool_input: { file_path: '/x' } }));
+    await dropEvent('3-1-PostToolUse.json', hook('PostToolUse', 3, { tool_name: 'Bash', tool_input: { command: 'pnpm dev' } }));
+    // Rejected, never applied — and so never handed over either.
+    await dropEvent('4-1-PreToolUse.json', 'not an event');
+    const res = await drain(dirs, NOW);
+    expect(res.applied).toBe(3);
+    expect(res.rejected).toBe(1);
+    expect(res.toolCalls.map((c) => [c.event, c.toolTarget, c.agentId])).toEqual([
+      ['PreToolUse', 'pnpm dev', 'a1'],
+      ['PostToolUse', 'pnpm dev', undefined],
+    ]);
+  });
+});
+
 describe('SpoolWatcher', () => {
   it('start() tolère un dossier events absent, sans lever, et arme quand même le filet périodique', () => {
     // Vérifié seulement structurellement, jamais via le déclenchement réel du

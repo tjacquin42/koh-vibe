@@ -169,7 +169,42 @@ export const stubTabGroups: {
   close: async (): Promise<boolean> => true,
 };
 
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
+}
+
+/** What `StatusSummary` sets on its item, kept so a test can read it back. */
+export interface StubStatusBarItem {
+  command?: string;
+  name?: string;
+  text?: string;
+  tooltip?: string;
+  backgroundColor?: ThemeColor;
+  visible: boolean;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+}
+
+/** Every status bar item created so far, newest last. */
+export const statusBarItems: StubStatusBarItem[] = [];
+
 export const window = {
+  createStatusBarItem: (_alignment?: StatusBarAlignment, _priority?: number): StubStatusBarItem => {
+    const item: StubStatusBarItem = {
+      visible: false,
+      show: () => {
+        item.visible = true;
+      },
+      hide: () => {
+        item.visible = false;
+      },
+      dispose: () => undefined,
+    };
+    statusBarItems.push(item);
+    return item;
+  },
   showInformationMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showWarningMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showErrorMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,

@@ -11,7 +11,10 @@ import {
   deleteGroupCommand,
   fileSessionCommand,
   renameGroupCommand,
+  reorderGroupsCommand,
   runGroupAction,
+  soundGroupCommand,
+  soundSessionCommand,
 } from '../src/groups/commands';
 
 // Compte les écritures RÉELLES sur disque (writeFile, appelé par updateGroups avant chaque
@@ -208,5 +211,36 @@ describe('fileSessionCommand — « nouvelle session ici »', () => {
   it('ne range rien dans un dossier disparu, comme un dépôt', async () => {
     const state = await fileSessionCommand(file, 's-new', 'nope');
     expect(state.assignments).not.toHaveProperty('s-new');
+  });
+});
+
+describe('soundGroupCommand and soundSessionCommand', () => {
+  it('sets the sound of a folder, and `undefined` gives it back to the global setting', async () => {
+    await createGroupCommand(file, 'Perso', () => 'g1');
+    await soundGroupCommand(file, 'g1', 'waiting', 'Funk');
+    expect((await readGroups(file)).groups[0]?.soundWaiting).toBe('Funk');
+    await soundGroupCommand(file, 'g1', 'waiting', undefined);
+    expect((await readGroups(file)).groups[0]?.soundWaiting).toBeUndefined();
+  });
+
+  it('sets the sound of a conversation, and `undefined` gives it back to its folder', async () => {
+    await soundSessionCommand(file, 's1', 'done', 'Hero');
+    expect((await readGroups(file)).sessionSounds.done['s1']).toBe('Hero');
+    await soundSessionCommand(file, 's1', 'done', undefined);
+    expect((await readGroups(file)).sessionSounds.done['s1']).toBeUndefined();
+  });
+});
+
+describe('reorderGroupsCommand', () => {
+  it('moves folders in front of another, or to the end, in one write', async () => {
+    await createGroupCommand(file, 'A', () => 'ga');
+    await createGroupCommand(file, 'B', () => 'gb');
+    await createGroupCommand(file, 'C', () => 'gc');
+    writeFileCalls.count = 0;
+    await reorderGroupsCommand(file, ['gc'], 'ga');
+    expect((await readGroups(file)).groups.map((g) => g.id)).toEqual(['gc', 'ga', 'gb']);
+    expect(writeFileCalls.count).toBe(1);
+    await reorderGroupsCommand(file, ['gc'], undefined);
+    expect((await readGroups(file)).groups.map((g) => g.id)).toEqual(['ga', 'gb', 'gc']);
   });
 });
