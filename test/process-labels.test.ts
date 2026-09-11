@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { childrenOf, mcpOf, processCount, processDescription, processTooltip, rootsOf, PROCESS_GLYPH } from '../src/ui/process-labels';
 import { classify } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 
 const SNAPSHOT = '/Users/jack/.claude/shell-snapshots/snap.sh';
 
 const TREE = classify(
   descendantsOf(
-    parsePs(
+    tableOf(parsePs(
       [
         '100   1     10 1000 /path/to/claude',
         '200 100  02:00 8000 /opt/homebrew/bin/uv tool uvx alpaca-mcp-server',
@@ -15,7 +15,7 @@ const TREE = classify(
         `400 100  01:30 1000 /bin/zsh -c source ${SNAPSHOT} && eval 'pnpm dev' < /dev/null`,
         '500 400  01:30 210000 node vite',
       ].join('\n'),
-    ),
+    )),
     100,
   ),
 );

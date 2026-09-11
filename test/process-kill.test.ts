@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { killAll, killPlan, killTargets } from '../src/process/kill';
 import { classify } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 
 const SNAPSHOT = '/Users/jack/.claude/shell-snapshots/snap.sh';
 
 const TREE = classify(
   descendantsOf(
-    parsePs(
+    tableOf(parsePs(
       [
         '100   1  10 1000 /path/to/claude',
         '200 100  10 1000 /opt/homebrew/bin/uv tool uvx alpaca-mcp-server',
@@ -15,7 +15,7 @@ const TREE = classify(
         '400 300  10 1000 npm run dev',
         '500 400  10 1000 node vite',
       ].join('\n'),
-    ),
+    )),
     100,
   ),
 );

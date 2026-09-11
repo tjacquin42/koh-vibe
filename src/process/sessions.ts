@@ -1,6 +1,6 @@
 import type { LiveSession } from '../claude/registry';
 import { classify, type SessionProcess } from './classify';
-import { descendantsOf, type ProcRow } from './scan';
+import { descendantsOf, type ProcTable } from './scan';
 
 /**
  * What each live session is running right now, keyed by session id.
@@ -22,13 +22,13 @@ import { descendantsOf, type ProcRow } from './scan';
  * a development session that the trade is worth it.
  */
 export function processesBySession(
-  rows: readonly ProcRow[],
+  table: ProcTable,
   live: ReadonlyMap<string, LiveSession>,
 ): Map<string, SessionProcess[]> {
   const out = new Map<string, SessionProcess[]>();
-  if (rows.length === 0) return out;
+  if (table.rows.length === 0) return out;
   for (const [sessionId, entry] of live) {
-    const found = classify(descendantsOf(rows, entry.pid));
+    const found = classify(descendantsOf(table, entry.pid));
     if (found.length > 0) out.set(sessionId, found);
   }
   return out;

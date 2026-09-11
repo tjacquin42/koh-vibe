@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentIndex, agentKey, withAgents } from '../src/process/agents';
 import type { SpoolEvent } from '../src/events/types';
 import { classify, copyableCommand } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 
 const ev = (over: Partial<SpoolEvent>): SpoolEvent => ({
   event: 'PreToolUse',
@@ -120,14 +120,14 @@ describe('withAgents', () => {
   const procs = () =>
     classify(
       descendantsOf(
-        parsePs(
+        tableOf(parsePs(
           [
             '100   1  10 1000 /path/to/claude',
             `200 100  10 1000 /bin/zsh -c source ${SNAPSHOT} && eval 'pnpm dev' < /dev/null`,
             '201 200  10 1000 node vite',
             `300 100  10 1000 /bin/zsh -c source ${SNAPSHOT} && eval 'pnpm build' < /dev/null`,
           ].join('\n'),
-        ),
+        )),
         100,
       ),
     );

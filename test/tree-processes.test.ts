@@ -3,7 +3,7 @@ import { SessionsTree, nodeId, processOfNode } from '../src/ui/tree';
 import type { TreeNode } from '../src/ui/tree';
 import type { Session } from '../src/events/types';
 import { classify, type SessionProcess } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 import { TreeItemCollapsibleState } from './stubs/vscode';
 
 const EXT = '/ext';
@@ -26,14 +26,14 @@ const newTree = (): SessionsTree => new SessionsTree(async () => true, noop, noo
 const tree = (elapsed: string): SessionProcess[] =>
   classify(
     descendantsOf(
-      parsePs(
+      tableOf(parsePs(
         [
           `100   1  ${elapsed} 1000 /path/to/claude`,
           `200 100  ${elapsed} 1000 /opt/homebrew/bin/uv tool uvx alpaca-mcp-server`,
           `300 100  ${elapsed} 1000 /bin/zsh -c source ${SNAPSHOT} && eval 'pnpm dev' < /dev/null`,
           `400 300  ${elapsed} 1000 node vite`,
         ].join('\n'),
-      ),
+      )),
       100,
     ),
   );

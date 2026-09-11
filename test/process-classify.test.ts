@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classify, copyableCommand, displayCommand, kindOf } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 
 const SNAPSHOT = '/Users/jack/.claude/shell-snapshots/snapshot-zsh-1789001593821-ptqxu0.sh';
 const TOOL_SHELL = `/bin/zsh -c source ${SNAPSHOT} 2>/dev/null || true && eval 'pnpm dev --port 3000' < /dev/null && pwd -P >| /tmp/claude-1455-cwd`;
@@ -34,7 +34,7 @@ describe('classify', () => {
   );
 
   it('files what an MCP server itself started as part of that server', () => {
-    const kinds = new Map(classify(descendantsOf(TREE, 100)).map((p) => [p.pid, p.kind]));
+    const kinds = new Map(classify(descendantsOf(tableOf(TREE), 100)).map((p) => [p.pid, p.kind]));
     // The python process IS the alpaca server — the `uv` above it only launched
     // it. Read on its own line it looks like work the user started, which is
     // exactly what the inheritance is here to prevent.
@@ -43,13 +43,13 @@ describe('classify', () => {
   });
 
   it('leaves what a tool shell started as work the session did', () => {
-    const kinds = new Map(classify(descendantsOf(TREE, 100)).map((p) => [p.pid, p.kind]));
+    const kinds = new Map(classify(descendantsOf(tableOf(TREE), 100)).map((p) => [p.pid, p.kind]));
     expect(kinds.get(400)).toBe('shell');
     expect(kinds.get(500)).toBe('work');
   });
 
   it('carries a readable label on every row', () => {
-    const shown = new Map(classify(descendantsOf(TREE, 100)).map((p) => [p.pid, p.label]));
+    const shown = new Map(classify(descendantsOf(tableOf(TREE), 100)).map((p) => [p.pid, p.label]));
     expect(shown.get(400)).toBe('pnpm dev');
     expect(shown.get(500)).toBe('node vite');
   });

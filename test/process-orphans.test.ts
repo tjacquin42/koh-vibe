@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { looksLikeDevRuntime, orphansUnder, parseLsofCwds, unattached } from '../src/process/orphans';
-import { parsePs } from '../src/process/scan';
+import { looksLikeDevRuntime, orphansUnder, unattached, type ProcFiles } from '../src/process/orphans';
+import { parsePs, tableOf } from '../src/process/scan';
 
-const ROWS = parsePs(
+const ROWS = tableOf(parsePs(
   [
     '100   1  10 1000 /path/to/claude',
     '200 100  10 1000 node vite',
@@ -12,7 +12,11 @@ const ROWS = parsePs(
     '600   1  10 1000 /System/Library/CoreServices/Dock.app/Contents/MacOS/Dock',
     '700 600  10 1000 python3 manage.py runserver',
   ].join('\n'),
-);
+));
+
+/** The reading `lsof` would give: a directory per pid, and no redirected output. */
+const at = (entries: readonly (readonly [number, string])[]): Map<number, ProcFiles> =>
+  new Map(entries.map(([pid, cwd]) => [pid, { cwd, outputs: [] }]));
 
 describe('unattached', () => {
   it('keeps what the process 1 adopted, and nothing a session carries', () => {
@@ -66,30 +70,6 @@ describe('looksLikeDevRuntime', () => {
   });
 });
 
-describe('parseLsofCwds', () => {
-  it('reads the pid and the directory of each block', () => {
-    const out = ['p42621', 'fcwd', 'n/Users/jack/DEV/projet', 'p42633', 'fcwd', 'n/Users/jack/DEV/autre'].join('\n');
-    expect(parseLsofCwds(out)).toEqual(
-      new Map([
-        [42_621, '/Users/jack/DEV/projet'],
-        [42_633, '/Users/jack/DEV/autre'],
-      ]),
-    );
-  });
-
-  it('ignores a block whose directory never came', () => {
-    // A process that exits between the `ps` and the `lsof` leaves its pid line
-    // with nothing after it. It has no directory, so it cannot be placed under
-    // a root, so it is simply not listed.
-    expect(parseLsofCwds('p1\np42621\nfcwd\nn/Users/jack/DEV/projet')).toEqual(new Map([[42_621, '/Users/jack/DEV/projet']]));
-  });
-
-  it('survives an empty or unreadable output', () => {
-    expect(parseLsofCwds('')).toEqual(new Map());
-    expect(parseLsofCwds('lsof: not found')).toEqual(new Map());
-  });
-});
-
 describe('orphansUnder — the subtree decides, not the adopted process alone', () => {
   // The shape a session killed outright leaves behind, and the one that
   // matters most: Claude Code takes its children with it on a clean exit, so a
@@ -97,15 +77,15 @@ describe('orphansUnder — the subtree decides, not the adopted process alone', 
   // sleep leaves the tool shell adopted by the process 1, with the server it
   // started still under IT. The adopted process is then a `zsh` — no
   // development runtime — and the server is not adopted at all.
-  const SHELL_GHOST = parsePs(
+  const SHELL_GHOST = tableOf(parsePs(
     [
       '800   1  10 1000 /bin/zsh -c python3 -m http.server 8934 --bind 127.0.0.1; true',
       '801 800  10 210000 /opt/homebrew/Cellar/python@3.14/bin/Python -m http.server 8934',
       '900   1  10 1000 /bin/zsh -c tail -f /var/log/system.log',
       '901 900  10 1000 tail -f /var/log/system.log',
     ].join('\n'),
-  );
-  const cwds = new Map([
+  ));
+  const cwds = at([
     [800, '/Users/jack/DEV/koh-vibe'],
     [900, '/Users/jack/DEV/koh-vibe'],
   ]);
@@ -135,7 +115,7 @@ describe('orphansUnder — the subtree decides, not the adopted process alone', 
 });
 
 describe('orphansUnder', () => {
-  const cwds = new Map([
+  const cwds = at([
     [300, '/Users/jack/DEV/projet/packages/web'],
     [400, '/Users/jack/DEV/pity-tidy'],
     [500, '/'],
@@ -159,7 +139,7 @@ describe('orphansUnder', () => {
     // `/Users/jack/DEV/projet-old` must not match the root `/Users/jack/DEV/projet`:
     // a plain `startsWith` would say it does, and list a process from another
     // project as belonging to this one.
-    const sibling = new Map([[300, '/Users/jack/DEV/projet-old/src']]);
+    const sibling = at([[300, '/Users/jack/DEV/projet-old/src']]);
     expect(orphansUnder(ROWS, sibling, ['/Users/jack/DEV/projet'])).toEqual([]);
   });
 

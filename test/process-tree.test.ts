@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ProcessesTree, orphanOfNode, processNodeId } from '../src/ui/process-tree';
 import type { Session } from '../src/events/types';
 import { classify } from '../src/process/classify';
-import { descendantsOf, parsePs } from '../src/process/scan';
+import { descendantsOf, parsePs, tableOf } from '../src/process/scan';
 import { subtreeOf, type Orphan } from '../src/process/orphans';
 import { TreeItemCollapsibleState } from './stubs/vscode';
 
@@ -21,7 +21,7 @@ const session = (id: string, project: string): Session => ({
 const procs = (rootPid: number) =>
   classify(
     descendantsOf(
-      parsePs(
+      tableOf(parsePs(
         [
           `${rootPid}   1  10 1000 /path/to/claude`,
           `${rootPid + 1} ${rootPid}  02:00 8000 /opt/homebrew/bin/uv tool uvx alpaca-mcp-server`,
@@ -29,7 +29,7 @@ const procs = (rootPid: number) =>
           `${rootPid + 3} ${rootPid}  01:00 2000 /Applications/Spline.app/Contents/MacOS/Spline spline-mcp.cjs`,
           `${rootPid + 4} ${rootPid}  00:30 1000 /bin/zsh -c source ${SNAPSHOT} && eval 'pnpm dev' < /dev/null`,
         ].join('\n'),
-      ),
+      )),
       rootPid,
     ),
   );
@@ -40,12 +40,12 @@ const procs = (rootPid: number) =>
  */
 const orphan = (pid: number, project: string): Orphan => {
   const tree = subtreeOf(
-    parsePs(
+    tableOf(parsePs(
       [
         `${pid}   1  01:00 1000 /bin/zsh -c node vite; true`,
         `${pid + 1} ${pid}  01:00 210000 /usr/local/bin/node /Users/dev/${project}/node_modules/.bin/vite`,
       ].join('\n'),
-    ),
+    )),
     pid,
   );
   return { root: tree[0]!, tree, cwd: `/Users/dev/${project}` };

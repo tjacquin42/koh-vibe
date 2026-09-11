@@ -95,8 +95,41 @@ function decodeEscapes(command: string): string {
 }
 
 /**
+ * The table indexed for the walks below: every row by pid, and the children
+ * of every parent, oldest first.
+ *
+ * Built once per snapshot and read by every walk. It exists because the walks
+ * are many — one per live session, then one per process the system has
+ * adopted, several hundred on a running machine — and each of them used to
+ * rebuild this same index from the rows before taking a single step: some ten
+ * milliseconds a tick, spent twice, on a loop that runs every two seconds.
+ */
+export interface ProcTable {
+  readonly rows: readonly ProcRow[];
+  readonly byPid: ReadonlyMap<number, ProcRow>;
+  /** By parent pid, ordered by pid — which is to say oldest first, since pids grow. */
+  readonly children: ReadonlyMap<number, readonly ProcRow[]>;
+}
+
+export function tableOf(rows: readonly ProcRow[]): ProcTable {
+  const byPid = new Map<number, ProcRow>();
+  const children = new Map<number, ProcRow[]>();
+  for (const row of rows) {
+    byPid.set(row.pid, row);
+    // A process that is its own parent is the degenerate cycle, and the cheap
+    // one to cut here rather than in every walk.
+    if (row.pid === row.ppid) continue;
+    const kids = children.get(row.ppid) ?? [];
+    kids.push(row);
+    children.set(row.ppid, kids);
+  }
+  for (const kids of children.values()) kids.sort((a, b) => a.pid - b.pid);
+  return { rows, byPid, children };
+}
+
+/**
  * Everything running under `rootPid`, depth first, children of a same parent
- * ordered by pid — which is to say oldest first, since pids grow.
+ * oldest first.
  *
  * The root itself is never in the result: the caller already knows about the
  * session, what it is asking for is what the session started.
@@ -106,20 +139,11 @@ function decodeEscapes(command: string): string {
  * make a cycle out of them — and this walk runs on a timer, so a cycle would
  * not be a wrong list but a frozen window.
  */
-export function descendantsOf(rows: readonly ProcRow[], rootPid: number): ProcNode[] {
-  const byParent = new Map<number, ProcRow[]>();
-  for (const row of rows) {
-    // A process that is its own parent is the degenerate cycle, and the cheap
-    // one to cut here rather than in the walk.
-    if (row.pid === row.ppid) continue;
-    const kids = byParent.get(row.ppid) ?? [];
-    kids.push(row);
-    byParent.set(row.ppid, kids);
-  }
+export function descendantsOf(table: ProcTable, rootPid: number): ProcNode[] {
   const out: ProcNode[] = [];
   const seen = new Set<number>([rootPid]);
   const walk = (pid: number, depth: number): void => {
-    for (const row of (byParent.get(pid) ?? []).sort((a, b) => a.pid - b.pid)) {
+    for (const row of table.children.get(pid) ?? []) {
       if (seen.has(row.pid)) continue;
       seen.add(row.pid);
       out.push({ ...row, depth });
@@ -138,10 +162,10 @@ export function descendantsOf(rows: readonly ProcRow[], rootPid: number): ProcNo
  * The timeout is the reason the promise exists at all — a hung `ps` would
  * otherwise hold a tick open until the editor closes.
  */
-export function snapshot(timeoutMs = 2_000): Promise<ProcRow[]> {
+export function snapshot(timeoutMs = 2_000): Promise<ProcTable> {
   return new Promise((resolve) => {
     execFile('ps', PS_ARGS, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
-      resolve(err !== null && stdout.length === 0 ? [] : parsePs(stdout));
+      resolve(tableOf(err !== null && stdout.length === 0 ? [] : parsePs(stdout)));
     });
   });
 }

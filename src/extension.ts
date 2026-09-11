@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { snapshot, type ProcRow } from './process/scan';
+import { snapshot, tableOf, type ProcTable } from './process/scan';
 import { processesBySession } from './process/sessions';
 import { findOrphans, subtreeOf, type Orphan } from './process/orphans';
 import { AgentIndex, withAgents } from './process/agents';
@@ -519,26 +519,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const agents = new AgentIndex();
   let lastShown: ReadonlyMap<string, Session> = new Map();
   let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
-  // The rows of the last scan, kept for the one thing the per-session map
+  // The table of the last scan, kept for the one thing the per-session map
   // cannot answer: the descendants of an orphan, which belong to no session by
   // definition and so appear in no list above.
-  let lastRows: readonly ProcRow[] = [];
+  let lastTable: ProcTable = tableOf([]);
   let lastOrphans: readonly Orphan[] = [];
   const scanProcesses = async (): Promise<ReadonlyMap<string, SessionProcess[]>> => {
     if (!view.visible && !processesView.visible) {
       lastProcesses = new Map();
-      lastRows = [];
+      lastTable = tableOf([]);
       lastOrphans = [];
       return lastProcesses;
     }
-    lastRows = await snapshot();
+    lastTable = await snapshot();
     agents.prune(Date.now());
-    lastProcesses = withAgents(processesBySession(lastRows, await readLiveSessions(registryDir)), agents);
+    lastProcesses = withAgents(processesBySession(lastTable, await readLiveSessions(registryDir)), agents);
     // The orphan hunt costs a second reading — one `lsof` over a handful of
     // candidates — and only the Processes view shows its result. It is skipped
     // whenever that view is closed, exactly as the whole scan is skipped when
     // both are.
-    const adrift = processesView.visible ? await findOrphans(lastRows, orphanRoots()) : [];
+    const adrift = processesView.visible ? await findOrphans(lastTable, orphanRoots()) : [];
     // A process a session detached is still that session's work — it only lost
     // the parent link, not the ownership — so it goes back under its
     // conversation and leaves the « No session » list, which is for what
@@ -615,7 +615,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const orphanAt = (node: unknown): { proc: SessionProcess; among: SessionProcess[] } | undefined => {
     const pid = orphanOfNode(node);
     if (pid === undefined) return undefined;
-    const among = subtreeOf(lastRows, pid);
+    const among = subtreeOf(lastTable, pid);
     const proc = among.find((p) => p.pid === pid);
     return proc === undefined ? undefined : { proc, among };
   };

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { classifyDetached, type SessionProcess } from './classify';
-import { descendantsOf, type ProcRow } from './scan';
+import { descendantsOf, type ProcRow, type ProcTable } from './scan';
 import { isValidSessionId } from '../events/parse';
 
 /**
@@ -97,25 +97,8 @@ export function looksLikeDevRuntime(command: string): boolean {
  * terminal, which is deliberately absent from this view — it is not lost, its
  * terminal is right there. What is listed is what nothing carries any more.
  */
-export function unattached(rows: readonly ProcRow[]): ProcRow[] {
-  return rows.filter((row) => row.ppid === 1);
-}
-
-/**
- * Reads the working directory of each pid, in ONE call.
- *
- * `lsof -Fpn` emits a block per process: `p<pid>`, then a line per file
- * descriptor. Restricted to `-d cwd`, that is one path per process. Parsed
- * defensively like everything else on this path — a pid whose path never came
- * is dropped rather than guessed at, which is also what happens to a process
- * that exits between the `ps` and the `lsof`.
- */
-export function parseLsofCwds(stdout: string): Map<number, string> {
-  const out = new Map<number, string>();
-  for (const [pid, files] of parseLsofFiles(stdout)) {
-    if (files.cwd !== undefined) out.set(pid, files.cwd);
-  }
-  return out;
+export function unattached(table: ProcTable): readonly ProcRow[] {
+  return table.children.get(1) ?? [];
 }
 
 /** What one process had open, of the few descriptors we asked about. */
@@ -191,13 +174,6 @@ function isUnder(cwd: string, root: string): boolean {
 }
 
 /**
- * The unattached processes that work inside one of the known roots.
- *
- * No roots means nothing is listed. Falling back to "everything" would fill the
- * view with system daemons, which is the opposite of what it is for: the roots
- * are what make a listed process recognisably the user's own.
- */
-/**
  * The subtree an adopted process carries: itself, then everything under it.
  *
  * Whole, because what was adopted is rarely what matters. A session killed
@@ -206,28 +182,31 @@ function isUnder(cwd: string, root: string): boolean {
  * while the server that holds the port is not adopted at all. Judging the
  * adopted process on its own missed exactly the case this view exists for.
  */
-export function subtreeOf(rows: readonly ProcRow[], pid: number): SessionProcess[] {
-  const self = rows.find((r) => r.pid === pid);
+export function subtreeOf(table: ProcTable, pid: number): SessionProcess[] {
+  const self = table.byPid.get(pid);
   if (self === undefined) return [];
-  return classifyDetached([{ ...self, depth: 0 }, ...descendantsOf(rows, pid).map((d) => ({ ...d, depth: d.depth + 1 }))]);
+  return classifyDetached([{ ...self, depth: 0 }, ...descendantsOf(table, pid).map((d) => ({ ...d, depth: d.depth + 1 }))]);
 }
 
+/**
+ * The unattached processes that work inside one of the known roots.
+ *
+ * No roots means nothing is listed. Falling back to "everything" would fill the
+ * view with system daemons, which is the opposite of what it is for: the roots
+ * are what make a listed process recognisably the user's own.
+ */
 export function orphansUnder(
-  rows: readonly ProcRow[],
-  files: ReadonlyMap<number, string | ProcFiles>,
+  table: ProcTable,
+  files: ReadonlyMap<number, ProcFiles>,
   roots: readonly string[],
 ): Orphan[] {
   if (roots.length === 0) return [];
   const out: Orphan[] = [];
-  for (const row of unattached(rows)) {
+  for (const row of unattached(table)) {
     const entry = files.get(row.pid);
-    // Accepts either shape: the directories alone, as the first version of
-    // this took them, or the fuller reading that also carries the redirected
-    // outputs. Only the second can name a conversation.
-    const cwd = typeof entry === 'string' ? entry : entry?.cwd;
-    const outputs = typeof entry === 'string' || entry === undefined ? [] : entry.outputs;
-    if (cwd === undefined || !roots.some((root) => isUnder(cwd, root))) continue;
-    const tree = subtreeOf(rows, row.pid);
+    const cwd = entry?.cwd;
+    if (entry === undefined || cwd === undefined || !roots.some((root) => isUnder(cwd, root))) continue;
+    const tree = subtreeOf(table, row.pid);
     // The whole subtree is asked, not the root: see `subtreeOf`. A shell that
     // runs nothing of interest — a `tail` left behind — is not what this view
     // is for, and listing it would turn it into a process manager.
@@ -237,7 +216,7 @@ export function orphansUnder(
     const orphan: Orphan = { root, tree, cwd };
     // The first output that names a conversation wins; standard output and
     // standard error normally name the same one.
-    const sessionId = outputs.map(sessionOfOutput).find((id) => id !== undefined);
+    const sessionId = entry.outputs.map(sessionOfOutput).find((id) => id !== undefined);
     if (sessionId !== undefined) orphan.sessionId = sessionId;
     out.push(orphan);
   }
@@ -258,7 +237,7 @@ export function orphansUnder(
  * section, never the dashboard.
  */
 export async function findOrphans(
-  rows: readonly ProcRow[],
+  table: ProcTable,
   roots: readonly string[],
   timeoutMs = 3_000,
 ): Promise<Orphan[]> {
@@ -267,15 +246,15 @@ export async function findOrphans(
   // process: an adopted `zsh` holding a dev server is the shape that matters,
   // and testing the root alone let it through unseen. The walk itself is in
   // memory and costs nothing next to the reading that follows.
-  const candidates = unattached(rows).filter((row) =>
-    subtreeOf(rows, row.pid).some((p) => looksLikeDevRuntime(p.command)),
+  const candidates = unattached(table).filter((row) =>
+    subtreeOf(table, row.pid).some((p) => looksLikeDevRuntime(p.command)),
   );
   if (candidates.length === 0) return [];
   const files = await readFiles(
     candidates.map((c) => c.pid),
     timeoutMs,
   );
-  return orphansUnder(rows, files, roots);
+  return orphansUnder(table, files, roots);
 }
 
 function readFiles(pids: readonly number[], timeoutMs: number): Promise<Map<number, ProcFiles>> {

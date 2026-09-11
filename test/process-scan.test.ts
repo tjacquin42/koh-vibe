@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { descendantsOf, parseElapsed, parsePs } from '../src/process/scan';
+import { descendantsOf, parseElapsed, parsePs, tableOf } from '../src/process/scan';
 
 const PS = [
   '  501     1     02:13:07    4200 /sbin/launchd',
@@ -77,9 +77,37 @@ describe('parseElapsed', () => {
   });
 });
 
+describe('tableOf', () => {
+  it('lists the children of each parent, oldest first', () => {
+    // Pids grow, so ordering by pid is ordering by age — and it is done once
+    // here rather than on every walk.
+    const table = tableOf(parsePs(['30 1 5 100 c', '10 1 5 100 a', '20 1 5 100 b'].join('\n')));
+    expect(table.children.get(1)?.map((p) => p.pid)).toEqual([10, 20, 30]);
+  });
+
+  it('finds a row by pid', () => {
+    const table = tableOf(parsePs(PS));
+    expect(table.byPid.get(85_179)?.command).toBe('node vite');
+    expect(table.byPid.get(4242)).toBeUndefined();
+  });
+
+  it('keeps a process that claims itself as its parent out of every child list', () => {
+    // The degenerate cycle, cut where the table is built rather than in each
+    // walk. The row itself is still known: it can be looked up, not walked.
+    const table = tableOf(parsePs(['10 10 5 100 self'].join('\n')));
+    expect(table.children.get(10)).toBeUndefined();
+    expect(table.byPid.get(10)?.command).toBe('self');
+  });
+
+  it('keeps the rows it was built from', () => {
+    const rows = parsePs(PS);
+    expect(tableOf(rows).rows).toBe(rows);
+  });
+});
+
 describe('descendantsOf', () => {
   it('walks the whole subtree, depth first, and carries the depth', () => {
-    const found = descendantsOf(parsePs(PS), 83287);
+    const found = descendantsOf(tableOf(parsePs(PS)), 83287);
     expect(found.map((p) => [p.pid, p.depth])).toEqual([
       [83297, 0],
       [83325, 1],
@@ -89,24 +117,24 @@ describe('descendantsOf', () => {
   });
 
   it('leaves out what belongs to another session', () => {
-    expect(descendantsOf(parsePs(PS), 83287).map((p) => p.pid)).not.toContain(90_000);
+    expect(descendantsOf(tableOf(parsePs(PS)), 83287).map((p) => p.pid)).not.toContain(90_000);
   });
 
   it('is empty for a pid that launched nothing', () => {
-    expect(descendantsOf(parsePs(PS), 85_179)).toEqual([]);
+    expect(descendantsOf(tableOf(parsePs(PS)), 85_179)).toEqual([]);
   });
 
   it('is empty for a pid nobody reported', () => {
-    expect(descendantsOf(parsePs(PS), 4242)).toEqual([]);
+    expect(descendantsOf(tableOf(parsePs(PS)), 4242)).toEqual([]);
   });
 
   it('does not loop forever when a process claims itself as its parent', () => {
     const rows = parsePs(['10 10 5 100 self', '11 10 5 100 child'].join('\n'));
-    expect(descendantsOf(rows, 10).map((p) => p.pid)).toEqual([11]);
+    expect(descendantsOf(tableOf(rows), 10).map((p) => p.pid)).toEqual([11]);
   });
 
   it('does not loop forever on a cycle between two processes', () => {
     const rows = parsePs(['10 11 5 100 a', '11 10 5 100 b'].join('\n'));
-    expect(descendantsOf(rows, 10).map((p) => p.pid)).toEqual([11]);
+    expect(descendantsOf(tableOf(rows), 10).map((p) => p.pid)).toEqual([11]);
   });
 });
