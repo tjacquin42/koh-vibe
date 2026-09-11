@@ -78,6 +78,18 @@ describe('le fichier de réglages partagé', () => {
     expect((await readSettings(file)).waiting).toBe('Erreur 3');
   });
 
+  it('keeps both fields when two writes from one window overlap', async () => {
+    // Two clicks before the first write has landed, or two commands at once.
+    // Each used to read the same "before" and write the WHOLE object, so
+    // whichever rename came second silently reverted the other's field. Same
+    // guarantee, proven the same way, as the folder layout (groups-store).
+    const file = join(scratch(), 'settings.json');
+    await Promise.all([writeSettings(file, { waiting: 'Clic 1' }), writeSettings(file, { volume: 0.2 })]);
+    const s = await readSettings(file);
+    expect(s.waiting).toBe('Clic 1');
+    expect(s.volume).toBe(0.2);
+  });
+
   it('ne laisse pas de fichier temporaire derrière lui', async () => {
     const dir = scratch();
     const file = join(dir, 'settings.json');
