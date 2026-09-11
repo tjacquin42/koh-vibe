@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ClosedEntry } from './model';
 import { sessionLabel } from '../ui/labels';
+import { isEditorOrigin } from '../events/origin';
 
 export type ReopenPlan =
   | { kind: 'command'; command: string; args: readonly string[] }
@@ -23,7 +24,7 @@ export type ReopenPlan =
  */
 export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string, listed: boolean): ReopenPlan {
   const terminal: ReopenPlan = { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
-  if (origin === 'vscode' || origin === 'desktop') {
+  if (isEditorOrigin(origin)) {
     // `listed`: whether Claude Code's session list, in the window that runs
     // the command, holds this id (claude/listed.ts). When it does not, the
     // command starts a BLANK conversation — observed — and a terminal is the

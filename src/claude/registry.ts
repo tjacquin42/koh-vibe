@@ -1,6 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isValidSessionId } from '../events/parse';
+import { isErrnoException } from '../lib/errno';
+import { isRecord, nonEmptyString } from '../lib/json';
 
 /**
  * A Claude Code process that is running right now, as its own registry
@@ -24,14 +26,6 @@ export interface LiveSession {
   startedAt?: number;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined;
-}
-
 /**
  * Validates one registry file. `undefined` for anything not usable: a future
  * version of Claude Code changing the shape must cost us the registry, never
@@ -51,10 +45,10 @@ export function parseRegistryEntry(raw: string): LiveSession | undefined {
   if (!isRecord(json)) return undefined;
   const pid = json['pid'];
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined;
-  const sessionId = str(json['sessionId']);
-  const cwd = str(json['cwd']);
+  const sessionId = nonEmptyString(json['sessionId']);
+  const cwd = nonEmptyString(json['cwd']);
   if (sessionId === undefined || !isValidSessionId(sessionId) || cwd === undefined) return undefined;
-  const entry: LiveSession = { pid, sessionId, cwd, entrypoint: str(json['entrypoint']) ?? '' };
+  const entry: LiveSession = { pid, sessionId, cwd, entrypoint: nonEmptyString(json['entrypoint']) ?? '' };
   const startedAt = json['startedAt'];
   if (typeof startedAt === 'number' && Number.isFinite(startedAt)) entry.startedAt = startedAt;
   return entry;
@@ -70,7 +64,7 @@ export function processAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    return err instanceof Error && 'code' in err && err.code === 'EPERM';
+    return isErrnoException(err) && err.code === 'EPERM';
   }
 }
 

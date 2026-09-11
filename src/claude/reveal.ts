@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import type { ClaudeTab } from './dormant';
+import { isClaudeTab, type TabLike } from './panel';
 
 /** A tab's place in the window: the group's index in `tabGroups.all`, the tab's index in it. */
 export interface TabPosition {
@@ -6,27 +8,9 @@ export interface TabPosition {
   index: number;
 }
 
-/** The little the locator needs of a tab and a group — `vscode.Tab`/`TabGroup` fit, and so does a plain object. */
-export interface TabLike {
-  label: string;
-  input: unknown;
-}
+/** The little the locator needs of a group — `vscode.TabGroup` fits, and so does a plain object. */
 export interface GroupLike {
   tabs: readonly TabLike[];
-}
-
-const PANEL_VIEW_TYPE = 'claudeVSCodePanel';
-
-function isClaudeTab(tab: TabLike): boolean {
-  return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.includes(PANEL_VIEW_TYPE);
-}
-
-/** What the memento knows of a tab: its session, its title, its place. */
-export interface MementoTab {
-  sessionId: string;
-  title: string;
-  group: number;
-  index: number;
 }
 
 /**
@@ -41,8 +25,8 @@ export interface MementoTab {
  */
 export function locateClaudeTab(
   groups: readonly GroupLike[],
-  want: MementoTab,
-  memento: readonly MementoTab[] = [want],
+  want: ClaudeTab,
+  memento: readonly ClaudeTab[] = [want],
 ): TabPosition | undefined {
   const at = groups[want.group]?.tabs[want.index];
   if (at !== undefined && isClaudeTab(at) && at.label === want.title) return { group: want.group, index: want.index };
@@ -78,7 +62,7 @@ export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): bo
  * the wrong row is worse than selecting none.
  */
 export function sessionOfClaudeTab(
-  memento: readonly MementoTab[],
+  memento: readonly ClaudeTab[],
   groups: readonly GroupLike[],
   at: TabPosition,
 ): string | undefined {

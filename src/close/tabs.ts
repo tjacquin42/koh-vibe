@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { isClaudeTab } from '../claude/panel';
 
 export type CloseOutcome = 'closed' | 'notFound';
 
@@ -90,18 +91,6 @@ export async function closeSessionTab<T>(sessionId: string, tabs: ClaudeTabs<T>)
   // A tab APPEARED: the session had no panel here, `reveal` created one, and
   // we just closed our own creation. Nothing of the user's was found.
   return after > before ? 'notFound' : 'closed';
-}
-
-/**
- * A Claude Code panel is created as `claudeVSCodePanel`, and VSCode prefixes
- * that view type on the tab (`mainThreadWebview-claudeVSCodePanel`), hence the
- * substring test — the very test the Claude Code bundle applies to its own
- * tabs when it looks for its group.
- */
-const PANEL_VIEW_TYPE = 'claudeVSCodePanel';
-
-function isClaudeTab(tab: vscode.Tab): boolean {
-  return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.includes(PANEL_VIEW_TYPE);
 }
 
 /** Every Claude Code tab of this window, all groups included. */

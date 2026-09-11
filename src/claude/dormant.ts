@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process';
 import type { Session } from '../events/types';
-import { branchOf, projectOf } from '../events/origin';
 import { isValidSessionId } from '../events/parse';
+import { isRecord } from '../lib/json';
+import { blankSession } from '../store/blank';
+import { CLAUDE_PANEL_VIEW_TYPE } from './panel';
 
 /** A Claude Code panel as the editor persisted it: which conversation, under which title. */
 export interface ClaudeTab {
@@ -14,12 +16,7 @@ export interface ClaudeTab {
 }
 
 const WEBVIEW_INPUT = 'workbench.editors.webviewInput';
-const CLAUDE_PANEL = 'claudeVSCodePanel';
 const MEMENTO_KEY = 'memento/workbench.parts.editor';
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function parseJson(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
@@ -71,7 +68,7 @@ export function parseEditorMemento(raw: string): ClaudeTab[] {
 }
 
 function claudeTabOf(value: unknown, group: number, index: number): ClaudeTab | undefined {
-  if (!isRecord(value) || value['providedId'] !== CLAUDE_PANEL) return undefined;
+  if (!isRecord(value) || value['providedId'] !== CLAUDE_PANEL_VIEW_TYPE) return undefined;
   const state = parseJson(value['state']);
   if (!isRecord(state)) return undefined;
   const sessionId = state['sessionID'];
@@ -172,18 +169,7 @@ export function dormantSessions(
   for (const tab of tabs) {
     if (seen.has(tab.sessionId) || known.has(tab.sessionId) || !liveLabels.has(tab.title)) continue;
     seen.add(tab.sessionId);
-    const session: Session = {
-      id: tab.sessionId,
-      cwd,
-      project: projectOf(cwd),
-      origin: 'vscode',
-      status: 'idle',
-      toolCount: 0,
-      lastEventAt: 0,
-      dormant: true,
-    };
-    const branch = branchOf(cwd);
-    if (branch !== undefined) session.branch = branch;
+    const session: Session = { ...blankSession(tab.sessionId, cwd, 'vscode', 0), dormant: true };
     if (tab.title.length > 0) session.title = tab.title;
     out.push(session);
   }

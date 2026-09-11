@@ -2,12 +2,13 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
-import type { Session, SpoolEvent } from '../events/types';
+import type { LocalEvent, Session, SpoolEvent } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
 import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession } from './persist';
 import { MAX_ENDED } from '../store/open';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
+import { isErrnoException } from '../lib/errno';
 
 export interface DrainResult {
   applied: number;
@@ -69,10 +70,6 @@ export type EndPolicy = 'keep' | 'remove';
  * pas juste à un pic de charge.
  */
 export const MAX_EVENT_AGE_MS = 5 * 60_000;
-
-function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && 'code' in err;
-}
 
 /**
  * L'horodatage qui ouvre le nom de fichier d'un événement (bridge :
@@ -272,7 +269,7 @@ export async function drain(
 }
 
 export interface LocalEventInput {
-  event: 'Ack';
+  event: LocalEvent;
   sessionId: string;
   cwd: string;
 }

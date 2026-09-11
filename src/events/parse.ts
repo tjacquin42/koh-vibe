@@ -1,11 +1,7 @@
 import { HOOK_EVENTS, LOCAL_EVENTS, type EventName, type SpoolEvent } from './types';
-import { isRecord } from '../lib/json';
+import { isRecord, nonEmptyString } from '../lib/json';
 
 const NAMES: readonly string[] = [...HOOK_EVENTS, ...LOCAL_EVENTS];
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined;
-}
 
 /**
  * Réduit toute suite de blancs (espaces, tabulations, retours à la ligne) à
@@ -20,9 +16,9 @@ function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/** `str()` puis normalisation des blancs ; vide après normalisation = absent. */
+/** `nonEmptyString()` puis normalisation des blancs ; vide après normalisation = absent. */
 function displayText(v: unknown): string | undefined {
-  const s = str(v);
+  const s = nonEmptyString(v);
   if (s === undefined) return undefined;
   const normalized = normalizeWhitespace(s);
   return normalized.length > 0 ? normalized : undefined;
@@ -80,13 +76,13 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
   }
   if (!isRecord(json)) return undefined;
 
-  const event = str(json['event']);
+  const event = nonEmptyString(json['event']);
   const at = typeof json['at'] === 'number' && Number.isFinite(json['at']) ? json['at'] : undefined;
   if (event === undefined || at === undefined || !isEventName(event)) return undefined;
 
   const payload = isRecord(json['payload']) ? json['payload'] : {};
-  const sessionId = str(payload['session_id']);
-  const cwd = str(payload['cwd']);
+  const sessionId = nonEmptyString(payload['session_id']);
+  const cwd = nonEmptyString(payload['cwd']);
   if (sessionId === undefined || cwd === undefined || !isValidSessionId(sessionId)) return undefined;
 
   const toolInput = isRecord(payload['tool_input']) ? payload['tool_input'] : undefined;
@@ -94,18 +90,18 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
   return {
     event,
     at,
-    entrypoint: str(json['entrypoint']) ?? '',
-    termProgram: str(json['termProgram']) ?? '',
+    entrypoint: nonEmptyString(json['entrypoint']) ?? '',
+    termProgram: nonEmptyString(json['termProgram']) ?? '',
     sessionId,
     cwd,
-    transcriptPath: str(payload['transcript_path']),
-    toolName: str(payload['tool_name']),
+    transcriptPath: nonEmptyString(payload['transcript_path']),
+    toolName: nonEmptyString(payload['tool_name']),
     toolTarget: targetOf(toolInput),
     message: displayText(payload['message']),
     // Present only on the calls a subagent makes. Read as plain strings and
     // never trusted further: they end up as a map key and as an icon, nothing
     // that touches the filesystem.
-    agentId: str(payload['agent_id']),
-    agentType: str(payload['agent_type']),
+    agentId: nonEmptyString(payload['agent_id']),
+    agentType: nonEmptyString(payload['agent_type']),
   };
 }

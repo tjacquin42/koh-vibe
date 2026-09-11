@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type GroupLike, type MementoTab } from '../src/claude/reveal';
+import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type GroupLike } from '../src/claude/reveal';
+import type { ClaudeTab } from '../src/claude/dormant';
 import { TabInputWebview } from './stubs/vscode';
 
 const claude = (label: string): { label: string; input: unknown } => ({ label, input: new TabInputWebview('mainThreadWebview-claudeVSCodePanel') });
@@ -22,7 +23,7 @@ describe('locateClaudeTab — where a restored tab sits now', () => {
   });
 
   it('picks the first tab of a title the memento gives to this one session — duplicates are the same conversation', () => {
-    const memento: MementoTab[] = [
+    const memento: ClaudeTab[] = [
       { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' },
       { sessionId: 'S', group: 0, index: 3, title: 'Claude Code' },
     ];
@@ -30,7 +31,7 @@ describe('locateClaudeTab — where a restored tab sits now', () => {
   });
 
   it('gives up rather than guess when the memento gives that title to two different sessions', () => {
-    const memento: MementoTab[] = [
+    const memento: ClaudeTab[] = [
       { sessionId: 'S', group: 0, index: 2, title: 'Claude Code' },
       { sessionId: 'T', group: 0, index: 3, title: 'Claude Code' },
     ];
@@ -75,7 +76,7 @@ describe('sessionOfClaudeTab — whose conversation is the tab under the cursor'
     { tabs: [file('a.ts'), claude('Telegram Alert'), claude('Claude Code')] },
     { tabs: [claude('List DB STYLE')] },
   ];
-  const memento: MementoTab[] = [
+  const memento: ClaudeTab[] = [
     { sessionId: 's-telegram', title: 'Telegram Alert', group: 0, index: 1 },
     { sessionId: 's-untitled', title: 'Claude Code', group: 0, index: 2 },
     { sessionId: 's-db', title: 'List DB STYLE', group: 1, index: 0 },
@@ -94,7 +95,7 @@ describe('sessionOfClaudeTab — whose conversation is the tab under the cursor'
   // Position AND title agreeing is the strongest evidence there is, and it is
   // what `locateClaudeTab` bets on in the other direction. The ambiguity guard
   // belongs to the fallback, where position no longer vouches for anything.
-  const twins: MementoTab[] = [
+  const twins: ClaudeTab[] = [
     { sessionId: 's-one', title: 'Claude Code', group: 0, index: 2 },
     { sessionId: 's-two', title: 'Claude Code', group: 0, index: 9 },
   ];
@@ -130,24 +131,24 @@ describe('sessionOfClaudeTab — whose conversation is the tab under the cursor'
 describe('sessionOfClaudeTab — une entrée fraîche devant un mémento en retard', () => {
   const groups: GroupLike[] = [{ tabs: [claude('Ancien onglet'), claude('Rouverte à l instant')] }];
   // Le mémento décrit encore la disposition d'avant la réouverture.
-  const stale: MementoTab[] = [{ sessionId: 's-ancienne', title: 'Ancien onglet', group: 0, index: 1 }];
+  const stale: ClaudeTab[] = [{ sessionId: 's-ancienne', title: 'Ancien onglet', group: 0, index: 1 }];
 
   it('ne sait rien de l onglet rouvert tant que le mémento seul parle', () => {
     expect(sessionOfClaudeTab(stale, groups, { group: 0, index: 1 })).toBeUndefined();
   });
 
   it('le reconnaît dès que la fenêtre place devant ce qu elle a ouvert', () => {
-    const fresh: MementoTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
+    const fresh: ClaudeTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 1 })).toBe('s-rouverte');
   });
 
   it('cesse simplement de correspondre quand le titre retenu a vieilli, sans jamais désigner l autre', () => {
-    const outdated: MementoTab = { sessionId: 's-rouverte', title: 'Titre d avant', group: 0, index: 1 };
+    const outdated: ClaudeTab = { sessionId: 's-rouverte', title: 'Titre d avant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([outdated, ...stale], groups, { group: 0, index: 1 })).toBeUndefined();
   });
 
   it('laisse le mémento répondre pour les onglets qu il connaît toujours', () => {
-    const fresh: MementoTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
+    const fresh: ClaudeTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 0 })).toBe('s-ancienne');
   });
 });
@@ -175,7 +176,7 @@ describe('sessionOfClaudeTab — deux onglets du même nom ne désignent personn
   const groups: GroupLike[] = [
     { tabs: [claude('Claude Code'), claude('Claude Code'), claude('Titrée')] },
   ];
-  const memento: MementoTab[] = [
+  const memento: ClaudeTab[] = [
     { sessionId: 's-premiere', title: 'Claude Code', group: 0, index: 0 },
     { sessionId: 's-titree', title: 'Titrée', group: 0, index: 2 },
   ];

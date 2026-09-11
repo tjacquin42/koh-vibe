@@ -10,3 +10,8 @@
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
+
+/** A string with something in it, or nothing: an empty field reads as absent at every boundary. */
+export function nonEmptyString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined;
+}

@@ -8,11 +8,16 @@ export interface SpoolDirs {
   backups: string;
 }
 
+/** The variable when it is set and not empty, else `<HOME>/<suffix>` — the one rule of the three roots below. */
+function rootOf(env: NodeJS.ProcessEnv, variable: string, suffix: string): string {
+  const override = env[variable];
+  if (override !== undefined && override.length > 0) return override;
+  return join(env['HOME'] ?? '', suffix);
+}
+
 /** Racine de l'état de koh-vibe. `KOH_VIBE_HOME` permet de l'isoler en test. */
 export function kohVibeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['KOH_VIBE_HOME'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.koh-vibe');
+  return rootOf(env, 'KOH_VIBE_HOME', '.koh-vibe');
 }
 
 /**
@@ -23,9 +28,7 @@ export function kohVibeHome(env: NodeJS.ProcessEnv = process.env): string {
  * et la migration s'exercerait sur les sessions réelles de l'utilisateur.
  */
 export function legacyHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['KOH_VIBE_LEGACY_HOME'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.koh-claude');
+  return rootOf(env, 'KOH_VIBE_LEGACY_HOME', '.koh-claude');
 }
 
 export function spoolDirs(home: string): SpoolDirs {
@@ -92,9 +95,7 @@ export function closedFile(home: string): string {
  * relocated configuration is read where Claude Code writes it.
  */
 export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['CLAUDE_CONFIG_DIR'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.claude');
+  return rootOf(env, 'CLAUDE_CONFIG_DIR', '.claude');
 }
 
 /**

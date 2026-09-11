@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import * as vscode from 'vscode';
 import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
+import { isEditorOrigin } from '../events/origin';
 import type { ClosedEntry } from '../closed/model';
 import { claims } from './claims';
 import { focusPlan, focusPlanFor, type FocusPlan } from './plan';
@@ -391,7 +392,7 @@ export class FocusBroker {
           // window's list does not hold is different: this window holds its
           // project, the user asked for it back, and the terminal is the only
           // way to bring it back without starting a blank one.
-          if (isReopen && (origin === 'vscode' || origin === 'desktop')) openResumeTerminal(plan);
+          if (isReopen && isEditorOrigin(origin)) openResumeTerminal(plan);
           continue;
         }
         // Une seule annonce, jamais deux qui se contrediraient : « demandée »

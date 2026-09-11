@@ -2,6 +2,7 @@ import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Origin, Session, Status } from '../events/types';
+import { isErrnoException } from '../lib/errno';
 
 // Record<Status, true> et Record<Origin, true> : si l'union gagne un membre côté
 // events/types.ts sans que ces tables soient mises à jour, la compilation échoue —
@@ -84,7 +85,7 @@ export async function createSession(dirs: SpoolDirs, s: Session): Promise<boolea
     await link(tmp, target);
     return true;
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return false;
+    if (isErrnoException(err) && err.code === 'EEXIST') return false;
     throw err;
   } finally {
     await unlink(tmp).catch(() => undefined);

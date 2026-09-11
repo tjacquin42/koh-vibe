@@ -1,4 +1,5 @@
-import { branchOf, originOf, projectOf } from '../events/origin';
+import { originOf } from '../events/origin';
+import { blankSession } from './blank';
 import { HOOK_EVENTS, type EventName, type HookEvent, type Session, type SpoolEvent } from '../events/types';
 
 /** Seul un événement de hook Claude Code décrit une session qui existe : un de
@@ -9,18 +10,7 @@ function isHookEvent(event: EventName): event is HookEvent {
 }
 
 function create(ev: SpoolEvent): Session {
-  const session: Session = {
-    id: ev.sessionId,
-    cwd: ev.cwd,
-    project: projectOf(ev.cwd),
-    origin: originOf(ev.entrypoint, ev.termProgram),
-    status: 'idle',
-    toolCount: 0,
-    lastEventAt: ev.at,
-  };
-  const branch = branchOf(ev.cwd);
-  if (branch !== undefined) session.branch = branch;
-  return session;
+  return blankSession(ev.sessionId, ev.cwd, originOf(ev.entrypoint, ev.termProgram), ev.at);
 }
 
 /**

@@ -177,7 +177,7 @@ export function serializeGroups(s: GroupsState): string {
 
 export function createGroup(s: GroupsState, label: string, newId: () => string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+  if (clean === undefined) throw emptyNameError();
   return { ...s, groups: [...s.groups, { id: newId(), name: clean, order: s.groups.length }] };
 }
 
@@ -213,9 +213,17 @@ export function reorderGroups(
   return { ...s, groups: next.map((g, order) => ({ ...g, order })) };
 }
 
+/**
+ * Thrown by both namings. The literal is the key of the translation bundle
+ * and the text a test matches on, so it is written once.
+ */
+function emptyNameError(): Error {
+  return new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+}
+
 export function renameGroup(s: GroupsState, id: string, label: string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+  if (clean === undefined) throw emptyNameError();
   return { ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, name: clean } : g)) };
 }
 

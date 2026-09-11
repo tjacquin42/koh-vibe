@@ -19,6 +19,16 @@ export function originOf(entrypoint: string, termProgram: string): Origin {
   }
 }
 
+/**
+ * Whether a conversation lives in an editor panel — the only origins a tab
+ * can be revealed, closed or put to sleep for. `unknown` rather than `Origin`
+ * because two of the three callers read it off a request file another window
+ * wrote, not off a `Session`.
+ */
+export function isEditorOrigin(origin: unknown): origin is 'vscode' | 'desktop' {
+  return origin === 'vscode' || origin === 'desktop';
+}
+
 function segments(cwd: string): string[] {
   return cwd.split('/').filter((p) => p.length > 0);
 }

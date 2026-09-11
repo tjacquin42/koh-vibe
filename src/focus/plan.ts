@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { Session } from '../events/types';
+import { isEditorOrigin } from '../events/origin';
 import { sessionLabel } from '../ui/labels';
 
 export type FocusPlan =
@@ -21,7 +22,7 @@ export type FocusPlan =
  * typée.
  */
 export function focusPlan(sessionId: string, origin: unknown, label: string): FocusPlan {
-  if (origin === 'vscode' || origin === 'desktop') {
+  if (isEditorOrigin(origin)) {
     return { kind: 'command', command: 'claude-vscode.editor.open', args: [sessionId] };
   }
   const suffix = typeof origin === 'string' && origin.length > 0 ? ` (${origin})` : '';
