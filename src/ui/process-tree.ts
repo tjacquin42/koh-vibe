@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { Session } from '../events/types';
 import type { SessionProcess } from '../process/classify';
 import type { Orphan } from '../process/orphans';
-import { childrenOf, glyphOf, mcpOf, processDescription, processTooltip } from './process-labels';
+import { childrenOf, glyphOf, hasChildren, mcpOf, processDescription, processItem } from './process-labels';
 import { formatAge, formatAgeCoarse, sessionLabel } from './labels';
 
 /**
@@ -176,36 +176,20 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
       return item;
     }
     if (node.kind === 'orphanChild') {
-      const { proc, tree } = node;
-      const hasChildren = tree.some((p) => p.ppid === proc.pid);
-      const item = new vscode.TreeItem(
-        proc.label,
-        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-      );
-      item.id = processNodeId(node);
-      item.description = processDescription(proc);
-      item.tooltip = processTooltip(proc);
-      item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
+      const item = processItem(node.proc, processNodeId(node), hasChildren(node.tree, node.proc.pid));
+      // Killable like its root, and through the same menu: the row is a piece
+      // of an orphan, whatever the process itself is.
       item.contextValue = 'orphan';
-      item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
       return item;
     }
     const { proc } = node;
-    const hasChildren = childrenOf(this.processes.get(node.sessionId) ?? [], proc.pid).length > 0;
-    const item = new vscode.TreeItem(
-      proc.label,
-      hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-    );
-    item.id = processNodeId(node);
+    const item = processItem(proc, processNodeId(node), hasChildren(this.processes.get(node.sessionId) ?? [], proc.pid));
     const session = this.sessions.get(node.sessionId);
     // The conversation, not the age alone: in this view the rows of every
     // session sit side by side, and which one a server belongs to is the
     // question the view exists to answer.
     const whose = session === undefined ? vscode.l10n.t('unknown conversation') : sessionLabel(session);
     item.description = `${whose} · ${processDescription(proc)}`;
-    item.tooltip = processTooltip(proc);
-    item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
-    item.contextValue = proc.kind === 'mcp' ? 'processMcp' : 'process';
     item.accessibilityInformation = { label: `${proc.label}, ${whose}` };
     return item;
   }

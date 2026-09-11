@@ -7,7 +7,7 @@ import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
 import type { SessionProcess } from '../process/classify';
-import { childrenOf, glyphOf, processCount, processDescription, processTooltip, rootsOf } from './process-labels';
+import { childrenOf, glyphOf, hasChildren, processCount, processDescription, processItem, rootsOf } from './process-labels';
 
 export type TreeNode =
   // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
@@ -587,25 +587,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       return item;
     }
     if (node.kind === 'process') {
-      const { proc } = node;
-      const hasChildren = childrenOf(this.processes.get(node.sessionId) ?? [], proc.pid).length > 0;
-      const item = new vscode.TreeItem(
-        proc.label,
-        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-      );
-      item.id = nodeId(node);
-      item.description = processDescription(proc);
-      item.tooltip = processTooltip(proc);
-      item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
-      item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
-      // Two values, because killing an MCP server and killing a dev server are
-      // not the same gesture: the first breaks the conversation that owns it,
-      // and the confirmation has to say so (see kohVibe.killProcess).
-      item.contextValue = proc.kind === 'mcp' ? 'processMcp' : 'process';
-      // NO command: a click on a process must do nothing. The rows above open
-      // a conversation when clicked, and a list where some rows act and others
-      // do not is a list where the user stops trusting the click.
-      return item;
+      return processItem(node.proc, nodeId(node), hasChildren(this.processes.get(node.sessionId) ?? [], node.proc.pid));
     }
     const s = node.session;
     const now = Date.now();

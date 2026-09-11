@@ -51,6 +51,11 @@ export function childrenOf(procs: readonly SessionProcess[], pid: number): Sessi
   return procs.filter((p) => p.ppid === pid);
 }
 
+/** Whether anything in `procs` runs under `pid` — what decides a row's arrow. */
+export function hasChildren(procs: readonly SessionProcess[], pid: number): boolean {
+  return procs.some((p) => p.ppid === pid);
+}
+
 /**
  * How many processes to announce on the session's own row.
  *
@@ -104,3 +109,33 @@ const KIND_LABEL: Record<ProcKind, () => string> = {
   shell: () => vscode.l10n.t('command run by the session'),
   work: () => vscode.l10n.t('started by that command'),
 };
+
+/**
+ * The row of one process, as both views draw it.
+ *
+ * One builder rather than three copies: the label, the coarse age, the
+ * tooltip, the glyph and the accessibility text are the same whichever view
+ * the row sits in. What differs — the conversation named on the right in the
+ * Processes view, the context value of an orphan — the caller sets on the
+ * item this returns.
+ *
+ * NO command, ever: a click on a process must do nothing. The session rows
+ * above open a conversation when clicked, and a list where some rows act and
+ * others do not is a list where the user stops trusting the click.
+ */
+export function processItem(proc: SessionProcess, id: string, unfoldable: boolean): vscode.TreeItem {
+  const item = new vscode.TreeItem(
+    proc.label,
+    unfoldable ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+  );
+  item.id = id;
+  item.description = processDescription(proc);
+  item.tooltip = processTooltip(proc);
+  item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
+  // Two values, because killing an MCP server and killing a dev server are
+  // not the same gesture: the first breaks the conversation that owns it,
+  // and the confirmation has to say so (see kohVibe.killProcess).
+  item.contextValue = proc.kind === 'mcp' ? 'processMcp' : 'process';
+  item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
+  return item;
+}
