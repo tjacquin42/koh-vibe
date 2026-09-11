@@ -495,6 +495,52 @@ describe("drain — écriture tardive après abandon (N2 suite)", () => {
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
   });
 
+  it('is consulted again after the awaits a SessionEnd adds on the way to the write', async () => {
+    // The first look at the signal sits BEFORE `hasTranscript` and `archive`
+    // — two more awaits, for a SessionEnd only, between it and the write.
+    // Abandoned during either, an execution used to reach the write with a
+    // state read before the fresh pass ran, and put the conversation back to
+    // ended over the prompt that had just woken it.
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+
+    let releaseO: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseO = resolve;
+    });
+    let reachedGate: () => void = () => undefined;
+    const reached = new Promise<void>((resolve) => {
+      reachedGate = resolve;
+    });
+    let gated = false;
+    const slowTranscript = async (): Promise<boolean> => {
+      if (gated) return true;
+      gated = true;
+      reachedGate();
+      await gate;
+      return true;
+    };
+    const signal = { abandoned: false };
+    const drainO = drain(dirs, NOW, signal, undefined, 'keep', slowTranscript);
+    await reached; // O has read the state and is waiting on the transcript.
+
+    // A fresh pass handles the end AND the prompt that followed it: the
+    // conversation is running again, and the end is history.
+    await dropEvent('3-1-UserPromptSubmit.json', hook('UserPromptSubmit', 3));
+    await drain(dirs, NOW, undefined, undefined, 'keep', async () => true);
+    expect((await readSessions(dirs)).get('s1')?.status).toBe('running');
+
+    signal.abandoned = true;
+    releaseO();
+    const resO = await drainO;
+
+    const final = (await readSessions(dirs)).get('s1');
+    expect(final?.status).toBe('running');
+    expect(final?.endedAt).toBeUndefined();
+    expect(resO.applied).toBe(0);
+  });
+
   it("sans abandon (signal.abandoned reste false), le comportement est inchangé : l'événement s'applique normalement", async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const signal = { abandoned: false };

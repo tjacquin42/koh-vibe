@@ -197,6 +197,14 @@ export async function drain(
       if (ended && current !== undefined && archive !== undefined && !blank) {
         await archive(current);
       }
+      // Asked again, and this is the look that counts: `hasTranscript` and
+      // `archive` are two more awaits on the way to the write, for an end
+      // only, and an execution abandoned during either reached the write
+      // with the reading above gone stale — putting the conversation back to
+      // ended over the prompt that had just woken it.
+      if (signal?.abandoned) {
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
+      }
       if (next === undefined || blank || (ended && endPolicy === 'remove')) {
         // `'remove'` takes the end at face value, late or not: the policy is
         // "closing the tab takes the row away", and that is what it does.
