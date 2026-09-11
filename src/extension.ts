@@ -9,7 +9,7 @@ import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
 import { snapshot, tableOf, type ProcTable } from './process/scan';
 import { processesBySession } from './process/sessions';
-import { findOrphans, subtreeOf, type Orphan } from './process/orphans';
+import { findOrphans, reattachDetached, subtreeOf, type Orphan } from './process/orphans';
 import { AgentIndex, withAgents } from './process/agents';
 import { killAll, killPlan } from './process/kill';
 import { copyableCommand, type SessionProcess } from './process/classify';
@@ -498,6 +498,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // motif que SpoolWatcher.tick() et FocusBroker.tick().
   const renderGuard = new ReentrantGuard(GUARD_TIMEOUT_MS);
 
+  // Which commands are running for a subagent, fed by the drain below. Per
+  // window and never persisted: it describes this instant, and a claim read
+  // back from disk would mark the wrong process.
+  const agents = new AgentIndex();
+  // The conversations the last render displayed. Read by `orphanRoots` and by
+  // the Processes view, which names the conversation each server belongs to.
+  let lastShown: ReadonlyMap<string, Session> = new Map();
+  // What the last scan found, kept for the commands: they act on a click and
+  // must not launch a scan of their own to know what the row they were given
+  // stands for.
+  let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
+  // The table of the last scan, kept for the one thing the per-session map
+  // cannot answer: the descendants of an orphan, which belong to no session by
+  // definition and so appear in no list above.
+  let lastTable: ProcTable = tableOf([]);
+  let lastOrphans: readonly Orphan[] = [];
   /**
    * What each live session is running right now (process/*), or nothing at all
    * while the view is hidden.
@@ -507,23 +523,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * REFRESH_MS for as long as the editor is open. Paying it behind a collapsed
    * panel would be paying it for a list nobody can see — the same bargain
    * `revealActiveSession` already makes.
-   *
-   * Kept for the commands, which act on a click and must not launch a scan of
-   * their own to know what the row they were given stands for.
    */
-  // The conversations the last render displayed. Read by `orphanRoots` and by
-  // the Processes view, which names the conversation each server belongs to.
-  // Which commands are running for a subagent, fed by the drain below. Per
-  // window and never persisted: it describes this instant, and a claim read
-  // back from disk would mark the wrong process.
-  const agents = new AgentIndex();
-  let lastShown: ReadonlyMap<string, Session> = new Map();
-  let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
-  // The table of the last scan, kept for the one thing the per-session map
-  // cannot answer: the descendants of an orphan, which belong to no session by
-  // definition and so appear in no list above.
-  let lastTable: ProcTable = tableOf([]);
-  let lastOrphans: readonly Orphan[] = [];
   const scanProcesses = async (): Promise<ReadonlyMap<string, SessionProcess[]>> => {
     if (!view.visible && !processesView.visible) {
       lastProcesses = new Map();
@@ -533,39 +533,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     lastTable = await snapshot();
     agents.prune(Date.now());
-    lastProcesses = withAgents(processesBySession(lastTable, await readLiveSessions(registryDir)), agents);
+    const live = await readLiveSessions(registryDir);
+    lastProcesses = withAgents(processesBySession(lastTable, live), agents);
     // The orphan hunt costs a second reading — one `lsof` over a handful of
     // candidates — and only the Processes view shows its result. It is skipped
     // whenever that view is closed, exactly as the whole scan is skipped when
     // both are.
     const adrift = processesView.visible ? await findOrphans(lastTable, orphanRoots()) : [];
-    // A process a session detached is still that session's work — it only lost
-    // the parent link, not the ownership — so it goes back under its
-    // conversation and leaves the « No session » list, which is for what
-    // nothing accounts for. Only when that conversation is still on screen: a
-    // server outliving its session is exactly what the orphan list is for.
-    lastOrphans = adrift.filter((o) => o.sessionId === undefined || !lastProcesses.has(o.sessionId));
-    lastProcesses = withDetached(lastProcesses, adrift);
+    // What a running conversation detached goes back under it; the rest is
+    // what the « No session » list is for (process/orphans.ts).
+    const claimed = reattachDetached(lastProcesses, adrift, (id) => live.has(id));
+    lastProcesses = claimed.processes;
+    lastOrphans = claimed.adrift;
     return lastProcesses;
-  };
-
-  /**
-   * Puts the detached processes back under the conversations that started
-   * them, as roots of their own beside the commands still running in-tree.
-   */
-  const withDetached = (
-    processes: ReadonlyMap<string, SessionProcess[]>,
-    adrift: readonly Orphan[],
-  ): ReadonlyMap<string, SessionProcess[]> => {
-    const out = new Map(processes);
-    let claimed = false;
-    for (const orphan of adrift) {
-      const sessionId = orphan.sessionId;
-      if (sessionId === undefined || !processes.has(sessionId)) continue;
-      out.set(sessionId, [...(out.get(sessionId) ?? []), ...orphan.tree]);
-      claimed = true;
-    }
-    return claimed ? out : processes;
   };
 
   /**

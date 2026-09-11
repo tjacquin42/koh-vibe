@@ -224,6 +224,43 @@ export function orphansUnder(
 }
 
 /**
+ * Puts the detached processes back under the conversations that started them.
+ *
+ * A process a session detached is still that session's work — it only lost
+ * the parent link, not the ownership — so it goes back under its conversation,
+ * as a root of its own beside the commands still running in-tree, and leaves
+ * the « No session » list, which is for what nothing accounts for.
+ *
+ * Only under a conversation that still runs: a server outliving its session
+ * is exactly what that list is for. Whether it runs is asked, not read off the
+ * map — a session with no server and no command in flight has no entry there,
+ * and its detached server is its own all the same.
+ *
+ * Returns the very map it was given when nothing was claimed, for the reason
+ * `withAgents` does: the views compare what they render to decide whether to
+ * redraw, and an identical structure rebuilt every tick would defeat that.
+ */
+export function reattachDetached(
+  processes: ReadonlyMap<string, SessionProcess[]>,
+  adrift: readonly Orphan[],
+  alive: (sessionId: string) => boolean,
+): { processes: ReadonlyMap<string, SessionProcess[]>; adrift: Orphan[] } {
+  const out = new Map(processes);
+  const left: Orphan[] = [];
+  let claimed = false;
+  for (const orphan of adrift) {
+    const sessionId = orphan.sessionId;
+    if (sessionId === undefined || !alive(sessionId)) {
+      left.push(orphan);
+      continue;
+    }
+    out.set(sessionId, [...(out.get(sessionId) ?? []), ...orphan.tree]);
+    claimed = true;
+  }
+  return { processes: claimed ? out : processes, adrift: left };
+}
+
+/**
  * The unattached development processes working under one of `roots`, ready to
  * display.
  *
