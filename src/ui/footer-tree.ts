@@ -21,6 +21,14 @@ export type SettingToggle = 'persistent' | 'expireTemporary' | 'animate';
 
 export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary', 'animate'];
 
+/**
+ * The glyph beside each checkbox. A record rather than a ternary, so that a
+ * toggle added tomorrow fails to compile until it has an icon: the third one
+ * was added after a two-way ternary was written, and fell into the second's
+ * branch — a clock for the motion of the dots.
+ */
+const TOGGLE_ICON: Record<SettingToggle, string> = { persistent: 'pin', expireTemporary: 'clock', animate: 'pulse' };
+
 export type FooterNode =
   | { kind: 'toggle'; key: SettingToggle; on: boolean }
   | { kind: 'sound'; event: ChimeEvent; name: string }
@@ -133,7 +141,7 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
       // itself is a target. The row is one too — `onDidChangeCheckboxState`
       // and the command both land on the same toggle.
       item.checkboxState = node.on ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
-      item.iconPath = new vscode.ThemeIcon(node.key === 'persistent' ? 'pin' : 'clock', new vscode.ThemeColor('descriptionForeground'));
+      item.iconPath = new vscode.ThemeIcon(TOGGLE_ICON[node.key], new vscode.ThemeColor('descriptionForeground'));
       item.command = { command: 'kohVibe.toggleSetting', title: vscode.l10n.t('Toggle this setting'), arguments: [node.key] };
       return item;
     }
