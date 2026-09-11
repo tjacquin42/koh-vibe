@@ -94,6 +94,12 @@ reinstalling under the same number leaves the editor serving what it already had
   `pnpm dev` still up an hour after the command that started it returned, say. Right-click a
   process to **copy its command** — whole, where the row had to cut it — or **its pid**, and to
   **terminate** it along with everything it started, after a confirmation naming the command.
+  A command a **subagent** ran carries its own icon, and names the agent in its tooltip.
+  Nothing in the process table could tell you that — subagents run inside the conversation's own
+  process, so their commands are indistinguishable from its own down there. Claude Code says so
+  in its hooks instead, and that is where it is read from. A process a session started
+  **detached** — output redirected to a file — is put back under it too, even though the system
+  reparented it away.
 - **Processes**, a view of its own, for what no single conversation accounts for. The **MCP
   servers** of every session live there rather than under each conversation: Claude Code starts
   its own set per conversation, so repeating three identical rows in every session buried the

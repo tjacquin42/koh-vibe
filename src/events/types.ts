@@ -31,6 +31,16 @@ export interface SpoolEvent {
   toolName?: string;
   toolTarget?: string;
   message?: string;
+  /**
+   * The subagent that made this tool call, when one did.
+   *
+   * Claude Code puts `agent_id` and `agent_type` on the calls a subagent
+   * makes, under the PARENT conversation's session id; a call the
+   * conversation makes itself carries neither. Absent here therefore means
+   * "the conversation did this", not "unknown".
+   */
+  agentId?: string;
+  agentType?: string;
 }
 
 export interface Session {

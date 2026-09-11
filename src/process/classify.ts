@@ -1,4 +1,5 @@
 import type { ProcNode } from './scan';
+import type { AgentMark } from './agents';
 
 /**
  * What a process is, from the session's point of view.
@@ -36,6 +37,12 @@ export interface SessionProcess extends ProcNode {
   kind: ProcKind;
   /** The command line, made readable — see `displayCommand`. */
   label: string;
+  /**
+   * The subagent that ran this command, when one did. Attached after the fact
+   * by `withAgents`, from what the hooks said — nothing in the process table
+   * distinguishes an agent's command from the conversation's own.
+   */
+  agent?: AgentMark;
 }
 
 /**

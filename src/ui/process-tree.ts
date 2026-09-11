@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { Session } from '../events/types';
 import type { SessionProcess } from '../process/classify';
 import type { Orphan } from '../process/orphans';
-import { childrenOf, mcpOf, processDescription, processTooltip, PROCESS_GLYPH } from './process-labels';
+import { childrenOf, glyphOf, mcpOf, processDescription, processTooltip } from './process-labels';
 import { formatAge, formatAgeCoarse, sessionLabel } from './labels';
 
 /**
@@ -185,7 +185,7 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
       item.id = processNodeId(node);
       item.description = processDescription(proc);
       item.tooltip = processTooltip(proc);
-      item.iconPath = new vscode.ThemeIcon(PROCESS_GLYPH[proc.kind]);
+      item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
       item.contextValue = 'orphan';
       item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
       return item;
@@ -204,7 +204,7 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
     const whose = session === undefined ? vscode.l10n.t('unknown conversation') : sessionLabel(session);
     item.description = `${whose} · ${processDescription(proc)}`;
     item.tooltip = processTooltip(proc);
-    item.iconPath = new vscode.ThemeIcon(PROCESS_GLYPH[proc.kind]);
+    item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
     item.contextValue = proc.kind === 'mcp' ? 'processMcp' : 'process';
     item.accessibilityInformation = { label: `${proc.label}, ${whose}` };
     return item;
@@ -223,6 +223,7 @@ export class ProcessesTree implements vscode.TreeDataProvider<ProcessNode> {
         proc.ppid,
         proc.label,
         processDescription(proc),
+        glyphOf(proc),
         this.sessions.get(sessionId)?.title ?? null,
       ]),
       this.orphans.map((o) => [

@@ -2,7 +2,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
-import type { Session } from '../events/types';
+import type { Session, SpoolEvent } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
 import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession } from './persist';
@@ -21,6 +21,16 @@ export interface DrainResult {
    * qui compte dans `rejected`, distingué pour que l'appelant puisse
    * signaler l'abandon plutôt que de le laisser invisible. */
   rejectedPermanently: string[];
+  /**
+   * The tool calls this pass saw, reduced to what the process view needs: the
+   * command and the agent behind it, if any.
+   *
+   * Carried out of the drain rather than read again from the spool, because
+   * there is nowhere to read it from — the files are gone by then, and the
+   * session state the events reduce to has no room for something this
+   * short-lived. See process/agents.ts.
+   */
+  toolCalls: SpoolEvent[];
 }
 
 /**
@@ -139,6 +149,9 @@ export async function drain(
   let deferred = 0;
   let endedOne = false;
   const rejectedPermanently: string[] = [];
+  // Collected as they go by, for the process view's agent index: the files
+  // are unlinked moments later, so this pass is the only chance to see them.
+  const toolCalls: SpoolEvent[] = [];
 
   for (const name of files) {
     const path = join(dirs.events, name);
@@ -169,7 +182,7 @@ export async function drain(
         // sera retraité. Rien d'autre ne peut plus être fait de sûr par
         // cette exécution : on arrête tout le drain, pas seulement cet
         // événement.
-        return { applied, rejected, deferred, rejectedPermanently };
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
       }
 
       // Archive BEFORE writing, for the same reason the state is written
@@ -223,6 +236,10 @@ export async function drain(
     }
 
     applied += 1;
+    // Only the calls that leave a process behind, and only once applied:
+    // an event that failed to reduce will be retried, and counting it here
+    // would claim a command twice.
+    if (ev.toolName === 'Bash') toolCalls.push(ev);
     try {
       await unlink(path);
     } catch (err) {
@@ -243,7 +260,7 @@ export async function drain(
   // goes. Only worth a look when this pass ended one.
   if (endedOne) await capEndedSessions(dirs, MAX_ENDED);
 
-  return { applied, rejected, deferred, rejectedPermanently };
+  return { applied, rejected, deferred, rejectedPermanently, toolCalls };
 }
 
 export interface LocalEventInput {

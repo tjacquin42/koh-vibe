@@ -102,7 +102,13 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   ont laissé derrière elles — un `pnpm dev` encore debout une heure après le retour de la
   commande qui l'a lancé, par exemple. Clic droit sur un processus pour *copier la commande*,
   entière là où la ligne a dû la couper, *copier le pid*, ou *terminer le processus* avec tout ce
-  qu'il a lancé, après une confirmation qui nomme la commande.
+  qu'il a lancé, après une confirmation qui nomme la commande. Une commande lancée par un
+  *sous-agent* porte sa propre icône, et l'infobulle nomme l'agent. Rien dans la table des
+  processus ne permettrait de le savoir : les sous-agents tournent dans le processus même de la
+  conversation, donc leurs commandes y sont indiscernables des siennes. C'est Claude Code qui le
+  dit, dans ses hooks, et c'est de là que l'information vient. Un processus qu'une session a
+  lancé *détaché*, sortie redirigée vers un fichier, est lui aussi remis sous elle, alors même
+  que le système l'en a détaché.
 - **Processus**, une vue à part, pour ce qu'aucune conversation ne porte à elle seule. Les
   *serveurs MCP* de toutes les sessions y vivent, plutôt que sous chaque conversation : Claude
   Code démarre son propre jeu par conversation, donc répéter trois lignes identiques dans chaque

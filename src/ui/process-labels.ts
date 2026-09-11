@@ -17,6 +17,20 @@ export const PROCESS_GLYPH: Record<ProcKind, string> = {
 };
 
 /**
+ * The glyph a row actually shows: the agent's, when a subagent ran the
+ * command, otherwise the one for its kind.
+ *
+ * An agent's command outranks its kind because that is the distinction a
+ * reader cannot make any other way. Five identical `python3` rows under one
+ * conversation say nothing about which of them the conversation ran itself —
+ * and nothing in the process table ever will, since subagents run inside the
+ * very same process.
+ */
+export function glyphOf(proc: SessionProcess): string {
+  return proc.agent === undefined ? PROCESS_GLYPH[proc.kind] : 'hubot';
+}
+
+/**
  * What the session started itself, as opposed to what those started in turn.
  *
  * MCP servers are left out: they belong to the Processes view, where they are
@@ -67,11 +81,18 @@ export function processDescription(proc: SessionProcess): string {
 }
 
 export function processTooltip(proc: SessionProcess): string {
-  return [
+  const lines = [
     proc.command,
     `${KIND_LABEL[proc.kind]()} · ${vscode.l10n.t('pid {0}', proc.pid)} · ${formatAge(proc.elapsed * 1000)}`,
     vscode.l10n.t('{0} MB of memory', Math.round(proc.rss / 1024)),
-  ].join('\n');
+  ];
+  if (proc.agent !== undefined) {
+    // The type first: it is what the user chose when dispatching, and it says
+    // more than an identifier they have never seen. The identifier follows for
+    // the case where two agents of the same type are running at once.
+    lines.push(vscode.l10n.t('run by a subagent: {0} ({1})', proc.agent.type, proc.agent.id));
+  }
+  return lines.join('\n');
 }
 
 // The English literal IS the key of the translation bundle, so each one has to

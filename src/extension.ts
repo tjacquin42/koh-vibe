@@ -10,6 +10,7 @@ import { rescanLiveSessions } from './claude/rescan';
 import { snapshot, type ProcRow } from './process/scan';
 import { processesBySession } from './process/sessions';
 import { findOrphans, subtreeOf, type Orphan } from './process/orphans';
+import { AgentIndex, withAgents } from './process/agents';
 import { killAll, killPlan } from './process/kill';
 import { copyableCommand, type SessionProcess } from './process/classify';
 import { ProcessesTree, orphanOfNode } from './ui/process-tree';
@@ -512,6 +513,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    */
   // The conversations the last render displayed. Read by `orphanRoots` and by
   // the Processes view, which names the conversation each server belongs to.
+  // Which commands are running for a subagent, fed by the drain below. Per
+  // window and never persisted: it describes this instant, and a claim read
+  // back from disk would mark the wrong process.
+  const agents = new AgentIndex();
   let lastShown: ReadonlyMap<string, Session> = new Map();
   let lastProcesses: ReadonlyMap<string, SessionProcess[]> = new Map();
   // The rows of the last scan, kept for the one thing the per-session map
@@ -527,7 +532,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return lastProcesses;
     }
     lastRows = await snapshot();
-    lastProcesses = processesBySession(lastRows, await readLiveSessions(registryDir));
+    agents.prune(Date.now());
+    lastProcesses = withAgents(processesBySession(lastRows, await readLiveSessions(registryDir)), agents);
     // The orphan hunt costs a second reading — one `lsof` over a handful of
     // candidates — and only the Processes view shows its result. It is skipped
     // whenever that view is closed, exactly as the whole scan is skipped when
@@ -874,7 +880,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const watcher = new SpoolWatcher(
     dirs,
-    () => void render(),
+    (result) => {
+      // Every tool call this pass drained, before it is forgotten: the files
+      // are already unlinked, and this is the only place the agent behind a
+      // command is ever visible (process/agents.ts).
+      for (const call of result.toolCalls) agents.note(call);
+      void render();
+    },
     () => {
       if (drainFailureWarned) return;
       drainFailureWarned = true;

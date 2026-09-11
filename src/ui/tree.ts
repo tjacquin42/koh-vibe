@@ -7,7 +7,7 @@ import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
 import type { SessionProcess } from '../process/classify';
-import { childrenOf, processCount, processDescription, processTooltip, rootsOf, PROCESS_GLYPH } from './process-labels';
+import { childrenOf, glyphOf, processCount, processDescription, processTooltip, rootsOf } from './process-labels';
 
 export type TreeNode =
   // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
@@ -360,7 +360,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         // own. `elapsed` counts seconds, so putting it here would change the
         // signature on every tick and rebuild the whole tree twice a second —
         // the exact behaviour this comparison exists to avoid.
-        (this.processes.get(s.id) ?? []).map((p) => [p.pid, p.ppid, p.label, processDescription(p), p.kind]),
+        (this.processes.get(s.id) ?? []).map((p) => [p.pid, p.ppid, p.label, processDescription(p), glyphOf(p)]),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -596,7 +596,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       item.id = nodeId(node);
       item.description = processDescription(proc);
       item.tooltip = processTooltip(proc);
-      item.iconPath = new vscode.ThemeIcon(PROCESS_GLYPH[proc.kind]);
+      item.iconPath = new vscode.ThemeIcon(glyphOf(proc));
       item.accessibilityInformation = { label: `${proc.label}, ${processDescription(proc)}` };
       // Two values, because killing an MCP server and killing a dev server are
       // not the same gesture: the first breaks the conversation that owns it,

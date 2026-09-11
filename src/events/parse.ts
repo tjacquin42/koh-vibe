@@ -102,5 +102,10 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
     toolName: str(payload['tool_name']),
     toolTarget: targetOf(toolInput),
     message: displayText(payload['message']),
+    // Present only on the calls a subagent makes. Read as plain strings and
+    // never trusted further: they end up as a map key and as an icon, nothing
+    // that touches the filesystem.
+    agentId: str(payload['agent_id']),
+    agentType: str(payload['agent_type']),
   };
 }

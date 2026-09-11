@@ -156,5 +156,6 @@
   "{0} process": "{0} processus",
   "{0} processes": "{0} processus",
   "unknown conversation": "conversation inconnue",
-  "Processes no conversation carries any more: their session is gone, and the system reparented them. A forgotten development server still holding its port is the usual case.": "Des processus qu’aucune conversation ne porte plus : leur session a disparu, et le système les a rattachés ailleurs. Le cas courant est un serveur de développement oublié qui tient encore son port."
+  "Processes no conversation carries any more: their session is gone, and the system reparented them. A forgotten development server still holding its port is the usual case.": "Des processus qu’aucune conversation ne porte plus : leur session a disparu, et le système les a rattachés ailleurs. Le cas courant est un serveur de développement oublié qui tient encore son port.",
+  "run by a subagent: {0} ({1})": "lancé par un sous-agent : {0} ({1})"
 }
