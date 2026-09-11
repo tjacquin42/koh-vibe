@@ -532,8 +532,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // candidates — and only the Processes view shows its result. It is skipped
     // whenever that view is closed, exactly as the whole scan is skipped when
     // both are.
-    lastOrphans = processesView.visible ? await findOrphans(lastRows, orphanRoots()) : [];
+    const adrift = processesView.visible ? await findOrphans(lastRows, orphanRoots()) : [];
+    // A process a session detached is still that session's work — it only lost
+    // the parent link, not the ownership — so it goes back under its
+    // conversation and leaves the « No session » list, which is for what
+    // nothing accounts for. Only when that conversation is still on screen: a
+    // server outliving its session is exactly what the orphan list is for.
+    lastOrphans = adrift.filter((o) => o.sessionId === undefined || !lastProcesses.has(o.sessionId));
+    lastProcesses = withDetached(lastProcesses, adrift);
     return lastProcesses;
+  };
+
+  /**
+   * Puts the detached processes back under the conversations that started
+   * them, as roots of their own beside the commands still running in-tree.
+   */
+  const withDetached = (
+    processes: ReadonlyMap<string, SessionProcess[]>,
+    adrift: readonly Orphan[],
+  ): ReadonlyMap<string, SessionProcess[]> => {
+    const out = new Map(processes);
+    let claimed = false;
+    for (const orphan of adrift) {
+      const sessionId = orphan.sessionId;
+      if (sessionId === undefined || !processes.has(sessionId)) continue;
+      out.set(sessionId, [...(out.get(sessionId) ?? []), ...orphan.tree]);
+      claimed = true;
+    }
+    return claimed ? out : processes;
   };
 
   /**

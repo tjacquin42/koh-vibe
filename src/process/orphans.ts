@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { classifyDetached, type SessionProcess } from './classify';
 import { descendantsOf, type ProcRow } from './scan';
+import { isValidSessionId } from '../events/parse';
 
 /**
  * A process no conversation carries any more: a development server whose
@@ -18,6 +19,15 @@ export interface Orphan {
   tree: SessionProcess[];
   /** Its working directory. Always known: it is what placed it under a root. */
   cwd: string;
+  /**
+   * The conversation that started it, when it can still be told.
+   *
+   * A session that starts a server detached loses it from its own subtree —
+   * the system reparents it at once — but the output file it redirected still
+   * names the conversation. Set here, such a process is put back under its
+   * session rather than listed as belonging to nobody.
+   */
+  sessionId?: string;
 }
 
 /**
@@ -102,17 +112,71 @@ export function unattached(rows: readonly ProcRow[]): ProcRow[] {
  */
 export function parseLsofCwds(stdout: string): Map<number, string> {
   const out = new Map<number, string>();
+  for (const [pid, files] of parseLsofFiles(stdout)) {
+    if (files.cwd !== undefined) out.set(pid, files.cwd);
+  }
+  return out;
+}
+
+/** What one process had open, of the few descriptors we asked about. */
+export interface ProcFiles {
+  cwd?: string;
+  /** Where its standard output and error go, when they go to files. */
+  outputs: string[];
+}
+
+/**
+ * The same reading, keeping the output files as well as the directory.
+ *
+ * `lsof -Fpn` emits `p<pid>`, then a pair of `f<descriptor>` / `n<path>` lines
+ * per descriptor. Which descriptor a path belongs to therefore has to be
+ * tracked as the lines go by: `cwd` places the process in a project, and the
+ * standard descriptors say which conversation redirected it — see
+ * `sessionOfOutput`.
+ */
+export function parseLsofFiles(stdout: string): Map<number, ProcFiles> {
+  const out = new Map<number, ProcFiles>();
   let pid: number | undefined;
+  let fd: string | undefined;
   for (const line of stdout.split('\n')) {
     if (line.startsWith('p')) {
       const parsed = Number.parseInt(line.slice(1), 10);
       pid = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-    } else if (line.startsWith('n') && pid !== undefined && line.length > 1) {
-      out.set(pid, line.slice(1));
-      pid = undefined;
+      fd = undefined;
+    } else if (line.startsWith('f')) {
+      fd = line.slice(1);
+    } else if (line.startsWith('n') && pid !== undefined && fd !== undefined && line.length > 1) {
+      const path = line.slice(1);
+      const entry = out.get(pid) ?? { outputs: [] };
+      if (fd === 'cwd') entry.cwd = path;
+      else entry.outputs.push(path);
+      out.set(pid, entry);
+      fd = undefined;
     }
   }
   return out;
+}
+
+/**
+ * The conversation a redirected output file belongs to.
+ *
+ * A session that starts a server detached — output redirected to a file — puts
+ * that file in its own scratchpad, and the path carries the conversation's id.
+ * Once the process has been reparented away from its session, this is the only
+ * link back to it that survives.
+ *
+ * The shape is pinned deliberately tightly: the temporary root, then one
+ * segment for the project, then the id, then `scratchpad` or `tasks`. A uuid
+ * found anywhere in any path would attribute other people's processes to a
+ * conversation, which is worse than attributing none.
+ */
+export function sessionOfOutput(path: string): string | undefined {
+  const m = /^\/(?:private\/)?tmp\/claude-\d+\/[^/]+\/([0-9a-f-]{36})\/(?:scratchpad|tasks)\//.exec(path);
+  const id = m?.[1];
+  // The uuid shape is asserted by the pattern; `isValidSessionId` still has the
+  // last word, because this id is about to be used as a map key against ids
+  // that came from the registry, and the two must agree on what an id is.
+  return id !== undefined && isValidSessionId(id) ? id : undefined;
 }
 
 /**
@@ -150,13 +214,18 @@ export function subtreeOf(rows: readonly ProcRow[], pid: number): SessionProcess
 
 export function orphansUnder(
   rows: readonly ProcRow[],
-  cwds: ReadonlyMap<number, string>,
+  files: ReadonlyMap<number, string | ProcFiles>,
   roots: readonly string[],
 ): Orphan[] {
   if (roots.length === 0) return [];
   const out: Orphan[] = [];
   for (const row of unattached(rows)) {
-    const cwd = cwds.get(row.pid);
+    const entry = files.get(row.pid);
+    // Accepts either shape: the directories alone, as the first version of
+    // this took them, or the fuller reading that also carries the redirected
+    // outputs. Only the second can name a conversation.
+    const cwd = typeof entry === 'string' ? entry : entry?.cwd;
+    const outputs = typeof entry === 'string' || entry === undefined ? [] : entry.outputs;
     if (cwd === undefined || !roots.some((root) => isUnder(cwd, root))) continue;
     const tree = subtreeOf(rows, row.pid);
     // The whole subtree is asked, not the root: see `subtreeOf`. A shell that
@@ -165,7 +234,12 @@ export function orphansUnder(
     if (!tree.some((p) => looksLikeDevRuntime(p.command))) continue;
     const root = tree.find((p) => p.depth === 0);
     if (root === undefined) continue;
-    out.push({ root, tree, cwd });
+    const orphan: Orphan = { root, tree, cwd };
+    // The first output that names a conversation wins; standard output and
+    // standard error normally name the same one.
+    const sessionId = outputs.map(sessionOfOutput).find((id) => id !== undefined);
+    if (sessionId !== undefined) orphan.sessionId = sessionId;
+    out.push(orphan);
   }
   return out;
 }
@@ -197,23 +271,27 @@ export async function findOrphans(
     subtreeOf(rows, row.pid).some((p) => looksLikeDevRuntime(p.command)),
   );
   if (candidates.length === 0) return [];
-  const cwds = await readCwds(
+  const files = await readFiles(
     candidates.map((c) => c.pid),
     timeoutMs,
   );
-  return orphansUnder(rows, cwds, roots);
+  return orphansUnder(rows, files, roots);
 }
 
-function readCwds(pids: readonly number[], timeoutMs: number): Promise<Map<number, string>> {
+function readFiles(pids: readonly number[], timeoutMs: number): Promise<Map<number, ProcFiles>> {
   return new Promise((resolve) => {
+    // Three descriptors in one reading: the working directory places the
+    // process in a project, and the standard output and error name the
+    // conversation that redirected it, if one did.
+    //
     // `lsof` exits non-zero when it could not stat every process it was asked
     // about, which is the normal case here — so the output is read whatever the
     // status says, and only an empty one gives up.
     execFile(
       'lsof',
-      ['-a', '-d', 'cwd', '-p', pids.join(','), '-Fpn'],
+      ['-a', '-d', 'cwd,1,2', '-p', pids.join(','), '-Fpn'],
       { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 },
-      (_err, stdout) => resolve(parseLsofCwds(stdout)),
+      (_err, stdout) => resolve(parseLsofFiles(stdout)),
     );
   });
 }
