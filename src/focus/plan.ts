@@ -8,18 +8,17 @@ export type FocusPlan =
   | { kind: 'explain'; message: string };
 
 /**
- * La seule règle qui décide quoi faire d'une session : vscode/desktop
- * révèlent un panneau, tout le reste — y compris une origine absente ou
- * invalide (une requête écrite par une version antérieure du broker) —
- * n'ouvre AUCUN contexte. Ouvrir une conversation que l'utilisateur n'a pas
- * demandée est précisément le défaut que ce lot corrige, donc `explain` est
- * le repli sûr, jamais une commande devinée.
+ * The only rule that decides what to do with a session: vscode/desktop
+ * reveal a panel, everything else — including an absent or invalid origin
+ * (a request written by an earlier version of the broker) — opens NO
+ * context. Opening a conversation the user did not ask for is precisely
+ * the defect this batch fixes, so `explain` is the safe fallback, never a
+ * guessed command.
  *
- * `origin` n'est pas typé `Origin` : le chemin distant (le broker qui
- * consomme une requête écrite par une autre fenêtre) ne dispose que de ce
- * qu'un fichier JSON non fiable a bien voulu porter, pas d'une `Session`.
- * `focusPlanFor` ci-dessous est le seul appelant qui, lui, a une valeur déjà
- * typée.
+ * `origin` is not typed `Origin`: the remote path (the broker consuming a
+ * request written by another window) only has what an untrusted JSON file
+ * chose to carry, not a `Session`. `focusPlanFor` below is the only caller
+ * that does have an already-typed value.
  */
 export function focusPlan(sessionId: string, origin: unknown, label: string): FocusPlan {
   if (isEditorOrigin(origin)) {
@@ -35,7 +34,7 @@ export function focusPlan(sessionId: string, origin: unknown, label: string): Fo
   };
 }
 
-/** Que faire quand on clique sur une session, depuis la fenêtre qui la revendique. */
+/** What to do when a session is clicked, from the window that claims it. */
 export function focusPlanFor(s: Session): FocusPlan {
   return focusPlan(s.id, s.origin, sessionLabel(s));
 }

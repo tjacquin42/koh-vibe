@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
 
 /**
- * La palette proposée pour les dossiers.
+ * The palette offered for folders.
  *
- * `id` est ce qui s'écrit dans groups.json : neutre, stable, indépendant de la
- * langue et du thème. `theme` est une couleur enregistrée par VSCode — jamais
- * un code hexadécimal — pour que les dossiers restent lisibles en clair comme
- * en sombre, et sous les thèmes tiers. `label` n'existe que pour la liste de
- * choix.
+ * `id` is what gets written to groups.json: neutral, stable, independent of
+ * language and theme. `theme` is a colour registered by VSCode — never a hex
+ * code — so that folders stay readable in light and dark, and under
+ * third-party themes. `label` exists only for the picker.
  *
  * Two families, where one would be preferable: `charts.*` already colours the
  * status dots (ui/tree.ts), but it holds six hues only — the table below had
@@ -41,11 +40,11 @@ export const GROUP_COLORS: readonly GroupColor[] = [
 ];
 
 /**
- * Une couleur qu'on ne connaît pas vaut « aucune couleur », jamais une erreur :
- * le fichier est partagé, et une version plus récente de l'extension installée
- * sur l'autre éditeur peut très bien y avoir écrit une couleur que celle-ci
- * n'a pas encore. Le dossier s'affiche alors sans couleur — et la valeur
- * inconnue survit dans le fichier, elle n'est pas réécrite.
+ * An unknown colour counts as «no colour», never as an error: the file is
+ * shared, and a newer version of the extension installed on the other editor
+ * may well have written a colour this one does not know yet. The folder then
+ * shows with no colour — and the unknown value survives in the file, it is
+ * not overwritten.
  */
 export function themeColorOf(color: string | undefined): string | undefined {
   if (color === undefined) return undefined;
@@ -56,18 +55,18 @@ export function themeColorOf(color: string | undefined): string | undefined {
 export const NO_COLOR_LABEL = vscode.l10n.t('None');
 
 /**
- * Ce que veut dire ce que l'utilisateur a choisi dans la liste des couleurs.
+ * What the user's choice in the colour list actually means.
  *
- * Trois cas, et il est essentiel qu'ils restent trois : fermer la liste
- * (`undefined`) n'est PAS choisir « Aucune ». S'ils se confondaient, annuler
- * effacerait la couleur du dossier — le geste le plus anodin deviendrait
- * destructeur.
+ * Three cases, and it matters that they stay three: closing the list
+ * (`undefined`) is NOT the same as choosing «None». If the two were
+ * conflated, cancelling would erase the folder's colour — the most harmless
+ * gesture would become destructive.
  *
- * Un libellé qu'on ne reconnaît pas vaut annulation, jamais effacement : c'est
- * le cas qui ne devrait pas arriver, puisque la liste est bâtie depuis cette
- * palette. Il est traité quand même, parce qu'un jour la liste et la palette
- * pourraient cesser d'être bâties ensemble, et que ce jour-là le pire résultat
- * possible serait d'effacer en silence.
+ * A label the code doesn't recognise counts as a cancellation, never as an
+ * erasure: this is the case that should never happen, since the list is
+ * built from this very palette. It is handled anyway, because one day the
+ * list and the palette might stop being built together, and on that day the
+ * worst possible outcome would be to erase silently.
  */
 export type ColorChoice = { kind: 'cancel' } | { kind: 'set'; color: string | undefined };
 

@@ -13,13 +13,13 @@ export const HOOK_EVENTS = [
 ] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
-/** Événements produits par l'extension elle-même, déposés dans le même spool. */
+/** Events produced by the extension itself, dropped into the same spool. */
 export const LOCAL_EVENTS = ['Ack'] as const;
 export type LocalEvent = (typeof LOCAL_EVENTS)[number];
 
 export type EventName = HookEvent | LocalEvent;
 
-/** Événement normalisé : le réducteur ne voit jamais un payload brut. */
+/** Normalized event: the reducer never sees a raw payload. */
 export interface SpoolEvent {
   event: EventName;
   at: number;
@@ -48,13 +48,13 @@ export interface Session {
   cwd: string;
   project: string;
   branch?: string;
-  /** Titre de la conversation, lu dans le transcript. Absent tant que Claude n'en a posé aucun. */
+  /** The conversation's title, read from the transcript. Absent until Claude has set one. */
   title?: string;
   origin: Origin;
   status: Status;
   currentAction?: { tool: string; target?: string };
   pendingPermission?: { tool: string; summary: string };
-  /** Posé au PreToolUse, retiré au PostToolUse. Suspend la péremption. */
+  /** Set on PreToolUse, cleared on PostToolUse. Suspends expiry. */
   inFlightSince?: number;
   toolCount: number;
   tokens?: { input: number; output: number };

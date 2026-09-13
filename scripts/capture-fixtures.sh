@@ -1,6 +1,6 @@
 #!/bin/bash
-# Capture de vrais payloads de hooks sans toucher à la configuration globale.
-# Tout se passe dans un dossier jetable avec son propre .claude/settings.json.
+# Captures real hook payloads without touching the global configuration.
+# Everything happens inside a throwaway directory with its own .claude/settings.json.
 set -euo pipefail
 BRIDGE="$PWD/bin/koh-vibe-bridge"
 WORK="$(mktemp -d)"
@@ -21,8 +21,8 @@ PYEOF
 
 printf 'Bonjour.\n' > "$WORK/NOTES.md"
 cd "$WORK"
-# Une session headless qui appelle réellement un outil : consulter `claude --help`
-# pour les drapeaux exacts permettant l'exécution sans invite interactive.
+# A headless session that actually calls a tool: check `claude --help` for the
+# exact flags that allow running without an interactive prompt.
 claude -p "Lis le fichier NOTES.md et réponds uniquement par son premier mot."
 
 echo

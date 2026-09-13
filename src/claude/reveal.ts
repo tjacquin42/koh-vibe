@@ -41,7 +41,7 @@ export function locateClaudeTab(
   return undefined;
 }
 
-/** Si la place indiquée porte bien une conversation, et non un fichier ou rien. */
+/** Whether the given position actually holds a conversation, and not a file or nothing. */
 export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): boolean {
   const tab = groups[at.group]?.tabs[at.index];
   return tab !== undefined && isClaudeTab(tab);
@@ -68,18 +68,18 @@ export function sessionOfClaudeTab(
 ): string | undefined {
   const tab = groups[at.group]?.tabs[at.index];
   if (tab === undefined || !isClaudeTab(tab)) return undefined;
-  // Deux onglets OUVERTS du même nom, et le nom ne prouve plus rien.
+  // Two tabs OPEN under the same name, and the name no longer proves anything.
   //
-  // Une conversation neuve s'appelle « Claude Code » comme toutes les autres :
-  // il suffit d'en ouvrir deux. Le mémento n'en connaît alors souvent qu'une,
-  // si bien que les deux onglets renvoyaient vers la même ligne — et l'un des
-  // deux était forcément le mauvais. La position ne rattrape rien ici : elle
-  // est de l'état persisté et glisse dès qu'un onglet s'ouvre ou se ferme,
-  // donc rien ne dit lequel des deux jumeaux le mémento décrivait.
+  // A new conversation is called « Claude Code » like all the others: opening
+  // two of them is enough. The memento then often knows only one of them, so
+  // that the two tabs pointed to the same row — and one of the two was bound
+  // to be the wrong one. Position does not save this: it is persisted state
+  // and shifts as soon as a tab opens or closes, so nothing says which of the
+  // two twins the memento was describing.
   //
-  // Ce comptage regarde les onglets RÉELLEMENT ouverts, là où le garde-fou
-  // ci-dessous ne regarde que le mémento : deux ambiguïtés distinctes, et
-  // seule la seconde était couverte.
+  // This count looks at the tabs REALLY open, whereas the guard below only
+  // looks at the memento: two distinct ambiguities, and only the second one
+  // was covered.
   let sameLabel = 0;
   for (const g of groups) for (const t of g.tabs) if (isClaudeTab(t) && t.label === tab.label) sameLabel += 1;
   if (sameLabel > 1) return undefined;

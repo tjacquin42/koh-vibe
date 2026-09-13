@@ -4,9 +4,9 @@ import type { SpoolDirs } from '../paths';
 import type { Origin, Session, Status } from '../events/types';
 import { isErrnoException } from '../lib/errno';
 
-// Record<Status, true> et Record<Origin, true> : si l'union gagne un membre côté
-// events/types.ts sans que ces tables soient mises à jour, la compilation échoue —
-// la garde de type ne peut pas dériver silencieusement du contrat de Session.
+// Record<Status, true> and Record<Origin, true>: if the union gains a member on
+// events/types.ts's side without these tables being updated, compilation fails —
+// the type guard cannot silently drift from Session's contract.
 const STATUSES: Record<Status, true> = {
   running: true,
   waiting: true,
@@ -27,26 +27,27 @@ export async function ensureDirs(dirs: SpoolDirs): Promise<void> {
   }
 }
 
-// `process.pid` seul n'est pas unique par appel : cette fonction est exportée
-// et réutilisable, rien ne garantit qu'un appelant la sérialise (aujourd'hui
-// SpoolWatcher.tick() le fait, mais c'est une propriété de l'appelant, pas de
-// la fonction). Même compteur synchrone qu'`appendLocalEvent`.
+// `process.pid` alone is not unique per call: this function is exported
+// and reusable, nothing guarantees a caller serializes it (today
+// SpoolWatcher.tick() does, but that is a property of the caller, not of
+// the function). Same synchronous counter as `appendLocalEvent`.
 let writeSessionSeq = 0;
 
 /**
- * Ce qu'une session laisse sur le disque.
+ * What a session leaves on disk.
  *
- * `dormant` n'est pas un état de la conversation : c'est ce que CETTE fenêtre
- * sait de son onglet, recalculé à chaque rendu depuis le mémento de l'éditeur
- * (claude/dormant.ts). Écrit, il survivrait à la fermeture de l'onglet qu'il
- * décrit, et la conversation resterait à jamais « un onglet restauré » : le
- * clic tenterait de ramener au premier plan un onglet qui n'existe plus, et
- * elle deviendrait impossible à rouvrir.
+ * `dormant` is not a state of the conversation: it is what THIS window
+ * knows about its tab, recomputed on every render from the editor's memento
+ * (claude/dormant.ts). Written, it would outlive the closing of the tab it
+ * describes, and the conversation would remain forever "a restored tab": a
+ * click would try to bring to the front a tab that no longer exists, and
+ * it would become impossible to reopen.
  *
- * La règle est posée aux portes — les deux qui écrivent et les deux qui lisent —
- * plutôt que chez les appelants : il suffit d'un qui l'oublie, et c'est arrivé.
- * L'appliquer aussi à la lecture guérit les fichiers qu'une version antérieure
- * avait déjà marqués, au lieu d'attendre une réparation à la main.
+ * The rule is enforced at the gates — the two functions that write and the
+ * two that read — rather than at the callers: it takes only one that
+ * forgets, and that has happened. Applying it on read too heals files that
+ * an earlier version had already marked, instead of waiting for a manual
+ * repair.
  */
 function persisted(s: Session): Session {
   const { dormant: _perWindow, ...rest } = s;
@@ -54,8 +55,8 @@ function persisted(s: Session): Session {
 }
 
 /**
- * Écriture atomique : un lecteur concurrent voit l'ancien fichier ou le nouveau,
- * jamais un fichier à moitié écrit.
+ * Atomic write: a concurrent reader sees the old file or the new one,
+ * never a half-written file.
  */
 export async function writeSession(dirs: SpoolDirs, s: Session): Promise<void> {
   const seq = (writeSessionSeq += 1);
@@ -133,7 +134,7 @@ export async function removeSession(dirs: SpoolDirs, id: string): Promise<void> 
   try {
     await unlink(join(dirs.sessions, `${id}.json`));
   } catch {
-    // déjà supprimé par une autre fenêtre : bénin
+    // already removed by another window: harmless
   }
 }
 
@@ -154,18 +155,18 @@ function isSession(v: unknown): v is Session {
 }
 
 /**
- * Lit une seule session par id, sans lister tout `sessions/`. C'est le
- * chemin de lecture utilisé pour réduire un événement : relire l'état de
- * cette session juste avant de la réduire, plutôt que de le tenir depuis un
- * instantané pris avant une suite d'`await` (voir `drain`).
+ * Reads a single session by id, without listing all of `sessions/`. This is
+ * the read path used to reduce an event: reread this session's state right
+ * before reducing it, rather than holding it from a snapshot taken before a
+ * sequence of `await`s (see `drain`).
  */
 export async function readSession(dirs: SpoolDirs, id: string): Promise<Session | undefined> {
   try {
     const parsed: unknown = JSON.parse(await readFile(join(dirs.sessions, `${id}.json`), 'utf8'));
-    // Ignoré à la lecture autant qu'à l'écriture : un fichier laissé par une
-    // version qui écrivait encore le drapeau guérit de lui-même, au lieu
-    // d'attendre une réparation à la main. L'invariant ne vaut que s'il est
-    // total — interdire d'écrire ne répare rien de ce qui est déjà écrit.
+    // Ignored on read just as on write: a file left by a version that was
+    // still writing the flag heals itself, instead of waiting for a manual
+    // repair. The invariant only holds if it is total — forbidding the
+    // write repairs nothing of what is already written.
     return isSession(parsed) ? persisted(parsed) : undefined;
   } catch {
     return undefined;
@@ -186,7 +187,7 @@ export async function readSessions(dirs: SpoolDirs): Promise<Map<string, Session
       const parsed: unknown = JSON.parse(await readFile(join(dirs.sessions, name), 'utf8'));
       if (isSession(parsed)) out.set(parsed.id, persisted(parsed));
     } catch {
-      // fichier illisible : on l'ignore, il sera réécrit au prochain événement
+      // unreadable file: ignored, it will be rewritten on the next event
     }
   }
   return out;

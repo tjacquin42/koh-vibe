@@ -3,23 +3,24 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * La version vient de package.json, qui fait foi (CLAUDE.md), captée au build
- * par scripts/stamp-build.cjs — donc lue dans un fichier, comme tout ce qui
- * vient de l'extérieur, et validée sans cast.
+ * The version comes from package.json, which is authoritative (CLAUDE.md),
+ * captured at build time by scripts/stamp-build.cjs — so it is read from a
+ * file, like everything that comes from outside, and validated without a
+ * cast.
  */
 export function releaseLabel(stamp: unknown): string | undefined {
   if (typeof stamp !== 'object' || stamp === null) return undefined;
   const { version, ahead } = stamp as { version?: unknown; ahead?: unknown };
   if (typeof version !== 'string' || version.length === 0) return undefined;
-  // « +7 » = sept commits après la dernière livraison. Un compte absent ou
-  // douteux n'invente pas d'écart : on affiche la version seule.
+  // «+7» = seven commits after the last release. A missing or dubious count
+  // does not invent a gap: the version alone is shown.
   return typeof ahead === 'number' && ahead > 0 ? `${version}+${ahead}` : version;
 }
 
 /**
- * L'étoile dit que le paquet installé ne correspond pas exactement à ce commit
- * (voir scripts/stamp-build.cjs). Un marqueur sans commit ne vaut rien : on
- * n'affiche jamais l'étoile seule.
+ * The star says the installed package does not exactly match this commit
+ * (see scripts/stamp-build.cjs). A marker with no commit is worthless: the
+ * star is never shown on its own.
  */
 export function buildCommit(stamp: unknown): string | undefined {
   if (typeof stamp !== 'object' || stamp === null) return undefined;
@@ -29,12 +30,12 @@ export function buildCommit(stamp: unknown): string | undefined {
 }
 
 /**
- * Ce que la vue affiche à côté de son titre : « v0.2.0+7 · 1736ec0 ».
+ * What the view shows next to its title: «v0.2.0+7 · 1736ec0».
  *
- * « Sans version » ne devrait plus se voir depuis que le manifeste fait foi : il
- * reste pour le paquet fabriqué sans son stamp, ou dont le manifeste est
- * illisible. Le commit, lui, suffit déjà à répondre à la seule question posée —
- * est-ce bien le nouveau paquet qui tourne ?
+ * «no version» should no longer be seen now that the manifest is
+ * authoritative: it remains for a package built without its stamp, or whose
+ * manifest is unreadable. The commit alone already answers the only question
+ * being asked — is this really the new package that's running?
  */
 export function versionLabel(stamp: unknown): string {
   const release = releaseLabel(stamp) ?? vscode.l10n.t('no version');
@@ -43,9 +44,9 @@ export function versionLabel(stamp: unknown): string {
 }
 
 /**
- * Absent ou illisible vaut « pas d'horodatage », jamais une erreur : la même
- * règle que le fichier de classement (groups/store.ts). Un paquet reconstruit
- * hors dépôt doit s'afficher, pas refuser de s'afficher.
+ * Absent or unreadable counts as «no timestamp», never as an error: the same
+ * rule as the classification file (groups/store.ts). A package rebuilt
+ * outside the repository must still display, not refuse to.
  */
 export async function readBuildStamp(extensionPath: string): Promise<unknown> {
   try {

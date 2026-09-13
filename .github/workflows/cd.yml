@@ -1,6 +1,6 @@
 name: CD
 
-# La livraison de ce dépôt : ce qui arrive sur `main` devient une version.
+# This repository's delivery: what lands on `main` becomes a version.
 on:
   push:
     branches: [main]
@@ -9,22 +9,24 @@ on:
 
 jobs:
   version-check:
-    # La livraison pose « patch » par défaut quand la ligne manque. Ce n'est pas une
-    # raison de la laisser manquer : le niveau se décide ici, à l'ouverture, quand on
-    # sait ce qu'on livre. Ce job avertit, il ne bloque pas.
+    # The delivery sets "patch" by default when the line is missing. That is
+    # not a reason to leave it missing: the level gets decided here, at
+    # opening time, when we know what we are shipping. This job warns, it
+    # does not block.
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
-      # Tout l'historique : l'étape suivante compare le manifeste de la PR à celui
-      # de la base, ce qui demande la branche de base, pas seulement la tête.
+      # Full history: the next step compares the PR's manifest to the base
+      # branch's, which needs the base branch, not just the head.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: La PR annonce-t-elle son niveau de version ?
+      - name: Does the PR announce its version level?
         id: niveau
-        # Le corps passe par l'environnement, jamais interpolé dans le script :
-        # `${{ }}` en plein `run` exécuterait ce qu'un corps de PR contient.
+        # The body passes through the environment, never interpolated into the
+        # script: `${{ }}` right inside `run` would execute whatever a PR body
+        # contains.
         env:
           CORPS: ${{ github.event.pull_request.body }}
         run: |
@@ -45,13 +47,13 @@ jobs:
           fi
           echo "niveau=${NIVEAU:-}" >> "$GITHUB_OUTPUT"
 
-      # `package.json` fait foi (CLAUDE.md) et `main` est protégée : le numéro ne
-      # peut être posé QUE dans cette PR, avant le merge. Personne ne pourra le
-      # rattraper après — d'où ce contrôle ici, au seul moment où c'est encore
-      # possible. Il avertit, il ne bloque pas : la livraison sait retomber sur le
-      # niveau annoncé, et un merge refusé pour un numéro coûte plus cher qu'il ne
-      # rapporte.
-      - name: Le numéro de version a-t-il été posé ?
+      # `package.json` is the source of truth (CLAUDE.md) and `main` is
+      # protected: the number can be set ONLY in this PR, before the merge.
+      # Nobody will be able to catch it up afterwards — hence this check here,
+      # at the only moment it is still possible. It warns, it does not block:
+      # the delivery knows how to fall back to the announced level, and a
+      # merge refused over a number costs more than it earns.
+      - name: Was the version number set?
         env:
           NIVEAU: ${{ steps.niveau.outputs.niveau }}
         run: |
@@ -77,9 +79,10 @@ jobs:
             exit 0
           fi
 
-          # Le saut réellement effectué, comparé à celui annoncé : deux façons de
-          # dire la même chose, et c'est justement quand elles divergent qu'il faut
-          # le savoir — le corps de la PR sert de source au CHANGELOG et à la Release.
+          # The jump actually made, compared to the one announced: two ways of
+          # saying the same thing, and it is precisely when they diverge that
+          # it needs to be known — the PR body is the source for the
+          # CHANGELOG and the Release.
           SAUT=$(node -e '
             const [a, b] = process.argv.slice(1).map((v) => v.split(".").map(Number));
             const lisible = [a, b].every((n) => n.length === 3 && !n.some(Number.isNaN));
@@ -98,43 +101,47 @@ jobs:
           fi
 
   version:
-    # Poser la version était la dernière marche du processus, et la seule restée
-    # manuelle : elle a sauté trois fois sur trois le 13/08.
+    # Setting the version used to be the last step of the process, and the
+    # only one left manual: it got skipped three times out of three on 13
+    # August.
     #
-    # Ce dépôt n'a pas de suite de tests en CI : la livraison n'a donc rien à
-    # attendre avant de poser la version. Le jour où une CI arrive ici, ce job
-    # prend un `needs` sur elle — un tag posé sur du rouge annoncerait une
-    # version qui n'est pas livrable.
-    # Le commit de CHANGELOG que ce job pousse lui-même ne doit pas le relancer.
-    # Sur le préfixe, pas sur le message entier : la première version de cette garde
-    # cherchait un marqueur n'importe où, et a sauté le commit qui l'introduisait.
+    # This repository has no CI test suite: the delivery therefore has
+    # nothing to wait for before setting the version. The day a CI arrives
+    # here, this job takes a `needs` on it — a tag set on red would announce
+    # a version that is not shippable.
+    # The CHANGELOG commit that this job pushes itself must not re-trigger
+    # it. On the prefix, not on the whole message: the first version of this
+    # guard looked for a marker anywhere, and skipped the very commit that
+    # introduced it.
     #
-    # Ce n'est qu'une économie de run : la vraie sécurité est plus bas, un commit
-    # poussé directement sur main n'ayant aucune PR associée, il ne bumpe rien.
+    # This is only a run-time saving: the real safeguard is further down — a
+    # commit pushed directly to main, having no associated PR, bumps nothing.
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main'
       && !startsWith(github.event.head_commit.message, 'chore(version):')
     runs-on: ubuntu-latest
     permissions:
-      contents: write # tag, Release, et push de l'entrée de CHANGELOG
-      pull-requests: write # label vX.Y.Z sur la PR livrée
-      issues: write # les milestones passent par l'API issues
-    # Deux merges rapprochés poseraient deux tags à partir du même « dernier tag ».
+      contents: write # tag, Release, and pushing the CHANGELOG entry
+      pull-requests: write # vX.Y.Z label on the shipped PR
+      issues: write # milestones go through the issues API
+    # Two merges close together would set two tags from the same "last tag".
     concurrency:
       group: version-${{ github.ref }}
       cancel-in-progress: false
-    # Vide quand rien n'a été versionné — un commit direct sur main, sans PR. Le job
-    # « publish » s'en sert comme condition : pas de tag, rien à publier.
+    # Empty when nothing was versioned — a commit pushed directly to main,
+    # with no PR. The "publish" job uses this as its condition: no tag,
+    # nothing to publish.
     outputs:
       tag: ${{ steps.poser.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # Le script déduit le prochain numéro du dernier tag existant. Sans
-          # l'historique complet ni les tags, il repartirait de 0.0.0.
+          # The script derives the next number from the last existing tag.
+          # Without the full history or the tags, it would start over from
+          # 0.0.0.
           fetch-depth: 0
 
-      - name: Retrouver la PR de ce merge
+      - name: Find the PR of this merge
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,15 +150,15 @@ jobs:
           NUM=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
                   --jq '[.[] | select(.merged_at != null)] | .[0].number // empty' 2>/dev/null || true)
           if [ -z "$NUM" ]; then
-            # Un commit poussé directement sur main ne bumpe pas : il est livré avec
-            # la PR suivante et cité sous « Commits directs » dans son entrée.
+            # A commit pushed directly to main does not bump: it ships with
+            # the next PR and is cited under "Direct commits" in its entry.
             echo "Aucune PR mergée associée à ${{ github.sha }} — rien à versionner."
           else
             echo "PR #$NUM"
           fi
           echo "numero=$NUM" >> "$GITHUB_OUTPUT"
 
-      - name: Poser la version
+      - name: Set the version
         id: poser
         if: steps.pr.outputs.numero != ''
         env:
@@ -160,24 +167,27 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Niveau laissé vide : le script le lit dans le corps de la PR, retombe sur
-          # « patch » si la ligne manque, et n'échoue que si elle est illisible.
+          # Level left empty: the script reads it from the PR body, falls
+          # back to "patch" if the line is missing, and only fails if it is
+          # unreadable.
           scripts/bump-version.sh "" "${{ steps.pr.outputs.numero }}"
 
-      # `main` est protégée : aucun push direct n'y est admis, et le jeton de ce
-      # job n'a pas de dérogation — GitHub réserve celle-ci aux dépôts d'une
-      # organisation. Un refus de push n'est donc pas une panne, c'est la règle
-      # qui s'applique. Le tag et la Release, eux, sont déjà posés et portent le
-      # même texte : la version est livrée quoi qu'il arrive ici, et le
-      # mainteneur n'a plus qu'à reporter l'entrée par une PR.
-      # Le fichier ne bouge pas quand la PR de promotion a écrit son entrée elle-même,
-      # ce qui est le cas nominal : c'est le seul endroit d'où elle puisse atteindre
-      # le dépôt. Il n'y a alors rien à committer, et surtout rien à signaler — une
-      # livraison n'a pas à se plaindre du travail correctement fait en amont.
+      # `main` is protected: no direct push is allowed there, and this job's
+      # token has no bypass — GitHub reserves that for organisation
+      # repositories. A push refusal is therefore not a failure, it is the
+      # rule applying. The tag and the Release, meanwhile, are already set and
+      # carry the same text: the version is shipped no matter what happens
+      # here, and the maintainer only has to carry the entry over in a PR.
+      # The file does not move when the promotion PR wrote its entry itself,
+      # which is the nominal case: it is the only place from which it can
+      # reach the repository. There is then nothing to commit, and above all
+      # nothing to flag — a delivery has no business complaining about work
+      # correctly done upstream.
       #
-      # Le reste de cette étape est le filet : bump-version.sh a dû insérer un titre
-      # nu faute d'entrée, il a déjà averti, et ce titre ne pourra pas être poussé.
-      - name: Publier l'entrée de CHANGELOG
+      # The rest of this step is the safety net: bump-version.sh had to
+      # insert a bare heading for lack of an entry, it has already warned,
+      # and this heading will not be pushable.
+      - name: Publish the CHANGELOG entry
         if: steps.pr.outputs.numero != ''
         run: |
           set -euo pipefail
@@ -204,19 +214,19 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    # La publication vit dans le MÊME run que la version, et pas dans un workflow
-    # déclenché par le tag ou par la Release. Ce n'est pas un choix de style :
-    # GitHub coupe la récursion à la source, et un événement créé avec le jeton
-    # d'Actions ne déclenche aucun workflow. Un « on: release: [published] » ou un
-    # « on: push: tags: [v*] » ne partirait donc jamais — et il ne le dirait pas,
-    # il ne se passerait simplement rien, version après version.
+    # The publication lives in the SAME run as the version, not in a workflow
+    # triggered by the tag or by the Release. This is not a matter of style:
+    # GitHub cuts the recursion at the source, and an event created with the
+    # Actions token triggers no workflow. An "on: release: [published]" or an
+    # "on: push: tags: [v*]" would therefore never start — and it would not
+    # say so, nothing would simply happen, version after version.
     needs: version
-    # Vide quand le job précédent n'a rien versionné : un commit poussé directement
-    # sur main n'a pas de PR, donc pas de tag, donc rien à publier.
+    # Empty when the previous job did not version anything: a commit pushed
+    # directly to main has no PR, hence no tag, hence nothing to publish.
     if: needs.version.outputs.tag != ''
-    # Linux, pas macOS : empaqueter ne dépend pas de la plateforme, et les tests qui
-    # en dépendent, eux, ont déjà tourné sur la PR. Un runner macOS facturerait dix
-    # fois les minutes pour le même .vsix.
+    # Linux, not macOS: packaging does not depend on the platform, and the
+    # tests that do depend on it have already run on the PR. A macOS runner
+    # would bill ten times the minutes for the same .vsix.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -232,13 +242,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Le tag fait foi sur le numéro livré ; package.json fait foi sur celui que
-      # les deux places recevront. Ils divergent dans un cas précis et déjà prévu :
-      # la PR de promotion a oublié le bump, et bump-version.sh a appliqué le niveau
-      # d'office. Sans ce contrôle, la publication partirait sur un numéro déjà en
-      # ligne et échouerait sur un message de registre, qui ne dit rien du vrai
-      # problème. Celui-ci le dit.
-      - name: Le manifeste et le tag disent-ils la même chose ?
+      # The tag is the source of truth for the shipped number; package.json
+      # is the source of truth for the one both places will receive. They
+      # diverge in one specific, already anticipated case: the promotion PR
+      # forgot the bump, and bump-version.sh applied the level on its own.
+      # Without this check, the publication would go out on a number already
+      # live and would fail on a registry message that says nothing about
+      # the real problem. This one says it.
+      - name: Do the manifest and the tag agree?
         env:
           TAG: ${{ needs.version.outputs.tag }}
         run: |
@@ -250,20 +261,20 @@ jobs:
           fi
           echo "Publication de **$TAG**." >> "$GITHUB_STEP_SUMMARY"
 
-      # Un seul empaquetage pour les deux places : c'est le même .vsix, octet pour
-      # octet, qui part sur l'une et sur l'autre. Publier deux fois depuis les
-      # sources en reconstruirait deux — identiques en principe, mais rien ne le
-      # garantit, et un écart entre les deux registres ne se verrait qu'une fois
-      # installé chez quelqu'un.
+      # A single packaging step for both places: it is the same .vsix, byte
+      # for byte, that goes out to one and to the other. Publishing twice
+      # from source would rebuild two — identical in principle, but nothing
+      # guarantees it, and a divergence between the two registries would
+      # only show up once installed at someone's place.
       #
-      # « --no-dependencies » parce que le dépôt est en pnpm : sans lui, vsce part
-      # sur un « npm ls » qui échoue. C'est sans risque ici, l'extension n'ayant
-      # aucune dépendance d'exécution — tout ce qu'elle embarque est dans out/, et
-      # .vscodeignore est une liste blanche.
+      # "--no-dependencies" because the repository is on pnpm: without it,
+      # vsce goes for an "npm ls" that fails. That is safe here, the
+      # extension having no runtime dependency at all — everything it
+      # carries is in out/, and .vscodeignore is an allowlist.
       #
-      # vsce lance « vscode:prepublish », donc compile : ce qui est empaqueté est le
-      # code de ce commit, pas un out/ resté d'un run précédent.
-      - name: Empaqueter, une fois pour les deux places
+      # vsce runs "vscode:prepublish", so it compiles: what gets packaged is
+      # the code of this commit, not an out/ left over from a previous run.
+      - name: Package, once for both registries
         id: paquet
         run: |
           set -euo pipefail
@@ -271,18 +282,19 @@ jobs:
           pnpm exec vsce package --no-dependencies --out "$VSIX"
           echo "vsix=$VSIX" >> "$GITHUB_OUTPUT"
 
-      # Sans jeton, cette étape se saute au lieu d'échouer. C'est un choix, pas un
-      # oubli : la publication sur la place de marché se fait à la main, par
-      # téléversement du .vsix, et les PAT globaux d'Azure DevOps disparaissent le
-      # 1er décembre 2026 — poser un jeton aujourd'hui pour le remplacer dans trois
-      # mois par une identité fédérée ne vaut pas l'organisation qu'il faut ouvrir
-      # pour l'obtenir.
+      # With no token, this step is skipped rather than failing. That is a
+      # choice, not an oversight: publishing to the marketplace is done by
+      # hand, by uploading the .vsix, and Azure DevOps's global PATs
+      # disappear on 1 December 2026 — setting up a token today only to
+      # replace it in three months with a federated identity is not worth
+      # the organisation it takes to open to get one.
       #
-      # Échouer ici rendrait la livraison rouge à CHAQUE version, pour une absence
-      # voulue. Un pipeline rouge en permanence est un pipeline qu'on cesse de lire,
-      # et c'est ainsi qu'une vraie panne passe inaperçue. Le job reste donc vert et
-      # le résumé porte le téléversement restant.
-      - name: Publier sur la place de marché
+      # Failing here would make the delivery red at EVERY version, for an
+      # absence that was chosen. A pipeline that is red all the time is a
+      # pipeline nobody reads any more, and that is how a real failure slips
+      # through unnoticed. The job therefore stays green and the summary
+      # carries the upload still to do.
+      - name: Publish to the registries
         id: marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -307,10 +319,10 @@ jobs:
           echo "publie=oui" >> "$GITHUB_OUTPUT"
           pnpm exec vsce publish --no-dependencies --packagePath "$VSIX"
 
-      # Le .vsix survit au run : c'est celui qu'il faut téléverser à la main tant que
-      # la place de marché n'est pas automatisée, et c'est aussi la seule copie du
-      # paquet réellement publié sur Open VSX.
-      - name: Garder le paquet du run
+      # The .vsix survives the run: it is the one to upload by hand as long
+      # as the marketplace is not automated, and it is also the only copy of
+      # the package actually published on Open VSX.
+      - name: Keep the run's package
         if: ${{ !cancelled() && steps.paquet.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
@@ -318,16 +330,17 @@ jobs:
           path: ${{ steps.paquet.outputs.vsix }}
           retention-days: 90
 
-      # Open VSX est la place des forks : Cursor, Windsurf, VSCodium et Antigravity
-      # n'atteignent pas celle de Microsoft, et ce sont les éditeurs dans lesquels
-      # cette extension est réellement utilisée. Sans cette étape, la moitié du
-      # public n'a d'autre chemin que de compiler le paquet elle-même.
+      # Open VSX is the forks' place: Cursor, Windsurf, VSCodium and
+      # Antigravity cannot reach Microsoft's, and those are the editors this
+      # extension is actually used in. Without this step, half the public
+      # would have no path other than building the package themselves.
       #
-      # « !cancelled() » plutôt que la réussite de l'étape précédente : une panne
-      # d'un registre ne doit pas priver l'autre de sa version. Le job reste rouge,
-      # et le résumé ci-dessous dit laquelle des deux places a reçu quoi. La seule
-      # condition retenue est l'empaquetage : sans .vsix, il n'y a rien à envoyer.
-      - name: Publier sur Open VSX
+      # "!cancelled()" rather than the previous step's success: a failure of
+      # one registry must not deprive the other of its version. The job
+      # stays red, and the summary below says which of the two places
+      # received what. The only condition kept is the packaging: with no
+      # .vsix, there is nothing to send.
+      - name: Publish to Open VSX
         id: openvsx
         if: ${{ !cancelled() && steps.paquet.outcome == 'success' }}
         env:
@@ -341,12 +354,12 @@ jobs:
           fi
           pnpm exec ovsx publish "$VSIX"
 
-      # Les deux jetons expirent, et leur expiration ne se voit nulle part avant la
-      # livraison qu'elle bloque — un an au plus pour celui d'Azure DevOps. Le tag et
-      # la Release sont déjà posés à ce stade : la version existe, elle n'est
-      # simplement pas en ligne partout, et c'est ce tableau-là qu'il faut retrouver
-      # dans le run plutôt qu'un échec sans adresse.
-      - name: Ce qui reste à faire si la publication a échoué
+      # Both tokens expire, and their expiry shows up nowhere before the
+      # delivery it blocks — one year at most for Azure DevOps's. The tag and
+      # the Release are already set at this point: the version exists, it is
+      # simply not live everywhere, and this table is what needs to be found
+      # in the run rather than a failure with no lead.
+      - name: What is left to do when publishing failed
         if: failure()
         env:
           TAG: ${{ needs.version.outputs.tag }}
@@ -355,8 +368,8 @@ jobs:
           OPENVSX: ${{ steps.openvsx.outcome }}
         run: |
           etat() { case "${1:-}" in success) echo "en ligne" ;; failure) echo "**échec**" ;; *) echo "non tentée" ;; esac; }
-          # Une étape sautée faute de jeton est « success » : sans ce correctif, le
-          # tableau annoncerait en ligne une version que personne n'a téléversée.
+          # A step skipped for lack of a token is "success": without this
+          # fix, the table would announce as live a version nobody uploaded.
           if [ "${MARKETPLACE_PUBLIE:-}" = "non" ]; then MARKETPLACE=sautee; fi
           etat_marketplace() { if [ "$MARKETPLACE" = "sautee" ]; then echo "sautée — téléversement manuel"; else etat "$MARKETPLACE"; fi; }
           NUMERO="${TAG#v}"

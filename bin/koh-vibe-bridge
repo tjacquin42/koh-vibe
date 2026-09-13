@@ -1,7 +1,7 @@
 #!/bin/zsh -f
-# koh-vibe-bridge — dépose le payload d'un hook Claude Code dans le spool.
-# Ne parse rien. N'écrit jamais sur stdout. Sort toujours en 0.
-# -f empêche les fichiers de démarrage de l'utilisateur de polluer le protocole des hooks.
+# koh-vibe-bridge — drops a Claude Code hook payload into the spool.
+# Parses nothing. Never writes to stdout. Always exits 0.
+# -f stops the user's startup files from polluting the hooks protocol.
 emulate -L zsh
 zmodload zsh/datetime 2>/dev/null || true
 
@@ -9,23 +9,23 @@ EVENT="${1:-unknown}"
 DIR="${KOH_VIBE_HOME:-$HOME/.koh-vibe}/events"
 [[ -d "$DIR" ]] || exit 0
 
-# Déplacer un `2>/dev/null` sur chaque redirection ne suffit pas : zsh peut
-# signaler l'échec de la redirection elle-même (ex : permission refusée sur
-# "> $TMP") sur son propre stderr, avant que la commande protégée ne
-# s'exécute. `exec` redirige le stderr du script entier une fois pour toutes,
-# ce qui couvre aussi ce cas. Invariant du bridge : ne jamais perturber la
-# session Claude Code qui l'appelle, ni sur stdout, ni sur stderr, ni par un
-# code de retour non nul.
+# Moving a `2>/dev/null` onto each redirection is not enough: zsh can report
+# the failure of the redirection itself (e.g. permission denied on
+# "> $TMP") on its own stderr, before the guarded command even runs. `exec`
+# redirects the whole script's stderr once and for all, which covers this
+# case too. Invariant of the bridge: never disturb the Claude Code session
+# that calls it, neither on stdout, nor on stderr, nor through a nonzero
+# exit code.
 exec 2>/dev/null
 
 STAMP="$(printf '%.0f' $(( ${EPOCHREALTIME:-0} * 1000 )) 2>/dev/null)"
 [[ -n "$STAMP" && "$STAMP" != "0" ]] || STAMP="$(/bin/date +%s)000"
 
-# Un pid non zero-paddé trie mal lexicographiquement au sein d'une même
-# milliseconde ("9" > "10" en tri de chaînes, alors que 9 < 10) : deux
-# événements posés à la même milliseconde par des process d'id de largeurs
-# différentes pourraient s'appliquer dans le mauvais ordre. Largeur fixe,
-# assez large pour n'être jamais atteinte par un vrai pid.
+# A pid that is not zero-padded sorts badly, lexicographically, within the
+# same millisecond ("9" > "10" in string sort, even though 9 < 10): two
+# events posted in the same millisecond by processes whose ids have
+# different widths could then apply in the wrong order. Fixed width, wide
+# enough that a real pid will never reach it.
 PID="$(printf '%010d' "$$")"
 
 TMP="$DIR/.tmp-$PID-$EVENT"

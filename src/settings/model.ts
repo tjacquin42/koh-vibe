@@ -3,17 +3,16 @@ import { clampVolume, DEFAULT_VOLUME } from '../sound/player';
 import { isRecord } from '../lib/json';
 
 /**
- * Les réglages du son, partagés entre TOUS les éditeurs de la machine.
+ * The sound settings, shared between EVERY editor on the machine.
  *
- * Ils vivaient dans les réglages VSCode, donc dans ceux de chaque éditeur pris
- * séparément : la même machine annonçait « Chute 3 » dans une fenêtre et
- * « Funk » dans l'autre, pour le même carillon et le même utilisateur. Le
- * classement en dossiers avait déjà tranché la question — un fichier partagé
- * sous `~/.koh-vibe` — et il n'y avait aucune raison que le son y échappe.
+ * They used to live in VSCode's settings, so in each editor's own separate
+ * settings: the same machine would announce « Chute 3 » in one window and
+ * « Funk » in the other, for the same chime and the same user. The
+ * classification into folders had already settled the question — a shared
+ * file under `~/.koh-vibe` — and there was no reason for sound to escape it.
  *
- * Ce qui reste propre à chaque éditeur : rien. Un son est une propriété de la
- * machine (ses haut-parleurs, sa bibliothèque), pas de la fenêtre qui l'a
- * choisi.
+ * What stays specific to each editor: nothing. A sound is a property of the
+ * machine (its speakers, its library), not of the window that chose it.
  */
 export interface AppSettings {
   waiting: string;
@@ -80,11 +79,11 @@ function flag(v: unknown, fallback: boolean): boolean {
 }
 
 /**
- * Un fichier illisible vaut « réglages par défaut » : le tableau de bord doit
- * s'afficher quoi qu'il arrive, et un carillon muet se rattrape en deux clics.
+ * An unreadable file counts as "default settings": the dashboard has to
+ * display no matter what, and a silent chime is fixed in two clicks.
  *
- * Chaque champ retombe SÉPARÉMENT sur sa valeur par défaut : un volume abîmé ne
- * doit pas emporter avec lui le choix des sons.
+ * Each field falls back to its default SEPARATELY: a corrupted volume must
+ * not drag the choice of sounds down with it.
  */
 export function parseSettings(raw: string): AppSettings {
   let root: unknown;
@@ -98,9 +97,9 @@ export function parseSettings(raw: string): AppSettings {
   return {
     waiting: sound(root['waiting'], base.waiting),
     done: sound(root['done'], base.done),
-    // `clampVolume` retombe déjà sur la valeur par défaut plutôt que sur le
-    // silence : un réglage abîmé ne doit pas se traduire par « le son ne marche
-    // plus », qui enverrait chercher la panne ailleurs.
+    // `clampVolume` already falls back to the default value rather than to
+    // silence: a corrupted setting must not translate into "sound stopped
+    // working", which would send the search for the bug elsewhere.
     volume: clampVolume(root['volume']),
     persistent: flag(root['persistent'], base.persistent),
     expireTemporary: flag(root['expireTemporary'], base.expireTemporary),

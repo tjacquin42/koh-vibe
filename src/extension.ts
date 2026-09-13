@@ -83,14 +83,14 @@ const RESCAN_AFTER_VANISH_MS = 5_000;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
-  // Avant tout le reste : ensureDirs créerait la nouvelle racine et rendrait la
-  // reprise impossible — elle ne s'opère que si cette racine n'existe pas encore.
+  // Before everything else: ensureDirs would create the new root and make the
+  // recovery impossible — it only runs while that root does not exist yet.
   const migrated = await migrateLegacyHome(legacyHome(), home);
   const dirs = spoolDirs(home);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
-  // Donnés une fois, passés partout : le chemin du paquet n'est connu que d'ici,
-  // et c'est lui qui porte les deux sons du réglage par défaut.
+  // Given once, passed everywhere: the package's path is only known from here,
+  // and it is what carries the two sounds of the default setting.
   const soundPaths = soundDirs(home, context.extensionPath);
   const closedPath = closedFile(home);
   // Claude Code's registry of running processes (`~/.claude/sessions/`): the
@@ -267,9 +267,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
-  // Relu à chaque fois que l'arbre s'apprête à afficher son nœud vide (voir
-  // SessionsTree), jamais mis en cache ici : le coût (une lecture de fichier)
-  // n'est payé que dans le cas rare où il n'y a aucune session à montrer.
+  // Read again every time the tree is about to show its empty node (see
+  // SessionsTree), never cached here: the cost (one file read) is only paid
+  // in the rare case where there is no session to show.
   async function checkHooksInstalled(): Promise<boolean> {
     try {
       const raw = await readFile(join(homedir(), '.claude', 'settings.json'), 'utf8');
@@ -279,10 +279,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }
 
-  // Le vrai câblage du glisser-déposer : appelle updateGroups au travers
-  // d'applyDrop (groups/commands.ts), jamais une écriture directe — voir sa
-  // documentation. Un rendu explicite suit l'écriture pour que le dossier se
-  // peuple tout de suite à l'écran, sans attendre le minuteur (REFRESH_MS).
+  // The real wiring of drag and drop: calls updateGroups through applyDrop
+  // (groups/commands.ts), never a direct write — see its documentation. An
+  // explicit render follows the write so that the folder fills on screen at
+  // once, without waiting for the timer (REFRESH_MS).
   async function onSessionsDropped(
     sessionIds: readonly string[],
     groupId: string | undefined,
@@ -298,15 +298,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   /**
-   * Les réglages du son, tenus dans un fichier PARTAGÉ entre éditeurs.
+   * The sound settings, held in a file SHARED between editors.
    *
-   * Ils vivaient dans les réglages VSCode, donc dans ceux de chaque éditeur pris
-   * séparément : la même machine annonçait « Chute 3 » d'un côté et « Funk » de
-   * l'autre. Le classement en dossiers avait déjà tranché la question, et il n'y
-   * avait aucune raison que le son y échappe.
+   * They used to live in VSCode's settings, so in each editor's own —
+   * the same machine announced « Chute 3 » on one side and « Funk » on the
+   * other. Filing sessions into folders had already settled the question, and
+   * there was no reason sound should escape it.
    *
-   * Relus à chaque rendu et gardés ici : le carillon et les lignes de réglage en
-   * ont besoin de façon synchrone, au milieu d'un tour déjà asynchrone.
+   * Read again on every render and kept here: the chime and the settings rows
+   * need it synchronously, in the middle of an already asynchronous round.
    */
   let sound: AppSettings = defaultSettings();
 
@@ -325,33 +325,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await render();
   }
 
-  /** Ce que cet éditeur avait chez lui, et qui ne servira qu'une fois. */
+  /** What this editor had of its own, and which will only be used once. */
   function legacySettings(): AppSettings {
     const config = vscode.workspace.getConfiguration('kohVibe');
     return settingsFromEditor((key) => config.get(key));
   }
 
-  // Référence du tour précédent pour le carillon. `undefined` = premier rendu :
-  // tout y ressemblerait à une transition, et l'éditeur carillonnerait à chaque
-  // ouverture de fenêtre pour des sessions parfois vieilles de plusieurs heures.
+  // The previous round's reference for the chime. `undefined` = first render:
+  // everything would look like a transition, and the editor would chime on
+  // every window opening for sessions sometimes hours old.
   let lastStatuses: Map<string, Session['status']> | undefined;
 
-  /** Ce que rejoue la flèche droite, posé le temps d'un choix de son. */
+  /** What the right arrow replays, set for the duration of a sound choice. */
   const PICKING_SOUND = 'kohVibe.pickingSound';
 
-  // Ces libellés sont comparés à ce que l'utilisateur a choisi : les nommer une
-  // fois empêche qu'une traduction fasse diverger la question de sa réponse.
+  // These labels are compared against what the user chose: naming them once
+  // stops a translation from making the question diverge from its answer.
   const NONE_LABEL = vscode.l10n.t('None');
   const INSTALL_LABEL = vscode.l10n.t('Install');
   let replay: (() => void) | undefined;
 
   /**
-   * Choisit un son, en le faisant entendre au fil des flèches.
+   * Picks a sound, playing it as the arrow keys move.
    *
-   * `inherit` nomme le niveau au-dessus : « Réglage global » pour un dossier,
-   * « Son du dossier » pour une conversation. Le retirer est un choix, distinct
-   * de fermer la liste — d'où le retour `{ sound }` plutôt qu'une chaîne, qui
-   * confondrait « aucun » et « annulé ».
+   * `inherit` names the level above: « Global setting » for a folder,
+   * « Folder sound » for a conversation. Removing it is a choice, distinct
+   * from closing the list — hence the `{ sound }` return rather than a
+   * string, which would conflate « none » with « cancelled ».
    */
   async function pickSound(
     title: string,
@@ -367,9 +367,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return undefined;
     }
     const volume = soundSettings().volume;
-    // `createQuickPick` et non `showQuickPick` : lui seul expose
-    // `onDidChangeActive`, donc le survol au clavier. Choisir un son sans
-    // l'entendre oblige à attendre une vraie bascule pour savoir ce qu'on a pris.
+    // `createQuickPick` and not `showQuickPick`: only the built form exposes
+    // `onDidChangeActive`, hence the keyboard hover. Picking a sound without
+    // hearing it forces waiting for a real switch to know what was taken.
     const picker = vscode.window.createQuickPick();
     picker.title = title;
     picker.placeholder = vscode.l10n.t('The arrow keys play each sound; → replays it');
@@ -385,11 +385,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void playNamed(label, volume, soundPaths);
     };
     picker.onDidChangeActive((active) => hear(active[0]?.label));
-    // La flèche droite ne traverse pas l'API : VSCode n'expose aucun événement
-    // clavier sur une liste de choix. Le seul chemin est une commande liée à la
-    // touche, activée par un contexte que l'on ne lève QUE pendant ce choix —
-    // sans quoi la flèche droite cesserait de déplacer le curseur partout
-    // ailleurs dans l'éditeur.
+    // The right arrow does not cross the API: VSCode exposes no keyboard
+    // event on a quick pick list. The only path is a command bound to the
+    // key, enabled by a context that is raised ONLY during this choice —
+    // without which the right arrow would stop moving the cursor everywhere
+    // else in the editor.
     replay = () => hear(picker.activeItems[0]?.label);
     await vscode.commands.executeCommand('setContext', PICKING_SOUND, true);
     let chosen: string | undefined;
@@ -400,8 +400,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         picker.show();
       });
     } finally {
-      // Quoi qu'il arrive : un contexte resté levé rendrait la flèche droite
-      // inerte dans tout l'éditeur, sans que rien ne dise pourquoi.
+      // Whatever happens: a context left raised would make the right arrow
+      // inert throughout the editor, with nothing to say why.
       replay = undefined;
       await vscode.commands.executeCommand('setContext', PICKING_SOUND, false);
       picker.dispose();
@@ -417,9 +417,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const status = new StatusSummary();
   const transcripts = new Map<string, TranscriptStats>();
 
-  // Seul moyen offert par VSCode de colorer le TEXTE d'une ligne d'arbre. Sans
-  // état propre : la couleur est portée par l'URI que l'arbre pose sur chaque
-  // ligne, donc rien à resynchroniser quand elle change.
+  // The only way VSCode offers to colour the TEXT of a tree row. With no
+  // state of its own: the colour is carried by the URI the tree puts on each
+  // row, so there is nothing to resynchronise when it changes.
   context.subscriptions.push(
     vscode.window.registerFileDecorationProvider({
       provideFileDecoration(uri) {
@@ -433,9 +433,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeDataProvider: tree,
     dragAndDropController: tree,
   });
-  // Vue distincte, sous la première dans le même conteneur : VSCode n'offre
-  // aucun moyen d'épingler une ligne au bas d'un arbre, et tout ce qu'on y
-  // mettait défilait avec les conversations.
+  // A separate view, below the first one in the same container: VSCode offers
+  // no way to pin a row at the bottom of a tree, and anything put there used
+  // to scroll along with the conversations.
   const closedTree = new ClosedTree();
   // What runs that no single conversation accounts for: the MCP servers of
   // every session, shown once here rather than repeated under each, and the
@@ -466,9 +466,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     footer,
     closedTree,
-    // Quatre vues empilées dans le conteneur : les sessions, « Fermé
-    // récemment » (seulement quand les sessions ne sont pas persistantes), la
-    // consommation, puis les réglages. L'ordre vient de package.json, pas d'ici.
+    // Four views stacked in the container: the sessions, « Recently closed »
+    // (only when sessions are not persistent), the usage, then the settings.
+    // The order comes from package.json, not from here.
     vscode.window.createTreeView('kohVibe.closed', { treeDataProvider: closedTree }),
     processesView,
     vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
@@ -481,21 +481,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  // Posée une fois : ni la version ni le commit ne changent tant que la fenêtre
-  // vit — un paquet réinstallé n'est vu qu'au rechargement, et c'est justement
-  // ce que cette ligne sert à constater.
+  // Set once: neither the version nor the commit changes while the window
+  // lives — a reinstalled package is only seen on reload, and that is exactly
+  // what this line is here to report.
   view.description = versionLabel(await readBuildStamp(context.extensionPath));
 
-  // Un seul avertissement par cause, jamais un par tick (le minuteur tourne
-  // toutes les REFRESH_MS) : même précédent que `warnedMissingCommand` dans
-  // FocusBroker.
+  // One warning per cause, never one per tick (the timer runs every
+  // REFRESH_MS): the same precedent as `warnedMissingCommand` in FocusBroker.
   let transcriptFailureWarned = false;
   let renderFailureWarned = false;
   let drainFailureWarned = false;
-  // Garde de réentrance factorisée (ReentrantGuard) : render() est déclenché
-  // par trois sources indépendantes (minuteur, watcher, commande de
-  // rafraîchissement), qui peuvent se chevaucher si un rendu est lent — même
-  // motif que SpoolWatcher.tick() et FocusBroker.tick().
+  // Reentrancy guard factored out (ReentrantGuard): render() is triggered by
+  // three independent sources (the timer, the watcher, the refresh command),
+  // which can overlap if a render is slow — the same pattern as
+  // SpoolWatcher.tick() and FocusBroker.tick().
   const renderGuard = new ReentrantGuard(GUARD_TIMEOUT_MS);
 
   // Which commands are running for a subagent, fed by the drain below. Per
@@ -603,13 +602,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   async function render(): Promise<void> {
     return renderGuard.run(
       async () => {
-        // Lu à chaque rendu, comme l'état des sessions : un seul petit fichier,
-        // et le pont le réécrit à chaque message de Claude Code. Le mettre en
-        // cache ferait afficher un pourcentage périmé — le défaut qu'on a déjà
-        // payé trois fois dans ce projet.
-        // Interroge l'API au plus toutes les REFRESH_AFTER_MS, quel que soit le
-        // nombre de fenêtres : le relevé est mis en cache dans un fichier
-        // partagé, et ce rendu-ci ne fait que lire le plus frais des deux.
+        // Read again on every render, like the state of the sessions: one
+        // small file, and the bridge rewrites it on every Claude Code message.
+        // Caching it would show a stale percentage — the mistake this project
+        // has already paid for three times.
+        // Queries the API at most every REFRESH_AFTER_MS, whatever the number
+        // of windows: the reading is cached in a shared file, and this render
+        // only reads the freshest of the two.
         void refreshFromApi(home, false);
         usageView.setUsage(await readUsage(home));
         sound = await readSettings(settingsPath);
@@ -655,11 +654,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         closedTree.setLive(shown.keys());
         // An open row — ended no more — is what a reopen was waiting for.
         reopening.settle([...shown.values()].filter((s) => s.endedAt === undefined).map((s) => s.id));
-        // Relu à chaque rendu, jamais mis en cache : fichier partagé (§3),
-        // une autre fenêtre ou un autre éditeur peut l'avoir changé entre deux
-        // tours. `readGroups` n'échoue jamais (un fichier absent ou illisible
-        // vaut « classement vide », voir groups/store.ts) : aucune garde de
-        // type `*FailureWarned` n'est nécessaire ici.
+        // Read again on every render, never cached: a shared file (§3),
+        // another window or another editor may have changed it between two
+        // rounds. `readGroups` never fails (an absent or unreadable file
+        // means « empty filing », see groups/store.ts): no `*FailureWarned`
+        // guard is needed here.
         const groups = await readGroups(groupsPath);
         // Temporary conversations — filed nowhere — leave after a day without
         // activity (store/temporary.ts), when the setting says so. An open one
@@ -675,16 +674,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             shown.delete(s.id);
           }
         }
-        // Le carillon avant l'affichage : `shouldChime` compare l'état du tour
-        // précédent au nouveau, et `lastStatuses` doit avancer à CHAQUE rendu,
-        // même silencieux — sinon la comparaison se ferait contre un état de
-        // plus en plus ancien, et une bascule finirait par sonner deux fois.
+        // The chime before the display: `shouldChime` compares the previous
+        // round's state to the new one, and `lastStatuses` has to move
+        // forward on EVERY render, even a silent one — otherwise the
+        // comparison would run against an increasingly stale state, and a
+        // switch would eventually chime twice.
         const statuses = statusesOf(shown);
         const changed = chimeFor(lastStatuses, statuses);
         if (changed !== undefined) {
           const global = changed.event === 'waiting' ? sound.waiting : sound.done;
-          // Le son de la conversation l'emporte, puis celui de son dossier, puis
-          // le réglage global — voir `soundFor`.
+          // The conversation's own sound wins, then its folder's, then the
+          // global setting — see `soundFor`.
           void playNamed(soundFor(groups, changed.sessionId, changed.event, global), sound.volume, soundPaths);
         }
         lastStatuses = statuses;
@@ -709,10 +709,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         status.update(openSessions(shown));
       },
       () => {
-        // Filet générique : quelle que soit la cause restée hors de l'isolation
-        // par session ci-dessus, ce rendu échoue seul — jamais les suivants. Le
-        // minuteur, le watcher et la commande de rafraîchissement redéclenchent
-        // tous render() indépendamment de cet échec.
+        // Generic safety net: whatever the cause left outside the per-session
+        // isolation above, this render fails alone — never the following ones.
+        // The timer, the watcher and the refresh command all retrigger
+        // render() independently of this failure.
         if (renderFailureWarned) return;
         renderFailureWarned = true;
         void vscode.window.showWarningMessage(
@@ -798,14 +798,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   /**
-   * La session telle que sa LIGNE la montre — c'est elle qu'on a cliquée.
+   * The session as its ROW shows it — that is the one that was clicked.
    *
-   * Pas le fichier d'état brut : la vue passe par `mergeDormant`, qui réveille
-   * une conversation marquée terminée dont l'éditeur a restauré l'onglet. Lire
-   * le fichier directement faisait diverger le geste de la ligne — après un
-   * redémarrage de l'IDE, la ligne s'affichait éveillée et la lune, y voyant
-   * une fin, sortait sans un mot. `shownSession` est cette règle, et elle n'a
-   * plus qu'un seul domicile (claude/dormant.ts).
+   * Not the raw state file: the view goes through `mergeDormant`, which wakes
+   * a conversation marked ended whose tab the editor has restored. Reading
+   * the file directly made the gesture diverge from the row — after an IDE
+   * restart, the row showed awake and the moon, seeing an end, left without a
+   * word. `shownSession` is that rule, and it now has a single home
+   * (claude/dormant.ts).
    */
   const readForClose = async (i: string): Promise<Session | undefined> =>
     shownSession(await readSession(dirs, i), dormant.get(i));
@@ -884,10 +884,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   }
 
-  // Acquitte les sessions terminées quand la vue devient visible dans cette
-  // fenêtre — mais seulement celles que cette fenêtre revendique (spec §5).
-  // acknowledgeVisibleSessions est testée directement (test/acknowledge.test.ts) :
-  // le point d'appel lui-même, pas seulement la primitive pure qu'il utilise.
+  // Acknowledges the ended sessions when the view becomes visible in this
+  // window — but only the ones this window claims (spec §5).
+  // acknowledgeVisibleSessions is tested directly (test/acknowledge.test.ts):
+  // the call site itself, not only the pure primitive it uses.
   const onVisible = view.onDidChangeVisibility(async (e) => {
     if (!e.visible) return;
     await acknowledgeVisibleSessions(dirs, workspaceFolders());
@@ -907,60 +907,61 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   /**
-   * Les onglets que CETTE fenêtre a elle-même fait ouvrir, retenus au vol.
+   * The tabs THIS window itself made open, caught on the fly.
    *
-   * Le mémento de l'éditeur est la seule table qui relie un onglet à sa
-   * conversation, mais c'est de l'état persisté : il ignore un onglet tout
-   * juste rouvert, ni par sa position ni par son titre. Après un redémarrage
-   * il les connaît tous — d'où un focus qui marchait au redémarrage et jamais
-   * sur une réouverture.
+   * The editor's memento is the only table that links a tab to its
+   * conversation, but it is persisted state: it does not know a tab that was
+   * just reopened, neither by its position nor by its title. After a restart
+   * it knows them all — hence a focus that worked on restart and never on a
+   * reopening.
    *
-   * Ce que l'on retient ici a la même forme qu'une entrée de mémento, et vient
-   * simplement AVANT elle : `sessionOfClaudeTab` vérifie de toute façon que la
-   * position porte encore un onglet Claude de ce titre, et se rabat sinon sur
-   * un titre qui n'appartient qu'à une conversation. Une entrée périmée — le
-   * titre change quand la conversation en gagne un — ne désigne donc jamais le
-   * mauvais onglet : elle cesse simplement de correspondre.
+   * What is kept here has the same shape as a memento entry, and simply comes
+   * BEFORE it: `sessionOfClaudeTab` checks either way that the position still
+   * carries a Claude tab of that title, and otherwise falls back to a title
+   * that belongs to only one conversation. A stale entry — the title changes
+   * when the conversation gains one — therefore never names the wrong tab: it
+   * simply stops matching.
    */
   const openedHere = new OpenedHere();
   let lastRevealed: string | undefined;
   /**
-   * Le geste inverse du clic sur une ligne : l'onglet que l'utilisateur vient
-   * de choisir désigne sa conversation dans le tableau de bord.
+   * The reverse gesture of clicking a row: the tab the user just chose points
+   * to its conversation on the dashboard.
    *
-   * `select` sans `focus` : le curseur doit rester là où on tape. Montrer où
-   * l'on est est tout l'intérêt ; voler le clavier à chaque changement
-   * d'onglet n'en est pas un.
+   * `select` without `focus`: the cursor must stay where one is typing.
+   * Showing where one is is the whole point; stealing the keyboard on every
+   * tab change is not.
    *
-   * Rien n'arrive quand l'onglet actif n'est pas une conversation, ni quand le
-   * mémento — seule table qui relie un onglet à sa session — ne sait pas encore
-   * le nommer : mieux vaut ne rien sélectionner que la mauvaise ligne.
+   * Nothing happens when the active tab is not a conversation, nor when the
+   * memento — the only table that links a tab to its session — does not yet
+   * know how to name it: better to select nothing than the wrong row.
    */
   const revealActiveSession = (): void => {
-    // Une vue cachée n'a rien à montrer, et `reveal` la déplierait.
+    // A hidden view has nothing to show, and `reveal` would unfold it.
     if (!view.visible) return;
     const groups = vscode.window.tabGroups.all;
     const group = groups.indexOf(vscode.window.tabGroups.activeTabGroup);
     const current = vscode.window.tabGroups.activeTabGroup.activeTab;
     const index = current === undefined ? -1 : vscode.window.tabGroups.activeTabGroup.tabs.indexOf(current);
-    // Ce qu'on a ouvert soi-même d'abord, le mémento ensuite — dédoublonné par
-    // session, pour qu'une entrée fraîche remplace la sienne plutôt que de la
-    // concurrencer et de créer une fausse ambiguïté.
+    // What was opened by this window itself first, the memento next —
+    // deduplicated by session, so that a fresh entry replaces its own rather
+    // than competing with it and creating a false ambiguity.
     const learned = openedHere.entries();
     const learnedIds = new Set(learned.map((e) => e.sessionId));
     const tabs = [...learned, ...mementoTabs.filter((m) => !learnedIds.has(m.sessionId))];
     const at = group < 0 || index < 0 ? undefined : { group, index };
     const resolved = at === undefined ? undefined : sessionOfClaudeTab(tabs, groups, at);
-    // `undefined` dès que l'onglet actif n'est pas une conversation : c'est ce
-    // qui laisse l'attente ouverte le temps que le panneau demandé apparaisse.
+    // `undefined` as soon as the active tab is not a conversation: this is
+    // what leaves the wait open for as long as the requested panel takes to
+    // appear.
     const active =
       at !== undefined && current !== undefined && isClaudeTabAt(groups, at)
         ? { title: current.label, group, index }
         : undefined;
     const id = openedHere.observe(resolved, active, Date.now());
     if (id === undefined) {
-      // Repartir de zéro : revenir sur l'onglet après un détour par un fichier
-      // doit re-sélectionner sa ligne, même si rien n'a bougé entre-temps.
+      // Start over: coming back to the tab after a detour through a file must
+      // re-select its row, even if nothing moved in between.
       lastRevealed = undefined;
       return;
     }
@@ -971,15 +972,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void view.reveal(node, { select: true, focus: false }).then(undefined, () => undefined);
   };
   const onActiveTab = vscode.window.tabGroups.onDidChangeTabs(revealActiveSession);
-  // Changer de groupe d'éditeurs change l'onglet actif sans qu'aucun onglet ne
-  // change : les deux événements sont nécessaires.
+  // Changing editor group changes the active tab without any tab itself
+  // changing: both events are necessary.
   const onActiveGroup = vscode.window.tabGroups.onDidChangeTabGroups(revealActiveSession);
-  // Et la vue qui s'ouvre : ce qui était actif avant qu'elle soit visible n'a
-  // déclenché aucun événement.
+  // And the view that opens: whatever was active before it became visible
+  // triggered no event.
   const onViewVisible = view.onDidChangeVisibility(() => revealActiveSession());
 
-  // Chemin absolu : le terminal lancé par les deux commandes ci-dessous peut
-  // avoir n'importe quel répertoire courant, le script n'en dépend pas.
+  // Absolute path: the terminal launched by the two commands below can have
+  // any current directory, the script does not depend on it.
   const installScript = join(context.extensionPath, 'scripts', 'install-hooks.cjs');
 
   context.subscriptions.push(
@@ -1051,10 +1052,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         return;
       }
-      // Le clic acquitte inconditionnellement (spec §5 : « clic sur la
-      // session »), indépendamment de claims() — qui ne gouverne que
-      // l'acquittement passif d'acknowledgeVisibleSessions, ci-dessus.
-      // acknowledgeClickedSession est testée directement, comme sa jumelle.
+      // The click acknowledges unconditionally (spec §5: « click on the
+      // session »), independent of claims() — which only governs the passive
+      // acknowledgement of acknowledgeVisibleSessions, above.
+      // acknowledgeClickedSession is tested directly, like its twin.
       void acknowledgeClickedSession(dirs, s).catch(() => undefined);
       void broker.request(s).catch(() => undefined);
     }),
@@ -1137,14 +1138,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const terminal = vscode.window.createTerminal('Koh-Vibe');
       terminal.sendText(`node "${installScript}"`);
       terminal.show();
-      // Proposé ici, une seule fois, et jamais imposé : c'est le moment où l'on
-      // installe, donc le moment où la question a un sens. `void` — la question
-      // ne doit pas retarder l'installation elle-même.
+      // Offered here, once, and never forced: this is the moment of
+      // installing, hence the moment the question makes sense. `void` — the
+      // question must not delay the installation itself.
       void vscode.commands.executeCommand('kohVibe.offerSounds');
     }),
     vscode.commands.registerCommand('kohVibe.offerSounds', async () => {
-      // Rien à proposer si la bibliothèque est déjà posée : une question sans
-      // objet est du bruit.
+      // Nothing to offer if the library is already in place: a question with
+      // no object is noise.
       if ((await installedCount(librarySoundsDir(home))) > 0) return;
       const go = await vscode.window.showInformationMessage(
         vscode.l10n.t(
@@ -1163,10 +1164,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       terminal.sendText(`node "${installScript}" --uninstall`);
       terminal.show();
     }),
-    // Les trois commandes de dossier partagent le même filet : runGroupAction
-    // (groups/commands.ts) transforme tout ce que la décision lève — en
-    // particulier le nom vide, que createGroup/renameGroup rejettent
-    // volontairement — en message affiché, jamais en trace d'appel non gérée.
+    // The three folder commands share the same net: runGroupAction
+    // (groups/commands.ts) turns everything the decision throws — in
+    // particular the empty name, which createGroup/renameGroup deliberately
+    // reject — into a displayed message, never into an unhandled stack trace.
     vscode.commands.registerCommand('kohVibe.newSession', () => newSession(undefined)),
     vscode.commands.registerCommand('kohVibe.newSessionInGroup', (node: unknown) => newSession(groupIdOfNode(node))),
     vscode.commands.registerCommand('kohVibe.newGroup', async () => {
@@ -1191,8 +1192,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await render();
     }),
     vscode.commands.registerCommand('kohVibe.refreshUsage', async () => {
-      // `force` : sans lui ce bouton attendrait l'échéance comme un rendu
-      // ordinaire, et ne rafraîchirait rien.
+      // `force`: without it this button would wait for the deadline like an
+      // ordinary render, and would refresh nothing.
       const reading = await refreshFromApi(home, true);
       await render();
       if (reading === undefined) {
@@ -1206,7 +1207,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.replaySound', () => replay?.()),
     vscode.commands.registerCommand('kohVibe.chooseSound', async (event: unknown) => {
       const which: ChimeEvent = event === 'done' ? 'done' : 'waiting';
-      // Pas de niveau au-dessus : c'est le réglage global, le dernier recours.
+      // No level above: this is the global setting, the last resort.
       const chosen = await pickSound(EVENT_TITLE[which](), undefined);
       if (chosen === undefined) return;
       await writeSettings(settingsPath, { [which]: chosen.sound ?? NO_SOUND });
@@ -1221,8 +1222,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const settings = soundSettings();
       const steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
       const sounds = await availableSounds(soundPaths);
-      // Le son d'essai est celui déjà choisi ; à défaut, le premier venu — sans
-      // quoi régler le volume avant d'avoir choisi un son se ferait en silence.
+      // The trial sound is the one already chosen; failing that, whichever
+      // comes first — without which setting the volume before choosing a
+      // sound would happen in silence.
       const sample = sounds.find((s) => s.name === settings.waiting) ?? sounds[0];
       const picker = vscode.window.createQuickPick();
       picker.title = vscode.l10n.t('Chime volume');
@@ -1310,9 +1312,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       await render();
     }),
-    // Deux commandes par niveau, une par événement, plutôt qu'une seule qui
-    // demanderait ensuite « lequel ? » : le menu doit dire ce qu'on va régler
-    // avant de l'ouvrir, sinon on choisit un son sans savoir quand il sonnera.
+    // Two commands per level, one per event, rather than a single one that
+    // would then ask « which one? »: the menu must say what is about to be
+    // set before it opens, or a sound gets chosen without knowing when it
+    // will play.
     ...CHIME_EVENTS.flatMap((event) => [
       vscode.commands.registerCommand(`kohVibe.soundGroup.${event}`, async (node: unknown) => {
         const id = groupIdOfNode(node);
@@ -1424,14 +1427,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: conversation ID copied'), 3000);
     }),
     /**
-     * Retire une conversation du tableau de bord.
+     * Removes a conversation from the dashboard.
      *
-     * Ne tue rien : Claude Code tourne dans son terminal, et cette extension
-     * n'en connaît que les traces. Une session ENCORE VIVANTE réapparaîtra donc
-     * à son prochain événement — ou au prochain Rafraîchir, qui relit le
-     * registre des processus. C'est voulu, et le libellé du menu le dit
-     * (« retirer de la liste », pas « fermer »), plutôt que de laisser croire à
-     * un arrêt qui n'a pas eu lieu.
+     * Kills nothing: Claude Code runs in its own terminal, and this extension
+     * only knows its traces. A conversation that is STILL ALIVE will
+     * therefore reappear on its next event — or on the next Refresh, which
+     * reads the process registry again. This is deliberate, and the menu
+     * label says so (« remove from the list », not « close »), rather than
+     * suggesting a stop that never happened.
      */
     vscode.commands.registerCommand('kohVibe.forgetSession', async (node: unknown) => {
       const id = sessionIdOfNode(node);
@@ -1516,10 +1519,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  // Avant le premier rendu : le fichier partagé n'existe pas encore chez qui
-  // vient de mettre à jour, et il faut y verser ce que CET éditeur avait dans
-  // ses propres réglages. Le premier démarré fixe la valeur ; les suivants la
-  // lisent — voir seedSettings, qui ne réécrit jamais un fichier présent.
+  // Before the first render: the shared file does not exist yet for someone
+  // who just updated, and it must be seeded with what THIS editor had in its
+  // own settings. The first one started fixes the value; the following ones
+  // read it — see seedSettings, which never overwrites a file that is present.
   await seedSettings(settingsPath, legacySettings);
   // Before the first render, so that a conversation lost while this window was
   // away — ended by a window reload before its tab was resumed, or removed by
@@ -1528,5 +1531,5 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  // Toutes les ressources sont enregistrées dans context.subscriptions.
+  // Every resource is registered in context.subscriptions.
 }

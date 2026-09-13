@@ -1,19 +1,19 @@
 /**
- * Colorer le LIBELLÉ d'une ligne, et pas seulement son icône.
+ * Colour the LABEL of a row, not just its icon.
  *
- * VSCode n'offre aucune propriété de couleur sur un `TreeItem`. Le seul levier
- * est le `FileDecorationProvider` : on donne à la ligne un `resourceUri`, et le
- * fournisseur répond une couleur pour cette URI.
+ * VSCode offers no colour property on a `TreeItem`. The only lever is the
+ * `FileDecorationProvider`: the row is given a `resourceUri`, and the
+ * provider answers with a colour for that URI.
  *
- * La couleur voyage DANS l'URI plutôt que dans un état tenu à côté. Un
- * fournisseur qui garderait sa propre table devrait être resynchronisé à chaque
- * changement de couleur, et une table en retard d'un cran est exactement le
- * défaut qu'on a déjà payé trois fois ici. Une URI change quand la couleur
- * change ; VSCode redemande alors la décoration de lui-même.
+ * The colour travels IN the URI rather than in state kept on the side. A
+ * provider that kept its own table would have to be resynchronised on every
+ * colour change, and a table lagging one step behind is exactly the flaw
+ * that has already been paid for three times here. A URI changes when the
+ * colour changes; VSCode then asks for the decoration again on its own.
  */
 export const KOH_SCHEME = 'koh-vibe';
 
-/** Ce qui distingue nos URI de toute autre : un schéma à nous, jamais `file`. */
+/** What sets our URIs apart from any other: a scheme of our own, never `file`. */
 export function decorationUriParts(
   kind: 'group' | 'session',
   id: string,
@@ -23,11 +23,11 @@ export function decorationUriParts(
 }
 
 /**
- * La couleur portée par une URI, ou `undefined` si ce n'est pas une des nôtres.
+ * The colour carried by a URI, or `undefined` if it is not one of ours.
  *
- * Ne renvoie une couleur que pour notre schéma : appelé pour CHAQUE ressource
- * que VSCode affiche, ce fournisseur ne doit jamais teinter un fichier de
- * l'utilisateur au motif que sa query ressemble à la nôtre.
+ * Only returns a colour for our scheme: called for EVERY resource VSCode
+ * displays, this provider must never tint a user's file on the grounds that
+ * its query looks like ours.
  */
 export function decorationColorOf(uri: { scheme: string; query: string }): string | undefined {
   if (uri.scheme !== KOH_SCHEME) return undefined;

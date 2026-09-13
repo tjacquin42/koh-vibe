@@ -5,12 +5,12 @@ import type { AppSettingsToggle } from '../settings/model';
 import { keysOf } from '../lib/record';
 
 /**
- * Les réglages, dans une vue SÉPARÉE de la liste des sessions.
+ * The settings, in a view SEPARATE from the session list.
  *
- * VSCode n'offre aucun moyen d'épingler une ligne au bas d'un arbre : tout ce
- * qu'on y met défile avec le reste. Une seconde vue dans le même conteneur, en
- * revanche, se pose sous la première et n'en suit pas le défilement — c'est le
- * seul « fixé en bas » que la plateforme permette.
+ * VSCode offers no way to pin a row to the bottom of a tree: everything put
+ * in one scrolls with the rest. A second view in the same container, on the
+ * other hand, sits below the first and does not follow its scrolling — it is
+ * the only "fixed at the bottom" the platform allows.
  */
 export interface SoundSettings {
   waiting: string;
@@ -104,8 +104,8 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   private sound: SoundSettings = { waiting: NO_SOUND, done: NO_SOUND, volume: 0.5 };
   private library = 0;
   private toggles: Record<SettingToggle, boolean> = { persistent: true, expireTemporary: true, animate: true };
-  // Même règle que l'arbre des sessions : ne rien annoncer quand rien n'a
-  // changé, sinon l'infobulle s'escamote sous la souris.
+  // Same rule as the session tree: announce nothing when nothing has
+  // changed, otherwise the tooltip slips away from under the mouse.
   private rendered: string | undefined;
 
   setSound(sound: SoundSettings): void {

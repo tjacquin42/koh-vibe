@@ -1,7 +1,7 @@
 import { commitMerged, readRaw, withFileQueue } from '../lib/shared-file';
 import { type AppSettings, defaultSettings, parseSettings, serializeSettings } from './model';
 
-/** Un fichier absent ou illisible vaut « réglages par défaut ». Ne lève jamais. */
+/** A missing or unreadable file counts as "default settings". Never throws. */
 export async function readSettings(file: string): Promise<AppSettings> {
   return toSettings(await readRaw(file));
 }
@@ -32,13 +32,14 @@ export function writeSettings(file: string, patch: Partial<AppSettings>): Promis
 }
 
 /**
- * Pose le fichier partagé s'il n'existe pas encore, à partir de ce que cet
- * éditeur avait dans ses propres réglages.
+ * Lays down the shared file if it does not exist yet, from what this editor
+ * had in its own settings.
  *
- * Ne fait rien si le fichier est là : le premier éditeur qui démarre après la
- * migration fixe la valeur, les suivants la lisent. Sans cette garde, chaque
- * démarrage réimposerait les réglages locaux de SON éditeur, et les deux
- * continueraient de se contredire — en pire, puisqu'ils se battraient.
+ * Does nothing if the file is already there: the first editor to start after
+ * the migration fixes the value, the following ones read it. Without this
+ * guard, every startup would reimpose ITS editor's local settings, and the
+ * two would keep contradicting each other — worse than before, since they
+ * would now fight over it.
  */
 export async function seedSettings(file: string, from: () => AppSettings): Promise<AppSettings> {
   const raw = await readRaw(file);

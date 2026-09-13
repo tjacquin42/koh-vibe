@@ -1,53 +1,51 @@
 /**
- * Délai au-delà duquel une exécution gardée est considérée bloquée plutôt
- * que simplement chargée. Calibré sur le pire cas plausible observé en usage
- * réel : un `SpoolWatcher.tick()` avec ~660 événements en attente. Chaque
- * événement coûte au plus quelques dizaines de ms même sur un disque lent
- * (lecture de l'événement, lecture puis écriture ou suppression de la
- * session, suppression de l'événement) — de l'ordre de 30 s au pire pour
- * 660 événements. 60 s laisse une bonne marge au-dessus de cette estimation,
- * tout en restant sans commune mesure avec les 38 minutes de gel observées :
- * un tick qui dépasse ce délai n'est pas juste chargé, il est bloqué.
+ * Delay beyond which a guarded execution is considered stuck rather than
+ * merely busy. Calibrated on the worst plausible case observed in real
+ * usage: a `SpoolWatcher.tick()` with ~660 pending events. Each event costs
+ * at most a few dozen ms even on a slow disk (reading the event, reading
+ * then writing or removing the session, removing the event) — on the order
+ * of 30 s at worst for 660 events. 60 s leaves a good margin above that
+ * estimate, while staying nowhere near the 38 minutes of freeze observed: a
+ * tick that exceeds this delay is not just busy, it is stuck.
  *
- * Réutilisé tel quel pour `FocusBroker.tick()` et `render()` : leurs charges
- * de travail respectives (requêtes de focus en attente, sessions affichées)
- * sont sans commune mesure avec 660 événements, donc ce seuil y est très
- * généreux — mais rien ne justifierait un seuil différent, non testé, pour
- * chacune ; un gel y serait de toute façon rattrapé bien avant 60 s dans les
- * cas réels, et la même constante partout évite d'inventer deux nombres sans
- * preuve à l'appui.
+ * Reused as is for `FocusBroker.tick()` and `render()`: their respective
+ * workloads (pending focus requests, displayed sessions) are nowhere near
+ * 660 events, so this threshold is very generous there — but nothing would
+ * justify a different, untested threshold for each; a freeze there would in
+ * any case be caught well before 60 s in real cases, and the same constant
+ * everywhere avoids inventing two numbers with no evidence behind them.
  */
 export const GUARD_TIMEOUT_MS = 60_000;
 
 /**
- * Garde de réentrance : `run()` n'exécute `fn` que si aucun appel précédent
- * n'est encore en vol, et convertit toute erreur en appel à `onError` plutôt
- * que de la laisser remonter en rejet non géré.
+ * Reentrancy guard: `run()` only runs `fn` if no previous call is still in
+ * flight, and turns any error into a call to `onError` rather than letting
+ * it surface as an unhandled rejection.
  *
- * Ce motif (check / set / try / catch / finally) protégeait `SpoolWatcher.tick`,
- * `FocusBroker.tick` et `render` en trois copies identiques : une correction
- * apportée à l'une (ex : ajouter le `catch`) pouvait être oubliée dans les
- * deux autres. Ne dépend pas de `vscode`, donc testable seul.
+ * This pattern (check / set / try / catch / finally) used to protect
+ * `SpoolWatcher.tick`, `FocusBroker.tick` and `render` as three identical
+ * copies: a fix applied to one (e.g. adding the `catch`) could be forgotten
+ * in the other two. Has no dependency on `vscode`, so it is testable on its
+ * own.
  *
- * `timeoutMs` protège contre l'autre panne, distincte du rejet : `fn` qui ne
- * se règle jamais (ni résolution ni rejet). Sans borne, `running` reste levé
- * pour toujours et tous les appels suivants deviennent des no-op silencieux —
- * un gel total et muet. Passé ce délai, la garde relâche `running` et signale
- * une fois ; `fn` continue en arrière-plan (rien ne peut l'annuler), et si
- * elle finit par rejeter, `onError` la rattrape quand même — abandonner
- * l'attente ne doit pas ouvrir un rejet non géré.
+ * `timeoutMs` guards against the other failure, distinct from rejection:
+ * `fn` that never settles (neither resolves nor rejects). With no bound,
+ * `running` would stay raised forever and every following call would become
+ * a silent no-op — a total, silent freeze. Past this delay, the guard
+ * releases `running` and signals once; `fn` keeps running in the background
+ * (nothing can cancel it), and if it eventually rejects, `onError` still
+ * catches it — giving up on waiting must not open an unhandled rejection.
  *
- * Un appel qui arrive après ce relâchement s'exécute concurremment à
- * l'exécution abandonnée : accepté, mais ce n'est PAS sans risque nouveau,
- * contrairement à ce qu'une version antérieure de ce commentaire affirmait.
- * I1 (dans `drain()`) sécurise la *lecture* — relire l'état d'une session
- * juste avant de la réduire — pas l'*écriture* : rien n'empêchait une
- * exécution abandonnée d'écrire, après coup, un état plus ancien par-dessus
- * celui qu'un passage plus récent venait d'écrire. C'est pour ça que `fn`
- * reçoit un `AbandonSignal` : la fonction gardée doit le consulter juste
- * avant d'écrire quoi que ce soit de persistant, et renoncer si `abandoned`
- * est déjà vrai à ce moment-là (voir `drain()`, qui l'utilise juste avant le
- * couple écriture-puis-suppression).
+ * A call that arrives after this release runs concurrently with the
+ * abandoned execution: accepted, but this is NOT without new risk, contrary
+ * to what an earlier version of this comment claimed. I1 (in `drain()`)
+ * secures the *read* — re-reading a session's state right before reducing
+ * it — not the *write*: nothing prevented an abandoned execution from
+ * writing, after the fact, an older state over one a more recent pass had
+ * just written. That's why `fn` receives an `AbandonSignal`: the guarded
+ * function must check it right before writing anything persistent, and give
+ * up if `abandoned` is already true at that moment (see `drain()`, which
+ * uses it right before the write-then-remove pair).
  */
 export interface AbandonSignal {
   readonly abandoned: boolean;
@@ -62,15 +60,15 @@ export class ReentrantGuard {
     if (this.running) return;
     this.running = true;
 
-    // Objet mutable ici ; exposé à `fn` via le type `AbandonSignal` (lecture
-    // seule) — la même référence, deux vues. `run()` la flippe au timeout,
-    // `fn` ne peut que la lire.
+    // Mutable object here; exposed to `fn` via the `AbandonSignal` type
+    // (read-only) — the same reference, two views. `run()` flips it on
+    // timeout, `fn` can only read it.
     const signal: { abandoned: boolean } = { abandoned: false };
     const execution = fn(signal);
-    // Toujours observée, que le délai soit dépassé ou non : sans ça, une
-    // exécution abandonnée par le délai qui finit par rejeter produirait un
-    // rejet non géré, exactement ce que ce même mécanisme empêche par
-    // ailleurs.
+    // Always observed, whether the delay is exceeded or not: without this,
+    // an execution abandoned by the timeout that eventually rejects would
+    // produce an unhandled rejection — exactly what this same mechanism
+    // otherwise prevents.
     const settled = execution.then(
       (): { failed: false } => ({ failed: false }),
       (err: unknown): { failed: true; err: unknown } => ({ failed: true, err }),
