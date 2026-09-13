@@ -3,28 +3,28 @@ import { OpenedHere, PENDING_OPEN_MS } from '../src/claude/opened-here';
 
 const tab = (title: string, index = 16) => ({ title, group: 0, index });
 
-describe('OpenedHere — reconnaître l onglet qu on vient de faire ouvrir', () => {
-  it('ne retient rien tant que rien n a été demandé', () => {
+describe('OpenedHere — recognizing the tab we just asked to be opened', () => {
+  it('keeps nothing as long as nothing has been requested', () => {
     const m = new OpenedHere();
     expect(m.observe(undefined, tab('Claude Code'), 0)).toBeUndefined();
     expect(m.entries()).toEqual([]);
   });
 
-  // Le défaut observé : le premier événement arrive ~19 ms après la demande,
-  // alors que l onglet actif est encore un fichier. Consommer l attente là
-  // perdait l onglet qui arrivait 8 ms plus tard.
-  it('garde l attente ouverte tant qu aucune conversation n est active', () => {
+  // The observed bug: the first event arrives ~19ms after the request,
+  // while the active tab is still a file. Consuming the pending request
+  // there lost the tab that arrived 8ms later.
+  it('keeps the pending request open as long as no conversation is active', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     expect(m.observe(undefined, undefined, 19)).toBeUndefined();
     expect(m.entries()).toEqual([]);
-    // L onglet arrive enfin.
+    // The tab finally arrives.
     expect(m.observe(undefined, tab('Claude Code'), 27)).toBe('s-nouvelle');
     expect(m.entries()).toEqual([{ sessionId: 's-nouvelle', title: 'Claude Code', group: 0, index: 16 }]);
   });
 
-  // Le second : le panneau s ouvre sous « Claude Code » puis prend son titre.
-  it('ré-enregistre quand l onglet se renomme, plutôt que de garder une étiquette périmée', () => {
+  // The second one: the panel opens under « Claude Code » then takes its title.
+  it('re-registers when the tab renames itself, rather than keeping a stale label', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     m.observe(undefined, tab('Claude Code'), 27);
@@ -34,31 +34,32 @@ describe('OpenedHere — reconnaître l onglet qu on vient de faire ouvrir', () 
     ]);
   });
 
-  // La PREMIÈRE conversation vue après la demande est celle d où l on vient :
-  // au moment du clic, l onglet actif est encore le précédent. Elle ne ferme
-  // donc pas l attente — seule une conversation de plus le fait. Le détail est
-  // vérifié plus bas, avec le défaut qu il corrige.
-  it('ne referme pas l attente sur la conversation d où l on vient', () => {
+  // The FIRST conversation seen after the request is the one we're coming
+  // from: at the moment of the click, the active tab is still the previous
+  // one. So it does not close the pending request — only one more
+  // conversation does. The detail is checked further below, together with
+  // the bug it fixes.
+  it('does not close the pending request on the conversation we are coming from', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     expect(m.observe('s-autre', tab('#EDN monitoring', 15), 100)).toBe('s-autre');
     expect(m.observe(undefined, tab('Claude Code'), 200)).toBe('s-nouvelle');
   });
 
-  it('laisse la résolution habituelle répondre quand elle nomme la conversation attendue', () => {
+  it('lets the usual resolution answer when it names the expected conversation', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     expect(m.observe('s-nouvelle', tab('Fiabilité IVECO moteur'), 900)).toBe('s-nouvelle');
   });
 
-  it('abandonne passé le délai — l onglet actif n a plus de raison d être celui demandé', () => {
+  it('gives up past the deadline — the active tab no longer has any reason to be the one requested', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     expect(m.observe(undefined, tab('Autre chose'), PENDING_OPEN_MS + 1)).toBeUndefined();
     expect(m.entries()).toEqual([]);
   });
 
-  it('retient plusieurs conversations, chacune à sa place', () => {
+  it('keeps several conversations, each in its own place', () => {
     const m = new OpenedHere();
     m.opening('s-un', 0);
     m.observe(undefined, tab('Un', 3), 10);
@@ -71,22 +72,22 @@ describe('OpenedHere — reconnaître l onglet qu on vient de faire ouvrir', () 
   });
 });
 
-// Le défaut qui restait : au moment de la demande, l onglet actif est encore
-// celui d avant — souvent une AUTRE conversation. La règle « il est passé à
-// autre chose » se déclenchait dessus et jetait l attente avant même que le
-// panneau demandé n apparaisse.
-describe('OpenedHere — la conversation quittée ne compte pas comme un changement d avis', () => {
-  it('garde l attente quand l onglet encore actif est celui d où l on vient', () => {
+// The remaining bug: at the moment of the request, the active tab is still
+// the previous one — often ANOTHER conversation. The "moved on to something
+// else" rule was firing on it and dropping the pending request before the
+// requested panel had even appeared.
+describe('OpenedHere — the conversation left behind does not count as a change of mind', () => {
+  it('keeps the pending request when the still-active tab is the one we came from', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
-    // Premier événement : on est toujours sur la conversation précédente.
+    // First event: we are still on the previous conversation.
     expect(m.observe('s-precedente', tab('#EDN monitoring', 15), 20)).toBe('s-precedente');
-    // Le panneau demandé arrive enfin, et rien ne sait encore le nommer.
+    // The requested panel finally arrives, and nothing can name it yet.
     expect(m.observe(undefined, tab('Claude Code'), 30)).toBe('s-nouvelle');
     expect(m.entries()).toEqual([{ sessionId: 's-nouvelle', title: 'Claude Code', group: 0, index: 16 }]);
   });
 
-  it('revenir sur la conversation quittée ne ferme toujours pas l attente', () => {
+  it('going back to the conversation left behind still does not close the pending request', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     m.observe('s-precedente', tab('#EDN monitoring', 15), 20);
@@ -94,7 +95,7 @@ describe('OpenedHere — la conversation quittée ne compte pas comme un changem
     expect(m.observe(undefined, tab('Claude Code'), 50)).toBe('s-nouvelle');
   });
 
-  it('mais une TROISIÈME conversation, elle, ferme bien l attente', () => {
+  it('but a THIRD conversation does close the pending request', () => {
     const m = new OpenedHere();
     m.opening('s-nouvelle', 0);
     m.observe('s-precedente', tab('#EDN monitoring', 15), 20);

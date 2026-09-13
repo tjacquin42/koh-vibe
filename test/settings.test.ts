@@ -17,7 +17,7 @@ import { settingsFile } from '../src/paths';
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'koh-set-'));
 
 describe('parseSettings', () => {
-  it('lit ce qui est écrit', () => {
+  it('reads back what was written', () => {
     expect(parseSettings('{"waiting":"Clic 1","done":"Verre 2","volume":0.3}')).toEqual({
       waiting: 'Clic 1',
       done: 'Verre 2',
@@ -28,51 +28,53 @@ describe('parseSettings', () => {
     });
   });
 
-  it('retombe sur les valeurs par défaut quand le fichier est illisible', () => {
+  it('falls back to the default values when the file is unreadable', () => {
     expect(parseSettings('pas du json')).toEqual(defaultSettings());
     expect(parseSettings('[]')).toEqual(defaultSettings());
   });
 
-  it('rattrape chaque champ SÉPARÉMENT', () => {
-    // Un volume abîmé ne doit pas emporter le choix des sons avec lui : sinon
-    // une seule valeur fausse fait croire que tout le réglage a été perdu.
+  it('recovers each field SEPARATELY', () => {
+    // A corrupted volume must not drag the sound choice down with it:
+    // otherwise a single bad value makes it look like the whole setting
+    // was lost.
     const s = parseSettings('{"waiting":"Clic 1","volume":"beaucoup"}');
     expect(s.waiting).toBe('Clic 1');
     expect(s.volume).toBe(defaultSettings().volume);
   });
 
-  it('garde le silence choisi, qui n est pas une absence de choix', () => {
+  it('keeps a chosen silence, which is not an absence of choice', () => {
     expect(parseSettings('{"waiting":""}').waiting).toBe('');
   });
 
-  it('fait le tour du fichier', () => {
+  it('makes the round trip through the file', () => {
     const s = { waiting: 'Clic 1', done: '', volume: 0.9, persistent: false, expireTemporary: true, animate: true };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 });
 
-describe('le fichier de réglages partagé', () => {
-  it('vit à la racine de l état, à côté du classement', () => {
-    // C est ce qui le rend commun aux éditeurs : la même machine ne doit pas
-    // annoncer deux carillons différents selon la fenêtre d où on la regarde.
+describe('the shared settings file', () => {
+  it('lives at the root of the state, next to the folder layout', () => {
+    // This is what makes it common to every editor: the same machine must
+    // not announce two different chimes depending on which window is
+    // looking at it.
     expect(settingsFile('/racine')).toBe(join('/racine', 'settings.json'));
   });
 
-  it('vaut les valeurs par défaut quand il n existe pas', async () => {
+  it('is worth the default values when it does not exist', async () => {
     expect(await readSettings(join(scratch(), 'absent.json'))).toEqual(defaultSettings());
   });
 
-  it('écrit un champ sans effacer les autres', async () => {
+  it('writes one field without erasing the others', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.4 });
     await writeSettings(file, { volume: 0.8 });
     expect(await readSettings(file)).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.8, persistent: true, expireTemporary: true, animate: true });
   });
 
-  it('relit avant d écrire : régler le volume n écrase pas un son choisi entre-temps', async () => {
+  it('reads before writing: setting the volume does not overwrite a sound chosen in between', async () => {
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1' });
-    // Une autre fenêtre écrit pendant qu on tient encore l ancien état en main.
+    // Another window writes while we are still holding the old state in hand.
     writeFileSync(file, serializeSettings({ waiting: 'Erreur 3', done: '', volume: 0.5, persistent: true, expireTemporary: true, animate: true }), 'utf8');
     await writeSettings(file, { volume: 0.2 });
     expect((await readSettings(file)).waiting).toBe('Erreur 3');
@@ -90,7 +92,7 @@ describe('le fichier de réglages partagé', () => {
     expect(s.volume).toBe(0.2);
   });
 
-  it('ne laisse pas de fichier temporaire derrière lui', async () => {
+  it('leaves no temporary file behind', async () => {
     const dir = scratch();
     const file = join(dir, 'settings.json');
     await writeSettings(file, { volume: 0.1 });
@@ -100,24 +102,25 @@ describe('le fichier de réglages partagé', () => {
   });
 });
 
-describe('seedSettings — la migration depuis les réglages de chaque éditeur', () => {
-  it('verse les réglages locaux quand le fichier partagé n existe pas encore', async () => {
+describe('seedSettings — the migration from each editor\'s own settings', () => {
+  it('pours in the local settings when the shared file does not exist yet', async () => {
     const file = join(scratch(), 'settings.json');
     const seeded = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true, animate: true }));
     expect(seeded.waiting).toBe('Funk');
     expect(JSON.parse(readFileSync(file, 'utf8')).done).toBe('Hero');
   });
 
-  it('ne touche à RIEN quand le fichier est déjà là', async () => {
-    // Sans cette garde, chaque démarrage réimposerait les réglages locaux de SON
-    // éditeur : les deux ne se contrediraient plus seulement, ils se battraient.
+  it('touches NOTHING when the file is already there', async () => {
+    // Without this guard, every startup would reimpose the local settings of
+    // ITS OWN editor: the two would no longer merely contradict each other,
+    // they would fight over it.
     const file = join(scratch(), 'settings.json');
     await writeSettings(file, { waiting: 'Clic 1', done: 'Verre 2', volume: 0.3 });
     const kept = await seedSettings(file, () => ({ waiting: 'Funk', done: 'Hero', volume: 0.7, persistent: true, expireTemporary: true, animate: true }));
     expect(kept).toEqual({ waiting: 'Clic 1', done: 'Verre 2', volume: 0.3, persistent: true, expireTemporary: true, animate: true });
   });
 
-  it('sème même un silence choisi, qui est un réglage comme un autre', async () => {
+  it('seeds even a chosen silence, which is a setting like any other', async () => {
     const file = join(scratch(), 'settings.json');
     expect((await seedSettings(file, () => ({ waiting: '', done: '', volume: 0.5, persistent: true, expireTemporary: true, animate: true }))).waiting).toBe('');
     expect((await readSettings(file)).waiting).toBe('');
@@ -261,26 +264,26 @@ describe('animated status dots — the third checkbox', () => {
   });
 
   it('reads anything but a boolean as the default, without touching the rest', () => {
-    // Chaque champ retombe SÉPARÉMENT : un réglage d animation abîmé ne doit
-    // pas emporter le son avec lui.
+    // Each field falls back SEPARATELY: a corrupted animation setting must
+    // not drag the sound down with it.
     const s = parseSettings('{"waiting":"Funk","animate":"oui"}');
     expect(s.animate).toBe(true);
     expect(s.waiting).toBe('Funk');
   });
 });
 
-describe('settingsPatch — ce qu\'une case cochée écrit dans le fichier', () => {
-  // Le test qui manquait, et le défaut qu'il aurait attrapé : le câblage
-  // écrivait `key === 'persistent' ? {persistent} : {expireTemporary}`, un
-  // ternaire BINAIRE sur une union qui en compte trois. Cocher « Pastilles
-  // animées » basculait « Les conversations temporaires expirent », et rien
-  // n'écrivait jamais `animate`. TypeScript ne pouvait rien dire : un ternaire
-  // sur trois cas reste parfaitement valide.
+describe('settingsPatch — what a checked box writes to the file', () => {
+  // The test that was missing, and the bug it would have caught: the wiring
+  // wrote `key === 'persistent' ? {persistent} : {expireTemporary}`, a
+  // BINARY ternary over a union that counts three. Checking « Animated
+  // dots » toggled « Temporary conversations expire », and nothing ever
+  // wrote `animate`. TypeScript could not say anything: a ternary over
+  // three cases remains perfectly valid.
   //
-  // La boucle part de SETTING_TOGGLES plutôt que d'une liste écrite ici : une
-  // quatrième bascule ajoutée demain est couverte le jour où elle est ajoutée,
-  // sans que personne ait à y penser.
-  it('écrit la bascule demandée, et elle seule', () => {
+  // The loop starts from SETTING_TOGGLES rather than a list written here: a
+  // fourth toggle added tomorrow is covered the day it is added, without
+  // anyone having to think about it.
+  it('writes the requested toggle, and only that one', () => {
     for (const key of SETTING_TOGGLES) {
       for (const on of [true, false]) {
         expect(settingsPatch(key, on), `${key} → ${String(on)}`).toEqual({ [key]: on });
@@ -288,15 +291,15 @@ describe('settingsPatch — ce qu\'une case cochée écrit dans le fichier', () 
     }
   });
 
-  it('couvre chaque bascule de la vue des réglages, sans exception', () => {
-    // Une bascule que `settingsPatch` ne saurait pas nommer produirait une
-    // case inerte, ou pire, une case qui en change une autre.
+  it('covers every toggle of the settings view, with no exception', () => {
+    // A toggle `settingsPatch` could not name would produce an inert box,
+    // or worse, a box that changes another one.
     for (const key of SETTING_TOGGLES) {
       expect(Object.keys(settingsPatch(key, true)), `${key}`).toEqual([key]);
     }
   });
 
-  it('produit un correctif que writeSettings sait fusionner sans rien perdre', () => {
+  it('produces a patch that writeSettings can merge without losing anything', () => {
     const base = defaultSettings();
     for (const key of SETTING_TOGGLES) {
       const merged = { ...base, ...settingsPatch(key, false) };

@@ -124,55 +124,55 @@ describe('sessionOfClaudeTab — whose conversation is the tab under the cursor'
   });
 });
 
-// Ce que la fenêtre a ouvert elle-même passe devant le mémento : celui-ci est
-// de l'état persisté et ignore un onglet tout juste rouvert. Rien de spécial
-// n'est ajouté à la fonction pour cela — une entrée retenue au vol a la même
-// forme, et vient simplement en tête de la liste.
-describe('sessionOfClaudeTab — une entrée fraîche devant un mémento en retard', () => {
+// What the window has opened itself takes precedence over the memento: the
+// latter is persisted state and knows nothing of a tab just reopened. Nothing
+// special is added to the function for this — an entry captured on the fly
+// has the same shape, and simply comes first in the list.
+describe('sessionOfClaudeTab — a fresh entry ahead of a stale memento', () => {
   const groups: GroupLike[] = [{ tabs: [claude('Ancien onglet'), claude('Rouverte à l instant')] }];
-  // Le mémento décrit encore la disposition d'avant la réouverture.
+  // The memento still describes the layout from before the reopening.
   const stale: ClaudeTab[] = [{ sessionId: 's-ancienne', title: 'Ancien onglet', group: 0, index: 1 }];
 
-  it('ne sait rien de l onglet rouvert tant que le mémento seul parle', () => {
+  it('knows nothing of the reopened tab as long as only the memento speaks', () => {
     expect(sessionOfClaudeTab(stale, groups, { group: 0, index: 1 })).toBeUndefined();
   });
 
-  it('le reconnaît dès que la fenêtre place devant ce qu elle a ouvert', () => {
+  it('recognizes it as soon as the window puts what it opened at the front', () => {
     const fresh: ClaudeTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 1 })).toBe('s-rouverte');
   });
 
-  it('cesse simplement de correspondre quand le titre retenu a vieilli, sans jamais désigner l autre', () => {
+  it('simply stops matching once the retained title has aged, without ever pointing to the other one', () => {
     const outdated: ClaudeTab = { sessionId: 's-rouverte', title: 'Titre d avant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([outdated, ...stale], groups, { group: 0, index: 1 })).toBeUndefined();
   });
 
-  it('laisse le mémento répondre pour les onglets qu il connaît toujours', () => {
+  it('lets the memento answer for the tabs it still knows about', () => {
     const fresh: ClaudeTab = { sessionId: 's-rouverte', title: 'Rouverte à l instant', group: 0, index: 1 };
     expect(sessionOfClaudeTab([fresh, ...stale], groups, { group: 0, index: 0 })).toBe('s-ancienne');
   });
 });
 
-describe('isClaudeTabAt — distinguer une conversation d un fichier', () => {
+describe('isClaudeTabAt — telling a conversation apart from a file', () => {
   const groups: GroupLike[] = [{ tabs: [file('a.ts'), claude('Telegram Alert')] }];
 
-  it('reconnaît une conversation', () => {
+  it('recognizes a conversation', () => {
     expect(isClaudeTabAt(groups, { group: 0, index: 1 })).toBe(true);
   });
 
-  it('refuse un fichier, une place vide, un groupe qui n existe pas', () => {
+  it('refuses a file, an empty slot, a group that does not exist', () => {
     expect(isClaudeTabAt(groups, { group: 0, index: 0 })).toBe(false);
     expect(isClaudeTabAt(groups, { group: 0, index: 9 })).toBe(false);
     expect(isClaudeTabAt(groups, { group: 5, index: 0 })).toBe(false);
   });
 });
 
-// Le défaut que l usage a révélé : une conversation neuve s appelle « Claude
-// Code », comme toutes les autres. Deux onglets neufs portent donc le même nom,
-// et le mémento n en connaît souvent qu un — si bien que les DEUX onglets
-// renvoyaient vers la même ligne. Le garde-fou existant ne regardait que
-// l ambiguïté DANS le mémento, jamais celle des onglets réellement ouverts.
-describe('sessionOfClaudeTab — deux onglets du même nom ne désignent personne', () => {
+// The bug real usage revealed: a new conversation is called « Claude Code »,
+// like every other one. Two new tabs therefore carry the same name, and the
+// memento often knows about only one of them — so that BOTH tabs pointed
+// back to the same row. The existing guard only looked at ambiguity WITHIN
+// the memento, never at that of the tabs actually open.
+describe('sessionOfClaudeTab — two tabs of the same name point to nobody', () => {
   const groups: GroupLike[] = [
     { tabs: [claude('Claude Code'), claude('Claude Code'), claude('Titrée')] },
   ];
@@ -181,22 +181,22 @@ describe('sessionOfClaudeTab — deux onglets du même nom ne désignent personn
     { sessionId: 's-titree', title: 'Titrée', group: 0, index: 2 },
   ];
 
-  it('refuse, même quand le mémento tombe pile sur la position', () => {
-    // Le mémento place « s-premiere » exactement là. Mais l onglet voisin porte
-    // le même nom : rien ne dit lequel des deux est celui du mémento, et se
-    // tromper de ligne est pire que n en désigner aucune.
+  it('refuses, even when the memento lands exactly on the position', () => {
+    // The memento places « s-premiere » exactly there. But the neighboring
+    // tab carries the same name: nothing says which of the two is the
+    // memento's, and picking the wrong row is worse than picking none.
     expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 0 })).toBeUndefined();
   });
 
-  it('refuse aussi l autre, plutôt que de lui prêter la même conversation', () => {
+  it('also refuses the other one, rather than lending it the same conversation', () => {
     expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 1 })).toBeUndefined();
   });
 
-  it('répond normalement pour un nom que ne porte qu un seul onglet', () => {
+  it('answers normally for a name carried by only one tab', () => {
     expect(sessionOfClaudeTab(memento, groups, { group: 0, index: 2 })).toBe('s-titree');
   });
 
-  it('compte les onglets de TOUS les groupes, un doublon ailleurs compte autant', () => {
+  it('counts the tabs of ALL groups, a duplicate elsewhere counts just as much', () => {
     const split: GroupLike[] = [{ tabs: [claude('Claude Code')] }, { tabs: [claude('Claude Code')] }];
     expect(sessionOfClaudeTab(memento, split, { group: 0, index: 0 })).toBeUndefined();
   });

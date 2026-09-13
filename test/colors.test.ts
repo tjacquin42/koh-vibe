@@ -2,44 +2,44 @@ import { describe, expect, it } from 'vitest';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL, shownColor, themeColorOf } from '../src/ui/colors';
 
 describe('palette', () => {
-  it('n\'expose que des couleurs de thème, jamais un code en dur', () => {
-    // Deux familles enregistrées par VSCode, et rien d'autre : un « #4FC3D9 »
-    // resterait le même sous un thème clair, un sombre et un tiers — c'est
-    // précisément ce que la palette existe pour éviter.
+  it('exposes only theme colors, never a hardcoded code', () => {
+    // Two families registered by VSCode, and nothing else: a « #4FC3D9 »
+    // would stay the same under a light theme, a dark one and a third —
+    // that is exactly what the palette exists to avoid.
     for (const c of GROUP_COLORS) expect(c.theme).toMatch(/^(charts|terminal\.ansi)/);
     for (const c of GROUP_COLORS) expect(c.theme).not.toMatch(/#/);
   });
 
-  it('ne propose pas deux fois la même couleur sous deux noms', () => {
-    // Deux entrées de la liste qui donneraient le même bleu : le choix
-    // paraîtrait fait alors que rien n'aurait changé.
+  it('does not offer the same color twice under two names', () => {
+    // Two entries in the list that would yield the same blue: the choice
+    // would look made when nothing would have changed.
     expect(new Set(GROUP_COLORS.map((c) => c.theme)).size).toBe(GROUP_COLORS.length);
   });
 
-  it('garde les identifiants déjà écrits dans groups.json', () => {
-    // Le fichier est partagé et déjà rempli : retirer ou renommer l'un de ces
-    // six ferait perdre sa couleur à un dossier existant, en silence.
+  it('keeps the identifiers already written in groups.json', () => {
+    // The file is shared and already populated: removing or renaming one of
+    // these six would silently make an existing folder lose its color.
     for (const id of ['blue', 'green', 'yellow', 'orange', 'red', 'purple']) {
       expect(GROUP_COLORS.some((c) => c.id === id)).toBe(true);
     }
   });
 
-  it('porte des identifiants et des libellés tous distincts', () => {
+  it('carries identifiers and labels that are all distinct', () => {
     expect(new Set(GROUP_COLORS.map((c) => c.id)).size).toBe(GROUP_COLORS.length);
     expect(new Set(GROUP_COLORS.map((c) => c.label)).size).toBe(GROUP_COLORS.length);
   });
 
-  it('n\'utilise pas le libellé « Aucune » pour une vraie couleur', () => {
+  it('does not use the « Aucune » label for a real color', () => {
     expect(GROUP_COLORS.some((c) => c.label === NO_COLOR_LABEL)).toBe(false);
   });
 });
 
 describe('themeColorOf', () => {
-  it('traduit un identifiant connu en couleur de thème', () => {
+  it('translates a known identifier into a theme color', () => {
     expect(themeColorOf('blue')).toBe('charts.blue');
   });
 
-  it('affiche sans couleur ce qu\'il ne connaît pas, plutôt que de casser la vue', () => {
+  it('shows without color what it does not know, rather than breaking the view', () => {
     expect(themeColorOf('turquoise')).toBeUndefined();
     expect(themeColorOf('')).toBeUndefined();
     expect(themeColorOf(undefined)).toBeUndefined();
@@ -47,21 +47,21 @@ describe('themeColorOf', () => {
 });
 
 describe('colorChoice', () => {
-  it('pose la couleur choisie', () => {
+  it('sets the chosen color', () => {
     expect(colorChoice('Blue')).toEqual({ kind: 'set', color: 'blue' });
   });
 
-  it('retire la couleur sur « Aucune » — c\'est un choix, pas une absence', () => {
+  it('removes the color on « Aucune » — that is a choice, not an absence', () => {
     expect(colorChoice(NO_COLOR_LABEL)).toEqual({ kind: 'set', color: undefined });
   });
 
-  it('ne touche à rien quand la liste est fermée sans choisir', () => {
+  it('touches nothing when the list is closed without choosing', () => {
     expect(colorChoice(undefined)).toEqual({ kind: 'cancel' });
   });
 
-  it('annule plutôt que d\'effacer devant un libellé inconnu', () => {
-    // Le pire résultat possible serait un effacement silencieux : fermer et
-    // choisir n'importe quoi ne doivent jamais retirer une couleur par accident.
+  it('cancels rather than erasing in front of an unknown label', () => {
+    // The worst possible outcome would be a silent erasure: closing and
+    // choosing anything at all must never remove a color by accident.
     expect(colorChoice('Turquoise')).toEqual({ kind: 'cancel' });
     expect(colorChoice('')).toEqual({ kind: 'cancel' });
   });
@@ -70,28 +70,28 @@ describe('colorChoice', () => {
 describe('shownColor', () => {
   const group = { id: 'g1', color: 'blue' };
 
-  it('affiche la couleur du dossier quand aucun aperçu ne court', () => {
+  it('shows the folder color when no preview is running', () => {
     expect(shownColor(group, undefined)).toBe('blue');
   });
 
-  it('affiche l\'aperçu sur le dossier qu\'il vise', () => {
+  it('shows the preview on the folder it targets', () => {
     expect(shownColor(group, { groupId: 'g1', color: 'red' })).toBe('red');
   });
 
-  it('laisse les AUTRES dossiers tranquilles', () => {
-    // On ne choisit que pour un dossier à la fois : voir toute la vue changer
-    // pendant qu'on parcourt la liste dirait le contraire de ce qui se passe.
+  it('leaves the OTHER folders alone', () => {
+    // Only one folder is being chosen for at a time: seeing the whole view
+    // change while browsing the list would say the opposite of what is happening.
     expect(shownColor(group, { groupId: 'g2', color: 'red' })).toBe('blue');
   });
 
-  it('sait montrer « aucune couleur » en aperçu, sans la confondre avec l\'absence d\'aperçu', () => {
-    // La distinction qui compte : parcourir « Aucune » doit décolorer le
-    // dossier pour de vrai, sinon on valide sans avoir vu le résultat.
+  it('knows how to show « aucune couleur » as a preview, without confusing it with the absence of a preview', () => {
+    // The distinction that matters: browsing over « Aucune » must actually
+    // decolor the folder for real, otherwise you confirm without having seen the result.
     expect(shownColor(group, { groupId: 'g1', color: undefined })).toBeUndefined();
     expect(shownColor(group, undefined)).toBe('blue');
   });
 
-  it('ne colore pas « Sans dossier », qui ne porte aucun choix', () => {
+  it('does not color « Sans dossier », which carries no choice', () => {
     expect(shownColor(undefined, { groupId: 'g1', color: 'red' })).toBeUndefined();
     expect(shownColor(undefined, undefined)).toBeUndefined();
   });

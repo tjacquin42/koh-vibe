@@ -13,7 +13,7 @@ const reading = (five: number, seven: number, resetsAt?: number, at = 0): UsageR
 });
 
 describe('percentColor', () => {
-  it('passe du vert à l orange à 50 %, puis au rouge à 80 %', () => {
+  it('goes from green to orange at 50%, then to red at 80%', () => {
     expect(percentColor(0)).toContain('green');
     expect(percentColor(50)).toContain('green');
     expect(percentColor(51)).toContain('orange');
@@ -22,7 +22,7 @@ describe('percentColor', () => {
     expect(percentColor(100)).toContain('red');
   });
 
-  it('ne cite jamais une couleur en dur : la vue doit suivre le thème', () => {
+  it('never hardcodes a color: the view must follow the theme', () => {
     for (const p of [10, 60, 95]) expect(percentColor(p)).toMatch(/^var\(--vscode-/);
   });
 });
@@ -33,29 +33,29 @@ describe('resetText', () => {
     resetsAt: Math.floor(now / 1000) + secondsFromNow,
   });
 
-  it('dit les minutes, les heures, puis les jours', () => {
+  it('says minutes, then hours, then days', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(30 * 60, now), now)).toBe('in 30 min');
     expect(resetText(at(2 * 3600, now), now)).toBe('in 2 h');
     expect(resetText(at(6 * 86_400, now), now)).toBe('in 6 d');
   });
 
-  it('arrondit vers le bas — une échéance ne doit jamais paraître plus lointaine', () => {
+  it('rounds down — a deadline must never look farther away than it is', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(2 * 3600 + 3500, now), now)).toBe('in 2 h');
   });
 
-  it('ne descend jamais sous « dans 1 min » avant l échéance', () => {
+  it('never drops below "in 1 min" before the deadline', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(20, now), now)).toBe('in 1 min');
   });
 
-  it('dit la remise à zéro plutôt qu un délai négatif', () => {
+  it('says reset rather than a negative delay', () => {
     const now = 1_700_000_000_000;
     expect(resetText(at(-60, now), now)).toBe('reset');
   });
 
-  it('n invente rien sans échéance', () => {
+  it('makes nothing up without a deadline', () => {
     expect(resetText({ percent: 10, resetsAt: undefined }, 0)).toBe('');
     expect(resetText(undefined, 0)).toBe('');
   });
@@ -212,7 +212,7 @@ describe('usageHtml', () => {
     expect(cells('reset')).toBe(3);
   });
 
-  it('donne à chaque fenêtre son nom, son pourcentage et son échéance', () => {
+  it('gives each window its name, its percentage and its deadline', () => {
     const html = usageHtml(reading(30, 5, Math.floor(now / 1000) + 7200), now);
     expect(html).toContain('5 h');
     expect(html).toContain('30 %');
@@ -221,40 +221,40 @@ describe('usageHtml', () => {
     expect(html).toContain('in 2 h');
   });
 
-  it('colore le pourcentage, et lui seul', () => {
+  it('colors the percentage, and only the percentage', () => {
     const html = usageHtml(reading(90, 5), now);
-    // Le nom de la fenêtre reste dans la couleur du texte courant ; seul le
-    // pourcentage porte une couleur propre.
+    // The window's name stays in the current text color; only the
+    // percentage carries its own color.
     expect(html).toContain(`<span class="pct" style="color:${percentColor(90)}">90 %</span>`);
     expect(html).toContain('<span class="kind">5 h</span>');
   });
 
-  it('dit d où vient la mesure et depuis quand', () => {
+  it('says where the reading comes from and since when', () => {
     expect(usageHtml(reading(1, 1, undefined, now - 120_000), now)).toContain('Anthropic');
     expect(usageHtml(reading(1, 1, undefined, now - 120_000), now)).toContain('2 min');
     expect(usageHtml(reading(1, 1, undefined, now), now)).toContain('just now');
   });
 
-  it('échappe ce qu elle interpole, y compris ses propres libellés', () => {
-    // Un libellé cesse d être « le sien » dès qu il peut venir d un bundle :
-    // « just now » n a pas d apostrophe, « à l instant » en a une, et l allemand
-    // a ses guillemets. Le test porte donc sur l échappement lui-même, que la
-    // langue de la source ne peut plus exercer.
+  it('escapes what it interpolates, including its own labels', () => {
+    // A label stops being "its own" the moment it could come from a bundle:
+    // « just now » carries no apostrophe, « à l'instant » does, and German
+    // has its own quotation marks. The test therefore targets the escaping
+    // itself, which the source language can no longer exercise.
     expect(escape("à l'instant")).toBe('à l&#39;instant');
     expect(escape('<b>&"</b>')).toBe('&#60;b&#62;&#38;&#34;&#60;/b&#62;');
   });
 
-  it('reste affichable sans aucune mesure, et propose de rafraîchir', () => {
-    // La source est l'anglais, comme partout : le message passe par
-    // vscode.l10n.t, et le bouchon de test rend la chaîne source telle quelle.
+  it('stays displayable without any reading, and offers to refresh', () => {
+    // The source is English, as everywhere: the message goes through
+    // vscode.l10n.t, and the test stub returns the source string as is.
     const html = usageHtml(undefined, now);
     expect(html).toContain('unknown');
     expect(html).toContain('refresh');
   });
 
-  it('échappe ce qui vient de l extérieur', () => {
-    // La source et les libellés sont à nous, mais la règle vaut par défaut : une
-    // vue web ne doit jamais interpoler sans échapper.
+  it('escapes what comes from the outside', () => {
+    // The source and the labels are our own, but the rule holds by default:
+    // a webview must never interpolate without escaping.
     expect(usageHtml(undefined, now)).not.toContain('<script>alert');
   });
 });
