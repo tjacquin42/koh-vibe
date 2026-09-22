@@ -258,3 +258,47 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect((await readTranscript(path)).title).toBe('la vraie question');
   });
 });
+
+describe('readTranscript — le titre de repli ne montre jamais la tuyauterie', () => {
+  // Les blocs d'un message d'utilisateur, tels que Claude Code les écrit : le
+  // contexte que l'éditeur injecte vient dans SON bloc, avant le prompt.
+  const blocks = (...texts: string[]): string =>
+    JSON.stringify({ type: 'user', message: { role: 'user', content: texts.map((text) => ({ type: 'text', text })) } });
+
+  it('nomme une conversation ouverte par une commande d’après la commande, jamais d’après son préambule', async () => {
+    const path = await fixture([
+      blocks('<command-message>clean-work-space</command-message>\n<command-name>/clean-work-space</command-name>'),
+    ]);
+    expect((await readTranscript(path)).title).toBe('/clean-work-space');
+  });
+
+  it('saute le contexte injecté par l’éditeur et prend le premier vrai prompt', async () => {
+    const path = await fixture([blocks('<ide_opened_file>The user opened a file.</ide_opened_file>', 'range mes worktrees')]);
+    expect((await readTranscript(path)).title).toBe('range mes worktrees');
+  });
+
+  it('cède la place au premier vrai prompt, même arrivé après la commande', async () => {
+    const path = await fixture([blocks('<command-name>/clean-work-space</command-name>'), blocks('range mes worktrees')]);
+    expect((await readTranscript(path)).title).toBe('range mes worktrees');
+  });
+
+  it('garde le repli d’une passe à l’autre : le prompt qui suit le remplace', async () => {
+    const path = await fixture([blocks('<command-name>/clean-work-space</command-name>')]);
+    let stats = await readTranscript(path);
+    expect(stats.title).toBe('/clean-work-space');
+    await appendLine(path, blocks('range mes worktrees'));
+    stats = await readTranscript(path, stats);
+    expect(stats.title).toBe('range mes worktrees');
+  });
+
+  it('affiche une commande shell comme l’onglet : « ! » puis la commande', async () => {
+    const path = await fixture([blocks('<bash-input>git status</bash-input>')]);
+    expect((await readTranscript(path)).title).toBe('! git status');
+  });
+
+  it('ne retient ni le contexte seul ni un résultat d’outil', async () => {
+    const toolResult = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } });
+    const path = await fixture([toolResult, blocks('<ide_selection>The user selected a line.</ide_selection>')]);
+    expect((await readTranscript(path)).title).toBeUndefined();
+  });
+});

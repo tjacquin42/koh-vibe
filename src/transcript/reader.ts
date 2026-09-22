@@ -16,10 +16,13 @@ export interface TranscriptStats {
   summary?: string;
   /** Le premier message de l'utilisateur, faute de tout le reste. */
   firstPrompt?: string;
+  /** La commande qui a ouvert la conversation, quand rien d'autre ne la nomme. */
+  commandFallback?: string;
   /**
    * Dérivé — le seul champ que l'affichage consomme — par la règle de
    * l'extension Claude Code elle-même pour nommer un onglet et lister les
-   * sessions : `customTitle ?? aiTitle ?? lastPrompt ?? summary ?? firstPrompt`.
+   * sessions : `customTitle ?? aiTitle ?? lastPrompt ?? summary ?? firstPrompt ??
+   * commandFallback`.
    * Un titre IA n'est pas engendré pour un échange trop court (« bonjour »),
    * et l'onglet porte alors le prompt : la liste doit dire la même chose.
    */
@@ -36,19 +39,54 @@ function promptTitle(v: unknown): string | undefined {
   return line.length > PROMPT_TITLE_MAX ? `${line.slice(0, PROMPT_TITLE_MAX - 1)}…` : line;
 }
 
-/** The text of a user record's message — a string, or the text blocks of an array; never a tool result. */
-function userText(message: unknown): string | undefined {
+/**
+ * Les blocs qu'un titre saute : le contexte que l'éditeur injecte dans son
+ * propre bloc (`<command-message>`, `<ide_opened_file>`, `<ide_selection>`…)
+ * et la trace d'une interruption. Règle de l'extension Claude Code, reprise
+ * telle quelle — sans elle, une conversation ouverte par une commande
+ * s'appelait « <command-message>… », ce que l'onglet n'a jamais montré.
+ */
+const TAGGED_BLOCK = /^(?:\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user[^\]]*\])/;
+const COMMAND_NAME = /<command-name>(.*?)<\/command-name>/;
+const BASH_INPUT = /<bash-input>([\s\S]*?)<\/bash-input>/;
+
+/** Ce qu'un message d'utilisateur a livré au titre en chemin : la commande qui l'a ouvert. */
+interface FirstPrompt {
+  command?: string;
+}
+
+/**
+ * Le titre qu'un message d'utilisateur porte — son premier bloc qui dit
+ * quelque chose : un résultat d'outil n'en dit aucun, un bloc de contexte
+ * non plus, une commande n'est retenue (`found.command`) que faute de mieux,
+ * et une commande shell s'annonce comme dans l'onglet. `undefined` quand le
+ * message entier se tait : l'appelant cherchera dans le suivant.
+ */
+function promptOfUser(message: unknown, found: FirstPrompt): string | undefined {
   if (!isRecord(message)) return undefined;
   const content = message['content'];
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return undefined;
-  const parts: string[] = [];
-  for (const block of content) {
-    if (!isRecord(block)) continue;
-    if (block['type'] === 'tool_result') return undefined;
-    if (block['type'] === 'text' && typeof block['text'] === 'string') parts.push(block['text']);
+  const blocks: readonly unknown[] = typeof content === 'string' ? [content] : Array.isArray(content) ? content : [];
+  for (const block of blocks) {
+    let raw: unknown = block;
+    if (isRecord(block)) {
+      if (block['type'] === 'tool_result') return undefined;
+      if (block['type'] !== 'text') continue;
+      raw = block['text'];
+    } else if (typeof block !== 'string') continue;
+    const body = text(raw);
+    if (body === undefined) continue;
+    const command = COMMAND_NAME.exec(body);
+    if (command !== null) {
+      if (found.command === undefined) found.command = promptTitle(command[1]);
+      continue;
+    }
+    const bash = BASH_INPUT.exec(body);
+    if (bash !== null) return promptTitle(`! ${(bash[1] ?? '').trim()}`);
+    if (TAGGED_BLOCK.test(body)) continue;
+    const title = promptTitle(body);
+    if (title !== undefined) return title;
   }
-  return parts.length > 0 ? parts.join('\n') : undefined;
+  return undefined;
 }
 
 const EMPTY: TranscriptStats = { offset: 0, input: 0, output: 0 };
@@ -133,7 +171,9 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
         const t = promptTitle(entry['summary']);
         if (t !== undefined) stats.summary = t;
       } else if (type === 'user' && stats.firstPrompt === undefined && entry['isMeta'] !== true && entry['isSidechain'] !== true) {
-        const t = promptTitle(userText(entry['message']));
+        const found: FirstPrompt = { command: stats.commandFallback };
+        const t = promptOfUser(entry['message'], found);
+        if (found.command !== undefined) stats.commandFallback = found.command;
         if (t !== undefined) stats.firstPrompt = t;
       }
 
@@ -147,7 +187,7 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       stats.output += num(usage['output_tokens']);
     }
 
-    stats.title = stats.customTitle ?? stats.aiTitle ?? stats.lastPrompt ?? stats.summary ?? stats.firstPrompt;
+    stats.title = stats.customTitle ?? stats.aiTitle ?? stats.lastPrompt ?? stats.summary ?? stats.firstPrompt ?? stats.commandFallback;
     return stats;
   } finally {
     await handle.close();
