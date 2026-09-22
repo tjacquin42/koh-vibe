@@ -213,17 +213,17 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
   const user = (text: string, extra = ''): string =>
     JSON.stringify({ type: 'user', message: { role: 'user', content: text }, ...(extra ? JSON.parse(extra) : {}) });
 
-  it('prend le dernier prompt quand aucun titre n’a été engendré — c’est ce que l’onglet affiche', async () => {
+  it('prend le premier prompt quand aucun titre n’a été engendré', async () => {
     const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' }), JSON.stringify({ type: 'atis-latch', atis: '' })]);
     expect((await readTranscript(path)).title).toBe('bonjour');
   });
 
-  it('suit le dernier prompt, puis s’arrête sur le titre IA dès qu’il arrive, et cède au titre choisi', async () => {
+  it('ne change plus de nom au fil des prompts, s’arrête sur le titre IA dès qu’il arrive, et cède au titre choisi', async () => {
     const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' })]);
     let stats = await readTranscript(path);
     await appendLine(path, JSON.stringify({ type: 'last-prompt', lastPrompt: 'et maintenant ?' }));
     stats = await readTranscript(path, stats);
-    expect(stats.title).toBe('et maintenant ?');
+    expect(stats.title).toBe('bonjour');
     await appendLine(path, JSON.stringify({ type: 'ai-title', aiTitle: 'Salutations' }));
     stats = await readTranscript(path, stats);
     expect(stats.title).toBe('Salutations');
@@ -235,12 +235,17 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect(stats.title).toBe('#Perso');
   });
 
-  it('retombe sur le résumé, puis sur le premier message — jamais sur un résultat d’outil', async () => {
+  it('préfère le premier message au résumé — et ne prend jamais un résultat d’outil pour un prompt', async () => {
     const toolResult = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } });
     const path = await fixture([toolResult, user('Corrige le bug du menu'), JSON.stringify({ type: 'summary', summary: 'Bug du menu corrigé' })]);
-    expect((await readTranscript(path)).title).toBe('Bug du menu corrigé');
-    const bare = await fixture([toolResult, user('Corrige le bug du menu')]);
-    expect((await readTranscript(bare)).title).toBe('Corrige le bug du menu');
+    expect((await readTranscript(path)).title).toBe('Corrige le bug du menu');
+    // Sans premier message lisible, le résumé d’une compaction passe devant le dernier prompt.
+    const compacted = await fixture([
+      toolResult,
+      JSON.stringify({ type: 'summary', summary: 'Bug du menu corrigé' }),
+      JSON.stringify({ type: 'last-prompt', lastPrompt: 'et ensuite ?' }),
+    ]);
+    expect((await readTranscript(compacted)).title).toBe('Bug du menu corrigé');
   });
 
   it('ne garde d’un prompt que sa première ligne, blancs repliés et coupée court — comme l’onglet', async () => {
@@ -272,23 +277,30 @@ describe('readTranscript — le titre de repli ne montre jamais la tuyauterie', 
     expect((await readTranscript(path)).title).toBe('/clean-work-space');
   });
 
+  it('préfère ce qu’on a demandé à la commande au nom de la commande', async () => {
+    const path = await fixture([
+      blocks('<command-message>using-superpowers</command-message>\n<command-name>/superpowers:using-superpowers</command-name>\n<command-args>range mes worktrees\net dis-moi ce que tu as tué</command-args>'),
+    ]);
+    expect((await readTranscript(path)).title).toBe('range mes worktrees');
+  });
+
   it('saute le contexte injecté par l’éditeur et prend le premier vrai prompt', async () => {
     const path = await fixture([blocks('<ide_opened_file>The user opened a file.</ide_opened_file>', 'range mes worktrees')]);
     expect((await readTranscript(path)).title).toBe('range mes worktrees');
   });
 
-  it('cède la place au premier vrai prompt, même arrivé après la commande', async () => {
-    const path = await fixture([blocks('<command-name>/clean-work-space</command-name>'), blocks('range mes worktrees')]);
-    expect((await readTranscript(path)).title).toBe('range mes worktrees');
-  });
-
-  it('garde le repli d’une passe à l’autre : le prompt qui suit le remplace', async () => {
+  it('garde le nom de la commande d’ouverture quand la conversation continue — sinon un « ? » suffisait à la renommer', async () => {
     const path = await fixture([blocks('<command-name>/clean-work-space</command-name>')]);
     let stats = await readTranscript(path);
     expect(stats.title).toBe('/clean-work-space');
-    await appendLine(path, blocks('range mes worktrees'));
+    await appendLine(path, blocks('?'));
     stats = await readTranscript(path, stats);
-    expect(stats.title).toBe('range mes worktrees');
+    expect(stats.title).toBe('/clean-work-space');
+  });
+
+  it('cherche dans le message suivant quand le premier ne dit rien du tout', async () => {
+    const path = await fixture([blocks('<ide_opened_file>The user opened a file.</ide_opened_file>'), blocks('range mes worktrees')]);
+    expect((await readTranscript(path)).title).toBe('range mes worktrees');
   });
 
   it('affiche une commande shell comme l’onglet : « ! » puis la commande', async () => {

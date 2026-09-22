@@ -16,15 +16,18 @@ export interface TranscriptStats {
   summary?: string;
   /** Le premier message de l'utilisateur, faute de tout le reste. */
   firstPrompt?: string;
-  /** La commande qui a ouvert la conversation, quand rien d'autre ne la nomme. */
-  commandFallback?: string;
   /**
-   * Dérivé — le seul champ que l'affichage consomme — par la règle de
-   * l'extension Claude Code elle-même pour nommer un onglet et lister les
-   * sessions : `customTitle ?? aiTitle ?? lastPrompt ?? summary ?? firstPrompt ??
-   * commandFallback`.
-   * Un titre IA n'est pas engendré pour un échange trop court (« bonjour »),
-   * et l'onglet porte alors le prompt : la liste doit dire la même chose.
+   * Dérivé — le seul champ que l'affichage consomme :
+   * `customTitle ?? aiTitle ?? firstPrompt ?? summary ?? lastPrompt`.
+   *
+   * L'onglet, lui, préfère le DERNIER prompt au premier. La liste a suivi
+   * cette règle tant qu'un titre IA arrivait pour la remplacer ; depuis que le
+   * CLI n'écrit plus d'entrée `ai-title` — il ne reste qu'un jeton
+   * `atis-latch` que le fichier ne sait pas lire —, ce dernier prompt est
+   * devenu le nom définitif, et une ligne changeait de nom à chaque message :
+   * une conversation entière a fini par s'appeler « ? ». Le premier prompt
+   * passe donc devant : il dit ce que la conversation est venue faire, et il
+   * ne bouge plus. Un titre choisi ou engendré le remplace toujours.
    */
   title?: string;
 }
@@ -48,24 +51,26 @@ function promptTitle(v: unknown): string | undefined {
  */
 const TAGGED_BLOCK = /^(?:\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user[^\]]*\])/;
 const COMMAND_NAME = /<command-name>(.*?)<\/command-name>/;
+const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const BASH_INPUT = /<bash-input>([\s\S]*?)<\/bash-input>/;
-
-/** Ce qu'un message d'utilisateur a livré au titre en chemin : la commande qui l'a ouvert. */
-interface FirstPrompt {
-  command?: string;
-}
 
 /**
  * Le titre qu'un message d'utilisateur porte — son premier bloc qui dit
  * quelque chose : un résultat d'outil n'en dit aucun, un bloc de contexte
- * non plus, une commande n'est retenue (`found.command`) que faute de mieux,
- * et une commande shell s'annonce comme dans l'onglet. `undefined` quand le
- * message entier se tait : l'appelant cherchera dans le suivant.
+ * non plus, une commande vaut ce qu'on lui a demandé (`<command-args>`) ou,
+ * à défaut, son nom, et une commande shell s'annonce comme dans l'onglet.
+ * `undefined` quand le message entier se tait : l'appelant cherchera dans le
+ * suivant.
+ *
+ * La commande ne rend la main qu'à la fin du message : une conversation
+ * ouverte par « /skill … » s'appelle d'après cette demande, et non d'après le
+ * « ? » que son auteur tapera trois messages plus loin.
  */
-function promptOfUser(message: unknown, found: FirstPrompt): string | undefined {
+function promptOfUser(message: unknown): string | undefined {
   if (!isRecord(message)) return undefined;
   const content = message['content'];
   const blocks: readonly unknown[] = typeof content === 'string' ? [content] : Array.isArray(content) ? content : [];
+  let command: string | undefined;
   for (const block of blocks) {
     let raw: unknown = block;
     if (isRecord(block)) {
@@ -75,9 +80,10 @@ function promptOfUser(message: unknown, found: FirstPrompt): string | undefined 
     } else if (typeof block !== 'string') continue;
     const body = text(raw);
     if (body === undefined) continue;
-    const command = COMMAND_NAME.exec(body);
-    if (command !== null) {
-      if (found.command === undefined) found.command = promptTitle(command[1]);
+    const name = COMMAND_NAME.exec(body);
+    if (name !== null) {
+      const args = COMMAND_ARGS.exec(body);
+      command ??= promptTitle(args?.[1] ?? '') ?? promptTitle(name[1]);
       continue;
     }
     const bash = BASH_INPUT.exec(body);
@@ -86,7 +92,7 @@ function promptOfUser(message: unknown, found: FirstPrompt): string | undefined 
     const title = promptTitle(body);
     if (title !== undefined) return title;
   }
-  return undefined;
+  return command;
 }
 
 const EMPTY: TranscriptStats = { offset: 0, input: 0, output: 0 };
@@ -171,9 +177,7 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
         const t = promptTitle(entry['summary']);
         if (t !== undefined) stats.summary = t;
       } else if (type === 'user' && stats.firstPrompt === undefined && entry['isMeta'] !== true && entry['isSidechain'] !== true) {
-        const found: FirstPrompt = { command: stats.commandFallback };
-        const t = promptOfUser(entry['message'], found);
-        if (found.command !== undefined) stats.commandFallback = found.command;
+        const t = promptOfUser(entry['message']);
         if (t !== undefined) stats.firstPrompt = t;
       }
 
@@ -187,7 +191,7 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       stats.output += num(usage['output_tokens']);
     }
 
-    stats.title = stats.customTitle ?? stats.aiTitle ?? stats.lastPrompt ?? stats.summary ?? stats.firstPrompt ?? stats.commandFallback;
+    stats.title = stats.customTitle ?? stats.aiTitle ?? stats.firstPrompt ?? stats.summary ?? stats.lastPrompt;
     return stats;
   } finally {
     await handle.close();
