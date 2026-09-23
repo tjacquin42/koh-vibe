@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
-import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
-import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, shownSession, type ClaudeTab } from './claude/dormant';
+import { findTranscript, listingFolder, sessionListedIn } from './claude/listed';
 import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
 import { temporaryToForget } from './store/temporary';
 import { visibleSessions } from './store/visible';
@@ -214,14 +214,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   /**
    * Whether Claude Code's session list, in this window, holds the id — i.e.
    * whether its command would resume the conversation rather than start a
-   * blank one (claude/listed.ts). The hidden ids live in the editor's global
-   * state, next to our own global storage.
+   * blank one (claude/listed.ts).
    */
-  const globalStateDb = join(dirname(context.globalStorageUri.fsPath), 'state.vscdb');
-  const listed = async (id: string): Promise<boolean> => {
-    const hidden = parseHiddenSessionIds(await readStateItem(globalStateDb, CLAUDE_STATE_KEY));
-    return sessionListedIn(claudeRoot, listingFolder(workspaceFolders()), id, hidden);
-  };
+  const listed = async (id: string): Promise<boolean> =>
+    sessionListedIn(claudeRoot, listingFolder(workspaceFolders()), id);
   /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never

@@ -92,9 +92,9 @@ export function readEditorMemento(stateDb: string): Promise<string | undefined> 
 }
 
 /**
- * One value of the editor's state database, by key — the memento above, or an
- * extension's global state (`claude/listed.ts`). Keys come from this code,
- * never from the outside, and are checked all the same before they meet SQL.
+ * One value of the editor's state database, by key — the memento above, or
+ * any other entry the editor keeps there. Keys come from this code, never
+ * from the outside, and are checked all the same before they meet SQL.
  */
 export function readStateItem(stateDb: string, key: string): Promise<string | undefined> {
   if (!/^[A-Za-z0-9./_-]+$/.test(key)) return Promise.resolve(undefined);

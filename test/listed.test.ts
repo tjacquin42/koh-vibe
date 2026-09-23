@@ -2,28 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from '../src/claude/listed';
+import { findTranscript, listingFolder, sessionListedIn } from '../src/claude/listed';
 import { transcriptPathFor } from '../src/claude/rescan';
 
 const ID = '9734f15a-0f40-47b1-aca4-290f307cfe0f';
 const OTHER = 'c61c1f56-e79e-4be8-bf3e-3267935dcaae';
-
-describe('parseHiddenSessionIds — what the user hid from Claude Code\'s own session list', () => {
-  it('reads the ids out of the extension\'s global state, as the editor stores it', () => {
-    // The key the editor files the extension's state under, observed on the
-    // state database: capital A, unlike the extension id in the manifest.
-    expect(CLAUDE_STATE_KEY).toBe('Anthropic.claude-code');
-    const raw = JSON.stringify({ settingsMigrated20251024: true, hiddenSessionIds: [ID, OTHER, 'not an id', 42] });
-    expect([...parseHiddenSessionIds(raw)]).toEqual([ID, OTHER]);
-  });
-
-  it('reads nothing at all — no state, garbage, no such field — as "nothing hidden"', () => {
-    expect(parseHiddenSessionIds(undefined).size).toBe(0);
-    expect(parseHiddenSessionIds('{ broken').size).toBe(0);
-    expect(parseHiddenSessionIds('[]').size).toBe(0);
-    expect(parseHiddenSessionIds('{"hiddenSessionIds":"nope"}').size).toBe(0);
-  });
-});
 
 describe('listingFolder — the folder Claude Code lists sessions for', () => {
   let dir: string;
@@ -59,17 +42,24 @@ describe('sessionListedIn — would the editor command resume it, or start a bla
     const path = transcriptPathFor(home, '/Users/dev/projet', ID);
     mkdirSync(join(home, 'projects', '-Users-dev-projet'), { recursive: true });
     writeFileSync(path, '', 'utf8');
-    expect(sessionListedIn(home, '/Users/dev/projet', ID, new Set())).toBe(true);
+    expect(sessionListedIn(home, '/Users/dev/projet', ID)).toBe(true);
   });
 
   it('is false for a transcript filed under another project — a worktree, a reclassified session', () => {
     mkdirSync(join(home, 'projects', '-Users-dev-projet--worktrees-x'), { recursive: true });
     writeFileSync(transcriptPathFor(home, '/Users/dev/projet/.worktrees/x', ID), '', 'utf8');
-    expect(sessionListedIn(home, '/Users/dev/projet', ID, new Set())).toBe(false);
+    expect(sessionListedIn(home, '/Users/dev/projet', ID)).toBe(false);
   });
 
-  it('is false for an id the user hid, transcript or not', () => {
-    expect(sessionListedIn(home, '/Users/dev/projet', ID, new Set([ID]), () => true)).toBe(false);
+  it('is true for a conversation Claude Code archived: an archive leaves the session in the list', () => {
+    // `buildSessionList` (extension 2.1.270) never drops an archived session:
+    // it marks it `archived: true` and hands it over like the others. Treating
+    // the archive as an absence sent months-old conversations to a terminal
+    // instead of the tab that could have resumed them.
+    const path = transcriptPathFor(home, '/Users/dev/projet', ID);
+    mkdirSync(join(home, 'projects', '-Users-dev-projet'), { recursive: true });
+    writeFileSync(path, '', 'utf8');
+    expect(sessionListedIn(home, '/Users/dev/projet', ID)).toBe(true);
   });
 });
 

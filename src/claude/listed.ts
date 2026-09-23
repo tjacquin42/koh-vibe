@@ -2,32 +2,8 @@ import { existsSync, realpathSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { isRecord } from '../lib/json';
 import { isValidSessionId } from '../events/parse';
 import { transcriptPathFor } from './rescan';
-
-/**
- * The key under which the editor keeps the Claude Code extension's global
- * state — where the ids the user hid from its session list live.
- */
-export const CLAUDE_STATE_KEY = 'Anthropic.claude-code';
-
-/** The ids hidden from Claude Code's own session list, out of its global state. */
-export function parseHiddenSessionIds(raw: string | undefined): Set<string> {
-  const out = new Set<string>();
-  if (raw === undefined) return out;
-  let root: unknown;
-  try {
-    root = JSON.parse(raw);
-  } catch {
-    return out;
-  }
-  if (!isRecord(root)) return out;
-  const ids = root['hiddenSessionIds'];
-  if (!Array.isArray(ids)) return out;
-  for (const id of ids) if (typeof id === 'string' && isValidSessionId(id)) out.add(id);
-  return out;
-}
 
 /**
  * The folder Claude Code lists sessions for in a window: its first workspace
@@ -71,21 +47,27 @@ export async function findTranscript(claudeHome: string, sessionId: string): Pro
  * Whether `claude-vscode.editor.open(id)` would resume `id` in a window on
  * `folder` — rather than start a blank conversation.
  *
- * Observed on the extension (2.1.247): a new panel asks the extension host for
- * the session list of the window's folder — the transcripts under
- * `~/.claude/projects/<slug(folder)>/`, minus the ids the user hid — and when
- * the id is not in it, the webview creates a fresh session. A conversation
- * run from a worktree, or filed under another project, is therefore never
- * reopened by that command from here: it needs a terminal, where `claude
- * --resume` finds a conversation by its id across every project.
+ * What decides is the session list of the WINDOW's folder: the transcripts
+ * under `~/.claude/projects/<slug(folder)>/`, and nothing else
+ * (`buildSessionList`, extension 2.1.270, reads `dir: cwd` without
+ * worktrees). When the id is not in it, the webview creates a fresh session.
+ * A conversation run from a worktree, or filed under another project, is
+ * therefore never reopened by that command from here: it needs a terminal,
+ * where `claude --resume` finds a conversation by its id across every project.
+ *
+ * An ARCHIVED conversation is a different matter, and this used to get it
+ * wrong. Claude Code archives a session on its own after two weeks without
+ * activity (`claudeCode.archiveInactiveSessions`, 14 days by default) and
+ * files its id under `hiddenSessionIds`; but `buildSessionList` never drops
+ * it — it marks it `archived: true` and hands it over like the others. Reading
+ * that archive as an absence sent every conversation older than a fortnight to
+ * a terminal, when its tab was there for the asking.
  */
 export function sessionListedIn(
   claudeHome: string,
   folder: string,
   sessionId: string,
-  hidden: ReadonlySet<string>,
   exists: (path: string) => boolean = existsSync,
 ): boolean {
-  if (hidden.has(sessionId)) return false;
   return exists(transcriptPathFor(claudeHome, folder, sessionId));
 }
