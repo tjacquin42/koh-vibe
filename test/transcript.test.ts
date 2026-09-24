@@ -258,6 +258,33 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect(title).not.toContain('\n');
   });
 
+  it('ne prend jamais un résumé de compaction pour le premier prompt — il sert de résumé', async () => {
+    // `type: "summary"` a disparu des transcripts (0 occurrence sur les 17 plus
+    // récents) : une compaction arrive désormais en `user` marqué
+    // `isCompactSummary`. Sans ce filtre, une conversation reprise après
+    // compaction se serait appelée « This session is being continued… ».
+    const compact = JSON.stringify({
+      type: 'user',
+      isCompactSummary: true,
+      message: { role: 'user', content: 'This session is being continued from a previous conversation.' },
+    });
+    const path = await fixture([compact, user('range mes worktrees')]);
+    const stats = await readTranscript(path);
+    expect(stats.firstPrompt).toBe('range mes worktrees');
+    expect(stats.summary).toBe('This session is being continued from a previous conversation.');
+    expect(stats.title).toBe('range mes worktrees');
+  });
+
+  it('retombe sur le résumé de compaction quand la conversation n’a pas d’autre prompt lisible', async () => {
+    const compact = JSON.stringify({
+      type: 'user',
+      isCompactSummary: true,
+      message: { role: 'user', content: 'Reprise : migration Turso en cours' },
+    });
+    const path = await fixture([compact, JSON.stringify({ type: 'last-prompt', lastPrompt: 'et ensuite ?' })]);
+    expect((await readTranscript(path)).title).toBe('Reprise : migration Turso en cours');
+  });
+
   it('ignore les messages méta et les branches secondaires pour le premier message', async () => {
     const path = await fixture([user('<system>', '{"isMeta":true}'), user('sous-agent', '{"isSidechain":true}'), user('la vraie question')]);
     expect((await readTranscript(path)).title).toBe('la vraie question');

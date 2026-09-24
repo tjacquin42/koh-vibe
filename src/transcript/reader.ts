@@ -12,7 +12,12 @@ export interface TranscriptStats {
   aiTitle?: string;
   /** Le dernier prompt, tel que Claude Code le note (`last-prompt`). */
   lastPrompt?: string;
-  /** Le dernier résumé de compaction (`summary`). */
+  /**
+   * Le résumé d'une compaction — l'entrée `summary` d'hier, le message
+   * d'utilisateur marqué `isCompactSummary` d'aujourd'hui. Les deux formes
+   * sont lues : `type: "summary"` a disparu des transcripts récents, et un
+   * paquet plus ancien peut encore en contenir.
+   */
   summary?: string;
   /** Le premier message de l'utilisateur, faute de tout le reste. */
   firstPrompt?: string;
@@ -176,6 +181,14 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       } else if (type === 'summary') {
         const t = promptTitle(entry['summary']);
         if (t !== undefined) stats.summary = t;
+      } else if (type === 'user' && entry['isCompactSummary'] === true) {
+        // Une reprise après compaction. Elle dit ce qui précède, donc elle a sa
+        // place comme résumé — mais jamais comme premier prompt : la
+        // conversation se serait appelée « This session is being continued… ».
+        if (stats.summary === undefined) {
+          const t = promptOfUser(entry['message']);
+          if (t !== undefined) stats.summary = t;
+        }
       } else if (type === 'user' && stats.firstPrompt === undefined && entry['isMeta'] !== true && entry['isSidechain'] !== true) {
         const t = promptOfUser(entry['message']);
         if (t !== undefined) stats.firstPrompt = t;
