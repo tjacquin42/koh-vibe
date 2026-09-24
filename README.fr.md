@@ -97,6 +97,34 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon. Une
   conversation qui se termine avant son premier message — Claude Code en démarre une pour chaque
   panneau qu'il ouvre — ne laisse ni ligne ni historique : il n'y a rien où revenir.
+- **Ce que chaque session fait tourner**, en direct. Dépliez une ligne vivante et vous voyez les
+  processus qu'elle a lancés : chaque commande en cours de l'outil Bash, et ce que ces commandes
+  ont laissé derrière elles — un `pnpm dev` encore debout une heure après le retour de la
+  commande qui l'a lancé, par exemple. Clic droit sur un processus pour *copier la commande*,
+  entière là où la ligne a dû la couper, *copier le pid*, ou *terminer le processus* avec tout ce
+  qu'il a lancé, après une confirmation qui nomme la commande. Une commande lancée par un
+  *sous-agent* porte sa propre icône, et l'infobulle nomme l'agent. Rien dans la table des
+  processus ne permettrait de le savoir : les sous-agents tournent dans le processus même de la
+  conversation, donc leurs commandes y sont indiscernables des siennes. C'est Claude Code qui le
+  dit, dans ses hooks, et c'est de là que l'information vient. Un processus qu'une session a
+  lancé *détaché*, sortie redirigée vers un fichier, est lui aussi remis sous elle, alors même
+  que le système l'en a détaché.
+- **Processus**, une vue à part, pour ce qu'aucune conversation ne porte à elle seule. Les
+  *serveurs MCP* de toutes les sessions y vivent, plutôt que sous chaque conversation : Claude
+  Code démarre son propre jeu par conversation, donc répéter trois lignes identiques dans chaque
+  session noyait le travail qui, lui, diffère. En dessous, *Sans session* liste les processus que
+  plus rien ne porte — un serveur de développement dont la conversation a disparu, qui tient
+  encore son port. Ceux-là ne peuvent pas apparaître sous une session par construction : un
+  processus qui perd son parent est rattaché au processus 1, ce qui le sort de l'arbre de toutes
+  les sessions. Ce qui a été rattaché est souvent le shell dans lequel une commande tournait, avec
+  le serveur qui tient le port juste en dessous : chaque ligne se déplie donc sur ce qu'elle cache.
+  On les trouve en cherchant un moteur de développement n'importe où dans l'arbre d'un processus
+  rattaché, puis en gardant ceux qui travaillent dans un dossier ouvert par cette fenêtre ou dans
+  le répertoire d'une conversation. Un processus qui travaille ailleurs, ou qu'un terminal ouvert
+  tient encore, n'est volontairement pas listé.
+
+  Une sortie propre ne laisse rien ici : Claude Code emporte ses enfants avec lui, donc recharger
+  une fenêtre n'en produit pas. Un plantage, un `kill -9` ou une machine mise en veille, si.
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -239,6 +267,11 @@ compte. L'éditeur ne résout que l'onglet actif, donc aucun processus Claude Co
 derrière les autres tant qu'ils ne sont pas affichés : un clic ramène l'onglet devant, et
 Claude Code le reprend. *Retirer de la liste* masque une conversation jusqu'à sa prochaine
 activité.
+
+C'est ce même registre qui rend la liste des processus possible : c'est le seul endroit qui
+relie une conversation à un pid, et tout ce qu'une session lance reste dans la descendance de
+ce pid. La liste est donc une lecture de la table des processus du système, prise tant que le
+panneau est ouvert et parcourue une fois par session — sans hook, et sans rien à installer.
 
 ## Nouveautés
 

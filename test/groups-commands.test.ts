@@ -11,12 +11,15 @@ import {
   deleteGroupCommand,
   fileSessionCommand,
   renameGroupCommand,
+  reorderGroupsCommand,
   runGroupAction,
+  soundGroupCommand,
+  soundSessionCommand,
 } from '../src/groups/commands';
 
-// Compte les écritures RÉELLES sur disque (writeFile, appelé par updateGroups avant chaque
-// rename) : seul moyen de prouver qu'un dépôt de plusieurs sessions tient dans UNE SEULE
-// écriture, jamais une par session — même convention que test/groups-store.test.ts.
+// Counts the ACTUAL writes to disk (writeFile, called by updateGroups before every
+// rename): the only way to prove that dropping several sessions fits in ONE SINGLE
+// write, never one per session — same convention as test/groups-store.test.ts.
 const { writeFileCalls } = vi.hoisted(() => ({ writeFileCalls: { count: 0 } }));
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -30,11 +33,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   };
 });
 
-// Câblage réel de Task 9 : ces fonctions sont le seul chemin entre l'arbre
-// (SessionsTree.onDrop) ou les trois commandes de dossier (package.json) et
-// le fichier de classement. Chacune est ici exercée directement, sans vscode,
-// sur un fichier jetable — même convention que test/groups-store.test.ts et
-// test/groups-store.test.ts : jamais le ~/.koh-vibe réel.
+// The real wiring of Task 9: these functions are the only path between the
+// tree (SessionsTree.onDrop) or the three folder commands (package.json) and
+// the folder-layout file. Each one is exercised here directly, without vscode,
+// on a disposable file — same convention as test/groups-store.test.ts and
+// test/groups-store.test.ts: never the real ~/.koh-vibe.
 let dir: string;
 let file: string;
 
@@ -49,32 +52,32 @@ afterEach(() => {
 });
 
 describe('createGroupCommand', () => {
-  it('crée le dossier quand un nom est fourni', async () => {
+  it('creates the folder when a name is provided', async () => {
     const out = await createGroupCommand(file, 'Perso', () => 'g1');
 
     expect(out?.groups).toEqual([{ id: 'g1', name: 'Perso', order: 0 }]);
     expect((await readGroups(file)).groups).toEqual([{ id: 'g1', name: 'Perso', order: 0 }]);
   });
 
-  it("n'écrit rien quand le nom est undefined (boîte de saisie annulée)", async () => {
+  it("writes nothing when the name is undefined (input box cancelled)", async () => {
     const out = await createGroupCommand(file, undefined, () => 'g1');
 
     expect(out).toBeUndefined();
     expect((await readGroups(file)).groups).toEqual([]);
   });
 
-  // Le point le plus important de la tâche : le modèle lève sur un nom vide
-  // (createGroup, groups/model.ts), et cette levée doit rester observable ici
-  // — c'est runGroupAction, plus bas, qui la transforme en message plutôt
-  // qu'en trace d'appel non gérée, jamais cette fonction-ci.
-  it('lève quand le nom est vide plutôt que de créer un dossier sans nom', async () => {
+  // The most important point of the task: the model throws on an empty name
+  // (createGroup, groups/model.ts), and that throw must stay observable here
+  // — it is runGroupAction, further below, that turns it into a message
+  // rather than an unhandled call trace, never this function.
+  it('throws when the name is empty rather than creating a nameless folder', async () => {
     await expect(createGroupCommand(file, '', () => 'g1')).rejects.toThrow(
       'A folder cannot have an empty name.',
     );
     expect((await readGroups(file)).groups).toEqual([]);
   });
 
-  it('lève aussi quand le nom ne contient que des blancs', async () => {
+  it('also throws when the name contains only whitespace', async () => {
     await expect(createGroupCommand(file, '   ', () => 'g1')).rejects.toThrow(
       'A folder cannot have an empty name.',
     );
@@ -82,7 +85,7 @@ describe('createGroupCommand', () => {
 });
 
 describe('renameGroupCommand', () => {
-  it('renomme le dossier quand un nom est fourni', async () => {
+  it('renames the folder when a name is provided', async () => {
     await updateGroups(file, (s) => createGroup(s, 'ancien', () => 'g1'));
 
     const out = await renameGroupCommand(file, 'g1', 'nouveau');
@@ -90,7 +93,7 @@ describe('renameGroupCommand', () => {
     expect(out?.groups).toEqual([{ id: 'g1', name: 'nouveau', order: 0 }]);
   });
 
-  it("n'écrit rien quand le nom est undefined (boîte de saisie annulée)", async () => {
+  it("writes nothing when the name is undefined (input box cancelled)", async () => {
     await updateGroups(file, (s) => createGroup(s, 'ancien', () => 'g1'));
 
     const out = await renameGroupCommand(file, 'g1', undefined);
@@ -99,7 +102,7 @@ describe('renameGroupCommand', () => {
     expect((await readGroups(file)).groups).toEqual([{ id: 'g1', name: 'ancien', order: 0 }]);
   });
 
-  it('lève quand le nom est vide plutôt que de renommer vers un nom vide', async () => {
+  it('throws when the name is empty rather than renaming to an empty name', async () => {
     await updateGroups(file, (s) => createGroup(s, 'ancien', () => 'g1'));
 
     await expect(renameGroupCommand(file, 'g1', '')).rejects.toThrow('A folder cannot have an empty name.');
@@ -108,7 +111,7 @@ describe('renameGroupCommand', () => {
 });
 
 describe('deleteGroupCommand', () => {
-  it('supprime le dossier et libère les sessions qui y étaient classées', async () => {
+  it('deletes the folder and frees the sessions that were filed in it', async () => {
     await updateGroups(file, (s) => assign(createGroup(s, 'à supprimer', () => 'g1'), 's1', 'g1'));
 
     const out = await deleteGroupCommand(file, 'g1');
@@ -119,7 +122,7 @@ describe('deleteGroupCommand', () => {
 });
 
 describe('applyDrop', () => {
-  it('affecte toutes les sessions déposées au dossier ciblé, en une seule écriture', async () => {
+  it('assigns all dropped sessions to the targeted folder, in a single write', async () => {
     await updateGroups(file, (s) => createGroup(s, 'Taf', () => 'g1'));
     writeFileCalls.count = 0;
 
@@ -129,7 +132,7 @@ describe('applyDrop', () => {
     expect(writeFileCalls.count).toBe(1);
   });
 
-  it('retire l affectation des sessions déposées sur « Sans dossier » (groupId undefined)', async () => {
+  it('removes the assignment of sessions dropped on « Unfiled » (groupId undefined)', async () => {
     await updateGroups(file, (s) => assign(createGroup(s, 'Taf', () => 'g1'), 's1', 'g1'));
 
     const out = await applyDrop(file, ['s1'], undefined, ['s1']);
@@ -137,7 +140,7 @@ describe('applyDrop', () => {
     expect(out.assignments).toEqual({});
   });
 
-  it('ignore silencieusement un dossier inexistant, comme assign() (model.ts)', async () => {
+  it('silently ignores a nonexistent folder, like assign() (model.ts)', async () => {
     const out = await applyDrop(file, ['s1'], 'inconnu', ['s1']);
 
     expect(out.assignments).toEqual({});
@@ -145,7 +148,7 @@ describe('applyDrop', () => {
 });
 
 describe('runGroupAction', () => {
-  it("n'appelle jamais onError quand l'action réussit", async () => {
+  it("never calls onError when the action succeeds", async () => {
     const onError = vi.fn();
 
     await runGroupAction(() => Promise.resolve('ok'), onError);
@@ -153,11 +156,11 @@ describe('runGroupAction', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  // Le cas central de la tâche : une action qui lève (nom vide, entre autres)
-  // ne doit jamais devenir une trace d'appel non gérée. runGroupAction est le
-  // seul filet — sans lui, le rejet remonterait tel quel jusqu'au gestionnaire
-  // de commande VSCode.
-  it('capture ce que l action lève et le relaie comme message, sans laisser filer le rejet', async () => {
+  // The central case of the task: an action that throws (an empty name,
+  // among others) must never become an unhandled call trace. runGroupAction
+  // is the only net — without it, the rejection would surface as-is all the
+  // way up to the VSCode command handler.
+  it('captures what the action throws and relays it as a message, without letting the rejection escape', async () => {
     const onError = vi.fn();
 
     await runGroupAction(() => Promise.reject(new Error('A folder cannot have an empty name.')), onError);
@@ -165,7 +168,7 @@ describe('runGroupAction', () => {
     expect(onError).toHaveBeenCalledWith('A folder cannot have an empty name.');
   });
 
-  it('relaie aussi un rejet qui ne porte pas une vraie Error', async () => {
+  it('also relays a rejection that does not carry a real Error', async () => {
     const onError = vi.fn();
 
     await runGroupAction(() => Promise.reject('boom'), onError);
@@ -175,17 +178,17 @@ describe('runGroupAction', () => {
 });
 
 describe('colorGroupCommand', () => {
-  it('écrit la couleur dans le fichier partagé, et la relit', async () => {
+  it('writes the color to the shared file, and reads it back', async () => {
     await updateGroups(file, (s) => createGroup(s, 'Perso', () => 'g-1'));
     await colorGroupCommand(file, 'g-1', 'orange');
     expect((await readGroups(file)).groups[0]?.color).toBe('orange');
   });
 
-  it('retire la couleur sans toucher au reste du classement', async () => {
+  it('removes the color without touching the rest of the folder layout', async () => {
     await updateGroups(file, (s) => assign(createGroup(s, 'Perso', () => 'g-1'), 'sess-1', 'g-1'));
     await colorGroupCommand(file, 'g-1', 'red');
-    // Vérifié avant de retirer : sans cette ligne, le test passerait tout aussi
-    // bien si la couleur n'était jamais écrite.
+    // Checked before removing: without this line, the test would pass just
+    // as well if the color were never written at all.
     expect((await readGroups(file)).groups[0]?.color).toBe('red');
     await colorGroupCommand(file, 'g-1', undefined);
     const after = await readGroups(file);
@@ -195,8 +198,8 @@ describe('colorGroupCommand', () => {
   });
 });
 
-describe('fileSessionCommand — « nouvelle session ici »', () => {
-  it('range la conversation dans le dossier, en une écriture', async () => {
+describe('fileSessionCommand — « new session here »', () => {
+  it('files the conversation into the folder, in one write', async () => {
     await updateGroups(file, (s) => createGroup(s, 'Perso', () => 'g1'));
     writeFileCalls.count = 0;
     const state = await fileSessionCommand(file, 's-new', 'g1');
@@ -205,8 +208,39 @@ describe('fileSessionCommand — « nouvelle session ici »', () => {
     expect(writeFileCalls.count).toBe(1);
   });
 
-  it('ne range rien dans un dossier disparu, comme un dépôt', async () => {
+  it('files nothing into a folder that no longer exists, like a drop', async () => {
     const state = await fileSessionCommand(file, 's-new', 'nope');
     expect(state.assignments).not.toHaveProperty('s-new');
+  });
+});
+
+describe('soundGroupCommand and soundSessionCommand', () => {
+  it('sets the sound of a folder, and `undefined` gives it back to the global setting', async () => {
+    await createGroupCommand(file, 'Perso', () => 'g1');
+    await soundGroupCommand(file, 'g1', 'waiting', 'Funk');
+    expect((await readGroups(file)).groups[0]?.soundWaiting).toBe('Funk');
+    await soundGroupCommand(file, 'g1', 'waiting', undefined);
+    expect((await readGroups(file)).groups[0]?.soundWaiting).toBeUndefined();
+  });
+
+  it('sets the sound of a conversation, and `undefined` gives it back to its folder', async () => {
+    await soundSessionCommand(file, 's1', 'done', 'Hero');
+    expect((await readGroups(file)).sessionSounds.done['s1']).toBe('Hero');
+    await soundSessionCommand(file, 's1', 'done', undefined);
+    expect((await readGroups(file)).sessionSounds.done['s1']).toBeUndefined();
+  });
+});
+
+describe('reorderGroupsCommand', () => {
+  it('moves folders in front of another, or to the end, in one write', async () => {
+    await createGroupCommand(file, 'A', () => 'ga');
+    await createGroupCommand(file, 'B', () => 'gb');
+    await createGroupCommand(file, 'C', () => 'gc');
+    writeFileCalls.count = 0;
+    await reorderGroupsCommand(file, ['gc'], 'ga');
+    expect((await readGroups(file)).groups.map((g) => g.id)).toEqual(['gc', 'ga', 'gb']);
+    expect(writeFileCalls.count).toBe(1);
+    await reorderGroupsCommand(file, ['gc'], undefined);
+    expect((await readGroups(file)).groups.map((g) => g.id)).toEqual(['ga', 'gb', 'gc']);
   });
 });

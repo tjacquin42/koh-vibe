@@ -1,13 +1,12 @@
-// Bouchon minimal de l'API `vscode`, utilisé uniquement en test (alias vitest,
-// voir vitest.config.ts : `vscode` est résolu vers ce fichier plutôt que vers
-// le module réel, qui n'existe qu'à l'intérieur de l'hôte d'extensions).
+// Minimal stub of the `vscode` API, used only in tests (vitest alias, see
+// vitest.config.ts: `vscode` resolves to this file rather than to the real
+// module, which only exists inside the extension host).
 //
-// Couvre exactement ce dont `FocusBroker` et `SessionsTree` ont besoin pour
-// être testés sans lancer VSCode — à étendre au fur et à mesure d'un besoin
-// réel, jamais par anticipation. `getTreeItem` (qui construit des `TreeItem`,
-// `ThemeIcon`, `ThemeColor`) n'est pas exercé par les tests actuels ; ces
-// classes sont quand même fournies, minimales, pour que le module qui les
-// importe reste chargeable.
+// Covers exactly what `FocusBroker` and `SessionsTree` need to be tested
+// without launching VSCode — to be extended as a real need arises, never
+// ahead of one. `getTreeItem` (which builds `TreeItem`, `ThemeIcon`,
+// `ThemeColor`) is not exercised by the current tests; these classes are
+// still provided, minimal, so that the module importing them stays loadable.
 
 export class EventEmitter<T> {
   private listeners: Array<(e: T) => void> = [];
@@ -37,10 +36,10 @@ export enum TreeItemCollapsibleState {
 }
 
 /**
- * Assez fidèle pour ce que la vue en fait : `Uri.from` conserve les champs et
- * `toString` les recompose. Le bouchon ne cherche pas à reproduire l'encodage
- * complet de VSCode — les tests portent sur ce que l'arbre POSE, et la lecture
- * de l'URI est éprouvée à part, sur une fonction pure (ui/decorations.ts).
+ * Faithful enough for what the view does with it: `Uri.from` keeps the
+ * fields and `toString` recomposes them. The stub does not try to reproduce
+ * VSCode's full encoding — the tests target what the tree SETS, and reading
+ * the URI back is proven separately, on a pure function (ui/decorations.ts).
  */
 export class Uri {
   private constructor(
@@ -54,7 +53,7 @@ export class Uri {
     return new Uri(parts.scheme, parts.authority ?? '', parts.path ?? '', parts.query ?? '');
   }
 
-  /** Ce que SessionsTree appelle pour ses pastilles de statut. */
+  /** What SessionsTree calls for its status badges. */
   static file(path: string): Uri {
     return new Uri('file', '', path, '');
   }
@@ -169,7 +168,42 @@ export const stubTabGroups: {
   close: async (): Promise<boolean> => true,
 };
 
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
+}
+
+/** What `StatusSummary` sets on its item, kept so a test can read it back. */
+export interface StubStatusBarItem {
+  command?: string;
+  name?: string;
+  text?: string;
+  tooltip?: string;
+  backgroundColor?: ThemeColor;
+  visible: boolean;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+}
+
+/** Every status bar item created so far, newest last. */
+export const statusBarItems: StubStatusBarItem[] = [];
+
 export const window = {
+  createStatusBarItem: (_alignment?: StatusBarAlignment, _priority?: number): StubStatusBarItem => {
+    const item: StubStatusBarItem = {
+      visible: false,
+      show: () => {
+        item.visible = true;
+      },
+      hide: () => {
+        item.visible = false;
+      },
+      dispose: () => undefined,
+    };
+    statusBarItems.push(item);
+    return item;
+  },
   showInformationMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showWarningMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showErrorMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
@@ -194,10 +228,10 @@ export const commands = {
   registerCommand: (..._args: unknown[]): { dispose: () => void } => ({ dispose: () => undefined }),
 };
 
-// Couvre exactement ce dont SessionsTree.handleDrag/handleDrop ont besoin :
-// poser une valeur sous un type MIME, la relire sous ce même type. `value`
-// est typé `unknown` (la vraie API le déclare `any`) pour que le code qui le
-// lit soit obligé de le valider avant usage, jamais de le caster.
+// Covers exactly what SessionsTree.handleDrag/handleDrop need: setting a
+// value under a MIME type, reading it back under that same type. `value` is
+// typed `unknown` (the real API declares it `any`) so that the code reading
+// it is forced to validate it before use, never to cast it.
 export class DataTransferItem {
   constructor(public readonly value: unknown) {}
 }

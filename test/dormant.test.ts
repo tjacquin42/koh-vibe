@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, shownSession, type ClaudeTab } from '../src/claude/dormant';
+import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from '../src/claude/dormant';
 import type { Session } from '../src/events/types';
 
 /**
@@ -133,6 +133,31 @@ describe('readEditorMemento', () => {
     const db = join(dir, 'empty.vscdb');
     execFileSync('/usr/bin/sqlite3', [db, 'create table ItemTable(key text primary key, value blob);']);
     expect(await readEditorMemento(db)).toBeUndefined();
+  });
+});
+
+describe('readStateItem', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'koh-state-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads one item by its key, and refuses a key that could rewrite the query', async () => {
+    const db = join(dir, 'state.vscdb');
+    execFileSync('/usr/bin/sqlite3', [
+      db,
+      "create table ItemTable(key text primary key, value blob); insert into ItemTable values('memento/x', 'one'), ('memento/y', 'two');",
+    ]);
+    expect(await readStateItem(db, 'memento/x')).toBe('one');
+    // The key is spliced into the SQL text, so only a plain one may go
+    // through. Without the guard this one matches every row and comes back
+    // with a value.
+    expect(await readStateItem(db, "memento/x' or '1'='1")).toBeUndefined();
   });
 });
 

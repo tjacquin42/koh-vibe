@@ -6,39 +6,47 @@ import { shownColor, themeColorOf, type ColorPreview } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
 import { isOpen } from '../store/open';
+import type { SessionProcess } from '../process/classify';
+import { childrenOf, glyphOf, hasChildren, processCount, processDescription, processItem, rootsOf } from './process-labels';
 
 export type TreeNode =
-  // `group: undefined` désigne « Sans dossier », le reliquat des sessions non
-  // rangées — pas un dossier au sens de l'utilisateur, voir contextValue plus bas.
+  // `group: undefined` names « Unfiled », the leftover of sessions not
+  // filed — not a folder in the user's sense, see contextValue further down.
   | { kind: 'group'; group: Group | undefined; sessions: Session[] }
   | { kind: 'session'; session: Session }
-  // Une ligne vide entre deux dossiers. VSCode n'offre aucun réglage d'espacement
-  // pour une vue d'arbre : la seule marge qu'une extension peut poser est une
-  // ligne. Elle ne porte donc ni commande, ni contextValue, ni identifiant —
-  // rien qui la rende cliquable ou ciblable par un dépôt.
+  // A process the session started, unfolded under it. Carries the session it
+  // belongs to as well as the process: a pid alone is not a stable identity —
+  // the system reuses them — and the row has to be attributable to a
+  // conversation for the context menu to say what killing it would cost.
+  | { kind: 'process'; sessionId: string; proc: SessionProcess }
+  // An empty row between two folders. VSCode offers no spacing setting for
+  // a tree view: the only margin an extension can put down is a row. It
+  // therefore carries no command, no contextValue, no identifier —
+  // nothing that would make it clickable or a target for a drop.
   | { kind: 'spacer'; after: string }
-  // La consommation mesurée par Claude Code, en tête de la vue. Absente tant que
-  // le pont de statusline n'est pas installé — auquel cas la ligne n'existe pas,
-  // plutôt que d'afficher zéro et de laisser croire à une consommation nulle.
-  // `action` distingue « il faut installer les hooks », cliquable, de « rien à
-  // afficher », qui ne doit rien déclencher.
+  // The usage measured by Claude Code, at the head of the view. Absent as
+  // long as the statusline bridge is not installed — in which case the row
+  // does not exist, rather than showing zero and suggesting a null usage.
+  // `action` distinguishes « the hooks need installing », clickable, from
+  // « nothing to show », which must trigger nothing.
   | { kind: 'empty'; message: string; action?: 'install' };
 
 /**
- * La pastille de chaque statut est un disque, identique pour les cinq : seule
- * la couleur les distingue.
+ * Each status's dot is a disc, identical for all five: only the colour tells
+ * them apart.
  *
- * La forme est délibérément la même partout. Des glyphes différents — `check`,
- * `question`, `circle-outline`, `circle-slash` — ne se posaient pas au même
- * endroit dans la ligne, et le libellé qui les suit héritait du décalage : les
- * conversations ne s'alignaient pas. Un disque unique rend l'alignement vrai
- * par construction, et non plus par chance — et les cinq statuts passant
- * désormais par le même chemin de rendu (une image), plus rien ne les décale.
+ * The shape is deliberately the same everywhere. Different glyphs — `check`,
+ * `question`, `circle-outline`, `circle-slash` — did not land at the same spot
+ * in the row, and the label that follows them inherited the offset: the
+ * conversations did not line up. A single disc makes the alignment true by
+ * construction, and no longer by luck — and with the five statuses now going
+ * through the same rendering path (an image), nothing shifts them any more.
  *
- * Ce qu'on perd — la forme du triangle, de la coche — se retrouve dans
- * l'infobulle et dans le libellé d'accessibilité, qui nomment le statut.
+ * What is lost — the shape of the triangle, of the check mark — is recovered
+ * in the tooltip and in the accessibility label, which name the status.
  *
- * Le choix de l'image contre le codicon coloré est expliqué dans ./status-icon.
+ * The choice of the image over the coloured codicon is explained in
+ * ./status-icon.
  */
 
 const ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
@@ -65,31 +73,32 @@ export function compareSessions(a: Session, b: Session): number {
 }
 
 /**
- * Le glyphe des dossiers : `symbol-folder`, qui est un dossier FERMÉ.
+ * The folders' glyph: `symbol-folder`, which is a CLOSED folder.
  *
- * VSCode traite `folder` et `file` à part : au lieu de dessiner le codicon, il
- * délègue au thème d'icônes de fichiers — et quand ce thème est « Aucun », il ne
- * dessine RIEN. Les forks n'ont pas tous ce cas particulier : la même machine
- * affichait donc un dossier dans un éditeur et rien dans l'autre.
+ * VSCode treats `folder` and `file` apart: instead of drawing the codicon, it
+ * delegates to the file icon theme — and when that theme is "None", it draws
+ * NOTHING. Not every fork has this special case: the same machine would show
+ * a folder in one editor and nothing in the other.
  *
- * `symbol-folder` pointe sur EXACTEMENT le même dessin que `folder` (même point
- * de code, U+EA83) sous un autre nom — le cas particulier compare l'identifiant,
- * pas le glyphe. On récupère donc le dossier fermé, rendu partout de la même
- * façon, et qui garde la couleur du dossier au passage. `folder-opened`, qui
- * échappait au même piège, avait le défaut de montrer un dossier ouvert.
+ * `symbol-folder` points to EXACTLY the same drawing as `folder` (the same
+ * code point, U+EA83) under another name — the special case compares the
+ * identifier, not the glyph. So this recovers the closed folder, rendered the
+ * same way everywhere, and which keeps the folder's colour along the way.
+ * `folder-opened`, which escaped the same trap, had the flaw of showing an
+ * open folder.
  */
 const GROUP_GLYPH = 'symbol-folder';
 
 /**
- * L'identité d'une ligne, stable d'un rendu à l'autre.
+ * A row's identity, stable from one render to the next.
  *
- * Sans `id`, VSCode reconnaît une ligne à l'OBJET rendu par `getChildren` — et
- * nous en construisons de neufs à chaque tour. Chaque rafraîchissement,
- * fût-il déclenché par une seule minute qui tourne sur une seule session,
- * faisait donc détruire et reconstruire TOUTES les lignes : l'infobulle qu'on
- * était en train de lire disparaissait sous la souris. Ne plus rafraîchir pour
- * rien (voir `refresh`) espaçait le symptôme ; c'est l'identité qui le
- * supprime, parce qu'une ligne inchangée n'est alors plus refaite du tout.
+ * Without `id`, VSCode recognises a row by the OBJECT rendered by
+ * `getChildren` — and we build fresh ones every round. Every refresh, even
+ * one triggered by a single minute ticking over on a single session, would
+ * therefore destroy and rebuild EVERY row: the tooltip one was in the middle
+ * of reading would vanish under the mouse. No longer refreshing for nothing
+ * (see `refresh`) spaced the symptom out; it is the identity that removes it,
+ * because an unchanged row is then not rebuilt at all any more.
  */
 export function nodeId(node: TreeNode): string {
   switch (node.kind) {
@@ -97,6 +106,11 @@ export function nodeId(node: TreeNode): string {
       return `group:${node.group?.id ?? 'unfiled'}`;
     case 'session':
       return `session:${node.session.id}`;
+    // Scoped by session, and not by pid alone: the system reuses pids, and two
+    // rows sharing an identity is how a refresh ends up redrawing the wrong
+    // one — the very failure `nodeId` exists to prevent.
+    case 'process':
+      return `process:${node.sessionId}:${node.proc.pid}`;
     case 'spacer':
       return `spacer:${node.after}`;
     default:
@@ -109,19 +123,9 @@ function isSessionNode(node: TreeNode): node is Extract<TreeNode, { kind: 'sessi
 }
 
 /**
- * Retrouve l'identifiant du dossier ciblé par un menu contextuel
- * (kohVibe.renameGroup, kohVibe.deleteGroup) : pour une commande de
- * `view/item/context`, VSCode passe l'élément de l'arbre tel quel — jamais un
- * `TreeItem` — donc potentiellement n'importe quoi du point de vue du
- * typage. Validé sans cast, comme `handleDrop` : seul un nœud de dossier
- * NOMMÉ porte un identifiant ; « Sans dossier » (`group: undefined`) est déjà
- * exclu par le `when` du menu (`viewItem == group`), mais défendu ici quand
- * même plutôt que supposé.
- */
-/**
- * L'identifiant de session ciblé par un menu contextuel. Même prudence que
- * `groupIdOfNode` : VSCode passe l'élément tel quel, donc n'importe quoi du
- * point de vue du typage.
+ * The session id a context menu targets. The same caution as
+ * `groupIdOfNode`: VSCode passes the element as-is, so anything at all from
+ * the type system's point of view.
  */
 export function sessionIdOfNode(node: unknown): string | undefined {
   if (typeof node !== 'object' || node === null) return undefined;
@@ -130,6 +134,29 @@ export function sessionIdOfNode(node: unknown): string | undefined {
   return typeof candidate.session.id === 'string' ? candidate.session.id : undefined;
 }
 
+/**
+ * The session and the pid a process row stands for, validated field by field
+ * like the two above — a context-menu argument arrives as `unknown`, and the
+ * pid ends up in a `kill`.
+ */
+export function processOfNode(node: unknown): { sessionId: string; pid: number } | undefined {
+  if (typeof node !== 'object' || node === null) return undefined;
+  const candidate = node as { kind?: unknown; sessionId?: unknown; proc?: { pid?: unknown } };
+  if (candidate.kind !== 'process' || typeof candidate.sessionId !== 'string') return undefined;
+  const pid = candidate.proc?.pid;
+  return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 ? { sessionId: candidate.sessionId, pid } : undefined;
+}
+
+/**
+ * Recovers the id of the folder a context menu targets
+ * (kohVibe.renameGroup, kohVibe.deleteGroup): for a `view/item/context`
+ * command, VSCode passes the tree element as-is — never a `TreeItem` — so
+ * potentially anything at all from the type system's point of view. Validated
+ * without a cast, like `handleDrop`: only a NAMED folder node carries an
+ * identifier; « Unfiled » (`group: undefined`) is already excluded by the
+ * menu's `when` (`viewItem == group`), but guarded against here all the same
+ * rather than assumed.
+ */
 export function groupIdOfNode(node: unknown): string | undefined {
   if (typeof node !== 'object' || node === null) return undefined;
   const candidate = node as { kind?: unknown; group?: { id?: unknown } };
@@ -138,12 +165,12 @@ export function groupIdOfNode(node: unknown): string | undefined {
 }
 
 /**
- * Intercale une ligne vide entre les dossiers — jamais avant le premier, qui
- * n'aurait rien à séparer, ni après le dernier, qui laisserait un blanc en bas
- * de la vue. Chaque séparateur porte l'identifiant du dossier
- * qu'il précède : VSCode distingue les éléments d'un arbre par leur identité,
- * et deux séparateurs indiscernables se marcheraient dessus au
- * rafraîchissement.
+ * Inserts an empty row between the folders — never before the first, which
+ * would have nothing to separate, nor after the last, which would leave a
+ * blank at the bottom of the view. Each separator carries the identifier of
+ * the folder it precedes: VSCode distinguishes tree elements by their
+ * identity, and two indistinguishable separators would step on each other on
+ * refresh.
  */
 function withSpacers(nodes: readonly TreeNode[]): TreeNode[] {
   const out: TreeNode[] = [];
@@ -169,9 +196,9 @@ function idsOf(item: vscode.DataTransferItem | undefined): string[] {
 }
 
 export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.TreeDragAndDropController<TreeNode> {
-  // Type MIME qui nous est propre : c'est lui qui distingue un dépôt venu de
-  // cet arbre (dont on connaît le format du contenu) d'un dépôt venu
-  // d'ailleurs (un autre arbre, l'OS) — voir handleDrop.
+  // A MIME type of our own: it is what distinguishes a drop coming from this
+  // tree (whose content format is known) from a drop coming from elsewhere
+  // (another tree, the OS) — see handleDrop.
   private static readonly MIME = 'application/vnd.code.tree.kohvibe.sessions';
   // Folders travel under a type of their own rather than sharing the sessions'
   // with a tag inside. A mixed selection then simply carries both, and
@@ -185,7 +212,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   readonly onDidChangeTreeData = this.emitter.event;
   private sessions: Session[] = [];
   private groups: GroupsState = emptyGroups();
-  // `undefined` = rien n'a encore été affiché : le premier rendu passe toujours.
+  // `undefined` = nothing has been shown yet: the first render always goes through.
   private rendered: string | undefined;
   // The freshest hooks-installed state the render loop has observed, fed by
   // `setHooksInstalled`. `undefined` = never observed yet: `getChildren` then
@@ -203,19 +230,23 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // read says otherwise — the moving set is what ships, and a first frame of
   // still dots would flicker for nothing on every window that keeps them.
   private animate = true;
+  // What each live session is running, from the process table (process/*).
+  // Empty until the first scan, and empty again whenever the view is hidden:
+  // an invisible tree is not worth a `ps` every two seconds.
+  private processes: ReadonlyMap<string, SessionProcess[]> = new Map();
 
   constructor(
-    // Reçoit la vérification plutôt que de la posséder : lire settings.json
-    // toutes les REFRESH_MS pour un cas rare (aucune session) coûterait en
-    // permanence. Consultée seulement quand ce nœud vide s'apprête à
-    // s'afficher (I5) — jamais mise en cache au-delà d'un seul appel, pour
-    // qu'une installation faite entre-temps se voie sans recharger la fenêtre.
+    // Receives the check rather than owning it: reading settings.json every
+    // REFRESH_MS for a rare case (no session at all) would cost permanently.
+    // Consulted only when this empty node is about to be shown (I5) — never
+    // cached beyond a single call, so that an installation made in the
+    // meantime is seen without reloading the window.
     private readonly checkHooksInstalled: () => Promise<boolean>,
-    // Signale une intention, comme checkHooksInstalled ci-dessus : la vue ne
-    // connaît ni le fichier de classement ni updateGroups. Le câblage fournit
-    // une fonction qui appelle updateGroups. Obligatoire et sans valeur par
-    // défaut : un câblage oublié doit échouer à la compilation, pas produire
-    // un glisser-déposer silencieusement inerte à l'exécution.
+    // Signals an intent, like checkHooksInstalled above: the view knows
+    // neither the filing file nor updateGroups. The wiring supplies a
+    // function that calls updateGroups. Mandatory and with no default value:
+    // wiring that was forgotten must fail at compile time, not produce a
+    // drag-and-drop that is silently inert at runtime.
     private readonly onDrop: (
       sessionIds: readonly string[],
       groupId: string | undefined,
@@ -228,10 +259,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       groupIds: readonly string[],
       beforeId: string | undefined,
     ) => Promise<void>,
-    // La racine du paquet installé, d'où sont lues les pastilles de statut.
-    // Obligatoire, comme onDrop : une vue câblée sans elle afficherait des
-    // lignes sans aucune icône, et le statut n'est lisible nulle part ailleurs
-    // dans la ligne. Autant que ça ne compile pas.
+    // The root of the installed package, from which the status dots are
+    // read. Mandatory, like onDrop: a view wired without it would show rows
+    // with no icon at all, and the status is not readable anywhere else in
+    // the row. Better that it does not compile.
     private readonly extensionPath: string,
   ) {}
 
@@ -240,8 +271,18 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     this.refresh();
   }
 
-  // La vue affiche le classement, elle ne va pas le chercher : même principe
-  // que checkHooksInstalled ci-dessus, pour la même raison de testabilité.
+  /**
+   * The processes each session is running, fed by the render loop — the view
+   * scans nothing itself, same contract as `setGroups` and for the same
+   * reason: it stays testable without a process table.
+   */
+  setProcesses(processes: ReadonlyMap<string, SessionProcess[]>): void {
+    this.processes = processes;
+    this.refresh();
+  }
+
+  // The view displays the filing, it does not go fetch it: the same
+  // principle as checkHooksInstalled above, for the same testability reason.
   setGroups(state: GroupsState): void {
     this.groups = state;
     this.refresh();
@@ -294,11 +335,11 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Ce que la vue affiche RÉELLEMENT, sous forme comparable.
+   * What the view ACTUALLY displays, in comparable form.
    *
-   * Pas l'état brut : `lastEventAt` change à chaque événement, mais l'âge
-   * affiché ne bouge qu'au passage d'une minute. Comparer ce qui est rendu, et
-   * non ce qui le produit, est ce qui rend la comparaison utile.
+   * Not the raw state: `lastEventAt` changes on every event, but the age
+   * shown only moves as a minute passes. Comparing what is rendered, and not
+   * what produces it, is what makes the comparison useful.
    */
   private signature(): string {
     const now = Date.now();
@@ -316,6 +357,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         sessionDescription(s, now),
         groupIdOf(this.groups, s.id),
         this.reopening.has(s.id),
+        // What the rows under this session DISPLAY, never the raw scan: the
+        // pid, the label and the coarse age, and nothing that moves on its
+        // own. `elapsed` counts seconds, so putting it here would change the
+        // signature on every tick and rebuild the whole tree twice a second —
+        // the exact behaviour this comparison exists to avoid.
+        (this.processes.get(s.id) ?? []).map((p) => [p.pid, p.ppid, p.label, processDescription(p), glyphOf(p)]),
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
@@ -329,12 +376,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Ne prévient VSCode que si l'affichage a changé.
+   * Only tells VSCode when the display has changed.
    *
-   * Le rendu tourne toutes les REFRESH_MS et appelle quatre setters : signaler
-   * à chaque fois faisait reconstruire l'arbre deux fois par seconde, ce qui
-   * escamotait l'infobulle sous la souris avant qu'on ait fini de la lire. Un
-   * arbre qui n'a pas changé n'a rien à annoncer.
+   * The render runs every REFRESH_MS and calls four setters: signalling every
+   * time made the tree get rebuilt twice a second, which whisked the tooltip
+   * away from under the mouse before one had finished reading it. A tree that
+   * has not changed has nothing to announce.
    */
   private refresh(): void {
     const next = this.signature();
@@ -344,22 +391,23 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Applique l'ordre choisi à la main, BLOC PAR BLOC : d'abord les
-   * conversations éveillées, puis celles qui dorment. Dans chaque bloc, les
-   * sessions que l'ordre nomme viennent en tête, dans cet ordre ; celles qu'il
-   * ignore suivent, dans le tri du tableau de bord — une session ouverte après
-   * un rangement se pose donc à la fin sans bousculer ce qui a été placé.
+   * Applies the hand-chosen order BLOCK BY BLOCK: first the awake
+   * conversations, then the ones that are asleep. Within each block, the
+   * sessions the order names come first, in that order; the ones it ignores
+   * follow, in the dashboard's own sort — a session opened after a manual
+   * arrangement therefore settles at the end without disturbing what was
+   * placed.
    *
-   * La séparation en deux blocs vient AVANT l'ordre manuel, et c'est le seul
-   * point qui ne se négocie pas. Sans elle, un dossier rangé à la main classait
-   * ses sessions nommées en tête sans regarder `endedAt` : mettre l'une d'elles
-   * en veille la grisait sur place sans jamais la déplacer, et une conversation
-   * vivante pouvait se retrouver sous la ligne de séparation. Ce que l'ordre
-   * choisi décide, c'est la place d'une session PARMI SES SEMBLABLES ; le
-   * sommeil décide, lui, de quel côté de la coupure elle tombe.
+   * The split into two blocks comes BEFORE the manual order, and it is the
+   * one point that does not negotiate. Without it, a hand-arranged folder
+   * ranked its named sessions first without looking at `endedAt`: putting one
+   * of them to sleep greyed it in place without ever moving it, and a live
+   * conversation could end up below the separator row. What the chosen order
+   * decides is a session's place AMONG ITS OWN KIND; sleep decides, for its
+   * part, which side of the cut it falls on.
    *
-   * `sessions` arrive déjà trié (setSessions) : les restantes gardent cet ordre,
-   * et le filtrage par bloc le préserve.
+   * `sessions` arrives already sorted (setSessions): the remaining ones keep
+   * that order, and filtering by block preserves it.
    */
   private ordered(sessions: readonly Session[], groupId: string | undefined): Session[] {
     const awake = sessions.filter((s) => s.endedAt === undefined);
@@ -379,29 +427,30 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * Le dossier où une session s'affiche réellement. Une affectation qui désigne
-   * un dossier supprimé ne compte pas : la session est alors « Sans dossier »,
-   * exactement comme dans getChildren — les deux ne doivent jamais diverger.
+   * The folder where a session actually shows up. An assignment that names a
+   * deleted folder does not count: the session is then « Unfiled », exactly
+   * as in getChildren — the two must never diverge.
    */
   private groupOfSession(sessionId: string): string | undefined {
     const id = groupIdOf(this.groups, sessionId);
     return id !== undefined && this.groups.groups.some((g) => g.id === id) ? id : undefined;
   }
 
-  /** L'ordre visible d'un dossier, tel qu'il est affiché à cet instant. */
+  /** A folder's visible order, as it is displayed at this instant. */
   private visibleOrder(groupId: string | undefined): string[] {
     const sessions = this.sessions.filter((s) => this.groupOfSession(s.id) === groupId);
     return this.ordered(sessions, groupId).map((s) => s.id);
   }
 
   /**
-   * Le parent d'une ligne, exigé par `TreeView.reveal` : VSCode remonte
-   * jusqu'à la racine pour déplier ce qu'il faut avant de sélectionner.
+   * A row's parent, required by `TreeView.reveal`: VSCode climbs back up to
+   * the root to unfold whatever is needed before selecting.
    *
-   * Le dossier est reconstruit avec SES sessions, pas rendu en coquille vide :
-   * VSCode peut redemander les enfants du parent qu'on lui donne, et un dossier
-   * sans contenu replierait la vue au lieu de l'ouvrir. Le filtrage et le tri
-   * sont exactement ceux de `getChildren` — les deux ne doivent jamais diverger.
+   * The folder is rebuilt with ITS sessions, not rendered as an empty shell:
+   * VSCode can ask again for the children of the parent it is given, and a
+   * folder with no content would fold the view back instead of opening it.
+   * The filtering and the sorting are exactly those of `getChildren` — the
+   * two must never diverge.
    */
   getParent(node: TreeNode): TreeNode | undefined {
     if (node.kind !== 'session') return undefined;
@@ -415,9 +464,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   }
 
   /**
-   * La ligne d'une conversation, nommée par son identifiant. Ce qui appelle —
-   * l'onglet actif, côté éditeur — connaît une session, pas la forme des nœuds
-   * de cet arbre, et n'a pas à l'apprendre.
+   * A conversation's row, named by its identifier. Whatever calls — the
+   * active tab, on the editor's side — knows a session, not the shape of
+   * this tree's nodes, and does not have to learn it.
    */
   nodeFor(sessionId: string): TreeNode | undefined {
     const session = this.sessions.find((s) => s.id === sessionId);
@@ -447,9 +496,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
           unfiled.push(s);
         }
       }
-      // Les dossiers apparaissent tous, même vides — c'est une cible de dépôt ;
-      // « Sans dossier » seulement s'il a un contenu, sinon ce reliquat n'a rien
-      // à montrer, et toujours en dernier.
+      // Every folder shows up, even an empty one — it is a drop target;
+      // « Unfiled » only if it has content, otherwise this leftover has
+      // nothing to show, and always comes last.
       const nodes: TreeNode[] = this.groups.groups.map((group) => ({
         kind: 'group',
         group,
@@ -461,21 +510,21 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       return withSpacers(nodes);
     }
     if (node.kind === 'group') {
-      // Deux blocs dans un dossier : ce qui est éveillé, puis ce qui dort.
-      // `compareSessions` les a déjà rangés dans cet ordre ; il ne manquait que
-      // la respiration entre les deux, sans laquelle une conversation grisée se
-      // lit comme la suite de la liste vivante. Le séparateur porte l'id du
-      // dossier : VSCode distingue les lignes par leur identité, et deux
-      // séparateurs identiques se marcheraient dessus au rafraîchissement —
-      // même raison que dans `withSpacers`.
+      // Two blocks within a folder: what is awake, then what is asleep.
+      // `compareSessions` has already arranged them in that order; all that
+      // was missing was the breathing room between the two, without which a
+      // greyed conversation reads as the continuation of the live list. The
+      // separator carries the folder's id: VSCode distinguishes rows by their
+      // identity, and two identical separators would step on each other on
+      // refresh — the same reason as in `withSpacers`.
       const rows: TreeNode[] = [];
       let awake = false;
       let broken = false;
       for (const session of node.sessions) {
         if (session.endedAt === undefined) awake = true;
-        // La coupure marque le PASSAGE de l'éveillé à l'endormi, pas la simple
-        // présence d'une ligne au-dessus : un dossier entièrement endormi n'a
-        // aucune frontière à montrer.
+        // The cut marks the TRANSITION from awake to asleep, not the mere
+        // presence of a row above it: a folder entirely asleep has no
+        // boundary to show.
         else if (!broken && awake) {
           rows.push({ kind: 'spacer', after: `asleep:${node.group?.id ?? 'unfiled'}` });
           broken = true;
@@ -483,6 +532,17 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         rows.push({ kind: 'session', session });
       }
       return rows;
+    }
+    // A session unfolds into what it started, and each of those into what IT
+    // started: the shape of the process tree is kept rather than flattened,
+    // because that shape is the answer to "who launched this".
+    if (node.kind === 'session') {
+      const procs = this.processes.get(node.session.id) ?? [];
+      return rootsOf(procs).map((proc) => ({ kind: 'process', sessionId: node.session.id, proc }));
+    }
+    if (node.kind === 'process') {
+      const procs = this.processes.get(node.sessionId) ?? [];
+      return childrenOf(procs, node.proc.pid).map((proc) => ({ kind: 'process', sessionId: node.sessionId, proc }));
     }
     return [];
   }
@@ -497,9 +557,10 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       return item;
     }
     if (node.kind === 'spacer') {
-      // Un libellé vide, et rien d'autre : pas d'icône (qui la rendrait visible),
-      // pas de commande (qui la rendrait cliquable), pas de contextValue (qui lui
-      // donnerait un menu). Elle n'est là que pour occuper une hauteur de ligne.
+      // An empty label, and nothing else: no icon (which would make it
+      // visible), no command (which would make it clickable), no
+      // contextValue (which would give it a menu). It is only here to
+      // occupy the height of a row.
       const item = new vscode.TreeItem('');
       item.id = nodeId(node);
       return item;
@@ -516,39 +577,55 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         node.sessions.length > 1
           ? vscode.l10n.t('{0} sessions', node.sessions.length)
           : vscode.l10n.t('{0} session', node.sessions.length);
-      // « Sans dossier » n'est pas un dossier : il ne se colore pas, faute de
-      // pouvoir porter un choix de l'utilisateur.
+      // « Unfiled » is not a folder: it does not take a colour, for lack of
+      // being able to carry a user's choice.
       const theme = themeColorOf(shownColor(node.group, this.preview));
       item.iconPath = new vscode.ThemeIcon(GROUP_GLYPH, theme === undefined ? undefined : new vscode.ThemeColor(theme));
-      // Le libellé suit l'icône : c'est le fournisseur de décorations qui le
-      // colore, seul moyen offert par VSCode d'atteindre le texte d'une ligne.
+      // The label follows the icon: it is the decoration provider that
+      // colours it, the only way VSCode offers to reach a row's text.
       if (theme !== undefined && node.group !== undefined) {
         item.resourceUri = vscode.Uri.from(decorationUriParts('group', node.group.id, theme));
       }
-      // « Sans dossier » n'est pas un dossier de l'utilisateur : pas d'id, pas
-      // de renommage ni de suppression possibles, donc pas ce contextValue.
+      // « Unfiled » is not a folder of the user's own: no id, no renaming or
+      // deleting possible, hence not this contextValue.
       item.contextValue = node.group === undefined ? 'unfiled' : 'group';
       return item;
     }
+    if (node.kind === 'process') {
+      return processItem(node.proc, nodeId(node), hasChildren(this.processes.get(node.sessionId) ?? [], node.proc.pid));
+    }
     const s = node.session;
     const now = Date.now();
-    const item = new vscode.TreeItem(sessionLabel(s), vscode.TreeItemCollapsibleState.None);
+    const procs = this.processes.get(s.id) ?? [];
+    // Collapsed, never expanded: what a session runs is detail on demand. An
+    // expanded default would push the conversations below it off the screen,
+    // and the list of conversations is what this view is for.
+    //
+    // The arrow follows `rootsOf`, not the whole list: a session running only
+    // its MCP servers has nothing to unfold here — those live in the Processes
+    // view now — and an arrow opening onto an empty list is a broken promise.
+    const item = new vscode.TreeItem(
+      sessionLabel(s),
+      rootsOf(procs).length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed,
+    );
     item.id = nodeId(node);
-    item.description = sessionDescription(s, now);
+    const running = processCount(procs);
+    item.description =
+      running === 0 ? sessionDescription(s, now) : `${sessionDescription(s, now)} · ${vscode.l10n.t('{0} running', running)}`;
     item.tooltip = sessionTooltip(s, now);
-    // Trois valeurs, parce que trois lignes n'offrent pas les mêmes gestes. La
-    // lune ferme un onglet : elle n'a de sens que sur une conversation vivante
-    // ISSUE D'UN ÉDITEUR — `closePlan` (close/plan.ts) ne reconnaît d'onglet
-    // qu'à `vscode`. Une ligne grisée n'a plus d'onglet, une conversation de
-    // terminal n'en a jamais eu : ni l'une ni l'autre ne doit montrer un bouton
-    // qui ne ferait rien. Le préfixe commun laisse les menus partagés — sons,
-    // retirer, corbeille, copier l'ID — cibler les trois d'un seul `=~`.
+    // Three values, because three rows do not offer the same gestures. The
+    // moon closes a tab: it only makes sense on a live conversation THAT
+    // CAME FROM AN EDITOR — `closePlan` (close/plan.ts) only recognises a tab
+    // for `vscode`. A greyed row has no tab any more, a terminal conversation
+    // never had one: neither must show a button that would do nothing. The
+    // shared prefix lets the shared menus — sounds, remove, trash, copy the
+    // ID — target all three with a single `=~`.
     item.contextValue =
       s.endedAt !== undefined ? 'sessionAsleep' : s.origin === 'vscode' ? 'session' : 'sessionNoTab';
     item.accessibilityInformation = { label: `${sessionLabel(s)}, ${statusLabel(s.status)}` };
-    // `TreeItem.iconPath` n'accepte QUE des Uri sous cette forme — pas des
-    // chemins. La conversion reste ici pour que statusIconPath() n'ait pas
-    // besoin de l'API de VSCode, et se teste donc sans elle.
+    // `TreeItem.iconPath` accepts ONLY Uris in this form — not paths. The
+    // conversion stays here so that statusIconPath() does not need VSCode's
+    // API, and can therefore be tested without it.
     // A muted dot for what is not open — ended, or a tab nobody has woken —
     // and the label greyed with it, through the same decoration provider the
     // folders use: the only way VSCode offers to colour a row's text.
@@ -564,16 +641,15 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       item.description = vscode.l10n.t('reopening…');
       return item;
     }
-    // Volontairement AUCUNE couleur sur une session ouverte : la teinte du
-    // dossier descendue sur ses conversations noyait la lecture. Le dossier
-    // porte la couleur, ses sessions portent leur statut.
+    // Deliberately NO colour on an open session: the folder's tint brought
+    // down onto its conversations drowned the reading. The folder carries
+    // the colour, its sessions carry their status.
     item.command = { command: 'kohVibe.focusSession', title: vscode.l10n.t('Go to session'), arguments: [s] };
     return item;
   }
 
-  // Ce que l'utilisateur saisit dans le glisser : uniquement les sessions
-  // sélectionnées, jamais un dossier — un dossier n'a pas de sens à être
-  // déposé ailleurs dans cet arbre.
+  // What the user picks up in the drag: only the selected sessions, never a
+  // folder — a folder makes no sense being dropped elsewhere in this tree.
   handleDrag(source: readonly TreeNode[], data: vscode.DataTransfer): void {
     const ids = source.filter(isSessionNode).map((node) => node.session.id);
     if (ids.length > 0) data.set(SessionsTree.MIME, new vscode.DataTransferItem(ids));
@@ -586,15 +662,15 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     if (groupIds.length > 0) data.set(SessionsTree.GROUP_MIME, new vscode.DataTransferItem(groupIds));
   }
 
-  // Le ciblage ne passe pas par contextValue : `target` est le nœud VSCode
-  // sous le curseur. Seul un nœud de dossier (nommé ou « Sans dossier ») est
-  // une cible valable — le vide de la vue (target undefined) ou toute autre
-  // ligne ne change rien. `item.value` n'est jamais casté : il transite par
-  // `unknown` et n'est accepté qu'après validation explicite de sa forme.
+  // Targeting does not go through contextValue: `target` is the VSCode node
+  // under the cursor. Only a folder node (named or « Unfiled ») is a valid
+  // target — the empty view (target undefined) or any other row changes
+  // nothing. `item.value` is never cast: it travels through `unknown` and is
+  // only accepted after explicit validation of its shape.
   async handleDrop(target: TreeNode | undefined, data: vscode.DataTransfer): Promise<void> {
-    // Deux cibles valables, et deux seulement : un dossier (on y range, à la
-    // fin) ou une session (on se place devant elle, dans SON dossier). Le vide
-    // de la vue, un séparateur ou le nœud d'état vide ne changent rien.
+    // Two valid targets, and only two: a folder (it is filed there, at the
+    // end) or a session (it is placed in front of it, in ITS folder). The
+    // empty view, a separator or the empty-state node change nothing.
     if (target === undefined) return;
     if (target.kind !== 'group' && target.kind !== 'session') return;
     // Folders first: a drag that carries both kinds is resolved by what it was
@@ -615,9 +691,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
 
     const groupId = target.kind === 'group' ? target.group?.id : this.groupOfSession(target.session.id);
     const before = target.kind === 'session' ? target.session.id : undefined;
-    // L'ordre transmis est celui du dossier APRÈS le dépôt, calculé sur ce qui
-    // est affiché maintenant. Le figer entièrement est le but : une session
-    // posée à la main ne doit plus bouger quand son statut change.
+    // The order passed on is the folder's AFTER the drop, computed on what
+    // is displayed right now. Freezing it entirely is the point: a session
+    // placed by hand must no longer move when its status changes.
     await this.onDrop(sessionIds, groupId, reorder(this.visibleOrder(groupId), sessionIds, before));
   }
 

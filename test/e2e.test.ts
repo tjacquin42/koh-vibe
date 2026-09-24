@@ -17,14 +17,15 @@ import { closeSessionHere } from '../src/close/close';
 import { rescanLiveSessions } from '../src/claude/rescan';
 import type { LiveSession } from '../src/claude/registry';
 
-// Bout en bout : installation des hooks sur une configuration bidon, exécution du
-// vrai bridge pour trois événements d'une même session, réduction par le chemin de
-// production, puis désinstallation. Tout se joue sous un HOME et un KOH_VIBE_HOME
-// détournés vers un dossier jetable : rien ne touche ~/.claude/settings.json ni
-// ~/.koh-vibe/ réels. Déterministe et isolé par variables d'environnement — au
-// même titre que test/bridge.test.ts et test/installer.test.ts, ce test a sa place
-// dans la suite plutôt que dans un script à part : aucune dépendance à un état de
-// l'éditeur ou à une temporisation qui le rendrait fragile en CI.
+// End to end: installing the hooks on a dummy configuration, running the
+// real bridge for three events of the same session, reduction through the
+// production path, then uninstalling. Everything happens under a HOME and a
+// KOH_VIBE_HOME redirected to a throwaway folder: nothing touches the real
+// ~/.claude/settings.json or ~/.koh-vibe/. Deterministic and isolated
+// through environment variables — on the same footing as test/bridge.test.ts
+// and test/installer.test.ts, this test belongs in the suite rather than in
+// a separate script: no dependency on editor state or on a timing that
+// would make it flaky in CI.
 const REPO_ROOT = process.cwd();
 const SCRIPT = join(REPO_ROOT, 'scripts/install-hooks.cjs');
 const BRIDGE = join(REPO_ROOT, 'bin/koh-vibe-bridge');
@@ -74,8 +75,8 @@ beforeEach(async () => {
   projectDir = join(fakeHome, 'mon-projet');
   settingsPath = join(fakeHome, '.claude', 'settings.json');
 
-  // Simule ce que fait l'extension à l'activation : le spool existe déjà avant
-  // que les hooks ne soient installés.
+  // Simulates what the extension does on activation: the spool already
+  // exists before the hooks get installed.
   await ensureDirs(dirs);
 
   mkdirSync(join(fakeHome, '.claude'), { recursive: true });
@@ -86,14 +87,14 @@ afterEach(() => {
   rmSync(fakeHome, { recursive: true, force: true });
 });
 
-describe('bout en bout : installer → bridge → réduction → désinstaller', () => {
-  it('installe une copie stable et exécutable du bridge, référencée par les 8 hooks', () => {
+describe('end to end: install → bridge → reduce → uninstall', () => {
+  it('installs a stable, executable copy of the bridge, referenced by the 8 hooks', () => {
     runInstaller();
 
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
     const stat = statSync(bridgeTarget);
     expect(stat.isFile()).toBe(true);
-    expect(stat.mode & 0o111).not.toBe(0); // au moins un bit d'exécution posé
+    expect(stat.mode & 0o111).not.toBe(0); // at least one execute bit set
 
     const after = JSON.parse(readFileSync(settingsPath, 'utf8')) as typeof bidonSettings & {
       hooks: Record<string, Array<{ matcher: string; hooks: Array<{ command: string }> }>>;
@@ -105,20 +106,20 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
       expect(commands).toContain(`/bin/sh -c '[ -x "${bridgeTarget}" ] && "${bridgeTarget}" ${event}; exit 0'`);
     }
 
-    // L'entrée étrangère préexistante n'a pas bougé.
+    // The pre-existing foreign entry has not moved.
     expect(after.hooks.PermissionRequest.flatMap((m) => m.hooks.map((h) => h.command))).toContain(
       '/vibe/bridge --source claude',
     );
   });
 
-  it('réinstalle sans se plaindre et écrase la copie du bridge en place', () => {
+  it('reinstalls without complaining and overwrites the bridge copy in place', () => {
     runInstaller();
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
     const firstRun = statSync(bridgeTarget).mtimeMs;
 
-    // Une deuxième copie, même contenu, un peu plus tard : mtime doit avancer,
-    // preuve que copyFileSync a bien réécrit le fichier plutôt que de le laisser
-    // en place ou d'échouer parce qu'il existe déjà.
+    // A second copy, same content, a bit later: mtime must move forward,
+    // proof that copyFileSync actually rewrote the file rather than leaving
+    // it in place or failing because it already exists.
     const second = runInstaller();
     expect(second).not.toMatch(/error|erreur/i);
 
@@ -129,7 +130,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
   });
 
-  it('remplit le spool via le vrai bridge, puis réduit un statut, un projet et une action courante cohérents', async () => {
+  it('fills the spool through the real bridge, then reduces a consistent status, project and current action', async () => {
     runInstaller();
 
     runBridge('SessionStart', {
@@ -148,7 +149,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     const dropped = readdirSync(dirs.events).filter((f) => f.endsWith('.json'));
     expect(dropped).toHaveLength(3);
 
-    const res = await drain(dirs, Date.now()); // chemin de production : le même que SpoolWatcher.tick()
+    const res = await drain(dirs, Date.now()); // production path: the same one as SpoolWatcher.tick()
     expect(res.applied).toBe(3);
     expect(res.rejected).toBe(0);
 
@@ -160,7 +161,7 @@ describe('bout en bout : installer → bridge → réduction → désinstaller',
     expect(session?.currentAction).toEqual({ tool: 'Bash', target: 'pnpm test' });
   });
 
-  it('désinstalle et rend la configuration bidon strictement identique à son état de départ', () => {
+  it('uninstalls and returns the dummy configuration strictly identical to its starting state', () => {
     runInstaller();
     expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
 

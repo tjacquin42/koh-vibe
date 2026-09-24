@@ -2,25 +2,37 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
-import type { Session } from '../events/types';
+import type { LocalEvent, Session, SpoolEvent } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
 import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession } from './persist';
 import { MAX_ENDED } from '../store/open';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
+import { isErrnoException } from '../lib/errno';
 
 export interface DrainResult {
   applied: number;
   rejected: number;
-  /** Traité mais pas écrit (panne d'E/S externe à l'événement) : laissé en
-   * place dans events/ pour un prochain drain, ni perdu ni classé invalide —
-   * sauf s'il a dépassé MAX_EVENT_AGE_MS, voir `rejectedPermanently`. */
+  /** Processed but not written (an I/O failure external to the event): left
+   * in place in events/ for a future drain, neither lost nor classed as
+   * invalid — unless it has exceeded MAX_EVENT_AGE_MS, see
+   * `rejectedPermanently`. */
   deferred: number;
-  /** Noms des événements écartés vers rejected/ pour avoir échoué alors
-   * qu'ils avaient déjà dépassé MAX_EVENT_AGE_MS (N3) : sous-ensemble de ce
-   * qui compte dans `rejected`, distingué pour que l'appelant puisse
-   * signaler l'abandon plutôt que de le laisser invisible. */
+  /** Names of the events discarded to rejected/ for having failed while
+   * already past MAX_EVENT_AGE_MS (N3): a subset of what counts in
+   * `rejected`, singled out so the caller can report the abandonment
+   * rather than leave it invisible. */
   rejectedPermanently: string[];
+  /**
+   * The tool calls this pass saw, reduced to what the process view needs: the
+   * command and the agent behind it, if any.
+   *
+   * Carried out of the drain rather than read again from the spool, because
+   * there is nowhere to read it from — the files are gone by then, and the
+   * session state the events reduce to has no room for something this
+   * short-lived. See process/agents.ts.
+   */
+  toolCalls: SpoolEvent[];
 }
 
 /**
@@ -39,38 +51,33 @@ export type ArchiveClosed = (s: Session) => Promise<void>;
 export type EndPolicy = 'keep' | 'remove';
 
 /**
- * Au-delà de cet âge, un événement qui échoue encore n'est plus considéré
- * transitoire : il est déplacé vers rejected/ avec sa raison plutôt que
- * retenté indéfiniment en silence (N3). L'âge se lit dans le nom de fichier
- * de l'événement lui-même (l'horodatage qui l'ouvre, déjà utilisé pour
- * l'ordre de traitement) — pas dans un compteur de tentatives tenu en
- * mémoire : ce dernier confondait « échoue depuis 2 ms, 3 fois de suite »
- * (sous une rafale de centaines d'événements, un compteur épuise ses
- * tentatives en quelques millisecondes réelles) avec « échoue depuis
- * longtemps », dépendait d'un état par fenêtre (jamais partagé, remis à zéro
- * à chaque réouverture), et donnait un résultat différent selon la fenêtre
- * qui comptait. Une durée n'a aucun de ces défauts : la même pour toutes les
- * fenêtres, indépendante de la charge, indifférente à la fermeture d'une
- * fenêtre.
+ * Past this age, an event that still fails is no longer considered
+ * transient: it is moved to rejected/ with its reason instead of being
+ * retried indefinitely in silence (N3). The age is read from the event's
+ * own file name (the timestamp that opens it, already used for processing
+ * order) — not from an in-memory retry counter: the latter confused
+ * "failing for 2 ms, 3 times in a row" (under a burst of hundreds of
+ * events, a counter exhausts its attempts within a few real milliseconds)
+ * with "failing for a long time", depended on per-window state (never
+ * shared, reset on every reopening), and gave a different result depending
+ * on which window was counting. A duration has none of these flaws: the
+ * same for every window, independent of load, indifferent to a window
+ * closing.
  *
- * 5 minutes : très généreux comparé au temps d'un tick, même chargé (~30 s
- * au pire pour ~660 événements, voir GUARD_TIMEOUT_MS) — un événement qui
- * échoue encore après 5 minutes a déjà survécu à des dizaines de passages,
- * pas juste à un pic de charge.
+ * 5 minutes: very generous compared to the time of a tick, even under load
+ * (~30 s worst case for ~660 events, see GUARD_TIMEOUT_MS) — an event that
+ * still fails after 5 minutes has already survived dozens of passes, not
+ * just a load spike.
  */
 export const MAX_EVENT_AGE_MS = 5 * 60_000;
 
-function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && 'code' in err;
-}
-
 /**
- * L'horodatage qui ouvre le nom de fichier d'un événement (bridge :
- * `<at>-<pid>-<event>.json` ; appendLocalEvent : `<at>-<pid>-<seq>-<event>.json`),
- * en millisecondes epoch. `undefined` pour un nom qui ne commence pas par un
- * nombre — ne devrait pas arriver pour un fichier réellement déposé par ce
- * projet, mais ne pas pouvoir dater un événement ne doit jamais se traduire
- * par « donc il est vieux » : voir l'appelant.
+ * The timestamp that opens an event's file name (bridge:
+ * `<at>-<pid>-<event>.json`; appendLocalEvent: `<at>-<pid>-<seq>-<event>.json`),
+ * in epoch milliseconds. `undefined` for a name that does not start with a
+ * number — should not happen for a file actually dropped by this project,
+ * but being unable to date an event must never be read as "therefore it
+ * is old": see the caller.
  */
 function eventTimestamp(name: string): number | undefined {
   const stamp = name.split('-', 1)[0];
@@ -79,33 +86,35 @@ function eventTimestamp(name: string): number | undefined {
 }
 
 /**
- * Consomme tout le spool une fois. Rien ici ne retire une session pour son
- * silence : un onglet laissé ouvert une journée reste une conversation. Seul
- * l'utilisateur, qui ferme ou retire, la sort de la liste — et `SessionEnd`
- * quand `endPolicy` vaut `'remove'` (réglage « sessions persistantes »
- * décoché) ; sinon la conversation terminée reste, marquée `endedAt`.
+ * Consumes the whole spool once. Nothing here removes a session for
+ * staying quiet: a tab left open for a whole day is still a conversation.
+ * Only the user, closing or removing it, takes it off the list — and
+ * `SessionEnd` when `endPolicy` is `'remove'` (the « persistent sessions »
+ * setting unchecked); otherwise the ended conversation stays, marked
+ * `endedAt`.
  *
- * L'ordre est essentiel : on écrit l'état AVANT de supprimer l'événement. Une
- * autre fenêtre qui rate l'événement supprimé retrouve l'état dans sessions/ ;
- * l'inverse laisserait un trou.
+ * The order matters: the state is written BEFORE the event is deleted.
+ * Another window that misses the deleted event still finds the state in
+ * sessions/; the reverse order would leave a hole.
  *
- * Chaque événement relit l'état de SA session juste avant de la réduire —
- * jamais un instantané de la carte entière tenu au travers de plusieurs
- * `await` : une autre fenêtre peut écrire ou supprimer cette même session
- * entre deux itérations de cette boucle, et il faut toujours réduire contre
- * le plus récent, pas contre ce qui était vrai au tout début de ce drain.
+ * Each event re-reads the state of ITS session right before reducing it —
+ * never a snapshot of the whole map held across several `await`s: another
+ * window can write or delete this very session between two iterations of
+ * this loop, and reducing must always happen against the most recent
+ * state, not against what was true at the very start of this drain.
  *
- * `signal` (fourni par `ReentrantGuard.run()`, absent si on appelle `drain`
- * hors d'une garde) protège contre un défaut qu'I1 ne couvre pas : I1 relit
- * l'état d'une session juste avant de la RÉDUIRE, ce qui protège la lecture,
- * pas l'écriture qui suit. Une exécution abandonnée par la garde (elle a
- * dépassé son délai, mais continue en arrière-plan) peut avoir réduit un
- * état à partir d'une lecture désormais périmée ; si elle écrit quand même,
- * elle écrase un état plus récent écrit entre-temps par un passage frais.
- * `signal.abandoned` est donc consulté juste avant CHAQUE couple
- * écriture-puis-suppression, jamais avant : l'invariant « on écrit l'état
- * avant de supprimer l'événement » est ce qui rend cet abandon sans perte —
- * l'événement, ni appliqué ni supprimé, sera retraité par le passage frais.
+ * `signal` (supplied by `ReentrantGuard.run()`, absent when `drain` is
+ * called outside a guard) protects against a flaw I1 does not cover: I1
+ * re-reads a session's state right before REDUCING it, which protects the
+ * read, not the write that follows. An execution abandoned by the guard
+ * (it exceeded its timeout, but keeps running in the background) may have
+ * reduced a state from a now-stale read; if it still writes, it overwrites
+ * a more recent state written in the meantime by a fresh pass.
+ * `signal.abandoned` is therefore checked right before EACH
+ * write-then-delete pair, never before: the invariant "the state is
+ * written before the event is deleted" is what makes this abandonment
+ * lossless — the event, neither applied nor deleted, will be reprocessed
+ * by the fresh pass.
  */
 export async function drain(
   dirs: SpoolDirs,
@@ -123,22 +132,26 @@ export async function drain(
   try {
     names = await readdir(dirs.events);
   } catch {
-    // Le spool a disparu (ex : `rm -rf ~/.koh-vibe` pendant que l'extension
-    // tourne) : le recréer plutôt que de rester muet jusqu'au prochain
-    // rechargement de fenêtre — ensureDirs est idempotent, sûr à rappeler
-    // ici. Le bridge, qui sort en silence quand `events/` n'existe pas
-    // (garde `[[ -d "$DIR" ]]`), redépose alors normalement au prochain hook.
+    // The spool has disappeared (e.g. `rm -rf ~/.koh-vibe` while the
+    // extension is running): recreate it rather than staying silent until
+    // the next window reload — ensureDirs is idempotent, safe to call
+    // again here. The bridge, which exits silently when `events/` does not
+    // exist (guarded by `[[ -d "$DIR" ]]`), then drops normally again at
+    // the next hook.
     await ensureDirs(dirs).catch(() => undefined);
     names = [];
   }
 
-  // Le nom commence par l'horodatage : le tri lexicographique suit le temps.
+  // The name starts with the timestamp: lexicographic sort follows time.
   const files = names.filter((n) => n.endsWith('.json') && !n.startsWith('.')).sort();
   let applied = 0;
   let rejected = 0;
   let deferred = 0;
   let endedOne = false;
   const rejectedPermanently: string[] = [];
+  // Collected as they go by, for the process view's agent index: the files
+  // are unlinked moments later, so this pass is the only chance to see them.
+  const toolCalls: SpoolEvent[] = [];
 
   for (const name of files) {
     const path = join(dirs.events, name);
@@ -146,7 +159,7 @@ export async function drain(
     try {
       raw = await readFile(path, 'utf8');
     } catch {
-      continue; // consommé par une autre fenêtre entre le readdir et le readFile
+      continue; // consumed by another window between the readdir and the readFile
     }
 
     const ev = parseSpoolFile(raw);
@@ -161,15 +174,14 @@ export async function drain(
       const next = reduce(current, ev);
 
       if (signal?.abandoned) {
-        // Cette exécution a été abandonnée (délai de garde dépassé) pendant
-        // qu'elle tenait encore cette lecture périmée : écrire `next`
-        // maintenant écraserait un état plus récent écrit par le passage
-        // frais qui tourne déjà. On s'arrête ici, avant d'écrire quoi que ce
-        // soit — l'événement reste en place, ni appliqué ni supprimé, et
-        // sera retraité. Rien d'autre ne peut plus être fait de sûr par
-        // cette exécution : on arrête tout le drain, pas seulement cet
-        // événement.
-        return { applied, rejected, deferred, rejectedPermanently };
+        // This execution was abandoned (guard timeout exceeded) while it
+        // was still holding this now-stale read: writing `next` now would
+        // overwrite a more recent state written by the fresh pass already
+        // running. We stop here, before writing anything at all — the
+        // event stays in place, neither applied nor deleted, and will be
+        // reprocessed. Nothing else can safely be done by this execution
+        // any more: we stop the whole drain, not just this event.
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
       }
 
       // Archive BEFORE writing, for the same reason the state is written
@@ -184,6 +196,14 @@ export async function drain(
       if (ended && current !== undefined && archive !== undefined && !blank) {
         await archive(current);
       }
+      // Asked again, and this is the look that counts: `hasTranscript` and
+      // `archive` are two more awaits on the way to the write, for an end
+      // only, and an execution abandoned during either reached the write
+      // with the reading above gone stale — putting the conversation back to
+      // ended over the prompt that had just woken it.
+      if (signal?.abandoned) {
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
+      }
       if (next === undefined || blank || (ended && endPolicy === 'remove')) {
         // `'remove'` takes the end at face value, late or not: the policy is
         // "closing the tab takes the row away", and that is what it does.
@@ -193,46 +213,50 @@ export async function drain(
         if (ended) endedOne = true;
       }
     } catch (err) {
-      // Échec externe à cet événement précis (disque plein, sessions/ non
-      // inscriptible, volume en lecture seule). Sans ce `continue`,
-      // l'exception remonterait et arrêterait la boucle : les événements
-      // suivants, pourtant sans rapport avec cette panne, resteraient non
-      // traités — et comme le tri est chronologique, le premier fichier
-      // fautif bloquerait tous les suivants à chaque drain, dans toutes les
-      // fenêtres.
+      // A failure external to this specific event (disk full, sessions/
+      // not writable, read-only volume). Without this `continue`, the
+      // exception would propagate and stop the loop: the following
+      // events, even though unrelated to this failure, would stay
+      // unprocessed — and since the sort is chronological, the first
+      // faulty file would block every one after it, on every drain, in
+      // every window.
       const createdAt = eventTimestamp(name);
       const age = createdAt !== undefined ? now - createdAt : undefined;
       if (age !== undefined && age > MAX_EVENT_AGE_MS) {
-        // Échoue encore alors qu'il est déjà plus vieux que ce qu'un échec
-        // transitoire justifie : on cesse de le retenter indéfiniment en
-        // silence, et on l'écarte — visible, avec sa raison — plutôt que de
-        // le perdre.
+        // Still failing even though it is already older than what a
+        // transient failure would justify: we stop retrying it
+        // indefinitely in silence, and discard it — visibly, with its
+        // reason — rather than lose it.
         rejected += 1;
         rejectedPermanently.push(name);
         const reason = `Échec à ${age} ms d'âge (> ${MAX_EVENT_AGE_MS} ms) : ${err instanceof Error ? err.message : String(err)}`;
         await writeFile(join(dirs.rejected, `${name}.reason.txt`), reason, 'utf8').catch(() => undefined);
         await rename(path, join(dirs.rejected, name)).catch(() => undefined);
       } else {
-        // Ni ses effets ni la suppression de son fichier n'ont eu lieu. On
-        // le laisse en place pour qu'un prochain drain — dans cette fenêtre
-        // ou une autre — le retente, plutôt que de le perdre ou de le
-        // classer comme donnée invalide (il ne l'est pas encore).
+        // Neither its effects nor the deletion of its file happened. We
+        // leave it in place so that a future drain — in this window or
+        // another — retries it, rather than lose it or classify it as
+        // invalid data (it is not, yet).
         deferred += 1;
       }
       continue;
     }
 
     applied += 1;
+    // Only the calls that leave a process behind, and only once applied:
+    // an event that failed to reduce will be retried, and counting it here
+    // would claim a command twice.
+    if (ev.toolName === 'Bash') toolCalls.push(ev);
     try {
       await unlink(path);
     } catch (err) {
       if (isErrnoException(err) && err.code === 'ENOENT') {
-        // déjà supprimé par une autre fenêtre : bénin, l'état est déjà écrit
+        // already deleted by another window: benign, the state is already written
       } else {
-        // panne réelle (permission, disque plein…) : laisser le fichier en
-        // place le ferait réappliquer au prochain drain, et pour un effet
-        // cumulatif comme PostToolUse ça corromprait l'état. On l'écarte
-        // plutôt, comme un fichier illisible.
+        // a real failure (permission, disk full…): leaving the file in
+        // place would make it get reapplied on the next drain, and for a
+        // cumulative effect like PostToolUse that would corrupt the
+        // state. We discard it instead, like an unreadable file.
         rejected += 1;
         await rename(path, join(dirs.rejected, name)).catch(() => undefined);
       }
@@ -243,32 +267,33 @@ export async function drain(
   // goes. Only worth a look when this pass ended one.
   if (endedOne) await capEndedSessions(dirs, MAX_ENDED);
 
-  return { applied, rejected, deferred, rejectedPermanently };
+  return { applied, rejected, deferred, rejectedPermanently, toolCalls };
 }
 
 export interface LocalEventInput {
-  event: 'Ack';
+  event: LocalEvent;
   sessionId: string;
   cwd: string;
 }
 
-// `appendLocalEvent` tourne dans le process long de l'extension : contrairement
-// au bridge, où un process équivaut à un appel, `process.pid` n'y est pas
-// unique par appel. Un compteur incrémenté en synchrone à chaque appel l'est,
-// même pour des appels concurrents sans `await` entre eux.
+// `appendLocalEvent` runs in the extension's long-lived process: unlike the
+// bridge, where a process equals a call, `process.pid` is not unique per
+// call there. A counter incremented synchronously on every call is, even
+// for concurrent calls with no `await` between them.
 let localEventSeq = 0;
 
-// Un id de process non zero-paddé trie mal lexicographiquement au sein d'une
-// même milliseconde (`"9" > "1"`, alors que 9 < 10) : deux événements posés à
-// la même milliseconde par des process d'id de largeurs différentes peuvent
-// alors s'appliquer dans le mauvais ordre. Un padding fixe, assez large pour
-// n'être jamais atteint par un vrai pid, ferme cette ambiguïté pour de bon.
+// A process id that is not zero-padded sorts poorly lexicographically
+// within the same millisecond (`"9" > "1"`, even though 9 < 10): two
+// events dropped in the same millisecond by processes with ids of
+// different widths can then get applied in the wrong order. A fixed
+// padding, wide enough to never be reached by a real pid, closes this
+// ambiguity for good.
 const PID_WIDTH = 10;
 function pad(pid: number): string {
   return String(pid).padStart(PID_WIDTH, '0');
 }
 
-/** Dépose une action de l'utilisateur dans le même spool que les hooks. */
+/** Drops a user action into the same spool as the hooks. */
 export async function appendLocalEvent(dirs: SpoolDirs, input: LocalEventInput): Promise<void> {
   const at = Date.now();
   const seq = (localEventSeq += 1);
@@ -286,7 +311,7 @@ export async function appendLocalEvent(dirs: SpoolDirs, input: LocalEventInput):
   await rename(tmp, join(dirs.events, name));
 }
 
-/** Surveille le spool et appelle `onChange` après chaque vidange utile. */
+/** Watches the spool and calls `onChange` after every drain that did something. */
 export class SpoolWatcher {
   private watcher: FSWatcher | undefined;
   private timer: NodeJS.Timeout | undefined;
@@ -296,9 +321,9 @@ export class SpoolWatcher {
     private readonly dirs: SpoolDirs,
     private readonly onChange: (result: DrainResult) => void,
     private readonly onError: (err: unknown) => void,
-    // Horloge injectable : un test date ses événements de petits entiers sans
-    // dépendre du vrai Date.now(). Le process long de l'extension garde le
-    // comportement par défaut.
+    // Injectable clock: a test dates its events with small integers
+    // without depending on the real Date.now(). The extension's
+    // long-lived process keeps the default behavior.
     private readonly now: () => number = Date.now,
     // Required: this is the only production path into `drain`, so it is the
     // only place where forgetting it must be a compile error rather than a
@@ -315,12 +340,12 @@ export class SpoolWatcher {
     try {
       this.watcher = watch(this.dirs.events, () => this.schedule());
     } catch {
-      // Le dossier n'existe pas encore (ex : première ouverture avant tout
-      // hook). drain() tolère déjà son absence ; le filet de 5s ci-dessous
-      // suffit à prendre le relais dès qu'il apparaîtra.
+      // The folder does not exist yet (e.g. first open before any hook).
+      // drain() already tolerates its absence; the 5s safety net below is
+      // enough to take over as soon as it appears.
       this.watcher = undefined;
     }
-    // Filet : fs.watch peut manquer des événements sur certains volumes.
+    // Safety net: fs.watch can miss events on some volumes.
     this.timer = setInterval(() => this.schedule(), 5_000);
   }
 
@@ -339,10 +364,10 @@ export class SpoolWatcher {
     return this.guard.run(async (signal) => {
       const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy(), this.hasTranscript);
       if (res.rejectedPermanently.length > 0) {
-        // Signalement dédié : drain() n'a pas échoué (les autres événements
-        // se sont appliqués normalement), mais celui-ci a échoué alors qu'il
-        // était déjà trop vieux pour que ce soit encore transitoire — ça ne
-        // doit pas disparaître en silence.
+        // Dedicated reporting: drain() did not fail (the other events
+        // applied normally), but this one failed while already too old
+        // for it to still be transient — it must not disappear in
+        // silence.
         this.onError(
           new Error(
             `${res.rejectedPermanently.length} événement(s) écarté(s) définitivement (échec persistant au-delà de ${MAX_EVENT_AGE_MS} ms)`,

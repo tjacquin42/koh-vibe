@@ -4,9 +4,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: { include: ['test/**/*.test.ts'], environment: 'node' },
   resolve: {
-    // `vscode` n'existe que dans l'hôte d'extensions réel : en test, résolu
-    // vers un bouchon minimal (test/stubs/vscode.ts) pour que les modules qui
-    // en dépendent (FocusBroker, SessionsTree) soient chargeables et testables.
+    // `vscode` only exists inside the real extension host: in tests, it
+    // resolves to a minimal stub (test/stubs/vscode.ts) so the modules that
+    // depend on it (FocusBroker, SessionsTree) can be loaded and tested.
     alias: { vscode: fileURLToPath(new URL('./test/stubs/vscode.ts', import.meta.url)) },
   },
 });

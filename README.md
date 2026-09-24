@@ -89,6 +89,33 @@ reinstalling under the same number leaves the editor serving what it already had
   window has open — the row is simply removed from the list. On a greyed row, the icon removes
   it for good. A conversation that ends before its first message — Claude Code starts one for
   every panel it opens — leaves no row and no history: there is nothing to come back to.
+- **What each session is running**, right now. Unfold a live row and you get the processes it
+  started: each command the Bash tool is running, and whatever those left behind — a
+  `pnpm dev` still up an hour after the command that started it returned, say. Right-click a
+  process to **copy its command** — whole, where the row had to cut it — or **its pid**, and to
+  **terminate** it along with everything it started, after a confirmation naming the command.
+  A command a **subagent** ran carries its own icon, and names the agent in its tooltip.
+  Nothing in the process table could tell you that — subagents run inside the conversation's own
+  process, so their commands are indistinguishable from its own down there. Claude Code says so
+  in its hooks instead, and that is where it is read from. A process a session started
+  **detached** — output redirected to a file — is put back under it too, even though the system
+  reparented it away.
+- **Processes**, a view of its own, for what no single conversation accounts for. The **MCP
+  servers** of every session live there rather than under each conversation: Claude Code starts
+  its own set per conversation, so repeating three identical rows in every session buried the
+  work that actually differs. Below them, **No session** lists the processes nothing carries any
+  more — a development server whose conversation is gone, still holding its port. Those cannot
+  appear under a session by construction: a process that loses its parent is adopted by the
+  process 1, which takes it out of every session's subtree. What was adopted is often the shell
+  a command ran in, with the server that holds the port underneath it, so each row unfolds onto
+  what it hides. They are found by looking for development runtimes anywhere in an adopted
+  subtree, then keeping the ones working inside a folder this window has open or a
+  conversation's own directory. A process that works somewhere else, or one still held by an
+  open terminal, is deliberately not listed.
+
+  Note that a clean exit leaves nothing here: Claude Code takes its children with it, so
+  reloading a window is not what produces these. A crash, a `kill -9` or a machine put to sleep
+  is.
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
@@ -220,6 +247,11 @@ but you have not opened since are listed like any idle session — the tab is op
 what counts. The editor resolves only the active tab, so no Claude Code process runs behind
 the others until they are shown: a click brings the tab to the front, and Claude Code resumes
 it. *Remove from the list* hides a conversation until its next activity.
+
+That same registry is what makes the process list possible: it is the only place tying a
+conversation to a pid, and everything a session starts stays among that pid's descendants.
+So the list is one reading of the system's process table, taken while the panel is open and
+walked once per session — no hook, and nothing to install.
 
 ## What's new
 

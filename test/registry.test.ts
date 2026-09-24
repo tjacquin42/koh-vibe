@@ -118,6 +118,13 @@ describe('processAlive', () => {
     expect(processAlive(process.pid)).toBe(true);
   });
 
+  it('sees a process it may not signal — alive is all that is asked', () => {
+    // pid 1 is launchd, and signalling it is refused (EPERM) to anyone but
+    // root: the answer has to be "alive", not "gone". As root the signal is
+    // simply delivered, and the answer is the same.
+    expect(processAlive(1)).toBe(true);
+  });
+
   it('does not see a pid no system hands out', () => {
     // Above every platform's pid ceiling (macOS stops at 99998, Linux at
     // 4194304 by default): kill(2) answers ESRCH, never a real process.

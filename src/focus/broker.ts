@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import * as vscode from 'vscode';
 import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
+import { isEditorOrigin } from '../events/origin';
 import type { ClosedEntry } from '../closed/model';
 import { claims } from './claims';
 import { focusPlan, focusPlanFor, type FocusPlan } from './plan';
@@ -13,10 +14,10 @@ import { closePlan } from '../close/plan';
 import { sessionLabel } from '../ui/labels';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
 
-// Une requête plus vieille que ce délai n'est plus honorée : elle serait
-// consommée hors de tout contexte (ex : par le filet périodique, ou par un
-// événement fs.watch sans rapport), ce qui ferait sauter une fenêtre au
-// premier plan sans que l'utilisateur ait rien cliqué.
+// A request older than this delay is no longer honoured: it would be
+// consumed out of any context (e.g. by the periodic safety net, or by an
+// unrelated fs.watch event), which would jump a window to the foreground
+// without the user having clicked anything.
 const STALE_REQUEST_MS = 30_000;
 
 /**
@@ -46,11 +47,11 @@ export class FocusBroker {
   private warnedMissingReopenCommand = false;
   private consumeFailureWarned = false;
   private readonly fallbacks = new Map<string, NodeJS.Timeout>();
-  // `process.pid` est constant sur toute la durée de vie du process de
-  // l'extension (contrairement au bridge, où un process équivaut à un appel) :
-  // un compteur incrémenté en synchrone à chaque appel de `request` l'est,
-  // même pour deux clics sans `await` entre eux — même défaut, même
-  // traitement qu'`appendLocalEvent` (spool/watcher.ts).
+  // `process.pid` is constant for the whole lifetime of the extension's
+  // process (unlike the bridge, where one process equals one call): a
+  // counter incremented synchronously on every call to `request` is too,
+  // even for two clicks with no `await` between them — same defect, same
+  // treatment as `appendLocalEvent` (spool/watcher.ts).
   private requestSeq = 0;
 
   constructor(
@@ -61,13 +62,13 @@ export class FocusBroker {
     // the window a request travels to: the answer depends on the window.
     private readonly listed: (sessionId: string) => Promise<boolean>,
     /**
-     * Signale la conversation dont on vient de demander l'onglet à Claude Code.
+     * Signals the conversation whose tab we just asked Claude Code to open.
      *
-     * C'est le seul instant où cette fenêtre sait à coup sûr à quelle session
-     * appartient l'onglet qui va apparaître : le mémento de l'éditeur, seule
-     * table qui fait ce lien, est de l'état persisté et ignore encore un onglet
-     * tout juste ouvert. Optionnel — le courtier fonctionne sans, et ses tests
-     * s'en passent.
+     * This is the only moment where this window knows for certain which
+     * session the tab about to appear belongs to: the editor's memento, the
+     * only table that makes this link, is persisted state and does not yet
+     * know about a tab that was just opened. Optional — the broker works
+     * without it, and its tests do without it too.
      */
     private readonly onOpened?: (sessionId: string) => void,
   ) {}
@@ -123,19 +124,19 @@ export class FocusBroker {
           await unlink(name).catch(() => undefined);
           await onUnconsumed();
         },
-        () => undefined, // consommée : rien à faire
+        () => undefined, // consumed: nothing to do
       );
     }, 2_000);
     this.fallbacks.set(name, timer);
   }
 
-  /** Demande le focus d'une session, où qu'elle vive. */
+  /** Asks for a session's focus, wherever it lives. */
   async request(s: Session): Promise<void> {
     if (claims(this.folders(), s.cwd)) {
       await this.focusSession(focusPlanFor(s), 'focus');
       return;
     }
-    // Si personne ne l'a consommée, aucune fenêtre ne détient ce projet : on l'ouvre.
+    // If nobody consumed it, no window holds this project: we open it.
     await this.postRequest('focus', { ...s, label: sessionLabel(s) }, () => {
       execFile('code', ['-r', s.cwd], () => undefined);
     });
@@ -244,15 +245,16 @@ export class FocusBroker {
     }
     try {
       await vscode.commands.executeCommand(plan.command, ...plan.args);
-      // `args[0]` est l'identifiant pour `claude-vscode.editor.open`, la seule
-      // commande qui désigne une conversation. Annoncé APRÈS coup : un échec
-      // n'ouvre aucun onglet, et il n'y aurait rien à apprendre.
+      // `args[0]` is the id for `claude-vscode.editor.open`, the only command
+      // that designates a conversation. Announced AFTER the fact: a failure
+      // opens no tab, and there would be nothing to learn.
       const opened = plan.args[0];
       if (typeof opened === 'string') this.onOpened?.(opened);
     } catch {
-      // Un avertissement par session d'extension suffit : répété à chaque
-      // clic, il devient du bruit qu'on apprend à ignorer. Un par geste, pas
-      // un seul pour les deux — voir le commentaire sur les deux champs.
+      // One warning per extension session is enough: repeated on every
+      // click, it becomes noise that gets learned to be ignored. One per
+      // gesture, not a single one for both — see the comment on the two
+      // fields.
       const alreadyWarned = gesture === 'focus' ? this.warnedMissingFocusCommand : this.warnedMissingReopenCommand;
       if (alreadyWarned) return;
       if (gesture === 'focus') this.warnedMissingFocusCommand = true;
@@ -270,12 +272,12 @@ export class FocusBroker {
     try {
       this.watcher = watch(this.dirs.requests, () => this.schedule());
     } catch {
-      // Le dossier n'existe pas encore (ex : ensureDirs pas encore passé sur
-      // cette machine). Le filet périodique ci-dessous prend le relais dès
-      // qu'il apparaîtra.
+      // The folder does not exist yet (e.g. ensureDirs has not run yet on
+      // this machine). The periodic safety net below takes over as soon as
+      // it appears.
       this.watcher = undefined;
     }
-    // Filet : fs.watch peut manquer des événements sur certains volumes.
+    // Safety net: fs.watch can miss events on certain volumes.
     this.timer = setInterval(() => this.schedule(), 5_000);
   }
 
@@ -296,8 +298,9 @@ export class FocusBroker {
     return this.guard.run(
       () => this.consume(),
       () => {
-        // Un avertissement par cause suffit : même précédent que les drapeaux
-        // `warnedMissingFocusCommand`/`warnedMissingReopenCommand` ci-dessus.
+        // One warning per cause is enough: same precedent as the
+        // `warnedMissingFocusCommand`/`warnedMissingReopenCommand` flags
+        // above.
         if (this.consumeFailureWarned) return;
         this.consumeFailureWarned = true;
         void vscode.window.showWarningMessage(
@@ -307,7 +310,30 @@ export class FocusBroker {
     );
   }
 
-  /** Ne consomme que les requêtes qui concernent les dossiers de cette fenêtre. */
+  /**
+   * The close and the sleep another window asked of this one. They differ
+   * only in what follows the tab closing (close/close.ts), hence one method.
+   *
+   * A failure here must still be surfaced: the request file is already
+   * unlinked and the clicking window's own fallback has already found
+   * nothing, so silence on both ends would leave the user with no idea
+   * anything went wrong. Caught HERE, not by the loop's `catch` — that one
+   * exists to keep one bad request from stopping the whole loop, and would
+   * swallow this in total silence. Same messages as the local path
+   * (extension.ts, kohVibe.closeSession and kohVibe.sleepSession).
+   */
+  private async closeTabHere(action: 'close' | 'sleep', sessionId: string, label: string): Promise<void> {
+    const done = action === 'close' ? this.close.closeHere(sessionId) : this.close.sleepHere(sessionId);
+    await done.catch(() => {
+      void vscode.window.showErrorMessage(
+        action === 'close'
+          ? vscode.l10n.t('Koh-Vibe: could not close « {0} ».', label)
+          : vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', label),
+      );
+    });
+  }
+
+  /** Only consumes the requests that concern this window's folders. */
   private async consume(): Promise<void> {
     let names: string[];
     try {
@@ -326,8 +352,8 @@ export class FocusBroker {
         const parsed: unknown = JSON.parse(await readFile(path, 'utf8'));
         const at = (parsed as { at?: unknown }).at;
         if (typeof at === 'number' && now - at > STALE_REQUEST_MS) {
-          // Trop vieille pour être honorée hors contexte : on l'écarte sans
-          // déclencher de focus.
+          // Too old to be honoured out of context: discarded without
+          // triggering a focus.
           await unlink(path);
           continue;
         }
@@ -344,38 +370,15 @@ export class FocusBroker {
         // already proven to be a `string` earlier in the loop — otherwise the
         // request would have been ignored before reaching here.
         const origin = (parsed as { origin?: unknown }).origin;
-        if (name.startsWith('close-')) {
-          // A close request should never carry a non-editor origin: `closePlan`
+        if (name.startsWith('close-') || name.startsWith('sleep-')) {
+          // Neither request should ever carry a non-editor origin: `closePlan`
           // turns those into a plain forget before any file is written.
           // Honouring one would close a tab in a window where the user asked
           // for nothing. No message on success, unlike focus and reopen: the
           // effect is already visible on both sides — a tab disappears here, a
           // row disappears where the click happened.
           if (closePlan(origin).kind === 'tab') {
-            // A failure here must still be surfaced: the request file is
-            // already unlinked and the clicking window's own fallback has
-            // already found nothing, so silence on both ends would leave the
-            // user with no idea anything went wrong. `catch`, not the outer
-            // `try`/`catch` below — that one exists to keep one bad request
-            // from stopping the whole loop, and would swallow this in total
-            // silence. Same message as the local path (extension.ts,
-            // kohVibe.closeSession).
-            await this.close.closeHere(sessionId).catch(() => {
-              void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not close « {0} ».', label));
-            });
-          }
-          continue;
-        }
-        if (name.startsWith('sleep-')) {
-          // Same origin guard as the close above, and for the same reason: a
-          // request carrying a non-editor origin would close a tab in a window
-          // where nobody asked for anything.
-          if (closePlan(origin).kind === 'tab') {
-            await this.close.sleepHere(sessionId).catch(() => {
-              void vscode.window.showErrorMessage(
-                vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', label),
-              );
-            });
+            await this.closeTabHere(name.startsWith('close-') ? 'close' : 'sleep', sessionId, label);
           }
           continue;
         }
@@ -391,17 +394,18 @@ export class FocusBroker {
           // window's list does not hold is different: this window holds its
           // project, the user asked for it back, and the terminal is the only
           // way to bring it back without starting a blank one.
-          if (isReopen && (origin === 'vscode' || origin === 'desktop')) openResumeTerminal(plan);
+          if (isReopen && isEditorOrigin(origin)) openResumeTerminal(plan);
           continue;
         }
-        // Une seule annonce, jamais deux qui se contrediraient : « demandée »
-        // (ou « réouverte ») devant une commande qui va effectivement ouvrir
-        // quelque chose, l'explication de `focusSession` sinon.
+        // A single announcement, never two that would contradict each
+        // other: "requested" (or "reopening") in front of a command that is
+        // actually going to open something, `focusSession`'s explanation
+        // otherwise.
         //
-        // `void`, jamais `await` : ce thenable ne se règle qu'à la fermeture
-        // du toast (clic ou disparition), parfois des secondes plus tard. Le
-        // focus est le geste central du clic (spec §6) ; le message n'est
-        // qu'une information, il ne doit jamais le retarder.
+        // `void`, never `await`: this thenable only settles when the toast
+        // closes (click or disappearance), sometimes seconds later. Focus
+        // is the central gesture of the click (spec §6); the message is
+        // only information, it must never delay it.
         if (plan.kind === 'command') {
           void vscode.window.showInformationMessage(
             isReopen

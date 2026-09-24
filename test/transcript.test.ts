@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readTranscript, type TranscriptStats } from '../src/transcript/reader';
 
-// `open` est mocké pour un seul test (M8) : il permet de simuler un `read()`
-// qui renvoie moins d'octets que demandé (fichier tronqué entre `stat()` et
-// `read()`) sans dépendre d'une vraie course contre le système de fichiers,
-// donc piloté plutôt que chronométré. Délègue à l'implémentation réelle sauf
-// quand ce test arme `openOverride`.
+// `open` is mocked for a single test (M8): it lets us simulate a `read()`
+// that returns fewer bytes than requested (file truncated between `stat()`
+// and `read()`) without depending on a real race against the filesystem, so
+// driven rather than timed. Delegates to the real implementation except when
+// this test arms `openOverride`.
 const { openOverride } = vi.hoisted(() => ({
   openOverride: {
     current: undefined as
@@ -55,9 +55,9 @@ afterEach(() => {
   openOverride.current = undefined;
 });
 
-// Utilitaires pour les tests de titre : écrivent des lignes JSONL brutes dans
-// le fichier temporaire du test courant, sans passer par le format des
-// entrées `assistant` ci-dessus.
+// Utilities for the title tests: write raw JSONL lines into the current
+// test's temporary file, without going through the `assistant` entry format
+// above.
 const fixture = async (lines: string[]): Promise<string> => {
   await writeFile(file, lines.map((l) => `${l}\n`).join(''));
   return file;
@@ -68,7 +68,7 @@ const appendLine = (path: string, line: string): Promise<void> => appendFile(pat
 const rewrite = (path: string, lines: string[]): Promise<void> => writeFile(path, lines.map((l) => `${l}\n`).join(''));
 
 describe('readTranscript', () => {
-  it('somme les tokens et retient la branche', async () => {
+  it('sums the tokens and retains the branch', async () => {
     await writeFile(file, assistant(100, 20) + assistant(50, 5));
     const stats = await readTranscript(file);
     expect(stats.input).toBe(150);
@@ -76,20 +76,20 @@ describe('readTranscript', () => {
     expect(stats.branch).toBe('feat-seo');
   });
 
-  it('écarte « HEAD », qui n est pas une branche mais l absence de branche', async () => {
-    // Ce que Claude Code écrit pour un dossier hors dépôt git, ou une tête
-    // détachée. Affiché tel quel, il donnait « DEV · HEAD » : un libellé qui
-    // ressemble à une information alors qu il n en porte aucune.
+  it('discards « HEAD », which is not a branch but the absence of a branch', async () => {
+    // What Claude Code writes for a folder outside a git repo, or a detached
+    // head. Displayed as is, it gave « DEV · HEAD »: a label that looks like
+    // information while carrying none.
     await writeFile(file, assistant(100, 20).replace('"gitBranch":"feat-seo"', '"gitBranch":"HEAD"'));
     expect((await readTranscript(file)).branch).toBeUndefined();
   });
 
-  it('ne confond pas HEAD avec une branche dont le nom le contient', async () => {
+  it('does not confuse HEAD with a branch whose name contains it', async () => {
     await writeFile(file, assistant(100, 20).replace('"gitBranch":"feat-seo"', '"gitBranch":"feat/HEAD-fix"'));
     expect((await readTranscript(file)).branch).toBe('feat/HEAD-fix');
   });
 
-  it('reprend là où elle s est arrêtée sans recompter', async () => {
+  it('resumes where it left off without recounting', async () => {
     await writeFile(file, assistant(100, 20));
     const first = await readTranscript(file);
     await appendFile(file, assistant(7, 3));
@@ -98,29 +98,29 @@ describe('readTranscript', () => {
     expect(second.output).toBe(23);
   });
 
-  it('ne consomme pas une ligne encore incomplète', async () => {
+  it('does not consume a still-incomplete line', async () => {
     await writeFile(file, `${assistant(10, 1)}{"type":"assist`);
     const stats = await readTranscript(file);
     expect(stats.input).toBe(10);
-    // la ligne partielle sera relue au prochain passage
+    // the partial line will be reread on the next pass
     await appendFile(file, `ant","message":{"usage":{"input_tokens":5,"output_tokens":1}}}\n`);
     const next = await readTranscript(file, stats);
     expect(next.input).toBe(15);
   });
 
-  it('ignore les lignes non-assistant et les lignes illisibles', async () => {
+  it('ignores non-assistant lines and unreadable lines', async () => {
     await writeFile(file, `{"type":"user"}\n{ cassé\n${assistant(9, 1)}`);
     const stats = await readTranscript(file);
     expect(stats.input).toBe(9);
     expect(stats.output).toBe(1);
   });
 
-  it('retourne un état vide si le fichier n existe pas', async () => {
+  it('returns an empty state if the file does not exist', async () => {
     const stats = await readTranscript('/nexiste/pas.jsonl');
     expect(stats).toEqual({ offset: 0, input: 0, output: 0 });
   });
 
-  it('repart de zéro si le fichier a été remplacé par un plus court (rotation / nouvelle session)', async () => {
+  it('starts over from zero if the file was replaced by a shorter one (rotation / new session)', async () => {
     const stale: TranscriptStats = {
       offset: 5000,
       input: 99999,
@@ -135,13 +135,13 @@ describe('readTranscript', () => {
     expect(stats.offset).toBeLessThan(stale.offset);
   });
 
-  it("ne décode pas au-delà de bytesRead quand read() renvoie moins que ce qui a été demandé (M8)", async () => {
-    // stat() ment sur la taille (comme si le fichier venait d'être tronqué
-    // après le stat() réel mais avant le read()) : le buffer alloué est donc
-    // plus grand que ce que read() remplit réellement. Le reste du buffer
-    // contient, dans ce test, un fragment décodable d'un « ancien » transcript
-    // — le pire cas plausible avec `allocUnsafe`, où la mémoire réutilisée est
-    // un fragment d'une lecture précédente plutôt que du vrai hasard.
+  it("does not decode past bytesRead when read() returns fewer bytes than requested (M8)", async () => {
+    // stat() lies about the size (as if the file had just been truncated
+    // after the real stat() but before the read()): the allocated buffer is
+    // therefore bigger than what read() actually fills. In this test, the
+    // rest of the buffer holds a decodable fragment of an « old » transcript
+    // — the worst plausible case with `allocUnsafe`, where the reused memory
+    // is a fragment of a previous read rather than true randomness.
     const real = assistant(10, 1);
     const ghost = assistant(99999, 88888);
     const realLen = Buffer.byteLength(real, 'utf8');
@@ -164,61 +164,61 @@ describe('readTranscript', () => {
   });
 });
 
-describe('readTranscript — titre de la conversation', () => {
-  it('retient le dernier ai-title vu', async () => {
+describe('readTranscript — conversation title', () => {
+  it('retains the last ai-title seen', async () => {
     const p = await fixture(['{"type":"ai-title","aiTitle":"un"}', '{"type":"ai-title","aiTitle":"deux"}']);
     expect((await readTranscript(p)).title).toBe('deux');
   });
 
-  it('customTitle prime sur ai-title, même écrit avant', async () => {
+  it('customTitle takes priority over ai-title, even when written earlier', async () => {
     const p = await fixture(['{"type":"custom-title","customTitle":"#à moi"}', '{"type":"ai-title","aiTitle":"engendré"}']);
     expect((await readTranscript(p)).title).toBe('#à moi');
   });
 
-  it('pas de titre quand le transcript n en porte aucun — ni titre, ni prompt', async () => {
+  it('no title when the transcript carries none — neither title nor prompt', async () => {
     const p = await fixture([assistant(1, 1)]);
     expect((await readTranscript(p)).title).toBeUndefined();
   });
 
-  it('un titre vide ou fait d espaces ne compte pas', async () => {
+  it('a title that is empty or made of spaces does not count', async () => {
     const p = await fixture(['{"type":"ai-title","aiTitle":"   "}']);
     expect((await readTranscript(p)).title).toBeUndefined();
   });
 
-  it('conserve le titre au fil des lectures incrémentales', async () => {
+  it('keeps the title across incremental reads', async () => {
     const p = await fixture(['{"type":"ai-title","aiTitle":"posé tôt"}']);
     const un = await readTranscript(p);
     await appendLine(p, '{"type":"assistant","message":{"usage":{"input_tokens":1,"output_tokens":1}}}');
     expect((await readTranscript(p, un)).title).toBe('posé tôt');
   });
 
-  it('oublie le titre quand le transcript rétrécit', async () => {
+  it('forgets the title when the transcript shrinks', async () => {
     const p = await fixture(['{"type":"ai-title","aiTitle":"ancien"}']);
     const un = await readTranscript(p);
-    // Rétrécit réellement en octets (16 < 39) : le contenu du brief
+    // Genuinely shrinks in bytes (16 < 39): the brief's content
     // (`{"type":"user","message":{"role":"user","content":"neuf"}}`, 59
-    // octets) est plus long que la ligne d'origine et ne déclenche donc pas
-    // le mécanisme de reset existant, basé sur la taille du fichier.
+    // bytes) is longer than the original line and therefore does not trigger
+    // the existing reset mechanism, which is based on file size.
     await rewrite(p, ['{"type":"user"}']);
     expect((await readTranscript(p, un)).title).toBeUndefined();
   });
 
-  it('reprend le dernier customTitle sur un transcript réaliste (fixture titles.jsonl)', async () => {
+  it('picks up the last customTitle on a realistic transcript (fixture titles.jsonl)', async () => {
     const stats = await readTranscript('test/fixtures/transcripts/titles.jsonl');
     expect(stats.title).toBe('#Mon titre');
   });
 });
 
-describe('readTranscript — titre sans titre : la règle de l’extension Claude Code', () => {
+describe('readTranscript — title without a title: the Claude Code extension\'s rule', () => {
   const user = (text: string, extra = ''): string =>
     JSON.stringify({ type: 'user', message: { role: 'user', content: text }, ...(extra ? JSON.parse(extra) : {}) });
 
-  it('prend le dernier prompt quand aucun titre n’a été engendré — c’est ce que l’onglet affiche', async () => {
+  it('takes the last prompt when no title has been generated — this is what the tab displays', async () => {
     const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' }), JSON.stringify({ type: 'atis-latch', atis: '' })]);
     expect((await readTranscript(path)).title).toBe('bonjour');
   });
 
-  it('suit le dernier prompt, puis s’arrête sur le titre IA dès qu’il arrive, et cède au titre choisi', async () => {
+  it('follows the last prompt, then locks onto the AI title as soon as it arrives, and yields to the chosen title', async () => {
     const path = await fixture([user('bonjour'), JSON.stringify({ type: 'last-prompt', lastPrompt: 'bonjour' })]);
     let stats = await readTranscript(path);
     await appendLine(path, JSON.stringify({ type: 'last-prompt', lastPrompt: 'et maintenant ?' }));
@@ -235,7 +235,7 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect(stats.title).toBe('#Perso');
   });
 
-  it('retombe sur le résumé, puis sur le premier message — jamais sur un résultat d’outil', async () => {
+  it('falls back to the summary, then to the first message — never to a tool result', async () => {
     const toolResult = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } });
     const path = await fixture([toolResult, user('Corrige le bug du menu'), JSON.stringify({ type: 'summary', summary: 'Bug du menu corrigé' })]);
     expect((await readTranscript(path)).title).toBe('Bug du menu corrigé');
@@ -243,7 +243,7 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect((await readTranscript(bare)).title).toBe('Corrige le bug du menu');
   });
 
-  it('ne garde d’un prompt que sa première ligne, blancs repliés et coupée court — comme l’onglet', async () => {
+  it('keeps only a prompt\'s first line, whitespace collapsed and cut short — just like the tab', async () => {
     const long = `   Voici   un prompt   ${'x'.repeat(120)}\n deuxième ligne, ignorée`;
     const path = await fixture([JSON.stringify({ type: 'last-prompt', lastPrompt: long })]);
     const title = (await readTranscript(path)).title ?? '';
@@ -253,7 +253,7 @@ describe('readTranscript — titre sans titre : la règle de l’extension Claud
     expect(title).not.toContain('\n');
   });
 
-  it('ignore les messages méta et les branches secondaires pour le premier message', async () => {
+  it('ignores meta messages and sidechains for the first message', async () => {
     const path = await fixture([user('<system>', '{"isMeta":true}'), user('sous-agent', '{"isSidechain":true}'), user('la vraie question')]);
     expect((await readTranscript(path)).title).toBe('la vraie question');
   });

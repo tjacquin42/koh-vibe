@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import type { ClaudeTab } from './dormant';
+import { isClaudeTab, type TabLike } from './panel';
 
 /** A tab's place in the window: the group's index in `tabGroups.all`, the tab's index in it. */
 export interface TabPosition {
@@ -6,27 +8,9 @@ export interface TabPosition {
   index: number;
 }
 
-/** The little the locator needs of a tab and a group — `vscode.Tab`/`TabGroup` fit, and so does a plain object. */
-export interface TabLike {
-  label: string;
-  input: unknown;
-}
+/** The little the locator needs of a group — `vscode.TabGroup` fits, and so does a plain object. */
 export interface GroupLike {
   tabs: readonly TabLike[];
-}
-
-const PANEL_VIEW_TYPE = 'claudeVSCodePanel';
-
-function isClaudeTab(tab: TabLike): boolean {
-  return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.includes(PANEL_VIEW_TYPE);
-}
-
-/** What the memento knows of a tab: its session, its title, its place. */
-export interface MementoTab {
-  sessionId: string;
-  title: string;
-  group: number;
-  index: number;
 }
 
 /**
@@ -41,8 +25,8 @@ export interface MementoTab {
  */
 export function locateClaudeTab(
   groups: readonly GroupLike[],
-  want: MementoTab,
-  memento: readonly MementoTab[] = [want],
+  want: ClaudeTab,
+  memento: readonly ClaudeTab[] = [want],
 ): TabPosition | undefined {
   const at = groups[want.group]?.tabs[want.index];
   if (at !== undefined && isClaudeTab(at) && at.label === want.title) return { group: want.group, index: want.index };
@@ -57,7 +41,7 @@ export function locateClaudeTab(
   return undefined;
 }
 
-/** Si la place indiquée porte bien une conversation, et non un fichier ou rien. */
+/** Whether the given position actually holds a conversation, and not a file or nothing. */
 export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): boolean {
   const tab = groups[at.group]?.tabs[at.index];
   return tab !== undefined && isClaudeTab(tab);
@@ -78,24 +62,24 @@ export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): bo
  * the wrong row is worse than selecting none.
  */
 export function sessionOfClaudeTab(
-  memento: readonly MementoTab[],
+  memento: readonly ClaudeTab[],
   groups: readonly GroupLike[],
   at: TabPosition,
 ): string | undefined {
   const tab = groups[at.group]?.tabs[at.index];
   if (tab === undefined || !isClaudeTab(tab)) return undefined;
-  // Deux onglets OUVERTS du même nom, et le nom ne prouve plus rien.
+  // Two tabs OPEN under the same name, and the name no longer proves anything.
   //
-  // Une conversation neuve s'appelle « Claude Code » comme toutes les autres :
-  // il suffit d'en ouvrir deux. Le mémento n'en connaît alors souvent qu'une,
-  // si bien que les deux onglets renvoyaient vers la même ligne — et l'un des
-  // deux était forcément le mauvais. La position ne rattrape rien ici : elle
-  // est de l'état persisté et glisse dès qu'un onglet s'ouvre ou se ferme,
-  // donc rien ne dit lequel des deux jumeaux le mémento décrivait.
+  // A new conversation is called « Claude Code » like all the others: opening
+  // two of them is enough. The memento then often knows only one of them, so
+  // that the two tabs pointed to the same row — and one of the two was bound
+  // to be the wrong one. Position does not save this: it is persisted state
+  // and shifts as soon as a tab opens or closes, so nothing says which of the
+  // two twins the memento was describing.
   //
-  // Ce comptage regarde les onglets RÉELLEMENT ouverts, là où le garde-fou
-  // ci-dessous ne regarde que le mémento : deux ambiguïtés distinctes, et
-  // seule la seconde était couverte.
+  // This count looks at the tabs REALLY open, whereas the guard below only
+  // looks at the memento: two distinct ambiguities, and only the second one
+  // was covered.
   let sameLabel = 0;
   for (const g of groups) for (const t of g.tabs) if (isClaudeTab(t) && t.label === tab.label) sameLabel += 1;
   if (sameLabel > 1) return undefined;

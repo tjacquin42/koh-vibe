@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Pose la version d'une PR qui vient d'atterrir sur main.
-#   scripts/bump-version.sh [major|minor|patch] [numéro-de-PR]
+# Sets the version for a PR that has just landed on main.
+#   scripts/bump-version.sh [major|minor|patch] [PR-number]
 #
-# Sans argument, le niveau est lu dans le corps de la PR (ligne « Version: minor »)
-# et la PR est celle dont le merge est en tête de origin/main.
-# Crée le tag, la Release GitHub, l'entrée de CHANGELOG, le label et la milestone.
+# With no argument, the level is read from the PR body (a "Version: minor" line)
+# and the PR is the one whose merge sits at the head of origin/main.
+# Creates the tag, the GitHub Release, the CHANGELOG entry, the label and the milestone.
 #
-# Appelé par le job « version » de la CD, dernière marche de la livraison.
+# Called by the "version" job of the CD, the last step of the delivery.
 set -euo pipefail
 
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -18,16 +18,17 @@ if [ -z "$PR" ]; then
   [ -z "$PR" ] && { echo "Aucune PR mergée sur main trouvée." >&2; exit 1; }
 fi
 
-# Le niveau vient du corps de la PR. Trois cas, et trois réponses distinctes :
+# The level comes from the PR body. Three cases, three distinct responses:
 #
-#   ligne absente   → « patch », avec un avertissement. Une livraison sans version
-#                     est un trou définitif dans l'historique ; un patch de trop se
-#                     rattrape. C'est le cas majoritaire — sur les 30 dernières PR
-#                     des six repos, la ligne manquait presque partout, et trois
-#                     livraisons du 13/08 ont été perdues parce que la CD s'arrêtait ici.
-#   ligne illisible → erreur. « Version: majeur » exprime une intention qu'on n'a pas
-#                     su lire : deviner reviendrait à livrer un niveau faux en silence.
-#   ligne valide    → ce qu'elle dit.
+#   line absent     → "patch", with a warning. A delivery with no version is a
+#                     permanent hole in the history; one patch too many is easy
+#                     to fix. This is the majority case — across the last 30 PRs
+#                     of the six repos, the line was missing almost everywhere,
+#                     and three deliveries on 13 August were lost because the
+#                     CD stopped right here.
+#   line unreadable → error. "Version: majeur" expresses an intent we failed to
+#                     read: guessing would mean silently shipping the wrong level.
+#   line valid      → whatever it says.
 LEVEL="${1:-}"
 if [ -z "$LEVEL" ]; then
   BODY=$(gh pr view "$PR" --repo "$REPO" --json body -q .body | tr -d '\r')
@@ -45,20 +46,21 @@ case "$LEVEL" in
   *) echo "Niveau « $LEVEL » non reconnu dans la PR #$PR — attendu major, minor ou patch." >&2; exit 1 ;;
 esac
 
-# Le numéro ne se calcule plus ici : il est DÉJÀ dans package.json, posé par
-# scripts/set-version.sh dans la PR de promotion (voir CLAUDE.md). Le déduire des
-# tags était le défaut d'origine — le tag vit sur le commit de merge, que `dev`
-# ne contient pas, si bien que tout paquet construit depuis `dev` annonçait la
-# version précédente. Le manifeste, lui, suit la branche.
+# The number is no longer computed here: it is ALREADY in package.json, set by
+# scripts/set-version.sh in the promotion PR (see CLAUDE.md). Deriving it from
+# tags was the original flaw — the tag lives on the merge commit, which `dev`
+# does not contain, so any package built from `dev` announced the previous
+# version. The manifest, on the other hand, follows the branch.
 V=$(node -p "require(process.cwd() + '/package.json').version")
 [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
   || { echo "Version « $V » illisible dans package.json — attendu X.Y.Z." >&2; exit 1; }
 TAG="v$V"
 
-# Le bump peut avoir été oublié : le manifeste porte alors la version déjà livrée,
-# dont le tag existe. Ce n'est pas une raison d'abandonner la livraison — une
-# version manquante est un trou définitif, un numéro rattrapé se corrige. On
-# applique donc le niveau annoncé au numéro courant, et on le dit fort.
+# The bump may have been forgotten: the manifest then carries the version
+# already shipped, whose tag exists. That is not a reason to abandon the
+# delivery — a missing version is a permanent hole, a caught-up number can be
+# fixed. So the announced level is applied to the current number, and it is
+# said loudly.
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   IFS=. read -r MA MI PA <<< "$V"
   case "$LEVEL" in
@@ -71,12 +73,12 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG existe déjà." >&2; exit 1; }
 fi
 
-# Le job « publish » enchaîne dans le même run et a besoin du numéro RÉELLEMENT
-# posé — pas de celui de package.json, dont le repli ci-dessus peut s'écarter.
-# En bloc `if`, jamais en « [ -n … ] && echo … » : sous `set -e`, un test faux en
-# fin de liste ET tuerait le script, ce qui abandonnerait la livraison pour une
-# ligne qui ne sert qu'à la CI. Hors Actions la variable n'existe pas, et ce bloc
-# ne fait rien.
+# The "publish" job follows in the same run and needs the number ACTUALLY set
+# — not the one from package.json, from which the fallback above can diverge.
+# As an `if` block, never as "[ -n … ] && echo …": under `set -e`, a false test
+# at the end of an AND list would kill the script, which would abandon the
+# delivery for a line that only serves CI. Outside Actions the variable does
+# not exist, and this block does nothing.
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 fi
@@ -89,23 +91,25 @@ URL="https://github.com/$REPO"
 NOTES=$(printf '**[#%s](%s/pull/%s)** — %s\n\n`%s` · %s' "$PR" "$URL" "$PR" "$TITLE" "$LEVEL" "$DATE")
 gh release create "$TAG" --repo "$REPO" --target "$SHA" --title "$V — $TITLE" --notes "$NOTES"
 
-# CHANGELOG : insertion sous l'en-tête
+# CHANGELOG: insertion right below the header
 ENTRY=$(printf '## [%s](%s/releases/tag/%s) — %s\n\n`%s` · [#%s](%s/pull/%s) — %s\n' \
         "$V" "$URL" "$TAG" "$DATE" "$LEVEL" "$PR" "$URL" "$PR" "$TITLE")
-# L'entrée passe par l'environnement, pas par « awk -v » : une valeur multiligne y est
-# refusée (« awk: newline in string ») par l'awk de macOS. Et pas de « && mv » non plus —
-# dans une liste « && », set -e ne tue pas le script sur l'échec de la commande de gauche,
-# si bien que la première version posée pour de vrai a créé son tag et sa Release sans
-# jamais écrire son entrée, sans un mot.
+# The entry passes through the environment, not through "awk -v": a multiline
+# value there gets refused ("awk: newline in string") by macOS's awk. And no
+# "&& mv" either — in an "&&" list, set -e does not kill the script when the
+# left-hand command fails, so the first version actually posted for real
+# created its tag and its Release without ever writing its entry, without a
+# word.
 #
-# Le cas nominal est que l'entrée soit DÉJÀ là : elle s'écrit à la main dans la PR
-# de promotion, seul endroit d'où elle puisse atteindre le dépôt — main est
-# protégée et le jeton d'Actions n'a pas de dérogation. Insérer un second titre
-# pour le même numéro produirait un doublon que la livraison ne pourrait de toute
-# façon pas pousser, et un avertissement mensonger à chaque version.
+# The nominal case is that the entry is ALREADY there: it is written by hand
+# in the promotion PR, the only place from which it can reach the repository —
+# main is protected and the Actions token has no bypass. Inserting a second
+# heading for the same number would produce a duplicate that the delivery
+# could not push anyway, and a false warning at every version.
 #
-# L'insertion ci-dessous n'est donc plus le chemin normal mais le filet : la
-# promotion a oublié l'entrée, et il vaut mieux un titre nu, signalé, qu'un trou.
+# The insertion below is therefore no longer the normal path but the safety
+# net: the promotion forgot the entry, and a bare heading, flagged, is better
+# than a hole.
 if [ -f CHANGELOG.md ] && grep -q "^## \[$V\]" CHANGELOG.md; then
   echo "L'entrée $V est déjà dans CHANGELOG.md — portée par la PR de promotion, rien à insérer."
 elif [ -f CHANGELOG.md ]; then
@@ -117,8 +121,8 @@ else
   printf '# Changelog\n\n%s\n' "$ENTRY" > CHANGELOG.md
 fi
 
-# Le tag et la Release existent déjà à ce stade : si l'entrée manque, il faut le savoir
-# maintenant, pas le découvrir à la version suivante.
+# The tag and the Release already exist at this point: if the entry is
+# missing, it needs to be known now, not discovered at the next version.
 grep -q "^## \[$V\]" CHANGELOG.md || { echo "L'entrée $V n'a pas été écrite dans CHANGELOG.md." >&2; exit 1; }
 
 COLOR=$([ "$LEVEL" = major ] && echo B60205 || { [ "$LEVEL" = minor ] && echo 0E8A16 || echo 5319E7; })
@@ -126,9 +130,10 @@ gh label create "$TAG" --repo "$REPO" --color "$COLOR" --description "Livré dan
 MS=$(gh api "repos/$REPO/milestones" -f title="$TAG" -f description="Version $V — PR #$PR" -q .number 2>/dev/null \
      || gh api "repos/$REPO/milestones?state=all&per_page=100" -q ".[]|select(.title==\"$TAG\")|.number")
 
-# La PR principale, et toutes les PR qu'elle embarque : une promotion dev → main livre
-# le travail mergé sur dev entre la version précédente et celle-ci. Sans ça, ces PR
-# resteraient éternellement sans version alors qu'elles sont bel et bien en ligne.
+# The main PR, and every PR it carries along: a dev → main promotion ships the
+# work merged into dev between the previous version and this one. Without
+# this, those PRs would stay forever without a version even though they are
+# genuinely live.
 CARRIED=$(gh pr list --repo "$REPO" --state merged --limit 200 \
   --json number,baseRefName,mergedAt,labels \
   -q "[.[] | select(.baseRefName != \"main\")
@@ -142,8 +147,8 @@ for N in $PR $CARRIED; do
 done
 [ -n "$MS" ] && gh api -X PATCH "repos/$REPO/milestones/$MS" -f state=closed >/dev/null
 
-# Ce qui reste sur dev est signalé comme tel, pour qu'une PR sans version se lise
-# « pas encore livrée » et non « oubliée ».
+# What remains on dev is flagged as such, so a PR with no version reads as
+# "not yet shipped" rather than "forgotten".
 gh label create "non livré" --repo "$REPO" --color FBCA04 --description "Mergé sur dev, pas encore promu sur main" >/dev/null 2>&1 || true
 gh pr list --repo "$REPO" --state merged --limit 200 --json number,baseRefName,labels \
   -q '.[] | select(.baseRefName != "main") | select((.labels|map(.name)|map(startswith("v"))|any) == false) | .number' \

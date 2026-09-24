@@ -4,13 +4,13 @@ import type { GroupsState } from './model';
 import { updateGroups } from './store';
 
 /**
- * Crée un dossier depuis le nom saisi par l'utilisateur. `label === undefined`
- * signale une boîte de saisie annulée (Échap) : rien à faire, rien à écrire.
- * Un nom vide ou fait seulement de blancs n'est PAS ce même cas — l'utilisateur
- * a validé une saisie vide — et `createGroup` (groups/model.ts) lève dans ce
- * cas, volontairement. C'est au point d'appel (`runGroupAction`, plus bas) de
- * transformer cette levée en message affiché, jamais en trace d'appel non
- * gérée : voir sa documentation.
+ * Creates a folder from the name the user typed. `label === undefined`
+ * signals an input box that was cancelled (Escape): nothing to do, nothing
+ * to write. A name that is empty or made only of blanks is NOT the same
+ * case — the user submitted an empty input — and `createGroup`
+ * (groups/model.ts) throws in that case, deliberately. It is up to the call
+ * site (`runGroupAction`, below) to turn that throw into a displayed
+ * message, never an unhandled rejection: see its documentation.
  */
 export async function createGroupCommand(
   groupsFilePath: string,
@@ -21,7 +21,7 @@ export async function createGroupCommand(
   return updateGroups(groupsFilePath, (s) => createGroup(s, label, newId));
 }
 
-/** Même contrat que `createGroupCommand`, pour un renommage. */
+/** Same contract as `createGroupCommand`, for a rename. */
 export async function renameGroupCommand(
   groupsFilePath: string,
   id: string,
@@ -32,22 +32,22 @@ export async function renameGroupCommand(
 }
 
 /**
- * Supprime un dossier. Aucune saisie à annuler ici (pas de boîte de dialogue
- * pour ce geste) : appelée seulement quand un identifiant de dossier valide a
- * déjà été résolu au point d'appel (voir `groupIdOfNode`, ui/tree.ts).
+ * Deletes a folder. No input to cancel here (no dialog box for this
+ * gesture): called only once a valid folder id has already been resolved at
+ * the call site (see `groupIdOfNode`, ui/tree.ts).
  */
 export async function deleteGroupCommand(groupsFilePath: string, id: string): Promise<GroupsState> {
   return updateGroups(groupsFilePath, (s) => deleteGroup(s, id));
 }
 
 /**
- * Pose ou retire la couleur d'un dossier.
+ * Sets or removes a folder's color.
  *
- * Le contrat diffère volontairement de `createGroupCommand` : ici
- * `color === undefined` est un choix (« aucune couleur »), pas une annulation.
- * Une liste de choix fermée (Échap) doit donc être distinguée en amont, au
- * point d'appel, et ne jamais arriver jusqu'ici — sinon fermer la liste
- * effacerait la couleur au lieu de ne rien faire.
+ * The contract deliberately differs from `createGroupCommand`: here
+ * `color === undefined` is a choice ("no color"), not a cancellation. A
+ * picker closed with Escape must therefore be told apart upstream, at the
+ * call site, and must never reach this far — otherwise closing the picker
+ * would clear the color instead of doing nothing.
  */
 export async function colorGroupCommand(
   groupsFilePath: string,
@@ -58,9 +58,10 @@ export async function colorGroupCommand(
 }
 
 /**
- * Pose ou retire le son d'un dossier, ou d'une conversation. Même contrat que
- * `colorGroupCommand` : `undefined` est un choix — « rendre au niveau au-dessus »
- * — et non une annulation, laquelle doit être distinguée avant d'arriver ici.
+ * Sets or removes the sound of a folder, or of a conversation. Same
+ * contract as `colorGroupCommand`: `undefined` is a choice — "fall back to
+ * the level above" — and not a cancellation, which must be told apart
+ * before reaching here.
  */
 export async function soundGroupCommand(
   groupsFilePath: string,
@@ -81,13 +82,13 @@ export async function soundSessionCommand(
 }
 
 /**
- * Le vrai câblage du glisser-déposer (voir `SessionsTree.onDrop`, injecté au
- * constructeur) : affecte chaque session déposée au dossier ciblé, ou la
- * retire de tout classement quand la cible est « Sans dossier »
- * (`groupId === undefined`). Un seul appel à `updateGroups` pour tout le lot
- * déposé — jamais un par session — pour qu'un dépôt multiple atterrisse dans
- * une unique écriture, sans jamais s'entrelacer avec une autre fenêtre entre
- * deux identifiants du même dépôt.
+ * The actual wiring of drag-and-drop (see `SessionsTree.onDrop`, injected
+ * into the constructor): assigns each dropped session to the targeted
+ * folder, or removes it from any folder when the target is "No folder"
+ * (`groupId === undefined`). One single call to `updateGroups` for the
+ * whole dropped batch — never one per session — so that a multi-item drop
+ * lands as a single write, never interleaving with another window between
+ * two ids of the same drop.
  */
 export async function applyDrop(
   groupsFilePath: string,
@@ -100,9 +101,9 @@ export async function applyDrop(
       (acc, id) => (groupId === undefined ? unassign(acc, id) : assign(acc, id, groupId)),
       s,
     );
-    // L'ordre est posé APRÈS les affectations : `assign` refuse une session
-    // vers un dossier disparu entre-temps, et figer un ordre qui la nommerait
-    // encore laisserait le fichier se contredire lui-même.
+    // The order is set AFTER the assignments: `assign` refuses a session
+    // heading to a folder that vanished in the meantime, and freezing an
+    // order that still named it would leave the file contradicting itself.
     return setSessionOrder(assigned, groupId, order);
   });
 }
@@ -124,12 +125,12 @@ export async function reorderGroupsCommand(
 }
 
 /**
- * Exécute une commande de dossier et transforme tout ce qu'elle lève en
- * message affiché par `onError`, jamais en trace d'appel non gérée — c'est le
- * seul endroit qui sait qu'un nom vide (entre autres) doit finir en message
- * plutôt qu'en plantage : aucune des trois commandes ci-dessus ne connaît
- * `vscode.window.showErrorMessage`, seul le point de câblage (extension.ts)
- * le branche sur `onError`.
+ * Runs a folder command and turns everything it throws into a message
+ * displayed by `onError`, never into an unhandled rejection — this is the
+ * only place that knows an empty name (among others) has to end up as a
+ * message rather than a crash: none of the three commands above knows about
+ * `vscode.window.showErrorMessage`, only the wiring point (extension.ts)
+ * hooks it up to `onError`.
  */
 export async function runGroupAction(
   action: () => Promise<unknown>,

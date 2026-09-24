@@ -8,13 +8,12 @@ import { ensureDirs, readSessions, writeSession } from '../src/spool/persist';
 import { appendLocalEvent, drain, MAX_EVENT_AGE_MS, SpoolWatcher } from '../src/spool/watcher';
 import type { Session } from '../src/events/types';
 
-// `node:fs/promises` est un module natif : ses exports ne sont pas
-// redéfinissables via vi.spyOn. On le mocke entièrement, en délégant à
-// l'implémentation réelle sauf quand un test arme l'un des overrides. Un
-// override qui retourne `undefined` laisse passer vers l'implémentation réelle
-// (même convention pour les trois) : c'est ce qui permet à un test de ne
-// truquer qu'un chemin précis (ex : un seul id de session) sans devoir
-// réimplémenter le reste.
+// `node:fs/promises` is a native module: its exports cannot be redefined via
+// vi.spyOn. We mock it entirely, delegating to the real implementation
+// except when a test arms one of the overrides. An override that returns
+// `undefined` lets the call through to the real implementation (same
+// convention for all three): this is what lets a test fake only one precise
+// path (e.g. a single session id) without having to reimplement the rest.
 const { unlinkOverride, writeFileOverride, readFileOverride } = vi.hoisted(() => ({
   unlinkOverride: { current: undefined as ((path: string) => Promise<void>) | undefined },
   writeFileOverride: {
@@ -50,11 +49,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 let home: string;
 let dirs: SpoolDirs;
 
-// Horloge de test, sans rapport avec Date.now() : les `at` des événements
-// restent de petits entiers lisibles (1, 2, 3…). NOW leur est légèrement
-// postérieur (l'âge de ces événements reste sous MAX_EVENT_AGE_MS, sans quoi
-// un échec induit dans ces tests serait immédiatement écarté au lieu d'être
-// différé).
+// Test clock, unrelated to Date.now(): the `at` of events stays small,
+// readable integers (1, 2, 3…). NOW is slightly later than those (the age of
+// these events stays under MAX_EVENT_AGE_MS, without which a failure induced
+// in these tests would be discarded outright instead of deferred).
 const NOW = 1_000;
 
 async function dropEvent(name: string, body: unknown): Promise<void> {
@@ -85,7 +83,7 @@ afterEach(() => {
 });
 
 describe('drain', () => {
-  it('applique les événements, écrit l état, puis supprime le fichier', async () => {
+  it('applies the events, writes the state, then deletes the file', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await dropEvent('2-1-PreToolUse.json', hook('PreToolUse', 2, { tool_name: 'Bash' }));
     const res = await drain(dirs, NOW);
@@ -94,14 +92,14 @@ describe('drain', () => {
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
   });
 
-  it('traite les fichiers dans l ordre de leur nom', async () => {
+  it('processes files in the order of their name', async () => {
     await dropEvent('20-1-Stop.json', hook('Stop', 20));
     await dropEvent('10-1-UserPromptSubmit.json', hook('UserPromptSubmit', 10));
     await drain(dirs, NOW);
     expect((await readSessions(dirs)).get('s1')?.status).toBe('done_unseen');
   });
 
-  it('met de côté un fichier illisible sans bloquer les autres', async () => {
+  it('sets aside an unreadable file without blocking the others', async () => {
     await writeFile(join(dirs.events, '1-1-Casse.json'), '{ pas du json', 'utf8');
     await dropEvent('2-1-SessionStart.json', hook('SessionStart', 2));
     const res = await drain(dirs, NOW);
@@ -120,14 +118,14 @@ describe('drain', () => {
     expect(s?.status).toBe('idle');
   });
 
-  it('ignore le fichier temporaire du bridge en cours d écriture', async () => {
+  it('ignores the bridge temporary file while it is being written', async () => {
     await writeFile(join(dirs.events, '.tmp-1-Stop'), '{"incomp', 'utf8');
     const res = await drain(dirs, NOW);
     expect(res.applied).toBe(0);
     expect(res.rejected).toBe(0);
   });
 
-  it('appendLocalEvent produit un événement que drain sait lire', async () => {
+  it('appendLocalEvent produces an event that drain can read', async () => {
     await dropEvent('1-1-Stop.json', hook('Stop', 1));
     await drain(dirs, NOW);
     await appendLocalEvent(dirs, { event: 'Ack', sessionId: 's1', cwd: '/Users/dev/projet' });
@@ -135,9 +133,9 @@ describe('drain', () => {
     expect((await readSessions(dirs)).get('s1')?.status).toBe('idle');
   });
 
-  it('appendLocalEvent concurrents (sans attente entre eux) produisent chacun un fichier distinct', async () => {
-    // process.pid est constant sur toute la durée de vie du process de l'extension :
-    // deux appels concurrents portant le même event ne doivent pas se marcher dessus.
+  it('concurrent appendLocalEvent calls (with no wait between them) each produce a distinct file', async () => {
+    // process.pid stays constant for the whole lifetime of the extension's process:
+    // two concurrent calls carrying the same event must not stomp on each other.
     const calls = [
       appendLocalEvent(dirs, { event: 'Ack', sessionId: 's1', cwd: '/Users/dev/projet' }),
       appendLocalEvent(dirs, { event: 'Ack', sessionId: 's2', cwd: '/Users/dev/projet' }),
@@ -169,8 +167,8 @@ describe('drain — a silent conversation stays', () => {
   });
 });
 
-describe('drain — pannes de suppression', () => {
-  it('ignore silencieusement un unlink en échec ENOENT (déjà supprimé par une autre fenêtre)', async () => {
+describe('drain — deletion failures', () => {
+  it('silently ignores a failing unlink with ENOENT (already deleted by another window)', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const err = Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
     unlinkOverride.current = () => Promise.reject(err);
@@ -184,7 +182,7 @@ describe('drain — pannes de suppression', () => {
     expect((await readSessions(dirs)).get('s1')?.startedAt).toBe(1);
   });
 
-  it('met de côté un événement dont la suppression échoue pour une vraie raison, pour éviter un double comptage', async () => {
+  it('sets aside an event whose deletion fails for a real reason, to avoid double-counting', async () => {
     await dropEvent('1-1-PostToolUse.json', hook('PostToolUse', 1, { tool_name: 'Bash' }));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     unlinkOverride.current = () => Promise.reject(err);
@@ -197,16 +195,16 @@ describe('drain — pannes de suppression', () => {
     expect(readdirSync(dirs.rejected).filter((f) => f.endsWith('.json'))).toHaveLength(1);
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
 
-    // Le fichier écarté ne peut plus être retraité : un second drain ne double
-    // pas le compteur d'outils, qui est cumulatif.
+    // The set-aside file can no longer be reprocessed: a second drain does not
+    // double the tool counter, which is cumulative.
     const res2 = await drain(dirs, NOW);
     expect(res2.applied).toBe(0);
     expect((await readSessions(dirs)).get('s1')?.toolCount).toBe(1);
   });
 });
 
-describe('drain — pannes d écriture (C2)', () => {
-  it('un échec d écriture ne fait pas lever drain() : l événement est différé, pas perdu, pas classé invalide', async () => {
+describe('drain — write failures (C2)', () => {
+  it('a write failure does not make drain() throw: the event is deferred, not lost, not classed invalid', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     writeFileOverride.current = () => Promise.reject(err);
@@ -217,17 +215,17 @@ describe('drain — pannes d écriture (C2)', () => {
     expect(res.applied).toBe(0);
     expect(res.deferred).toBe(1);
     expect(res.rejected).toBe(0);
-    // Ni supprimé, ni écarté vers rejected/ : il sera retenté au prochain drain.
+    // Neither deleted nor set aside to rejected/: it will be retried on the next drain.
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(1);
     expect(readdirSync(dirs.rejected)).toHaveLength(0);
     expect((await readSessions(dirs)).size).toBe(0);
   });
 
-  it('un événement dont l écriture échoue ne bloque pas les événements suivants du même drain', async () => {
+  it('an event whose write fails does not block the following events of the same drain', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1, { session_id: 's-panne' }));
     await dropEvent('2-1-SessionStart.json', hook('SessionStart', 1, { session_id: 's-ok' }));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
-    // Ne truque que l'écriture de la session en panne ; laisse l'autre passer.
+    // Only fakes the write of the failing session; lets the other one through.
     writeFileOverride.current = (path) => (path.includes('s-panne') ? Promise.reject(err) : undefined);
 
     const res = await drain(dirs, NOW);
@@ -238,12 +236,12 @@ describe('drain — pannes d écriture (C2)', () => {
     const sessions = await readSessions(dirs);
     expect(sessions.has('s-ok')).toBe(true);
     expect(sessions.has('s-panne')).toBe(false);
-    // Le fichier de l'événement en échec reste en place ; celui qui a réussi est parti.
+    // The file of the failing event stays in place; the one that succeeded is gone.
     const remaining = readdirSync(dirs.events).filter((f) => f.endsWith('.json'));
     expect(remaining).toEqual(['1-1-SessionStart.json']);
   });
 
-  it('un échec transitoire se résorbe tout seul : le drain suivant, sans la panne, applique l événement laissé de côté', async () => {
+  it('a transient failure resolves on its own: the next drain, without the failure, applies the event left aside', async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     writeFileOverride.current = () => Promise.reject(err);
@@ -258,20 +256,20 @@ describe('drain — pannes d écriture (C2)', () => {
   });
 });
 
-describe('drain — échec permanent (N3)', () => {
-  it("un événement déjà plus vieux que MAX_EVENT_AGE_MS qui échoue est écarté vers rejected/ avec sa raison, dès le premier passage", async () => {
-    // Horodatage réaliste (pas un petit entier de confort de lecture) :
-    // c'est lui, et lui seul, qui détermine l'âge — aucun état accumulé.
+describe('drain — permanent failure (N3)', () => {
+  it("an event already older than MAX_EVENT_AGE_MS that fails is set aside to rejected/ with its reason, on the very first pass", async () => {
+    // Realistic timestamp (not a small integer for reading comfort):
+    // it, and only it, determines the age — no accumulated state.
     const createdAt = 10_000_000;
     await dropEvent(`${createdAt}-1-SessionStart.json`, hook('SessionStart', 1));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
-    // Seule sessions/ est en panne (comme sessions/ passé en 0555 dans la
-    // revue) : l'écriture de la raison dans rejected/ doit encore réussir.
+    // Only sessions/ is failing (like sessions/ set to 0555 in the review):
+    // writing the reason to rejected/ still has to succeed.
     writeFileOverride.current = (path) => (path.includes(dirs.sessions) ? Promise.reject(err) : undefined);
 
-    // Un seul appel — comme le ferait une fenêtre qui n'a jamais vu cet
-    // événement, ouverte pour la première fois après que l'événement a
-    // dépassé l'âge limite : aucun historique de tentatives à accumuler.
+    // A single call — as a window that had never seen this event would make
+    // it, opened for the first time after the event went past the age
+    // limit: no history of attempts to accumulate.
     const res = await drain(dirs, createdAt + MAX_EVENT_AGE_MS + 1);
     writeFileOverride.current = undefined;
 
@@ -289,13 +287,13 @@ describe('drain — échec permanent (N3)', () => {
     expect((await readSessions(dirs)).size).toBe(0);
   });
 
-  it("sous MAX_EVENT_AGE_MS, l'événement reste différé et retente au lieu d'être écarté — même échec, plus jeune", async () => {
+  it("under MAX_EVENT_AGE_MS, the event stays deferred and retries instead of being set aside — same failure, younger", async () => {
     const createdAt = 10_000_000;
     await dropEvent(`${createdAt}-1-SessionStart.json`, hook('SessionStart', 1));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     writeFileOverride.current = () => Promise.reject(err);
 
-    // Encore bien en-dessous du seuil.
+    // Still well under the threshold.
     const res = await drain(dirs, createdAt + MAX_EVENT_AGE_MS - 1);
     writeFileOverride.current = undefined;
 
@@ -305,20 +303,20 @@ describe('drain — échec permanent (N3)', () => {
     expect(readdirSync(dirs.rejected).filter((f) => f.endsWith('.json') || f.endsWith('.txt'))).toHaveLength(0);
   });
 
-  it("la décision ne dépend d'aucun état en mémoire : deux appels indépendants (deux « fenêtres », aucune carte partagée) sur un événement du même âge tranchent pareil", async () => {
+  it("the decision depends on no in-memory state: two independent calls (two « windows », no shared map) on an event of the same age settle the same way", async () => {
     const createdAt = 10_000_000;
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     writeFileOverride.current = (path) => (path.includes(dirs.sessions) ? Promise.reject(err) : undefined);
 
-    // « Fenêtre A », jamais ouverte avant : un seul appel à drain(), sans
-    // rien en mémoire, événement déjà vieux.
+    // « Window A », never opened before: a single call to drain(), with
+    // nothing in memory, event already old.
     await dropEvent(`${createdAt}-1-SessionStart.json`, hook('SessionStart', 1, { session_id: 's-a' }));
     const resA = await drain(dirs, createdAt + MAX_EVENT_AGE_MS + 1);
     expect(resA.rejectedPermanently).toEqual([`${createdAt}-1-SessionStart.json`]);
 
-    // « Fenêtre B », tout aussi neuve, sur un second événement du même âge
-    // relatif (même écart entre son horodatage et `now`) : même verdict, au
-    // premier essai, sans avoir jamais rien accumulé sur CET événement.
+    // « Window B », just as fresh, on a second event of the same relative age
+    // (same gap between its timestamp and `now`): same verdict, on the
+    // first try, without ever having accumulated anything on THIS event.
     await dropEvent(`${createdAt}-2-SessionStart.json`, hook('SessionStart', 1, { session_id: 's-b' }));
     const resB = await drain(dirs, createdAt + MAX_EVENT_AGE_MS + 1);
     writeFileOverride.current = undefined;
@@ -326,7 +324,7 @@ describe('drain — échec permanent (N3)', () => {
     expect(resB.rejectedPermanently).toEqual([`${createdAt}-2-SessionStart.json`]);
   });
 
-  it('SpoolWatcher.tick() signale une fois via onError quand un événement est écarté définitivement, dès le premier tick', async () => {
+  it('SpoolWatcher.tick() signals once via onError when an event is permanently set aside, on the very first tick', async () => {
     const createdAt = 10_000_000;
     await dropEvent(`${createdAt}-1-SessionStart.json`, hook('SessionStart', 1));
     const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
@@ -345,9 +343,9 @@ describe('drain — échec permanent (N3)', () => {
   });
 });
 
-describe('drain — répertoire du spool disparu (M9)', () => {
-  it("recrée le spool (ensureDirs) quand il constate que events/ a disparu, plutôt que de rester muet jusqu'au rechargement de la fenêtre", async () => {
-    // Simule `rm -rf ~/.koh-vibe` pendant que l'extension tourne.
+describe('drain — spool directory gone (M9)', () => {
+  it("recreates the spool (ensureDirs) when it finds that events/ has disappeared, rather than staying silent until the window reloads", async () => {
+    // Simulates `rm -rf ~/.koh-vibe` while the extension is running.
     rmSync(home, { recursive: true, force: true });
     expect(existsSync(dirs.events)).toBe(false);
 
@@ -360,9 +358,9 @@ describe('drain — répertoire du spool disparu (M9)', () => {
     expect(existsSync(dirs.sessions)).toBe(true);
     expect(existsSync(dirs.requests)).toBe(true);
 
-    // Le spool recréé fonctionne normalement : un événement déposé ensuite
-    // (ex : par le bridge, qui ne voit plus la garde `[[ -d "$DIR" ]]` échouer)
-    // est bien consommé au prochain drain.
+    // The recreated spool works normally: an event dropped afterwards
+    // (e.g. by the bridge, which no longer sees the `[[ -d "$DIR" ]]` guard fail)
+    // is indeed consumed on the next drain.
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const res2 = await drain(dirs, NOW);
     expect(res2.applied).toBe(1);
@@ -370,18 +368,18 @@ describe('drain — répertoire du spool disparu (M9)', () => {
   });
 });
 
-describe('drain — convergence entre fenêtres (I1)', () => {
-  it("une fenêtre qui écrit depuis une base périmée ne ressuscite pas une session supprimée entre-temps par une autre (sessions non persistantes)", async () => {
-    // Établit s1 en « terminé non lu », comme reduce le prévoit.
+describe('drain — convergence between windows (I1)', () => {
+  it("a window writing from a stale base does not resurrect a session deleted in the meantime by another one (non-persistent sessions)", async () => {
+    // Sets s1 up as « done, unseen », as reduce foresees.
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await dropEvent('2-1-Stop.json', hook('Stop', 2));
     await drain(dirs, NOW);
     expect((await readSessions(dirs)).get('s1')?.status).toBe('done_unseen');
 
-    // Fenêtre A : un Ack en attente de traitement. On intercepte juste après
-    // qu'elle a lu le CONTENU de ce fichier — le même point d'entrelacement
-    // qu'un `await` réel entre deux process. Ne se déclenche qu'une fois : la
-    // fenêtre B doit pouvoir relire ce même fichier sans se bloquer dessus.
+    // Window A: an Ack waiting to be processed. Intercepted right after it
+    // has read the CONTENT of this file — the same interleaving point a real
+    // `await` between two processes would have. Fires only once: window B
+    // has to be able to reread this same file without getting stuck on it.
     await dropEvent('3-1-Ack.json', hook('Ack', 3));
     let triggered = false;
     let releaseA: () => void = () => undefined;
@@ -403,9 +401,9 @@ describe('drain — convergence entre fenêtres (I1)', () => {
     const drainA = drain(dirs, NOW, undefined, undefined, 'remove');
     await reached;
 
-    // Fenêtre B : dépose le SessionEnd et vide tout le spool pendant que A est
-    // en pause. B voit aussi le fichier Ack (pas encore supprimé par A) : ça
-    // n'a pas d'importance, sa réduction est pure et B finit par retirer s1.
+    // Window B: drops the SessionEnd and drains the whole spool while A is
+    // paused. B also sees the Ack file (not yet deleted by A): that does not
+    // matter, its reduction is pure and B ends up removing s1.
     await dropEvent('4-1-SessionEnd.json', hook('SessionEnd', 4));
     const resB = await drain(dirs, NOW, undefined, undefined, 'remove');
     expect(resB.applied).toBeGreaterThanOrEqual(1);
@@ -416,25 +414,25 @@ describe('drain — convergence entre fenêtres (I1)', () => {
     readFileOverride.current = undefined;
 
     expect(resA.applied).toBe(1);
-    // Le SessionEnd a été appliqué et son fichier supprimé par B : la session
-    // ne doit pas revenir parce que A écrit depuis une base lue avant B.
+    // The SessionEnd was applied and its file deleted by B: the session
+    // must not come back because A writes from a base read before B.
     expect((await readSessions(dirs)).size).toBe(0);
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
   });
 });
 
-describe("drain — écriture tardive après abandon (N2 suite)", () => {
-  it("un signal d'abandon consulté juste avant l'écriture empêche une exécution abandonnée d'écraser un état plus récent", async () => {
-    // s1 démarre à l'état idle (startedAt=1, lastEventAt=1, toolCount=0).
+describe("drain — late write after abandonment (N2 continued)", () => {
+  it("an abandonment signal consulted right before the write keeps an abandoned run from overwriting a more recent state", async () => {
+    // s1 starts out idle (startedAt=1, lastEventAt=1, toolCount=0).
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await drain(dirs, NOW);
     expect((await readSessions(dirs)).get('s1')?.status).toBe('idle');
 
-    // « Exécution O » (celle qu'un gardien abandonnera) : un PostToolUse.
-    // Réduit contre l'état idle initial (lu AVANT le Stop plus récent), il
-    // produirait un état "idle" (PostToolUse ne touche pas au statut) — la
-    // panne visée est que cette écriture, si elle a lieu APRÈS le Stop,
-    // écrase inconditionnellement l'état plus récent qu'il a écrit.
+    // « Run O » (the one a guardian will abandon): a PostToolUse.
+    // Reduced against the initial idle state (read BEFORE the more recent
+    // Stop), it would produce an "idle" state (PostToolUse does not touch
+    // status) — the failure targeted here is that this write, if it happens
+    // AFTER the Stop, unconditionally overwrites the more recent state it wrote.
     await dropEvent('2-1-PostToolUse.json', hook('PostToolUse', 2, { tool_name: 'Bash' }));
 
     let triggered = false;
@@ -446,12 +444,12 @@ describe("drain — écriture tardive après abandon (N2 suite)", () => {
     const reached = new Promise<void>((resolve) => {
       reachedGate = resolve;
     });
-    // On intercepte la lecture du FICHIER DE SESSION (pas celle de
-    // l'événement) : c'est le point d'entrelacement réel entre « O a lu
-    // l'état d'où elle va réduire » et « O agit sur ce qu'elle a lu ». La
-    // lecture réelle est déclenchée immédiatement (elle capture l'état
-    // encore périmé, avant le Stop plus récent) ; seule la LIVRAISON à O est
-    // retardée, ce qu'un vrai `await` ferait entre deux process.
+    // Intercepts the read of the SESSION FILE (not that of the event): this
+    // is the real interleaving point between « O has read the state it will
+    // reduce from » and « O acts on what it read ». The real read is fired
+    // immediately (it captures the state still stale, before the more recent
+    // Stop); only the DELIVERY to O is delayed, which is what a real `await`
+    // would do between two processes.
     readFileOverride.current = (path) => {
       if (triggered || !path.endsWith('sessions/s1.json')) return undefined;
       triggered = true;
@@ -462,40 +460,86 @@ describe("drain — écriture tardive après abandon (N2 suite)", () => {
 
     const signal = { abandoned: false };
     const drainO = drain(dirs, NOW, signal);
-    await reached; // O a lancé la lecture de sessions/s1.json ; pas encore livrée.
+    await reached; // O has started reading sessions/s1.json; not yet delivered.
 
-    // Un « passage plus récent » traite un Stop pour la même session, en
-    // entier — état final : done_unseen.
+    // A « more recent pass » processes a Stop for the same session, in
+    // full — final state: done_unseen.
     await dropEvent('3-1-Stop.json', hook('Stop', 3));
     await drain(dirs, NOW);
     expect((await readSessions(dirs)).get('s1')?.status).toBe('done_unseen');
 
-    // Le gardien (simulé ici sans minuteur : c'est exactement ce que
-    // ReentrantGuard.run() fait en interne au moment du timeout) décide
-    // d'abandonner O, puis la laisse reprendre avec sa lecture périmée.
+    // The guardian (simulated here without a timer: this is exactly what
+    // ReentrantGuard.run() does internally at the moment of the timeout) decides
+    // to abandon O, then lets it resume with its stale read.
     signal.abandoned = true;
     releaseO();
     const resO = await drainO;
     readFileOverride.current = undefined;
 
-    // Sans le correctif, O écrirait ici son état périmé (idle) par-dessus
-    // done_unseen. Avec le correctif, O consulte `signal.abandoned` juste
-    // avant le couple écriture-suppression et renonce : rien n'est écrit,
-    // rien n'est supprimé — l'invariant « écrire avant de supprimer »
-    // autorise cet abandon sans perte, l'événement sera retraité.
+    // Without the fix, O would here write its stale state (idle) over
+    // done_unseen. With the fix, O consults `signal.abandoned` right before
+    // the write-then-delete pair and gives up: nothing is written, nothing
+    // is deleted — the invariant « write before deleting » allows this
+    // abandonment without loss, the event will be reprocessed.
     const final = await readSessions(dirs);
     expect(final.get('s1')?.status).toBe('done_unseen');
-    // O n'a rien appliqué elle-même : elle a renoncé avant d'écrire.
+    // O applied nothing itself: it gave up before writing.
     expect(resO.applied).toBe(0);
-    // Le passage frais qui a traité le Stop a aussi vu 2-1-PostToolUse.json
-    // dans son propre listing (O ne l'avait pas encore supprimé) et l'a donc
-    // traité lui-même au passage — retraitement redondant mais inoffensif,
-    // conforme au modèle de convergence sans verrou. events/ est donc vide :
-    // l'événement n'a jamais été perdu, seulement traité par l'autre côté.
+    // The fresh pass that processed the Stop also saw 2-1-PostToolUse.json
+    // in its own listing (O had not yet deleted it) and so processed it
+    // itself along the way — redundant but harmless reprocessing, consistent
+    // with the lock-free convergence model. events/ is therefore empty:
+    // the event was never lost, only processed by the other side.
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
   });
 
-  it("sans abandon (signal.abandoned reste false), le comportement est inchangé : l'événement s'applique normalement", async () => {
+  it('is consulted again after the awaits a SessionEnd adds on the way to the write', async () => {
+    // The first look at the signal sits BEFORE `hasTranscript` and `archive`
+    // — two more awaits, for a SessionEnd only, between it and the write.
+    // Abandoned during either, an execution used to reach the write with a
+    // state read before the fresh pass ran, and put the conversation back to
+    // ended over the prompt that had just woken it.
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+
+    let releaseO: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseO = resolve;
+    });
+    let reachedGate: () => void = () => undefined;
+    const reached = new Promise<void>((resolve) => {
+      reachedGate = resolve;
+    });
+    let gated = false;
+    const slowTranscript = async (): Promise<boolean> => {
+      if (gated) return true;
+      gated = true;
+      reachedGate();
+      await gate;
+      return true;
+    };
+    const signal = { abandoned: false };
+    const drainO = drain(dirs, NOW, signal, undefined, 'keep', slowTranscript);
+    await reached; // O has read the state and is waiting on the transcript.
+
+    // A fresh pass handles the end AND the prompt that followed it: the
+    // conversation is running again, and the end is history.
+    await dropEvent('3-1-UserPromptSubmit.json', hook('UserPromptSubmit', 3));
+    await drain(dirs, NOW, undefined, undefined, 'keep', async () => true);
+    expect((await readSessions(dirs)).get('s1')?.status).toBe('running');
+
+    signal.abandoned = true;
+    releaseO();
+    const resO = await drainO;
+
+    const final = (await readSessions(dirs)).get('s1');
+    expect(final?.status).toBe('running');
+    expect(final?.endedAt).toBeUndefined();
+    expect(resO.applied).toBe(0);
+  });
+
+  it("without abandonment (signal.abandoned stays false), behaviour is unchanged: the event applies normally", async () => {
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     const signal = { abandoned: false };
     const res = await drain(dirs, NOW, signal);
@@ -504,15 +548,36 @@ describe("drain — écriture tardive après abandon (N2 suite)", () => {
   });
 });
 
+describe('drain — the tool calls it hands to the process view', () => {
+  it('collects the Bash calls it applied, with the agent behind them, and nothing else', async () => {
+    await dropEvent(
+      '1-1-PreToolUse.json',
+      hook('PreToolUse', 1, { tool_name: 'Bash', tool_input: { command: 'pnpm dev' }, agent_id: 'a1', agent_type: 'general-purpose' }),
+    );
+    // Not a Bash call: it starts no process, and the process view has no use for it.
+    await dropEvent('2-1-PreToolUse.json', hook('PreToolUse', 2, { tool_name: 'Read', tool_input: { file_path: '/x' } }));
+    await dropEvent('3-1-PostToolUse.json', hook('PostToolUse', 3, { tool_name: 'Bash', tool_input: { command: 'pnpm dev' } }));
+    // Rejected, never applied — and so never handed over either.
+    await dropEvent('4-1-PreToolUse.json', 'not an event');
+    const res = await drain(dirs, NOW);
+    expect(res.applied).toBe(3);
+    expect(res.rejected).toBe(1);
+    expect(res.toolCalls.map((c) => [c.event, c.toolTarget, c.agentId])).toEqual([
+      ['PreToolUse', 'pnpm dev', 'a1'],
+      ['PostToolUse', 'pnpm dev', undefined],
+    ]);
+  });
+});
+
 describe('SpoolWatcher', () => {
-  it('start() tolère un dossier events absent, sans lever, et arme quand même le filet périodique', () => {
-    // Vérifié seulement structurellement, jamais via le déclenchement réel du
-    // `void this.tick()` implicite de start() : ce tick d'arrière-plan existe
-    // (il vise à consommer ce qui traînerait déjà), mais l'observer aurait
-    // exigé d'attendre sa résolution sans moyen déterministe de le faire —
-    // exactement le genre de dépendance au minutage qu'on élimine, pas qu'on
-    // réduit. Le comportement « un événement déposé après coup est bien
-    // consommé » est prouvé séparément ci-dessous, sans jamais appeler start().
+  it('start() tolerates a missing events folder, without throwing, and still arms the periodic safety net', () => {
+    // Verified only structurally, never through the actual firing of start()'s
+    // implicit `void this.tick()`: that background tick does exist (it aims to
+    // consume whatever might already be sitting there), but observing it would
+    // have required waiting for its resolution with no deterministic way to do
+    // so — exactly the kind of timing dependency we eliminate, not reduce. The
+    // behaviour « an event dropped afterwards is indeed consumed » is proven
+    // separately below, without ever calling start().
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
@@ -520,26 +585,26 @@ describe('SpoolWatcher', () => {
     const internal = watcher as unknown as { watcher?: unknown; timer?: NodeJS.Timeout };
 
     expect(() => watcher.start()).not.toThrow();
-    expect(internal.watcher).toBeUndefined(); // fs.watch a échoué sur un dossier absent
-    expect(internal.timer).toBeDefined(); // le filet de secours est quand même armé
+    expect(internal.watcher).toBeUndefined(); // fs.watch failed on a missing folder
+    expect(internal.timer).toBeDefined(); // the safety net is still armed
 
     watcher.stop();
   });
 
-  it("un événement déposé après l'apparition tardive du dossier events est bien consommé, piloté par tick() (jamais par le void this.tick() implicite de start(), ni par le minuteur)", async () => {
+  it("an event dropped after the late appearance of the events folder is indeed consumed, driven by tick() (never by start()'s implicit void this.tick(), nor by the timer)", async () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
     const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
-    // Le dossier events n'existe pas encore quand ce SpoolWatcher est
-    // construit (scénario réel : l'extension démarre avant tout hook).
-    // start() n'est jamais appelé ici : son void this.tick() implicite, en
-    // arrière-plan, entrerait en course avec l'appel explicite ci-dessous —
-    // c'est exactement la course que la revue a mesurée (7 échecs sur 10
-    // exécutions complètes avant ce correctif). Le dossier apparaît après
-    // coup (ex : ensureDirs appelé ailleurs), puis un événement y est déposé.
+    // The events folder does not exist yet when this SpoolWatcher is
+    // constructed (real scenario: the extension starts before any hook).
+    // start() is never called here: its implicit void this.tick(), in the
+    // background, would race with the explicit call below — this is exactly
+    // the race the review measured (7 failures out of 10 full runs before
+    // this fix). The folder appears afterwards (e.g. ensureDirs called
+    // elsewhere), then an event is dropped into it.
     await ensureDirs(missingDirs);
     await writeFile(
       join(missingDirs.events, '1-1-SessionStart.json'),
@@ -554,7 +619,7 @@ describe('SpoolWatcher', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('stop() ferme le FSWatcher et efface le minuteur de secours ; le déclenchement est piloté par tick(), jamais par fs.watch ou un délai', async () => {
+  it('stop() closes the FSWatcher and clears the safety-net timer; the trigger is driven by tick(), never by fs.watch or a delay', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
     const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
@@ -565,20 +630,19 @@ describe('SpoolWatcher', () => {
     };
 
     try {
-      // La consommation est prouvée par un appel direct à tick(), sur un
-      // watcher pas encore démarré : aucun déclenchement implicite de
-      // start() (lui-même un void this.tick() en arrière-plan) ne peut entrer
-      // en course avec cet appel.
+      // Consumption is proven by a direct call to tick(), on a watcher not
+      // yet started: no implicit trigger from start() (itself a background
+      // void this.tick()) can race with this call.
       await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
       await internal.tick();
       expect(onChange).toHaveBeenCalledTimes(1);
       expect((await readSessions(dirs)).get('s1')?.startedAt).toBe(1);
 
-      // fs.watch et le minuteur ne sont vérifiés que structurellement — leur
-      // existence, puis leur fermeture effective par stop() — jamais par leur
-      // déclenchement réel : attendre qu'un vrai fs.watch remarque un fichier
-      // est justement ce qui rendait ce test capricieux (déjà observé en
-      // échec une fois en développement).
+      // fs.watch and the timer are verified only structurally — their
+      // existence, then their actual closing by stop() — never by their
+      // actual firing: waiting for a real fs.watch to notice a file is
+      // exactly what made this test flaky (already observed failing once
+      // in development).
       watcher.start();
       expect(internal.watcher).toBeDefined();
       expect(internal.timer).toBeDefined();
@@ -594,22 +658,22 @@ describe('SpoolWatcher', () => {
     }
   });
 
-  it('la garde de non-réentrance ne fait perdre aucun fichier : un événement déposé pendant une vidange finit consommé', async () => {
+  it('the non-reentrancy guard loses no file: an event dropped during a drain ends up consumed', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
     const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
-    // Simule une vidange déjà en cours.
+    // Simulates a drain already in progress.
     internal.guard.running = true;
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
 
-    // Un déclenchement qui arrive pendant la vidange est un no-op : rien n'est perdu.
+    // A trigger that arrives during the drain is a no-op: nothing is lost.
     await internal.tick();
     expect(onChange).not.toHaveBeenCalled();
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(1);
 
-    // La vidange en cours se termine ; le prochain déclenchement retrouve le fichier.
+    // The ongoing drain finishes; the next trigger finds the file again.
     internal.guard.running = false;
     await internal.tick();
 
@@ -618,7 +682,7 @@ describe('SpoolWatcher', () => {
     expect(readdirSync(dirs.events).filter((f) => f.endsWith('.json'))).toHaveLength(0);
   });
 
-  it('si onChange lève, tick() ne rejette pas : onError est appelé et la garde retombe, le tick suivant fonctionne', async () => {
+  it('if onChange throws, tick() does not reject: onError is called and the guard falls back, the next tick works', async () => {
     const onChange = vi.fn(() => {
       throw new Error('bug dans onChange');
     });
@@ -633,7 +697,7 @@ describe('SpoolWatcher', () => {
     expect(onError).toHaveBeenCalledTimes(1);
     expect(internal.guard.running).toBe(false);
 
-    // Le tick suivant n'est pas resté bloqué par l'échec du précédent.
+    // The next tick did not stay stuck because of the previous one's failure.
     onChange.mockReset();
     await dropEvent('2-1-Stop.json', hook('Stop', 2));
     await internal.tick();
