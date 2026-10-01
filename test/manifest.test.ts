@@ -98,4 +98,25 @@ describe('the manifest', () => {
       expect(palette(command)?.when).toBe('false');
     }
   });
+
+  it('puts Run now and Pause on an active routine, Resume on a paused one, nothing on a spent one-shot', () => {
+    expect(inline('kohVibe.runRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.enabled']);
+    expect(inline('kohVibe.pauseRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.enabled']);
+    expect(inline('kohVibe.resumeRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.paused']);
+    expect(icon('kohVibe.runRoutine')).toBe('$(play)');
+    expect(icon('kohVibe.pauseRoutine')).toBe('$(debug-pause)');
+    expect(icon('kohVibe.resumeRoutine')).toBe('$(debug-start)');
+  });
+
+  it('puts the run first, in the order the row reads', () => {
+    expect(inline('kohVibe.runRoutine')[0]?.group).toBe('inline@1');
+    expect(inline('kohVibe.pauseRoutine')[0]?.group).toBe('inline@2');
+    expect(inline('kohVibe.resumeRoutine')[0]?.group).toBe('inline@2');
+  });
+
+  it('keeps the three routine actions out of the palette, which has no row to act on', () => {
+    for (const command of ['kohVibe.runRoutine', 'kohVibe.pauseRoutine', 'kohVibe.resumeRoutine']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
 });

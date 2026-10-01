@@ -67,7 +67,10 @@
       { "command": "kohVibe.refreshUsage", "title": "%command.kohVibe.refreshUsage.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.refreshRoutines", "title": "%command.kohVibe.refreshRoutines.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
       { "command": "kohVibe.openRoutine", "title": "%command.kohVibe.openRoutine.title%", "category": "Koh-Vibe" },
-      { "command": "kohVibe.copyRoutineLink", "title": "%command.kohVibe.copyRoutineLink.title%", "category": "Koh-Vibe" }
+      { "command": "kohVibe.copyRoutineLink", "title": "%command.kohVibe.copyRoutineLink.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.runRoutine", "title": "%command.kohVibe.runRoutine.title%", "category": "Koh-Vibe", "icon": "$(play)" },
+      { "command": "kohVibe.pauseRoutine", "title": "%command.kohVibe.pauseRoutine.title%", "category": "Koh-Vibe", "icon": "$(debug-pause)" },
+      { "command": "kohVibe.resumeRoutine", "title": "%command.kohVibe.resumeRoutine.title%", "category": "Koh-Vibe", "icon": "$(debug-start)" }
     ],
     "keybindings": [
       { "command": "kohVibe.replaySound", "key": "right", "when": "kohVibe.pickingSound && inQuickOpen" }
@@ -99,7 +102,13 @@
         { "command": "kohVibe.forgetSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "zzz@1" },
         { "command": "kohVibe.sleepSession", "when": "view == kohVibe.sessions && viewItem == session", "group": "inline@1" },
         { "command": "kohVibe.closeSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "inline@2" },
-        { "command": "kohVibe.copyRoutineLink", "when": "view == kohVibe.routines && viewItem =~ /^routine/", "group": "copy@1" }
+        { "command": "kohVibe.copyRoutineLink", "when": "view == kohVibe.routines && viewItem =~ /^routine/", "group": "copy@1" },
+        { "command": "kohVibe.runRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "inline@1" },
+        { "command": "kohVibe.pauseRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "inline@2" },
+        { "command": "kohVibe.resumeRoutine", "when": "view == kohVibe.routines && viewItem == routine.paused", "group": "inline@2" },
+        { "command": "kohVibe.runRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "routine@1" },
+        { "command": "kohVibe.pauseRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "routine@2" },
+        { "command": "kohVibe.resumeRoutine", "when": "view == kohVibe.routines && viewItem == routine.paused", "group": "routine@2" }
       ],
       "commandPalette": [
         { "command": "kohVibe.rescanning", "when": "false" },
@@ -114,7 +123,10 @@
         { "command": "kohVibe.copyProcessCommand", "when": "false" },
         { "command": "kohVibe.sleepSession", "when": "false" },
         { "command": "kohVibe.openRoutine", "when": "false" },
-        { "command": "kohVibe.copyRoutineLink", "when": "false" }
+        { "command": "kohVibe.copyRoutineLink", "when": "false" },
+        { "command": "kohVibe.runRoutine", "when": "false" },
+        { "command": "kohVibe.pauseRoutine", "when": "false" },
+        { "command": "kohVibe.resumeRoutine", "when": "false" }
       ]
     }
   },

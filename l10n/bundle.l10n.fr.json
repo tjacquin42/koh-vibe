@@ -184,5 +184,14 @@
   "Could not read your routines — click to retry": "Impossible de lire vos routines — cliquer pour réessayer",
   "No routines": "Aucune routine",
   "Open on claude.ai": "Ouvrir sur claude.ai",
-  "Koh-Vibe: link copied": "Koh-Vibe : lien copié"
+  "Koh-Vibe: link copied": "Koh-Vibe : lien copié",
+  "Could not launch “{0}”.": "Impossible de lancer « {0} ».",
+  "Koh-Vibe: “{0}” paused": "Koh-Vibe : « {0} » mise en pause",
+  "Koh-Vibe: “{0}” resumed": "Koh-Vibe : « {0} » réactivée",
+  "Could not pause “{0}”.": "Impossible de mettre « {0} » en pause.",
+  "Could not resume “{0}”.": "Impossible de réactiver « {0} ».",
+  "Run now": "Lancer maintenant",
+  "Run “{0}” now?": "Lancer « {0} » maintenant ?",
+  "The run starts in the cloud right away and does everything the routine does — messages, commits, whatever its prompt says.": "Le run démarre tout de suite dans le cloud et fait tout ce que fait la routine — messages, commits, tout ce que dit son prompt.",
+  "Koh-Vibe: “{0}” launched": "Koh-Vibe : « {0} » lancée"
 }

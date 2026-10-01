@@ -4,7 +4,8 @@ import { Feed } from '../cloud/feed';
 import { logged } from '../cloud/log';
 import { send } from '../cloud/request';
 import { routinesFile } from '../paths';
-import { listRoutines } from '../routines/api';
+import { launchRoutine, pauseRoutine, type RoutineCalls, type RoutineUi } from '../routines/actions';
+import { listRoutines, runRoutine, setRoutineEnabled } from '../routines/api';
 import { isRoutine, routineUrl, type Routine } from '../routines/model';
 import { feedDescription } from './feed-labels';
 import { RoutinesTree, routineIdOfNode } from './routines-tree';
@@ -49,6 +50,55 @@ export function registerCloudViews(
     vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: link copied'), 3000);
   };
 
+  /**
+   * A notification whose one button opens the page on claude.ai — where a
+   * run's progress, or the reason something was refused, can be read.
+   */
+  const offerOpen = (url: string, message: string, warning: boolean): void => {
+    const label = vscode.l10n.t('Open on claude.ai');
+    const shown = warning
+      ? vscode.window.showWarningMessage(message, label)
+      : vscode.window.showInformationMessage(message, label);
+    void shown.then((answer) => {
+      if (answer === label) open(url);
+    });
+  };
+
+  /** The routine a row names, taken from the list on screen — never the copy a stale row carries. */
+  const routineAt = (node: unknown): Routine | undefined => {
+    const id = routineIdOfNode(node);
+    return id === undefined ? undefined : routinesTree.routine(id);
+  };
+  const routineCalls: RoutineCalls = {
+    run: (id) => runRoutine(id, cloud),
+    setEnabled: (id, enabled) => setRoutineEnabled(id, enabled, cloud),
+    refresh: async () => {
+      await routinesFeed.refresh(true);
+      await render();
+    },
+  };
+  const routineUi: RoutineUi = {
+    confirmRun: async (r) => {
+      const go = vscode.l10n.t('Run now');
+      const answer = await vscode.window.showWarningMessage(
+        vscode.l10n.t('Run “{0}” now?', r.name),
+        {
+          modal: true,
+          detail: vscode.l10n.t(
+            'The run starts in the cloud right away and does everything the routine does — messages, commits, whatever its prompt says.',
+          ),
+        },
+        go,
+      );
+      return answer === go;
+    },
+    done: (message) => {
+      vscode.window.setStatusBarMessage(message, 3000);
+    },
+    launched: (r) => offerOpen(routineUrl(r.id), vscode.l10n.t('Koh-Vibe: “{0}” launched', r.name), false),
+    failed: (message, r) => offerOpen(routineUrl(r.id), message, true),
+  };
+
   context.subscriptions.push(
     channel,
     routinesTree,
@@ -69,6 +119,18 @@ export function registerCloudViews(
     vscode.commands.registerCommand('kohVibe.copyRoutineLink', async (node: unknown) => {
       const id = routineIdOfNode(node);
       if (id !== undefined) await copy(routineUrl(id));
+    }),
+    vscode.commands.registerCommand('kohVibe.runRoutine', async (node: unknown) => {
+      const r = routineAt(node);
+      if (r !== undefined) await launchRoutine(r, routineCalls, routineUi);
+    }),
+    vscode.commands.registerCommand('kohVibe.pauseRoutine', async (node: unknown) => {
+      const r = routineAt(node);
+      if (r !== undefined) await pauseRoutine(r, true, routineCalls, routineUi);
+    }),
+    vscode.commands.registerCommand('kohVibe.resumeRoutine', async (node: unknown) => {
+      const r = routineAt(node);
+      if (r !== undefined) await pauseRoutine(r, false, routineCalls, routineUi);
     }),
   );
 

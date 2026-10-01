@@ -39,5 +39,8 @@
   "view.kohVibe.routines.name": "Routines",
   "command.kohVibe.refreshRoutines.title": "Refresh routines",
   "command.kohVibe.openRoutine.title": "Open on claude.ai",
-  "command.kohVibe.copyRoutineLink.title": "Copy link"
+  "command.kohVibe.copyRoutineLink.title": "Copy link",
+  "command.kohVibe.runRoutine.title": "Run now",
+  "command.kohVibe.pauseRoutine.title": "Pause",
+  "command.kohVibe.resumeRoutine.title": "Resume"
 }
