@@ -26,8 +26,18 @@ describe('listArtifacts', () => {
         method: 'GET',
         url: 'https://api.anthropic.com/api/frame/frames?limit=200',
         headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+        expects: expect.any(Function),
       },
     ]);
+  });
+
+  it('has the log name a 200 without its list of frames, though the view reads it as empty', async () => {
+    const { deps, sent } = fake({ status: 200, body: {} });
+    expect(await listArtifacts(deps)).toEqual({ kind: 'ok', items: [], truncated: false });
+    const expects = sent[0]?.expects;
+    expect(expects?.({ frames: [] })).toBe(true);
+    expect(expects?.({})).toBe(false);
+    expect(expects?.({ frames: 'x' })).toBe(false);
   });
 
   it('makes do without an organization', async () => {

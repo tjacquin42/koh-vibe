@@ -36,8 +36,18 @@ describe('listRoutines', () => {
           'anthropic-beta': 'ccr-triggers-2026-01-30',
           'x-organization-uuid': 'org-test',
         },
+        expects: expect.any(Function),
       },
     ]);
+  });
+
+  it('tells the log what a usable answer looks like, so a changed shape is named there', async () => {
+    const { deps, sent } = fake({ status: 200, body: LIST });
+    await listRoutines(deps);
+    const expects = sent[0]?.expects;
+    expect(expects?.(LIST)).toBe(true);
+    expect(expects?.({ data: 'x' })).toBe(false);
+    expect(expects?.({ triggers: [] })).toBe(false);
   });
 
   it('is signed out without a token, or without a claude.ai organization — and sends nothing', async () => {

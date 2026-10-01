@@ -1,7 +1,7 @@
 import { CLOUD, type CloudDeps, type Credentials } from '../cloud/account';
 import type { Fetched } from '../cloud/feed';
 import { API_ORIGIN, type Method } from '../cloud/request';
-import { ARTIFACTS_PAGE, parseArtifacts, type Artifact } from './model';
+import { ARTIFACTS_PAGE, isFramesListing, parseArtifacts, type Artifact } from './model';
 
 /**
  * The artifact endpoints, called as Claude Code's own Artifact tool calls them
@@ -24,7 +24,12 @@ function headers(c: Credentials): Record<string, string> {
 export async function listArtifacts(deps: CloudDeps = CLOUD): Promise<Fetched<Artifact>> {
   const c = await deps.credentials();
   if (c === undefined) return { kind: 'signed-out' };
-  const res = await deps.send({ method: 'GET', url: `${FRAME}/frames?limit=${ARTIFACTS_PAGE}`, headers: headers(c) });
+  const res = await deps.send({
+    method: 'GET',
+    url: `${FRAME}/frames?limit=${ARTIFACTS_PAGE}`,
+    headers: headers(c),
+    expects: isFramesListing,
+  });
   if (res === undefined || res.status !== 200) return { kind: 'unavailable' };
   const list = parseArtifacts(res.body);
   return list === undefined ? { kind: 'unavailable' } : { kind: 'ok', items: list.artifacts, truncated: list.truncated };

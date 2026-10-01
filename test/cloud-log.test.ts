@@ -49,3 +49,22 @@ describe('logged', () => {
     expect(lines).toEqual(['2026-09-28T06:00:00.000Z GET /v1/code/triggers → HTTP 401']);
   });
 });
+
+describe('failureLine, on what the caller reads', () => {
+  const listing = (): CloudRequest => ({
+    method: 'GET',
+    url: 'https://api.anthropic.com/v1/code/triggers',
+    headers: {},
+    expects: (body) => typeof body === 'object' && body !== null && Array.isArray((body as { data?: unknown }).data),
+  });
+
+  it('names a 200 whose body is not what the caller reads — the likeliest way an undocumented endpoint breaks', () => {
+    expect(failureLine(listing(), { status: 200, body: { items: [] } }, AT)).toBe(
+      '2026-09-28T06:00:00.000Z GET /v1/code/triggers → HTTP 200, unexpected shape',
+    );
+  });
+
+  it('says nothing when the body is what the caller reads', () => {
+    expect(failureLine(listing(), { status: 200, body: { data: [] } }, AT)).toBeUndefined();
+  });
+});

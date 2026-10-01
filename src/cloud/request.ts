@@ -20,6 +20,12 @@ export interface CloudRequest {
   headers: Readonly<Record<string, string>>;
   /** Sent as JSON when present. */
   body?: unknown;
+  /**
+   * What a usable answer looks like — read by the log only (cloud/log.ts),
+   * which names a 2xx whose body fails it. Never changes what `send` returns:
+   * deciding what an unusable body means stays with the caller.
+   */
+  expects?: (body: unknown) => boolean;
 }
 
 /**

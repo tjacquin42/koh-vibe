@@ -34,7 +34,12 @@ function headers(s: SignedIn): Record<string, string> {
 export async function listRoutines(deps: CloudDeps = CLOUD): Promise<Fetched<Routine>> {
   const s = await signedIn(deps);
   if (s === undefined) return { kind: 'signed-out' };
-  const res = await deps.send({ method: 'GET', url: TRIGGERS, headers: headers(s) });
+  const res = await deps.send({
+    method: 'GET',
+    url: TRIGGERS,
+    headers: headers(s),
+    expects: (body) => parseRoutines(body) !== undefined,
+  });
   // A 401 is not told apart: Claude Code renews its token by itself, and the
   // next attempt reads the new one.
   if (res === undefined || res.status !== 200) return { kind: 'unavailable' };

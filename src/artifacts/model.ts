@@ -39,6 +39,15 @@ export function parseArtifacts(raw: unknown): ArtifactList | undefined {
   return { artifacts, truncated: rows.length >= ARTIFACTS_PAGE };
 }
 
+/**
+ * The listing's envelope as observed: an object carrying a `frames` array. A
+ * 200 without one still reads as an empty list — Claude Code reads it so — but
+ * the log names it: it is what a changed endpoint would look like.
+ */
+export function isFramesListing(raw: unknown): boolean {
+  return isRecord(raw) && Array.isArray(raw['frames']);
+}
+
 function artifactOf(row: unknown, pins: boolean): Artifact | undefined {
   if (!isRecord(row)) return undefined;
   const slug = nonEmptyString(row['slug']);
