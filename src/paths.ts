@@ -106,3 +106,28 @@ export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
 export function claudeSessionsDir(home: string): string {
   return join(home, 'sessions');
 }
+
+/**
+ * The routines last read from claude.ai, cached — shared between windows like
+ * the usage reading, for the same reason.
+ */
+export function routinesFile(home: string): string {
+  return join(home, 'routines.json');
+}
+
+/** The artifacts last read from claude.ai, cached — same reason. */
+export function artifactsFile(home: string): string {
+  return join(home, 'artifacts.json');
+}
+
+/**
+ * Claude Code's global configuration — the account it is signed in with,
+ * among much else. Beside the configuration root by default (`~/.claude.json`,
+ * not inside `~/.claude/`), inside the root once CLAUDE_CONFIG_DIR relocates
+ * it: that is where Claude Code itself writes it then.
+ */
+export function claudeConfigFile(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env['CLAUDE_CONFIG_DIR'];
+  if (override !== undefined && override.length > 0) return join(override, '.claude.json');
+  return join(env['HOME'] ?? '', '.claude.json');
+}

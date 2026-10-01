@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs, statusFile, usageFile } from '../src/paths';
+import { artifactsFile, claudeConfigFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, routinesFile, spoolDirs, statusFile, usageFile } from '../src/paths';
 
 describe('paths', () => {
   it('uses KOH_VIBE_HOME when it is set', () => {
@@ -44,5 +44,18 @@ describe('claude paths', () => {
 
   it('finds the session registry under it', () => {
     expect(claudeSessionsDir('/Users/x/.claude')).toBe('/Users/x/.claude/sessions');
+  });
+});
+
+describe('cloud paths', () => {
+  it('puts the two cloud caches at the root of the state, beside the usage reading', () => {
+    expect(routinesFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/routines.json');
+    expect(artifactsFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/artifacts.json');
+  });
+
+  it('finds Claude Code global configuration beside ~/.claude, or inside CLAUDE_CONFIG_DIR', () => {
+    expect(claudeConfigFile({ HOME: '/Users/x' })).toBe('/Users/x/.claude.json');
+    expect(claudeConfigFile({ HOME: '/Users/x', CLAUDE_CONFIG_DIR: '/tmp/claude' })).toBe('/tmp/claude/.claude.json');
+    expect(claudeConfigFile({ HOME: '/Users/x', CLAUDE_CONFIG_DIR: '' })).toBe('/Users/x/.claude.json');
   });
 });
