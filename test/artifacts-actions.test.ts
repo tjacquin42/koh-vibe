@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../src/artifacts/actions';
+import { pinArtifact, retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../src/artifacts/actions';
 import type { Artifact } from '../src/artifacts/model';
 
 const artifact = (over: Partial<Artifact> = {}): Artifact => ({ slug: 'ArtTest01', title: 'Release notes', pinned: false, ...over });
@@ -10,6 +10,10 @@ function harness(opts: { answer?: string; ok?: boolean } = {}) {
   const calls: ArtifactCalls = {
     rename: async (slug, title) => {
       log.push(`rename ${slug} ${title}`);
+      return opts.ok ?? true;
+    },
+    setPinned: async (slug, pinned) => {
+      log.push(`pin ${slug} ${pinned}`);
       return opts.ok ?? true;
     },
     refresh: async () => {
@@ -50,5 +54,31 @@ describe('retitleArtifact', () => {
     const h = harness({ answer: 'Notes', ok: false });
     expect(await retitleArtifact(artifact(), h.calls, h.ui)).toBe('failed');
     expect(h.log).toEqual(['ask Release notes', 'rename ArtTest01 Notes', 'failed Could not rename “Release notes”.', 'refresh']);
+  });
+});
+
+describe('pinArtifact', () => {
+  it('pins, says so, and reads the list again', async () => {
+    const h = harness();
+    expect(await pinArtifact(artifact(), true, h.calls, h.ui)).toBe('done');
+    expect(h.log).toEqual(['pin ArtTest01 true', 'done Koh-Vibe: “Release notes” pinned', 'refresh']);
+  });
+
+  it('unpins a pinned one', async () => {
+    const h = harness();
+    expect(await pinArtifact(artifact({ pinned: true }), false, h.calls, h.ui)).toBe('done');
+    expect(h.log).toEqual(['pin ArtTest01 false', 'done Koh-Vibe: “Release notes” unpinned', 'refresh']);
+  });
+
+  it('leaves alone a page already in that state', async () => {
+    const h = harness();
+    expect(await pinArtifact(artifact({ pinned: true }), true, h.calls, h.ui)).toBe('skipped');
+    expect(h.log).toEqual([]);
+  });
+
+  it('says it failed, and still reads the list again', async () => {
+    const h = harness({ ok: false });
+    expect(await pinArtifact(artifact(), true, h.calls, h.ui)).toBe('failed');
+    expect(h.log).toEqual(['pin ArtTest01 true', 'failed Could not pin “Release notes”.', 'refresh']);
   });
 });

@@ -47,5 +47,7 @@
   "command.kohVibe.refreshArtifacts.title": "Rafraîchir les artifacts",
   "command.kohVibe.openArtifact.title": "Ouvrir sur claude.ai",
   "command.kohVibe.copyArtifactLink.title": "Copier le lien",
-  "command.kohVibe.renameArtifact.title": "Renommer…"
+  "command.kohVibe.renameArtifact.title": "Renommer…",
+  "command.kohVibe.pinArtifact.title": "Épingler",
+  "command.kohVibe.unpinArtifact.title": "Désépingler"
 }

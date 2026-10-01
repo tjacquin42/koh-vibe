@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listArtifacts, renameArtifact } from '../src/artifacts/api';
+import { listArtifacts, renameArtifact, setArtifactPinned } from '../src/artifacts/api';
 import type { CloudDeps, Credentials } from '../src/cloud/account';
 import type { CloudRequest, CloudResponse } from '../src/cloud/request';
 
@@ -68,5 +68,20 @@ describe('renameArtifact', () => {
     const { deps, sent } = fake({ status: 200, body: {} }, 'signed-out');
     expect(await renameArtifact('a', 'b', deps)).toBe(false);
     expect(sent).toEqual([]);
+  });
+});
+
+describe('setArtifactPinned', () => {
+  it('posts to pin and deletes to unpin, with no body', async () => {
+    const pin = fake({ status: 200, body: {} });
+    expect(await setArtifactPinned('ArtTest01', true, pin.deps)).toBe(true);
+    expect(pin.sent[0]).toEqual({
+      method: 'POST',
+      url: 'https://api.anthropic.com/api/frame/favorite/ArtTest01',
+      headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+    });
+    const unpin = fake({ status: 204, body: undefined });
+    expect(await setArtifactPinned('ArtTest01', false, unpin.deps)).toBe(true);
+    expect(unpin.sent[0]?.method).toBe('DELETE');
   });
 });

@@ -143,4 +143,12 @@ describe('the manifest', () => {
     expect(inline('kohVibe.renameArtifact')).toEqual([]);
     expect(palette('kohVibe.renameArtifact')?.when).toBe('false');
   });
+
+  it('puts a pin at the right of an unpinned artifact, and an unpin on a pinned one', () => {
+    expect(inline('kohVibe.pinArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem == artifact.unpinned']);
+    expect(inline('kohVibe.unpinArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem == artifact.pinned']);
+    expect(icon('kohVibe.pinArtifact')).toBe('$(pin)');
+    expect(icon('kohVibe.unpinArtifact')).toBe('$(pinned)');
+    for (const command of ['kohVibe.pinArtifact', 'kohVibe.unpinArtifact']) expect(palette(command)?.when).toBe('false');
+  });
 });

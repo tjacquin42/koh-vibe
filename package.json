@@ -75,7 +75,9 @@
       { "command": "kohVibe.refreshArtifacts", "title": "%command.kohVibe.refreshArtifacts.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
       { "command": "kohVibe.openArtifact", "title": "%command.kohVibe.openArtifact.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.copyArtifactLink", "title": "%command.kohVibe.copyArtifactLink.title%", "category": "Koh-Vibe" },
-      { "command": "kohVibe.renameArtifact", "title": "%command.kohVibe.renameArtifact.title%", "category": "Koh-Vibe" }
+      { "command": "kohVibe.renameArtifact", "title": "%command.kohVibe.renameArtifact.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.pinArtifact", "title": "%command.kohVibe.pinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pin)" },
+      { "command": "kohVibe.unpinArtifact", "title": "%command.kohVibe.unpinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pinned)" }
     ],
     "keybindings": [
       { "command": "kohVibe.replaySound", "key": "right", "when": "kohVibe.pickingSound && inQuickOpen" }
@@ -116,7 +118,11 @@
         { "command": "kohVibe.pauseRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "routine@2" },
         { "command": "kohVibe.resumeRoutine", "when": "view == kohVibe.routines && viewItem == routine.paused", "group": "routine@2" },
         { "command": "kohVibe.copyArtifactLink", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "copy@1" },
-        { "command": "kohVibe.renameArtifact", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@1" }
+        { "command": "kohVibe.renameArtifact", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@1" },
+        { "command": "kohVibe.pinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.unpinned", "group": "inline@1" },
+        { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "inline@1" },
+        { "command": "kohVibe.pinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.unpinned", "group": "artifact@2" },
+        { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "artifact@2" }
       ],
       "commandPalette": [
         { "command": "kohVibe.rescanning", "when": "false" },
@@ -137,7 +143,9 @@
         { "command": "kohVibe.resumeRoutine", "when": "false" },
         { "command": "kohVibe.openArtifact", "when": "false" },
         { "command": "kohVibe.copyArtifactLink", "when": "false" },
-        { "command": "kohVibe.renameArtifact", "when": "false" }
+        { "command": "kohVibe.renameArtifact", "when": "false" },
+        { "command": "kohVibe.pinArtifact", "when": "false" },
+        { "command": "kohVibe.unpinArtifact", "when": "false" }
       ]
     }
   },

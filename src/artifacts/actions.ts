@@ -6,6 +6,7 @@ import type { Artifact } from './model';
 /** What an action calls on claude.ai. */
 export interface ArtifactCalls {
   rename: (slug: string, title: string) => Promise<boolean>;
+  setPinned: (slug: string, pinned: boolean) => Promise<boolean>;
   /** Reads the list again, forced: the view shows what the server says, never what we hoped. */
   refresh: () => Promise<void>;
 }
@@ -34,6 +35,20 @@ export async function retitleArtifact(a: Artifact, calls: ArtifactCalls, ui: Art
   const ok = await calls.rename(a.slug, title);
   if (ok) ui.done(vscode.l10n.t('Koh-Vibe: artifact renamed'));
   else ui.failed(vscode.l10n.t('Could not rename “{0}”.', artifactLabel(a)), a);
+  await calls.refresh();
+  return ok ? 'done' : 'failed';
+}
+
+/** Pins (`pinned`) or unpins a page in claude.ai's sidebar. No confirmation: both undo each other. */
+export async function pinArtifact(a: Artifact, pinned: boolean, calls: ArtifactCalls, ui: ArtifactUi): Promise<ChangeOutcome> {
+  if (a.pinned === pinned) return 'skipped';
+  const ok = await calls.setPinned(a.slug, pinned);
+  const name = artifactLabel(a);
+  if (ok) {
+    ui.done(pinned ? vscode.l10n.t('Koh-Vibe: “{0}” pinned', name) : vscode.l10n.t('Koh-Vibe: “{0}” unpinned', name));
+  } else {
+    ui.failed(pinned ? vscode.l10n.t('Could not pin “{0}”.', name) : vscode.l10n.t('Could not unpin “{0}”.', name), a);
+  }
   await calls.refresh();
   return ok ? 'done' : 'failed';
 }

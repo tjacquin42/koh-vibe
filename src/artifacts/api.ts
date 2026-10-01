@@ -35,6 +35,15 @@ export function renameArtifact(slug: string, title: string, deps: CloudDeps = CL
   return change(deps, 'POST', `${FRAME}/retitle/${encodeURIComponent(slug)}`, { title });
 }
 
+/**
+ * Pins or unpins a page in claude.ai's sidebar. Claude Code sends this one
+ * through its cloud relay only; whether the direct call is accepted was
+ * checked when this shipped — see the spec.
+ */
+export function setArtifactPinned(slug: string, pinned: boolean, deps: CloudDeps = CLOUD): Promise<boolean> {
+  return change(deps, pinned ? 'POST' : 'DELETE', `${FRAME}/favorite/${encodeURIComponent(slug)}`);
+}
+
 async function change(deps: CloudDeps, method: Method, url: string, body?: unknown): Promise<boolean> {
   const c = await deps.credentials();
   if (c === undefined) return false;

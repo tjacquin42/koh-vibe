@@ -205,5 +205,9 @@
   "No artifacts": "Aucun artifact",
   "New title": "Nouveau titre",
   "Koh-Vibe: artifact renamed": "Koh-Vibe : artifact renommé",
-  "Could not rename “{0}”.": "Impossible de renommer « {0} »."
+  "Could not rename “{0}”.": "Impossible de renommer « {0} ».",
+  "Koh-Vibe: “{0}” pinned": "Koh-Vibe : « {0} » épinglé",
+  "Koh-Vibe: “{0}” unpinned": "Koh-Vibe : « {0} » désépinglé",
+  "Could not pin “{0}”.": "Impossible d'épingler « {0} ».",
+  "Could not unpin “{0}”.": "Impossible de désépingler « {0} »."
 }

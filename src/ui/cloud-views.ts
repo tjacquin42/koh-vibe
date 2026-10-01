@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../artifacts/actions';
-import { listArtifacts, renameArtifact } from '../artifacts/api';
+import { pinArtifact, retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../artifacts/actions';
+import { listArtifacts, renameArtifact, setArtifactPinned } from '../artifacts/api';
 import { artifactUrl, isArtifact, type Artifact } from '../artifacts/model';
 import { readCredentials, type CloudDeps } from '../cloud/account';
 import { Feed } from '../cloud/feed';
@@ -116,6 +116,7 @@ export function registerCloudViews(
   };
   const artifactCalls: ArtifactCalls = {
     rename: (slug, title) => renameArtifact(slug, title, cloud),
+    setPinned: (slug, pinned) => setArtifactPinned(slug, pinned, cloud),
     refresh: async () => {
       await artifactsFeed.refresh(true);
       await render();
@@ -182,6 +183,14 @@ export function registerCloudViews(
     vscode.commands.registerCommand('kohVibe.renameArtifact', async (node: unknown) => {
       const a = artifactAt(node);
       if (a !== undefined) await retitleArtifact(a, artifactCalls, artifactUi);
+    }),
+    vscode.commands.registerCommand('kohVibe.pinArtifact', async (node: unknown) => {
+      const a = artifactAt(node);
+      if (a !== undefined) await pinArtifact(a, true, artifactCalls, artifactUi);
+    }),
+    vscode.commands.registerCommand('kohVibe.unpinArtifact', async (node: unknown) => {
+      const a = artifactAt(node);
+      if (a !== undefined) await pinArtifact(a, false, artifactCalls, artifactUi);
     }),
   );
 
