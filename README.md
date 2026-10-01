@@ -116,6 +116,18 @@ reinstalling under the same number leaves the editor serving what it already had
   Note that a clean exit leaves nothing here: Claude Code takes its children with it, so
   reloading a window is not what produces these. A crash, a `kill -9` or a machine put to sleep
   is.
+- **Routines**, a view of its own: the agents you scheduled on claude.ai, filed by when they
+  run next — *Today*, *Tomorrow*, *This week*, *Later* — with the paused ones and the one-shots
+  that already ran folded away under *Paused*. A click opens the routine on claude.ai. Hover a
+  row to **run it now** — after a confirmation, since a run acts for real — or to **pause** it;
+  a paused one offers **resume** instead. Right-click copies its link.
+- **Artifacts**, a view of its own: the pages you published on claude.ai, pinned ones first,
+  then the most recently updated. A click opens one; hover to **pin** or **unpin** it,
+  right-click to **rename** it or copy its link.
+
+  Both views ask claude.ai only while they are open, at most every five minutes, and share
+  what they read across windows. A call that fails is noted in the *Koh-Vibe* output channel —
+  see [what leaves the machine](#your-data-and-what-leaves-the-machine).
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
@@ -193,16 +205,22 @@ From the command palette, under **Koh-Vibe**:
 | *Sound for an event* · *Chime volume* | the global chimes |
 | *Install the sound library* / *Remove the sound library* | the hundred Kenney sounds |
 | *Refresh usage* | forces a usage reading, which is otherwise cached for five minutes |
+| *Refresh routines* · *Refresh artifacts* | reads the list again from claude.ai, which is otherwise cached for five minutes |
 
-The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds —
-is on the right-click menu of the row it applies to.
+The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds,
+running or pausing a routine, renaming or pinning an artifact — is on the right-click menu of
+the row it applies to.
 
 ## Your data, and what leaves the machine
 
-**Nothing is sent anywhere, and there is no telemetry.** The one network call Koh-Vibe makes
-is to Anthropic, for your usage figures, at most once every five minutes. The OAuth token it
-needs is read from the system keychain — never logged, never written to disk. No prompt, no
-transcript and no path ever leaves the machine.
+**Nothing is sent anywhere, and there is no telemetry.** Koh-Vibe talks to Anthropic and to
+nobody else: for your usage figures, at most once every five minutes; for your routines and
+artifacts, at most once every five minutes and only while their view is open; and for what you
+ask of those two views — run, pause, rename, pin — when you click. The OAuth token it needs is
+the one Claude Code keeps in the system keychain — never logged, never written to disk. No
+prompt, no transcript and no path ever leaves the machine. A call that fails is noted in the
+*Koh-Vibe* output channel with its method, its path and its status — never a header, never a
+body.
 
 Everything else sits under `~/.koh-vibe/`:
 
@@ -218,6 +236,8 @@ Everything else sits under `~/.koh-vibe/`:
 | `closed.json` | the ten most recently closed conversations |
 | `settings.json` | global sounds, volume, and the two list settings |
 | `usage.json` | the last usage reading, cached |
+| `routines.json` | the last list of routines read from claude.ai, cached |
+| `artifacts.json` | the last list of artifacts read from claude.ai, cached |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |
 

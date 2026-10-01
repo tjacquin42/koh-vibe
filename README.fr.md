@@ -125,6 +125,20 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
 
   Une sortie propre ne laisse rien ici : Claude Code emporte ses enfants avec lui, donc recharger
   une fenêtre n'en produit pas. Un plantage, un `kill -9` ou une machine mise en veille, si.
+- **Routines**, une vue à part : les agents que vous avez planifiés sur claude.ai, rangés selon
+  leur prochaine exécution — *Aujourd'hui*, *Demain*, *Cette semaine*, *Plus tard* — avec, repliées
+  sous *En pause*, celles qui sont suspendues et les exécutions uniques déjà passées. Un clic ouvre
+  la routine sur claude.ai. Au survol d'une ligne, **lancez-la maintenant** — après confirmation,
+  puisqu'un run agit pour de vrai — ou **mettez-la en pause** ; une routine en pause propose
+  **réactiver** à la place. Le clic droit copie son lien.
+- **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, les épinglées
+  d'abord, puis les plus récemment mises à jour. Un clic en ouvre une ; au survol, épinglez-la ou
+  désépinglez-la ; le clic droit permet de la **renommer** ou de copier son lien.
+
+  Les deux vues n'interrogent claude.ai que lorsqu'elles sont ouvertes, au plus une fois toutes
+  les cinq minutes, et partagent ce qu'elles lisent entre les fenêtres. Un appel qui échoue est
+  noté dans le canal de sortie *Koh-Vibe* — voir
+  [ce qui quitte la machine](#vos-données-et-ce-qui-quitte-la-machine).
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -208,17 +222,22 @@ Depuis la palette de commandes, sous **Koh-Vibe** :
 | *Son d'un événement* · *Volume des carillons* | les carillons globaux |
 | *Installer la bibliothèque de sons* / *Retirer la bibliothèque de sons* | les cent sons Kenney |
 | *Rafraîchir la consommation* | force un relevé, sinon mis en cache cinq minutes |
+| *Rafraîchir les routines* · *Rafraîchir les artifacts* | relit la liste sur claude.ai, sinon mise en cache cinq minutes |
 
-Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation — est sur
-le clic droit de la ligne concernée.
+Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation, lancer ou
+mettre en pause une routine, renommer ou épingler un artifact — est sur le clic droit de la ligne
+concernée.
 
 ## Vos données, et ce qui quitte la machine
 
-**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Le seul appel réseau que fait
-Koh-Vibe va chez Anthropic, pour vos chiffres de consommation, au plus une fois toutes les
-cinq minutes. Le jeton OAuth dont il a besoin est lu dans le trousseau du système — jamais
-journalisé, jamais écrit sur le disque. Aucun prompt, aucun transcript, aucun chemin ne quitte
-la machine.
+**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Koh-Vibe ne parle qu'à
+Anthropic : pour vos chiffres de consommation, au plus une fois toutes les cinq minutes ; pour vos
+routines et vos artifacts, au plus une fois toutes les cinq minutes et seulement tant que leur vue
+est ouverte ; et pour ce que vous demandez à ces deux vues — lancer, mettre en pause, renommer,
+épingler — au moment où vous cliquez. Le jeton OAuth dont il a besoin est celui que Claude Code
+garde dans le trousseau du système — jamais journalisé, jamais écrit sur le disque. Aucun prompt,
+aucun transcript, aucun chemin ne quitte la machine. Un appel qui échoue est noté dans le canal de
+sortie *Koh-Vibe* avec sa méthode, son chemin et son statut — jamais un en-tête, jamais un corps.
 
 Tout le reste tient dans `~/.koh-vibe/` :
 
@@ -234,6 +253,8 @@ Tout le reste tient dans `~/.koh-vibe/` :
 | `closed.json` | les dix conversations fermées le plus récemment |
 | `settings.json` | les sons globaux, le volume, et les deux réglages de la liste |
 | `usage.json` | le dernier relevé de consommation, mis en cache |
+| `routines.json` | la dernière liste de routines lue sur claude.ai, en cache |
+| `artifacts.json` | la dernière liste d'artifacts lue sur claude.ai, en cache |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |
 
