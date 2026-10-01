@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foldedText, isRecord, isoTimeOf, nonEmptyString } from '../src/lib/json';
+import { foldedText, isEpochMs, isRecord, isoTimeOf, nonEmptyString } from '../src/lib/json';
 
 describe('isRecord', () => {
   it('accepts an object and nothing else JSON can hold', () => {
@@ -34,5 +34,17 @@ describe('foldedText', () => {
   it('reads anything but a string as empty', () => {
     expect(foldedText(42)).toBe('');
     expect(foldedText(undefined)).toBe('');
+  });
+});
+
+describe('isEpochMs', () => {
+  it('accepts a time a Date can hold', () => {
+    for (const v of [0, 1_790_575_725_819, 8.64e15, -8.64e15]) expect(isEpochMs(v)).toBe(true);
+  });
+
+  it('refuses one that would make an Invalid Date, and anything not a number', () => {
+    for (const v of [1e300, 8.64e15 + 1, Number.NaN, Number.POSITIVE_INFINITY, '5', undefined, null]) {
+      expect(isEpochMs(v)).toBe(false);
+    }
   });
 });

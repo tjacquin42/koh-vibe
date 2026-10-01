@@ -194,20 +194,34 @@ export function registerCloudViews(
     }),
   );
 
+  // The last failure written to the channel, so a fault that repeats on every
+  // render is written once, not every two seconds.
+  let lastFault: string | undefined;
+
   return async () => {
-    const now = Date.now();
-    const locale = vscode.env.language;
-    if (routinesView.visible) {
-      void routinesFeed.refresh(false);
-      const view = await routinesFeed.read();
-      routinesTree.setFeed(view, now, locale);
-      routinesView.description = feedDescription(view, now);
-    }
-    if (artifactsView.visible) {
-      void artifactsFeed.refresh(false);
-      const view = await artifactsFeed.read();
-      artifactsTree.setFeed(view, now, locale);
-      artifactsView.description = feedDescription(view, now);
+    // The cloud views fail alone: nothing that goes wrong here may stop the
+    // render of the sessions underneath. The channel says what it was.
+    try {
+      const now = Date.now();
+      const locale = vscode.env.language;
+      if (routinesView.visible) {
+        void routinesFeed.refresh(false);
+        const view = await routinesFeed.read();
+        routinesTree.setFeed(view, now, locale);
+        routinesView.description = feedDescription(view, now);
+      }
+      if (artifactsView.visible) {
+        void artifactsFeed.refresh(false);
+        const view = await artifactsFeed.read();
+        artifactsTree.setFeed(view, now, locale);
+        artifactsView.description = feedDescription(view, now);
+      }
+      lastFault = undefined;
+    } catch (err) {
+      const fault = err instanceof Error ? err.message : String(err);
+      if (fault === lastFault) return;
+      lastFault = fault;
+      channel.appendLine(`${new Date().toISOString()} cloud views → ${fault}`);
     }
   };
 }

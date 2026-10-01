@@ -1,4 +1,4 @@
-import { foldedText, isRecord, isoTimeOf, nonEmptyString } from '../lib/json';
+import { foldedText, isEpochMs, isRecord, isoTimeOf, nonEmptyString } from '../lib/json';
 
 /**
  * A routine — a Claude Code agent scheduled in the cloud — as the view needs
@@ -106,14 +106,15 @@ export function isRoutine(v: unknown): v is Routine {
     typeof v['enabled'] === 'boolean' &&
     typeof v['fired'] === 'boolean' &&
     list.every((r) => typeof r === 'string') &&
-    optional(v['cron'], 'string') &&
-    optional(v['runOnceAt'], 'number') &&
-    optional(v['nextRunAt'], 'number')
+    (v['cron'] === undefined || typeof v['cron'] === 'string') &&
+    optionalTime(v['runOnceAt']) &&
+    optionalTime(v['nextRunAt'])
   );
 }
 
-function optional(v: unknown, type: 'string' | 'number'): boolean {
-  return v === undefined || typeof v === type;
+/** Absent, or a time a `Date` can hold: any other number would throw while the row is drawn. */
+function optionalTime(v: unknown): boolean {
+  return v === undefined || isEpochMs(v);
 }
 
 /** The routine's page on claude.ai — where its runs are listed. */

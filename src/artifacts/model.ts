@@ -1,4 +1,4 @@
-import { foldedText, isRecord, isoTimeOf, nonEmptyString } from '../lib/json';
+import { foldedText, isEpochMs, isRecord, isoTimeOf, nonEmptyString } from '../lib/json';
 
 /**
  * A page published on claude.ai, as the view needs it. Only the person's own:
@@ -80,7 +80,8 @@ export function isArtifact(v: unknown): v is Artifact {
     typeof v['slug'] === 'string' &&
     typeof v['title'] === 'string' &&
     typeof v['pinned'] === 'boolean' &&
-    (updatedAt === undefined || typeof updatedAt === 'number')
+    // A time no Date can hold would throw while the row is drawn.
+    (updatedAt === undefined || isEpochMs(updatedAt))
   );
 }
 

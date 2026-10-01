@@ -73,7 +73,14 @@ describe('isArtifact', () => {
   it('accepts an artifact as the cache writes it back, and refuses the rest', () => {
     const [x] = parseArtifacts({ frames: [frame()] })!.artifacts;
     expect(isArtifact(JSON.parse(JSON.stringify(x)))).toBe(true);
-    for (const v of [null, {}, { slug: 'a', title: 'b', pinned: 'no' }, { slug: 'a', title: 'b', pinned: true, updatedAt: 'x' }]) {
+    for (const v of [
+      null,
+      {},
+      { slug: 'a', title: 'b', pinned: 'no' },
+      { slug: 'a', title: 'b', pinned: true, updatedAt: 'x' },
+      // A time no Date can hold would throw while the row is drawn.
+      { slug: 'a', title: 'b', pinned: true, updatedAt: 1e300 },
+    ]) {
       expect(isArtifact(v)).toBe(false);
     }
   });

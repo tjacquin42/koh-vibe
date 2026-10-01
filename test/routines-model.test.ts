@@ -115,6 +115,9 @@ describe('isRoutine', () => {
       { id: 'a', name: 'b', enabled: 'yes', fired: false, repos: [] },
       { id: 'a', name: 'b', enabled: true, fired: false, repos: [1] },
       { id: 'a', name: 'b', enabled: true, fired: false, repos: [], cron: 5 },
+      // A time no Date can hold would throw while the row is drawn.
+      { id: 'a', name: 'b', enabled: true, fired: false, repos: [], nextRunAt: 1e300 },
+      { id: 'a', name: 'b', enabled: true, fired: false, repos: [], runOnceAt: 1e300 },
     ]) {
       expect(isRoutine(v)).toBe(false);
     }

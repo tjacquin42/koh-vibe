@@ -33,3 +33,12 @@ export function isoTimeOf(v: unknown): number | undefined {
 export function foldedText(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
 }
+
+/**
+ * A time a `Date` can hold, in epoch milliseconds: finite, and within the
+ * ±8.64e15 the ECMAScript date range allows. Anything else makes an Invalid
+ * Date, which `Intl.DateTimeFormat` refuses with a RangeError.
+ */
+export function isEpochMs(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 8.64e15;
+}
