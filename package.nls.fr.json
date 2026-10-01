@@ -42,5 +42,9 @@
   "command.kohVibe.copyRoutineLink.title": "Copier le lien",
   "command.kohVibe.runRoutine.title": "Lancer maintenant",
   "command.kohVibe.pauseRoutine.title": "Mettre en pause",
-  "command.kohVibe.resumeRoutine.title": "Réactiver"
+  "command.kohVibe.resumeRoutine.title": "Réactiver",
+  "view.kohVibe.artifacts.name": "Artifacts",
+  "command.kohVibe.refreshArtifacts.title": "Rafraîchir les artifacts",
+  "command.kohVibe.openArtifact.title": "Ouvrir sur claude.ai",
+  "command.kohVibe.copyArtifactLink.title": "Copier le lien"
 }

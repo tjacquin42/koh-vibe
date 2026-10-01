@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
+import { listArtifacts } from '../artifacts/api';
+import { artifactUrl, isArtifact, type Artifact } from '../artifacts/model';
 import { readCredentials, type CloudDeps } from '../cloud/account';
 import { Feed } from '../cloud/feed';
 import { logged } from '../cloud/log';
 import { send } from '../cloud/request';
-import { routinesFile } from '../paths';
+import { artifactsFile, routinesFile } from '../paths';
 import { launchRoutine, pauseRoutine, type RoutineCalls, type RoutineUi } from '../routines/actions';
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines/api';
 import { isRoutine, routineUrl, type Routine } from '../routines/model';
+import { ArtifactsTree, artifactSlugOfNode } from './artifacts-tree';
 import { feedDescription } from './feed-labels';
 import { RoutinesTree, routineIdOfNode } from './routines-tree';
 
@@ -41,6 +44,12 @@ export function registerCloudViews(
   });
   const routinesTree = new RoutinesTree();
   const routinesView = vscode.window.createTreeView('kohVibe.routines', { treeDataProvider: routinesTree });
+  const artifactsFeed = new Feed<Artifact>(artifactsFile(home), isArtifact, {
+    fetch: () => listArtifacts(cloud),
+    now: () => Date.now(),
+  });
+  const artifactsTree = new ArtifactsTree();
+  const artifactsView = vscode.window.createTreeView('kohVibe.artifacts', { treeDataProvider: artifactsTree });
 
   const open = (url: string): void => {
     void vscode.env.openExternal(vscode.Uri.parse(url));
@@ -132,6 +141,23 @@ export function registerCloudViews(
       const r = routineAt(node);
       if (r !== undefined) await pauseRoutine(r, false, routineCalls, routineUi);
     }),
+    artifactsTree,
+    artifactsView,
+    artifactsView.onDidChangeVisibility((e) => {
+      if (e.visible) void render();
+    }),
+    vscode.commands.registerCommand('kohVibe.refreshArtifacts', async () => {
+      await artifactsFeed.refresh(true);
+      await render();
+    }),
+    vscode.commands.registerCommand('kohVibe.openArtifact', (node: unknown) => {
+      const slug = artifactSlugOfNode(node);
+      if (slug !== undefined) open(artifactUrl(slug));
+    }),
+    vscode.commands.registerCommand('kohVibe.copyArtifactLink', async (node: unknown) => {
+      const slug = artifactSlugOfNode(node);
+      if (slug !== undefined) await copy(artifactUrl(slug));
+    }),
   );
 
   return async () => {
@@ -142,6 +168,12 @@ export function registerCloudViews(
       const view = await routinesFeed.read();
       routinesTree.setFeed(view, now, locale);
       routinesView.description = feedDescription(view, now);
+    }
+    if (artifactsView.visible) {
+      void artifactsFeed.refresh(false);
+      const view = await artifactsFeed.read();
+      artifactsTree.setFeed(view, now, locale);
+      artifactsView.description = feedDescription(view, now);
     }
   };
 }

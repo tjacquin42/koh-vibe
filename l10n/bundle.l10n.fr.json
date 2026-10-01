@@ -193,5 +193,14 @@
   "Run now": "Lancer maintenant",
   "Run “{0}” now?": "Lancer « {0} » maintenant ?",
   "The run starts in the cloud right away and does everything the routine does — messages, commits, whatever its prompt says.": "Le run démarre tout de suite dans le cloud et fait tout ce que fait la routine — messages, commits, tout ce que dit son prompt.",
-  "Koh-Vibe: “{0}” launched": "Koh-Vibe : « {0} » lancée"
+  "Koh-Vibe: “{0}” launched": "Koh-Vibe : « {0} » lancée",
+  "Untitled": "Sans titre",
+  "today": "aujourd'hui",
+  "yesterday": "hier",
+  "{0} d ago": "il y a {0} j",
+  "Pinned on claude.ai": "Épinglé sur claude.ai",
+  "Updated: {0}": "Mis à jour : {0}",
+  "Koh-Vibe reads your artifacts with the claude.ai account Claude Code is signed in with. Sign in with /login in Claude Code, then click here.": "Koh-Vibe lit vos artifacts avec le compte claude.ai auquel Claude Code est connecté. Connectez-vous avec /login dans Claude Code, puis cliquez ici.",
+  "Could not read your artifacts — click to retry": "Impossible de lire vos artifacts — cliquer pour réessayer",
+  "No artifacts": "Aucun artifact"
 }

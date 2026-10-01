@@ -119,4 +119,22 @@ describe('the manifest', () => {
       expect(palette(command)?.when).toBe('false');
     }
   });
+
+  it('puts Artifacts right after Routines, folded until someone opens it', () => {
+    expect(viewIds().indexOf('kohVibe.artifacts')).toBe(viewIds().indexOf('kohVibe.routines') + 1);
+    const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.artifacts');
+    expect(view?.visibility).toBe('collapsed');
+  });
+
+  it('refreshes the artifacts from the title of their view, and copies the link of any row', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.refreshArtifacts');
+    expect(title?.when).toBe('view == kohVibe.artifacts');
+    expect(icon('kohVibe.refreshArtifacts')).toBe('$(refresh)');
+    expect(context('kohVibe.copyArtifactLink').map((m) => m.when)).toEqual([
+      'view == kohVibe.artifacts && viewItem =~ /^artifact/',
+    ]);
+    for (const command of ['kohVibe.openArtifact', 'kohVibe.copyArtifactLink']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
 });
