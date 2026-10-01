@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { launchRoutine, pauseRoutine, type RoutineCalls, type RoutineUi } from '../src/routines/actions';
 import type { Routine } from '../src/routines/model';
 
+/** Monday 28 September 2026, 10:00 local time. */
+const NOW = new Date(2026, 8, 28, 10, 0).getTime();
+
 const routine = (over: Partial<Routine> = {}): Routine => ({
   id: 'trig_test_01',
   name: 'Digest',
@@ -77,32 +80,46 @@ describe('launchRoutine', () => {
 describe('pauseRoutine', () => {
   it('pauses an active routine', async () => {
     const h = harness();
-    expect(await pauseRoutine(routine(), true, h.calls, h.ui)).toBe('done');
+    expect(await pauseRoutine(routine(), true, h.calls, h.ui, NOW)).toBe('done');
     expect(h.log).toEqual(['enable trig_test_01 false', 'done Koh-Vibe: “Digest” paused', 'refresh']);
   });
 
   it('resumes a paused one', async () => {
     const h = harness();
-    expect(await pauseRoutine(routine({ enabled: false }), false, h.calls, h.ui)).toBe('done');
+    expect(await pauseRoutine(routine({ enabled: false }), false, h.calls, h.ui, NOW)).toBe('done');
     expect(h.log).toEqual(['enable trig_test_01 true', 'done Koh-Vibe: “Digest” resumed', 'refresh']);
   });
 
   it('leaves alone a routine already in that state', async () => {
     const h = harness();
-    expect(await pauseRoutine(routine(), false, h.calls, h.ui)).toBe('skipped');
-    expect(await pauseRoutine(routine({ enabled: false }), true, h.calls, h.ui)).toBe('skipped');
+    expect(await pauseRoutine(routine(), false, h.calls, h.ui, NOW)).toBe('skipped');
+    expect(await pauseRoutine(routine({ enabled: false }), true, h.calls, h.ui, NOW)).toBe('skipped');
     expect(h.log).toEqual([]);
+  });
+
+  it('never resumes a paused one-shot whose date has passed — the scheduler might fire it at once, unconfirmed', async () => {
+    const h = harness();
+    const past = routine({ cron: undefined, enabled: false, runOnceAt: NOW - 60_000 });
+    expect(await pauseRoutine(past, false, h.calls, h.ui, NOW)).toBe('skipped');
+    expect(h.log).toEqual([]);
+  });
+
+  it('resumes a paused one-shot whose date is still to come', async () => {
+    const h = harness();
+    const ahead = routine({ cron: undefined, enabled: false, runOnceAt: NOW + 60_000 });
+    expect(await pauseRoutine(ahead, false, h.calls, h.ui, NOW)).toBe('done');
+    expect(h.log).toEqual(['enable trig_test_01 true', 'done Koh-Vibe: “Digest” resumed', 'refresh']);
   });
 
   it('never resumes a one-shot that already fired', async () => {
     const h = harness();
-    expect(await pauseRoutine(routine({ cron: undefined, enabled: false, fired: true }), false, h.calls, h.ui)).toBe('skipped');
+    expect(await pauseRoutine(routine({ cron: undefined, enabled: false, fired: true }), false, h.calls, h.ui, NOW)).toBe('skipped');
     expect(h.log).toEqual([]);
   });
 
   it('says it failed, and still reads the list again', async () => {
     const h = harness({ ok: false });
-    expect(await pauseRoutine(routine(), true, h.calls, h.ui)).toBe('failed');
+    expect(await pauseRoutine(routine(), true, h.calls, h.ui, NOW)).toBe('failed');
     expect(h.log).toEqual(['enable trig_test_01 false', 'failed Could not pause “Digest”.', 'refresh']);
   });
 });

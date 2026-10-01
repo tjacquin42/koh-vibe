@@ -21,6 +21,16 @@ export function groupOf(r: Routine, now: number): RoutineGroup {
   return 'later';
 }
 
+/**
+ * A one-shot with nothing left to resume: it fired, or its date has passed
+ * while it was paused. Resuming either would ask the scheduler what a date in
+ * the past means — perhaps a run straight away, with real effects and none of
+ * the confirmation « Run now » asks for. A recurring routine is never spent.
+ */
+export function isSpent(r: Routine, now: number): boolean {
+  return r.fired || (r.cron === undefined && r.runOnceAt !== undefined && r.runOnceAt <= now);
+}
+
 export interface RoutineSection {
   group: RoutineGroup;
   routines: Routine[];

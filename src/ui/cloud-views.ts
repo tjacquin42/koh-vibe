@@ -157,11 +157,11 @@ export function registerCloudViews(
     }),
     vscode.commands.registerCommand('kohVibe.pauseRoutine', async (node: unknown) => {
       const r = routineAt(node);
-      if (r !== undefined) await pauseRoutine(r, true, routineCalls, routineUi);
+      if (r !== undefined) await pauseRoutine(r, true, routineCalls, routineUi, Date.now());
     }),
     vscode.commands.registerCommand('kohVibe.resumeRoutine', async (node: unknown) => {
       const r = routineAt(node);
-      if (r !== undefined) await pauseRoutine(r, false, routineCalls, routineUi);
+      if (r !== undefined) await pauseRoutine(r, false, routineCalls, routineUi, Date.now());
     }),
     artifactsTree,
     artifactsView,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Routine } from '../src/routines/model';
-import { groupOf, sectionsOf } from '../src/routines/schedule';
+import { groupOf, isSpent, sectionsOf } from '../src/routines/schedule';
 
 const at = (y: number, m: number, d: number, h = 12, min = 0): number => new Date(y, m - 1, d, h, min).getTime();
 /** Monday 28 September 2026, 10:00 local time: every date below is read against it. */
@@ -73,5 +73,17 @@ describe('sectionsOf', () => {
 
   it('gives nothing for no routine', () => {
     expect(sectionsOf([], NOW)).toEqual([]);
+  });
+});
+
+describe('isSpent', () => {
+  it('knows a one-shot that fired, or whose date has passed, has nothing left to resume', () => {
+    expect(isSpent(routine({ cron: undefined, fired: true, runOnceAt: at(2026, 9, 27) }), NOW)).toBe(true);
+    expect(isSpent(routine({ cron: undefined, runOnceAt: at(2026, 9, 28, 9, 59) }), NOW)).toBe(true);
+  });
+
+  it('leaves a one-shot still to come, and any recurring routine, resumable', () => {
+    expect(isSpent(routine({ cron: undefined, runOnceAt: at(2026, 9, 28, 10, 1) }), NOW)).toBe(false);
+    expect(isSpent(routine({ enabled: false }), NOW)).toBe(false);
   });
 });

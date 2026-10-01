@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { Routine } from './model';
+import { isSpent } from './schedule';
 
 /** What an action calls on claude.ai. */
 export interface RoutineCalls {
@@ -41,11 +42,19 @@ export async function launchRoutine(r: Routine, calls: RoutineCalls, ui: Routine
 
 export type PauseOutcome = 'skipped' | 'done' | 'failed';
 
-/** Pauses (`paused`) or resumes a routine. No confirmation: both undo each other. */
-export async function pauseRoutine(r: Routine, paused: boolean, calls: RoutineCalls, ui: RoutineUi): Promise<PauseOutcome> {
-  // Already in that state — or a one-shot that fired: resuming it would ask
-  // the scheduler what a date in the past is supposed to do.
-  if (paused === !r.enabled || (!paused && r.fired)) return 'skipped';
+/**
+ * Pauses (`paused`) or resumes a routine. No confirmation: both undo each
+ * other — which is why a spent one-shot is never resumed (`isSpent`): that one
+ * might run at once, and a run is not undone.
+ */
+export async function pauseRoutine(
+  r: Routine,
+  paused: boolean,
+  calls: RoutineCalls,
+  ui: RoutineUi,
+  now: number,
+): Promise<PauseOutcome> {
+  if (paused === !r.enabled || (!paused && isSpent(r, now))) return 'skipped';
   const ok = await calls.setEnabled(r.id, !paused);
   if (ok) {
     ui.done(paused ? vscode.l10n.t('Koh-Vibe: “{0}” paused', r.name) : vscode.l10n.t('Koh-Vibe: “{0}” resumed', r.name));

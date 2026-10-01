@@ -64,11 +64,20 @@ describe('the routines view', () => {
         routine({ id: 'on', nextRunAt: at(2026, 9, 28, 14) }),
         routine({ id: 'off', enabled: false }),
         routine({ id: 'spent', cron: undefined, enabled: false, fired: true }),
+        // Paused before its date, which has passed since: resuming it could fire it at once, unconfirmed.
+        routine({ id: 'past', cron: undefined, enabled: false, runOnceAt: at(2026, 9, 27, 8) }),
+        routine({ id: 'ahead', cron: undefined, enabled: false, runOnceAt: at(2026, 9, 29, 8) }),
       ]),
     );
     const rows = tree.getChildren().flatMap((s) => tree.getChildren(s));
     const items = rows.map((r) => tree.getTreeItem(r));
-    expect(items.map((i) => i.contextValue)).toEqual(['routine.enabled', 'routine.paused', 'routine.fired']);
+    expect(items.map((i) => i.contextValue)).toEqual([
+      'routine.enabled',
+      'routine.paused',
+      'routine.spent',
+      'routine.spent',
+      'routine.paused',
+    ]);
     expect(items[0]?.command).toMatchObject({ command: 'kohVibe.openRoutine', arguments: [rows[0]] });
     expect(items[0]?.description).toBe('14:00');
   });

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { FeedView } from '../cloud/feed';
 import type { Routine } from '../routines/model';
-import { sectionsOf, type RoutineGroup } from '../routines/schedule';
+import { isSpent, sectionsOf, type RoutineGroup } from '../routines/schedule';
 import { loadingItem, retryItem, unavailableTooltip } from './feed-labels';
 import { groupLabel, routineDescription, routineTooltip } from './routine-labels';
 
@@ -37,10 +37,15 @@ export function routineIdOfNode(node: unknown): string | undefined {
   return typeof candidate.routine.id === 'string' ? candidate.routine.id : undefined;
 }
 
-/** What package.json reads to choose the row's buttons. */
-export function routineContext(r: Routine): 'routine.enabled' | 'routine.paused' | 'routine.fired' {
-  if (r.fired) return 'routine.fired';
-  return r.enabled ? 'routine.enabled' : 'routine.paused';
+/**
+ * What package.json reads to choose the row's buttons. An active routine can
+ * be run or paused; a paused one resumed — unless it is a spent one-shot,
+ * which offers nothing but its link.
+ */
+export function routineContext(r: Routine, now: number): 'routine.enabled' | 'routine.paused' | 'routine.spent' {
+  if (r.fired) return 'routine.spent';
+  if (r.enabled) return 'routine.enabled';
+  return isSpent(r, now) ? 'routine.spent' : 'routine.paused';
 }
 
 function iconOf(r: Routine): string {
@@ -136,7 +141,7 @@ export class RoutinesTree implements vscode.TreeDataProvider<RoutineNode> {
         item.description = description;
         item.tooltip = routineTooltip(r, this.locale);
         item.iconPath = new vscode.ThemeIcon(iconOf(r));
-        item.contextValue = routineContext(r);
+        item.contextValue = routineContext(r, this.now);
         item.accessibilityInformation = { label: description === '' ? r.name : `${r.name}, ${description}` };
         item.command = { command: 'kohVibe.openRoutine', title: vscode.l10n.t('Open on claude.ai'), arguments: [node] };
         return item;
@@ -157,7 +162,7 @@ export class RoutinesTree implements vscode.TreeDataProvider<RoutineNode> {
           r.id,
           r.name,
           routineDescription(r, s.group, this.now, this.locale),
-          routineContext(r),
+          routineContext(r, this.now),
           iconOf(r),
           routineTooltip(r, this.locale),
         ]),
