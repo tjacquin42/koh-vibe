@@ -1,6 +1,6 @@
 import { CLOUD, type CloudDeps, type Credentials } from '../cloud/account';
 import type { Fetched } from '../cloud/feed';
-import { API_ORIGIN } from '../cloud/request';
+import { API_ORIGIN, type Method } from '../cloud/request';
 import { ARTIFACTS_PAGE, parseArtifacts, type Artifact } from './model';
 
 /**
@@ -28,4 +28,16 @@ export async function listArtifacts(deps: CloudDeps = CLOUD): Promise<Fetched<Ar
   if (res === undefined || res.status !== 200) return { kind: 'unavailable' };
   const list = parseArtifacts(res.body);
   return list === undefined ? { kind: 'unavailable' } : { kind: 'ok', items: list.artifacts, truncated: list.truncated };
+}
+
+/** Renames an artifact: its title on claude.ai, for everyone who can see it. */
+export function renameArtifact(slug: string, title: string, deps: CloudDeps = CLOUD): Promise<boolean> {
+  return change(deps, 'POST', `${FRAME}/retitle/${encodeURIComponent(slug)}`, { title });
+}
+
+async function change(deps: CloudDeps, method: Method, url: string, body?: unknown): Promise<boolean> {
+  const c = await deps.credentials();
+  if (c === undefined) return false;
+  const res = await deps.send({ method, url, headers: headers(c), ...(body === undefined ? {} : { body }) });
+  return res !== undefined && res.status >= 200 && res.status < 300;
 }

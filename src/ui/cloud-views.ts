@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { listArtifacts } from '../artifacts/api';
+import { retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../artifacts/actions';
+import { listArtifacts, renameArtifact } from '../artifacts/api';
 import { artifactUrl, isArtifact, type Artifact } from '../artifacts/model';
 import { readCredentials, type CloudDeps } from '../cloud/account';
 import { Feed } from '../cloud/feed';
@@ -108,6 +109,26 @@ export function registerCloudViews(
     failed: (message, r) => offerOpen(routineUrl(r.id), message, true),
   };
 
+  /** The artifact a row names, taken from the list on screen. */
+  const artifactAt = (node: unknown): Artifact | undefined => {
+    const slug = artifactSlugOfNode(node);
+    return slug === undefined ? undefined : artifactsTree.artifact(slug);
+  };
+  const artifactCalls: ArtifactCalls = {
+    rename: (slug, title) => renameArtifact(slug, title, cloud),
+    refresh: async () => {
+      await artifactsFeed.refresh(true);
+      await render();
+    },
+  };
+  const artifactUi: ArtifactUi = {
+    askTitle: async (current) => vscode.window.showInputBox({ prompt: vscode.l10n.t('New title'), value: current }),
+    done: (message) => {
+      vscode.window.setStatusBarMessage(message, 3000);
+    },
+    failed: (message, a) => offerOpen(artifactUrl(a.slug), message, true),
+  };
+
   context.subscriptions.push(
     channel,
     routinesTree,
@@ -157,6 +178,10 @@ export function registerCloudViews(
     vscode.commands.registerCommand('kohVibe.copyArtifactLink', async (node: unknown) => {
       const slug = artifactSlugOfNode(node);
       if (slug !== undefined) await copy(artifactUrl(slug));
+    }),
+    vscode.commands.registerCommand('kohVibe.renameArtifact', async (node: unknown) => {
+      const a = artifactAt(node);
+      if (a !== undefined) await retitleArtifact(a, artifactCalls, artifactUi);
     }),
   );
 

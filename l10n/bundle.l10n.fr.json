@@ -202,5 +202,8 @@
   "Updated: {0}": "Mis à jour : {0}",
   "Koh-Vibe reads your artifacts with the claude.ai account Claude Code is signed in with. Sign in with /login in Claude Code, then click here.": "Koh-Vibe lit vos artifacts avec le compte claude.ai auquel Claude Code est connecté. Connectez-vous avec /login dans Claude Code, puis cliquez ici.",
   "Could not read your artifacts — click to retry": "Impossible de lire vos artifacts — cliquer pour réessayer",
-  "No artifacts": "Aucun artifact"
+  "No artifacts": "Aucun artifact",
+  "New title": "Nouveau titre",
+  "Koh-Vibe: artifact renamed": "Koh-Vibe : artifact renommé",
+  "Could not rename “{0}”.": "Impossible de renommer « {0} »."
 }

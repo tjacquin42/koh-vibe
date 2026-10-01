@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listArtifacts } from '../src/artifacts/api';
+import { listArtifacts, renameArtifact } from '../src/artifacts/api';
 import type { CloudDeps, Credentials } from '../src/cloud/account';
 import type { CloudRequest, CloudResponse } from '../src/cloud/request';
 
@@ -46,5 +46,27 @@ describe('listArtifacts', () => {
     for (const response of [undefined, { status: 403, body: {} }, { status: 200, body: undefined }, { status: 200, body: { frames: 'x' } }]) {
       expect(await listArtifacts(fake(response).deps)).toEqual({ kind: 'unavailable' });
     }
+  });
+});
+
+describe('renameArtifact', () => {
+  it('posts the new title to the retitle endpoint, the slug escaped', async () => {
+    const { deps, sent } = fake({ status: 200, body: {} });
+    expect(await renameArtifact('Art/01', 'Notes', deps)).toBe(true);
+    expect(sent).toEqual([
+      {
+        method: 'POST',
+        url: 'https://api.anthropic.com/api/frame/retitle/Art%2F01',
+        headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+        body: { title: 'Notes' },
+      },
+    ]);
+  });
+
+  it('fails on anything but a 2xx, and sends nothing signed out', async () => {
+    expect(await renameArtifact('a', 'b', fake({ status: 400, body: {} }).deps)).toBe(false);
+    const { deps, sent } = fake({ status: 200, body: {} }, 'signed-out');
+    expect(await renameArtifact('a', 'b', deps)).toBe(false);
+    expect(sent).toEqual([]);
   });
 });

@@ -46,5 +46,6 @@
   "view.kohVibe.artifacts.name": "Artifacts",
   "command.kohVibe.refreshArtifacts.title": "Refresh artifacts",
   "command.kohVibe.openArtifact.title": "Open on claude.ai",
-  "command.kohVibe.copyArtifactLink.title": "Copy link"
+  "command.kohVibe.copyArtifactLink.title": "Copy link",
+  "command.kohVibe.renameArtifact.title": "Rename…"
 }

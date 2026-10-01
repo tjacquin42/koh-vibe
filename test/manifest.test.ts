@@ -137,4 +137,10 @@ describe('the manifest', () => {
       expect(palette(command)?.when).toBe('false');
     }
   });
+
+  it('offers Rename on every artifact row, from the right-click menu only', () => {
+    expect(context('kohVibe.renameArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem =~ /^artifact/']);
+    expect(inline('kohVibe.renameArtifact')).toEqual([]);
+    expect(palette('kohVibe.renameArtifact')?.when).toBe('false');
+  });
 });

@@ -74,7 +74,8 @@
       { "command": "kohVibe.resumeRoutine", "title": "%command.kohVibe.resumeRoutine.title%", "category": "Koh-Vibe", "icon": "$(debug-start)" },
       { "command": "kohVibe.refreshArtifacts", "title": "%command.kohVibe.refreshArtifacts.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
       { "command": "kohVibe.openArtifact", "title": "%command.kohVibe.openArtifact.title%", "category": "Koh-Vibe" },
-      { "command": "kohVibe.copyArtifactLink", "title": "%command.kohVibe.copyArtifactLink.title%", "category": "Koh-Vibe" }
+      { "command": "kohVibe.copyArtifactLink", "title": "%command.kohVibe.copyArtifactLink.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.renameArtifact", "title": "%command.kohVibe.renameArtifact.title%", "category": "Koh-Vibe" }
     ],
     "keybindings": [
       { "command": "kohVibe.replaySound", "key": "right", "when": "kohVibe.pickingSound && inQuickOpen" }
@@ -114,7 +115,8 @@
         { "command": "kohVibe.runRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "routine@1" },
         { "command": "kohVibe.pauseRoutine", "when": "view == kohVibe.routines && viewItem == routine.enabled", "group": "routine@2" },
         { "command": "kohVibe.resumeRoutine", "when": "view == kohVibe.routines && viewItem == routine.paused", "group": "routine@2" },
-        { "command": "kohVibe.copyArtifactLink", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "copy@1" }
+        { "command": "kohVibe.copyArtifactLink", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "copy@1" },
+        { "command": "kohVibe.renameArtifact", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@1" }
       ],
       "commandPalette": [
         { "command": "kohVibe.rescanning", "when": "false" },
@@ -134,7 +136,8 @@
         { "command": "kohVibe.pauseRoutine", "when": "false" },
         { "command": "kohVibe.resumeRoutine", "when": "false" },
         { "command": "kohVibe.openArtifact", "when": "false" },
-        { "command": "kohVibe.copyArtifactLink", "when": "false" }
+        { "command": "kohVibe.copyArtifactLink", "when": "false" },
+        { "command": "kohVibe.renameArtifact", "when": "false" }
       ]
     }
   },
