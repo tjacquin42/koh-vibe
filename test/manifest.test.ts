@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 // the button is simply not there — which is why it is asserted here.
 type Command = { command: string; icon?: string | { light: string; dark: string } };
 type MenuEntry = { command: string; when?: string; group?: string };
-type Manifest = { contributes: { commands: Command[]; menus: Record<string, MenuEntry[]> } };
+type View = { id: string; visibility?: string };
+type Manifest = {
+  contributes: { commands: Command[]; menus: Record<string, MenuEntry[]>; views: Record<string, View[]> };
+};
 
 const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as Manifest;
 const inline = (command: string): MenuEntry[] =>
@@ -15,6 +18,9 @@ const inline = (command: string): MenuEntry[] =>
 const context = (command: string): MenuEntry[] =>
   manifest.contributes.menus['view/item/context']!.filter((m) => m.command === command);
 const icon = (command: string): Command['icon'] => manifest.contributes.commands.find((c) => c.command === command)?.icon;
+const palette = (command: string): MenuEntry | undefined =>
+  manifest.contributes.menus['commandPalette']!.find((m) => m.command === command);
+const viewIds = (): string[] => manifest.contributes.views['koh-vibe']!.map((v) => v.id);
 
 describe('the manifest', () => {
   it('puts a + at the right of every folder row, temporary sessions included, with the same icon as the view title', () => {
@@ -69,5 +75,27 @@ describe('the manifest', () => {
   it('keeps the moon out of the palette, which has no row to put to sleep', () => {
     const palette = manifest.contributes.menus['commandPalette']!.find((m) => m.command === 'kohVibe.sleepSession');
     expect(palette?.when).toBe('false');
+  });
+
+  it('puts Routines right after Processes, folded until someone opens it', () => {
+    expect(viewIds().indexOf('kohVibe.routines')).toBe(viewIds().indexOf('kohVibe.processes') + 1);
+    const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.routines');
+    expect(view?.visibility).toBe('collapsed');
+  });
+
+  it('refreshes the routines from the title of their view, and from the palette', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.refreshRoutines');
+    expect(title?.when).toBe('view == kohVibe.routines');
+    expect(icon('kohVibe.refreshRoutines')).toBe('$(refresh)');
+    expect(palette('kohVibe.refreshRoutines')).toBeUndefined();
+  });
+
+  it('copies the link of any routine row, and keeps the row commands out of the palette', () => {
+    expect(context('kohVibe.copyRoutineLink').map((m) => m.when)).toEqual([
+      'view == kohVibe.routines && viewItem =~ /^routine/',
+    ]);
+    for (const command of ['kohVibe.openRoutine', 'kohVibe.copyRoutineLink']) {
+      expect(palette(command)?.when).toBe('false');
+    }
   });
 });

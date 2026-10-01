@@ -36,6 +36,7 @@ import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type Soun
 import { UsageView } from './ui/usage-view';
 import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
+import { registerCloudViews } from './ui/cloud-views';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
 import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
@@ -443,6 +444,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // conversations and the usage.
   const processesTree = new ProcessesTree();
   const processesView = vscode.window.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
+  // Routines and artifacts live on claude.ai: their views, feeds and commands
+  // are wired in their own module, which hands back the one call the render
+  // loop makes (ui/cloud-views.ts).
+  const showCloud = registerCloudViews(context, home, () => render());
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -611,6 +616,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // only reads the freshest of the two.
         void refreshFromApi(home, false);
         usageView.setUsage(await readUsage(home));
+        // The cloud views read their shared caches — and ask claude.ai, at
+        // their own pace, only while they are open.
+        await showCloud();
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
         footer.setToggles({
