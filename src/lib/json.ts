@@ -15,3 +15,21 @@ export function isRecord(v: unknown): v is Record<string, unknown> {
 export function nonEmptyString(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined;
 }
+
+/**
+ * A date as the APIs send it — ISO 8601, nanoseconds included — in epoch
+ * milliseconds, or nothing for anything that does not read as one.
+ */
+export function isoTimeOf(v: unknown): number | undefined {
+  if (typeof v !== 'string' || v.length === 0) return undefined;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? t : undefined;
+}
+
+/**
+ * A label as a tree row can show it: whitespace — newlines included — folded
+ * to single spaces, the ends trimmed. Anything but a string reads as empty.
+ */
+export function foldedText(v: unknown): string {
+  return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+}
