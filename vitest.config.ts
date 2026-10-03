@@ -2,7 +2,16 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  test: { include: ['test/**/*.test.ts'], environment: 'node' },
+  test: {
+    include: ['test/**/*.test.ts'],
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      // Without `include`, the compiled `out/` tree would be counted too.
+      include: ['src/**'],
+      reporter: ['text-summary', 'json-summary', 'json'],
+    },
+  },
   resolve: {
     // `vscode` only exists inside the real extension host: in tests, it
     // resolves to a minimal stub (test/stubs/vscode.ts) so the modules that
