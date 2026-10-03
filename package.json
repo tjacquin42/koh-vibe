@@ -5,424 +5,108 @@
   "version": "1.4.0",
   "publisher": "tjacquin42",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/tjacquin42/koh-vibe.git"
-  },
-  "bugs": {
-    "url": "https://github.com/tjacquin42/koh-vibe/issues"
-  },
+  "repository": { "type": "git", "url": "https://github.com/tjacquin42/koh-vibe.git" },
+  "bugs": { "url": "https://github.com/tjacquin42/koh-vibe/issues" },
   "homepage": "https://github.com/tjacquin42/koh-vibe#readme",
-  "engines": {
-    "vscode": "^1.94.0",
-    "node": ">=22"
-  },
-  "categories": [
-    "AI",
-    "Other"
-  ],
-  "keywords": [
-    "claude code",
-    "claude",
-    "anthropic",
-    "cursor",
-    "sessions",
-    "dashboard",
-    "tableau de bord",
-    "hooks"
-  ],
+  "engines": { "vscode": "^1.94.0", "node": ">=22" },
+  "categories": ["AI", "Other"],
+  "keywords": ["claude code", "claude", "anthropic", "cursor", "sessions", "dashboard", "tableau de bord", "hooks"],
   "icon": "resources/logo.png",
-  "galleryBanner": {
-    "color": "#0D1114",
-    "theme": "dark"
-  },
+  "galleryBanner": { "color": "#0D1114", "theme": "dark" },
   "packageManager": "pnpm@10.25.0",
   "l10n": "./l10n",
   "main": "./out/extension.js",
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "activationEvents": ["onStartupFinished"],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
-        {
-          "id": "koh-vibe",
-          "title": "Koh-Vibe",
-          "icon": "resources/logo-mono.svg"
-        }
+        { "id": "koh-vibe", "title": "Koh-Vibe", "icon": "resources/logo-mono.svg" }
       ]
     },
     "views": {
       "koh-vibe": [
-        {
-          "id": "kohVibe.sessions",
-          "name": "%view.kohVibe.sessions.name%",
-          "icon": "resources/logo-mono.svg",
-          "initialSize": 20
-        },
-        {
-          "id": "kohVibe.closed",
-          "name": "%view.kohVibe.closed.name%",
-          "icon": "resources/logo-mono.svg",
-          "initialSize": 5,
-          "visibility": "collapsed"
-        },
-        {
-          "id": "kohVibe.processes",
-          "name": "%view.kohVibe.processes.name%",
-          "icon": "resources/logo-mono.svg",
-          "initialSize": 5,
-          "visibility": "collapsed"
-        },
-        {
-          "id": "kohVibe.usage",
-          "name": "%view.kohVibe.usage.name%",
-          "type": "webview",
-          "icon": "resources/logo-mono.svg",
-          "initialSize": 3
-        },
-        {
-          "id": "kohVibe.settings",
-          "name": "%view.kohVibe.settings.name%",
-          "icon": "resources/logo-mono.svg",
-          "initialSize": 4
-        }
+        { "id": "kohVibe.sessions", "name": "%view.kohVibe.sessions.name%", "icon": "resources/logo-mono.svg", "initialSize": 20 },
+        { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.processes", "name": "%view.kohVibe.processes.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.usage", "name": "%view.kohVibe.usage.name%", "type": "webview", "icon": "resources/logo-mono.svg", "initialSize": 3 },
+        { "id": "kohVibe.settings", "name": "%view.kohVibe.settings.name%", "icon": "resources/logo-mono.svg", "initialSize": 4 }
       ]
     },
     "commands": [
-      {
-        "command": "kohVibe.refresh",
-        "title": "%command.kohVibe.refresh.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "kohVibe.rescanning",
-        "title": "%command.kohVibe.rescanning.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(sync~spin)",
-        "enablement": "false"
-      },
-      {
-        "command": "kohVibe.focusSession",
-        "title": "%command.kohVibe.focusSession.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.reopenSession",
-        "title": "%command.kohVibe.reopenSession.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.toggleSetting",
-        "title": "%command.kohVibe.toggleSetting.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.installHooks",
-        "title": "%command.kohVibe.installHooks.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.uninstallHooks",
-        "title": "%command.kohVibe.uninstallHooks.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.newGroup",
-        "title": "%command.kohVibe.newGroup.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(new-folder)"
-      },
-      {
-        "command": "kohVibe.newSession",
-        "title": "%command.kohVibe.newSession.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(add)"
-      },
-      {
-        "command": "kohVibe.newSessionInGroup",
-        "title": "%command.kohVibe.newSessionInGroup.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(add)"
-      },
-      {
-        "command": "kohVibe.renameGroup",
-        "title": "%command.kohVibe.renameGroup.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.colorGroup",
-        "title": "%command.kohVibe.colorGroup.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.deleteGroup",
-        "title": "%command.kohVibe.deleteGroup.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.chooseSound",
-        "title": "%command.kohVibe.chooseSound.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.chooseVolume",
-        "title": "%command.kohVibe.chooseVolume.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.installSounds",
-        "title": "%command.kohVibe.installSounds.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.removeSounds",
-        "title": "%command.kohVibe.removeSounds.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.offerSounds",
-        "title": "%command.kohVibe.offerSounds.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.replaySound",
-        "title": "%command.kohVibe.replaySound.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.soundGroup.waiting",
-        "title": "%command.kohVibe.soundGroup.waiting.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.soundGroup.done",
-        "title": "%command.kohVibe.soundGroup.done.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.soundSession.waiting",
-        "title": "%command.kohVibe.soundSession.waiting.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.soundSession.done",
-        "title": "%command.kohVibe.soundSession.done.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.copySessionId",
-        "title": "%command.kohVibe.copySessionId.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.copyProcessPid",
-        "title": "%command.kohVibe.copyProcessPid.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.copyProcessCommand",
-        "title": "%command.kohVibe.copyProcessCommand.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.killProcess",
-        "title": "%command.kohVibe.killProcess.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(stop-circle)"
-      },
-      {
-        "command": "kohVibe.sleepSession",
-        "title": "%command.kohVibe.sleepSession.title%",
-        "category": "Koh-Vibe",
-        "icon": {
-          "light": "resources/moon-light.svg",
-          "dark": "resources/moon-dark.svg"
-        }
-      },
-      {
-        "command": "kohVibe.forgetSession",
-        "title": "%command.kohVibe.forgetSession.title%",
-        "category": "Koh-Vibe"
-      },
-      {
-        "command": "kohVibe.closeSession",
-        "title": "%command.kohVibe.closeSession.title%",
-        "category": "Koh-Vibe",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "kohVibe.refreshUsage",
-        "title": "%command.kohVibe.refreshUsage.title%",
-        "category": "Koh-Vibe"
-      }
+      { "command": "kohVibe.refresh", "title": "%command.kohVibe.refresh.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
+      { "command": "kohVibe.rescanning", "title": "%command.kohVibe.rescanning.title%", "category": "Koh-Vibe", "icon": "$(sync~spin)", "enablement": "false" },
+      { "command": "kohVibe.focusSession", "title": "%command.kohVibe.focusSession.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.reopenSession", "title": "%command.kohVibe.reopenSession.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.toggleSetting", "title": "%command.kohVibe.toggleSetting.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.installHooks", "title": "%command.kohVibe.installHooks.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.uninstallHooks", "title": "%command.kohVibe.uninstallHooks.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.newGroup", "title": "%command.kohVibe.newGroup.title%", "category": "Koh-Vibe", "icon": "$(new-folder)" },
+      { "command": "kohVibe.newSession", "title": "%command.kohVibe.newSession.title%", "category": "Koh-Vibe", "icon": "$(add)" },
+      { "command": "kohVibe.newSessionInGroup", "title": "%command.kohVibe.newSessionInGroup.title%", "category": "Koh-Vibe", "icon": "$(add)" },
+      { "command": "kohVibe.renameGroup", "title": "%command.kohVibe.renameGroup.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.colorGroup", "title": "%command.kohVibe.colorGroup.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.deleteGroup", "title": "%command.kohVibe.deleteGroup.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.chooseSound", "title": "%command.kohVibe.chooseSound.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.chooseVolume", "title": "%command.kohVibe.chooseVolume.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.installSounds", "title": "%command.kohVibe.installSounds.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.removeSounds", "title": "%command.kohVibe.removeSounds.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.offerSounds", "title": "%command.kohVibe.offerSounds.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.replaySound", "title": "%command.kohVibe.replaySound.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.soundGroup.waiting", "title": "%command.kohVibe.soundGroup.waiting.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.soundGroup.done", "title": "%command.kohVibe.soundGroup.done.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.soundSession.waiting", "title": "%command.kohVibe.soundSession.waiting.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.soundSession.done", "title": "%command.kohVibe.soundSession.done.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copySessionId", "title": "%command.kohVibe.copySessionId.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copyProcessPid", "title": "%command.kohVibe.copyProcessPid.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copyProcessCommand", "title": "%command.kohVibe.copyProcessCommand.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.killProcess", "title": "%command.kohVibe.killProcess.title%", "category": "Koh-Vibe", "icon": "$(stop-circle)" },
+      { "command": "kohVibe.sleepSession", "title": "%command.kohVibe.sleepSession.title%", "category": "Koh-Vibe", "icon": { "light": "resources/moon-light.svg", "dark": "resources/moon-dark.svg" } },
+      { "command": "kohVibe.forgetSession", "title": "%command.kohVibe.forgetSession.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.closeSession", "title": "%command.kohVibe.closeSession.title%", "category": "Koh-Vibe", "icon": "$(trash)" },
+      { "command": "kohVibe.refreshUsage", "title": "%command.kohVibe.refreshUsage.title%", "category": "Koh-Vibe" }
     ],
     "keybindings": [
-      {
-        "command": "kohVibe.replaySound",
-        "key": "right",
-        "when": "kohVibe.pickingSound && inQuickOpen"
-      }
+      { "command": "kohVibe.replaySound", "key": "right", "when": "kohVibe.pickingSound && inQuickOpen" }
     ],
     "menus": {
       "view/title": [
-        {
-          "command": "kohVibe.refresh",
-          "when": "view == kohVibe.sessions && !kohVibe.rescanning",
-          "group": "navigation"
-        },
-        {
-          "command": "kohVibe.rescanning",
-          "when": "view == kohVibe.sessions && kohVibe.rescanning",
-          "group": "navigation"
-        },
-        {
-          "command": "kohVibe.newSession",
-          "when": "view == kohVibe.sessions",
-          "group": "navigation@0"
-        },
-        {
-          "command": "kohVibe.newGroup",
-          "when": "view == kohVibe.sessions",
-          "group": "navigation"
-        }
+        { "command": "kohVibe.refresh", "when": "view == kohVibe.sessions && !kohVibe.rescanning", "group": "navigation" },
+        { "command": "kohVibe.rescanning", "when": "view == kohVibe.sessions && kohVibe.rescanning", "group": "navigation" },
+        { "command": "kohVibe.newSession", "when": "view == kohVibe.sessions", "group": "navigation@0" },
+        { "command": "kohVibe.newGroup", "when": "view == kohVibe.sessions", "group": "navigation" }
       ],
       "view/item/context": [
-        {
-          "command": "kohVibe.newSessionInGroup",
-          "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)",
-          "group": "new@1"
-        },
-        {
-          "command": "kohVibe.newSessionInGroup",
-          "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)",
-          "group": "inline"
-        },
-        {
-          "command": "kohVibe.renameGroup",
-          "when": "view == kohVibe.sessions && viewItem == group"
-        },
-        {
-          "command": "kohVibe.colorGroup",
-          "when": "view == kohVibe.sessions && viewItem == group"
-        },
-        {
-          "command": "kohVibe.soundGroup.waiting",
-          "when": "view == kohVibe.sessions && viewItem == group",
-          "group": "son@1"
-        },
-        {
-          "command": "kohVibe.soundGroup.done",
-          "when": "view == kohVibe.sessions && viewItem == group",
-          "group": "son@2"
-        },
-        {
-          "command": "kohVibe.deleteGroup",
-          "when": "view == kohVibe.sessions && viewItem == group",
-          "group": "zzz@1"
-        },
-        {
-          "command": "kohVibe.copyProcessCommand",
-          "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/",
-          "group": "copy@1"
-        },
-        {
-          "command": "kohVibe.copyProcessPid",
-          "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/",
-          "group": "copy@2"
-        },
-        {
-          "command": "kohVibe.killProcess",
-          "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/",
-          "group": "inline"
-        },
-        {
-          "command": "kohVibe.killProcess",
-          "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/",
-          "group": "process@1"
-        },
-        {
-          "command": "kohVibe.copySessionId",
-          "when": "view == kohVibe.sessions && viewItem =~ /^session/",
-          "group": "copy@1"
-        },
-        {
-          "command": "kohVibe.copySessionId",
-          "when": "view == kohVibe.closed && viewItem == closedSession",
-          "group": "copy@1"
-        },
-        {
-          "command": "kohVibe.soundSession.waiting",
-          "when": "view == kohVibe.sessions && viewItem =~ /^session/",
-          "group": "son@1"
-        },
-        {
-          "command": "kohVibe.soundSession.done",
-          "when": "view == kohVibe.sessions && viewItem =~ /^session/",
-          "group": "son@2"
-        },
-        {
-          "command": "kohVibe.forgetSession",
-          "when": "view == kohVibe.sessions && viewItem =~ /^session/",
-          "group": "zzz@1"
-        },
-        {
-          "command": "kohVibe.sleepSession",
-          "when": "view == kohVibe.sessions && viewItem == session",
-          "group": "inline@1"
-        },
-        {
-          "command": "kohVibe.closeSession",
-          "when": "view == kohVibe.sessions && viewItem =~ /^session/",
-          "group": "inline@2"
-        }
+        { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "new@1" },
+        { "command": "kohVibe.newSessionInGroup", "when": "view == kohVibe.sessions && (viewItem == group || viewItem == unfiled)", "group": "inline" },
+        { "command": "kohVibe.renameGroup", "when": "view == kohVibe.sessions && viewItem == group" },
+        { "command": "kohVibe.colorGroup", "when": "view == kohVibe.sessions && viewItem == group" },
+        { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },
+        { "command": "kohVibe.soundGroup.done", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@2" },
+        { "command": "kohVibe.deleteGroup", "when": "view == kohVibe.sessions && viewItem == group", "group": "zzz@1" },
+        { "command": "kohVibe.copyProcessCommand", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@1" },
+        { "command": "kohVibe.copyProcessPid", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@2" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "inline" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "process@1" },
+        { "command": "kohVibe.copySessionId", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "copy@1" },
+        { "command": "kohVibe.copySessionId", "when": "view == kohVibe.closed && viewItem == closedSession", "group": "copy@1" },
+        { "command": "kohVibe.soundSession.waiting", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "son@1" },
+        { "command": "kohVibe.soundSession.done", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "son@2" },
+        { "command": "kohVibe.forgetSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "zzz@1" },
+        { "command": "kohVibe.sleepSession", "when": "view == kohVibe.sessions && viewItem == session", "group": "inline@1" },
+        { "command": "kohVibe.closeSession", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "inline@2" }
       ],
       "commandPalette": [
-        {
-          "command": "kohVibe.rescanning",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.focusSession",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.reopenSession",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.newSessionInGroup",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.toggleSetting",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.closeSession",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.copySessionId",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.killProcess",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.copyProcessPid",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.copyProcessCommand",
-          "when": "false"
-        },
-        {
-          "command": "kohVibe.sleepSession",
-          "when": "false"
-        }
+        { "command": "kohVibe.rescanning", "when": "false" },
+        { "command": "kohVibe.focusSession", "when": "false" },
+        { "command": "kohVibe.reopenSession", "when": "false" },
+        { "command": "kohVibe.newSessionInGroup", "when": "false" },
+        { "command": "kohVibe.toggleSetting", "when": "false" },
+        { "command": "kohVibe.closeSession", "when": "false" },
+        { "command": "kohVibe.copySessionId", "when": "false" },
+        { "command": "kohVibe.killProcess", "when": "false" },
+        { "command": "kohVibe.copyProcessPid", "when": "false" },
+        { "command": "kohVibe.copyProcessCommand", "when": "false" },
+        { "command": "kohVibe.sleepSession", "when": "false" }
       ]
     }
   },
