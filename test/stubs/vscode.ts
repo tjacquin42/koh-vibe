@@ -1,13 +1,12 @@
-// Bouchon minimal de l'API `vscode`, utilisé uniquement en test (alias vitest,
-// voir vitest.config.ts : `vscode` est résolu vers ce fichier plutôt que vers
-// le module réel, qui n'existe qu'à l'intérieur de l'hôte d'extensions).
+// Minimal stub of the `vscode` API, used only in tests (vitest alias, see
+// vitest.config.ts: `vscode` resolves to this file rather than to the real
+// module, which only exists inside the extension host).
 //
-// Couvre exactement ce dont `FocusBroker` et `SessionsTree` ont besoin pour
-// être testés sans lancer VSCode — à étendre au fur et à mesure d'un besoin
-// réel, jamais par anticipation. `getTreeItem` (qui construit des `TreeItem`,
-// `ThemeIcon`, `ThemeColor`) n'est pas exercé par les tests actuels ; ces
-// classes sont quand même fournies, minimales, pour que le module qui les
-// importe reste chargeable.
+// Covers exactly what `FocusBroker` and `SessionsTree` need to be tested
+// without launching VSCode — to be extended as a real need arises, never
+// ahead of one. `getTreeItem` (which builds `TreeItem`, `ThemeIcon`,
+// `ThemeColor`) is not exercised by the current tests; these classes are
+// still provided, minimal, so that the module importing them stays loadable.
 
 export class EventEmitter<T> {
   private listeners: Array<(e: T) => void> = [];
@@ -37,10 +36,10 @@ export enum TreeItemCollapsibleState {
 }
 
 /**
- * Assez fidèle pour ce que la vue en fait : `Uri.from` conserve les champs et
- * `toString` les recompose. Le bouchon ne cherche pas à reproduire l'encodage
- * complet de VSCode — les tests portent sur ce que l'arbre POSE, et la lecture
- * de l'URI est éprouvée à part, sur une fonction pure (ui/decorations.ts).
+ * Faithful enough for what the view does with it: `Uri.from` keeps the
+ * fields and `toString` recomposes them. The stub does not try to reproduce
+ * VSCode's full encoding — the tests target what the tree SETS, and reading
+ * the URI back is proven separately, on a pure function (ui/decorations.ts).
  */
 export class Uri {
   private constructor(
@@ -54,7 +53,7 @@ export class Uri {
     return new Uri(parts.scheme, parts.authority ?? '', parts.path ?? '', parts.query ?? '');
   }
 
-  /** Ce que SessionsTree appelle pour ses pastilles de statut. */
+  /** What SessionsTree calls for its status badges. */
   static file(path: string): Uri {
     return new Uri('file', '', path, '');
   }
@@ -156,26 +155,138 @@ export interface StubTabGroup {
 }
 
 export const tabChange = new EventEmitter<void>();
+// Distinct from `tabChange`: the real API fires this one when the set of
+// GROUPS itself changes (a split closing, say), never for a tab switch
+// within one group — extension.ts listens on both separately.
+export const tabGroupChange = new EventEmitter<void>();
 
 export const stubTabGroups: {
   all: StubTabGroup[];
   activeTabGroup: StubTabGroup;
   onDidChangeTabs: (listener: () => void) => { dispose: () => void };
+  onDidChangeTabGroups: (listener: () => void) => { dispose: () => void };
   close: (tab: StubTab) => Promise<boolean>;
 } = {
   all: [],
   activeTabGroup: { tabs: [], activeTab: undefined },
   onDidChangeTabs: (listener) => tabChange.event(listener),
+  onDidChangeTabGroups: (listener) => tabGroupChange.event(listener),
   close: async (): Promise<boolean> => true,
 };
 
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
+}
+
+/** What `StatusSummary` sets on its item, kept so a test can read it back. */
+export interface StubStatusBarItem {
+  command?: string;
+  name?: string;
+  text?: string;
+  tooltip?: string;
+  backgroundColor?: ThemeColor;
+  visible: boolean;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+}
+
+/** Every status bar item created so far, newest last. */
+export const statusBarItems: StubStatusBarItem[] = [];
+
+/**
+ * A `TreeView` faithful enough for `extension.ts`'s own use of it:
+ * `description`, `visible`, `reveal`, and the two events it reads
+ * (`onDidChangeVisibility`, `onDidChangeCheckboxState`). Nothing here reads
+ * `treeDataProvider`/`dragAndDropController` back — they are kept only so a
+ * test can tell which view a given `StubTreeView` stands for.
+ */
+export class StubTreeView<T> {
+  description?: string;
+  visible = false;
+  private readonly visibilityEmitter = new EventEmitter<{ visible: boolean }>();
+  private readonly checkboxEmitter = new EventEmitter<{ items: Array<[T, TreeItemCheckboxState]> }>();
+  onDidChangeVisibility = this.visibilityEmitter.event;
+  onDidChangeCheckboxState = this.checkboxEmitter.event;
+
+  constructor(
+    public readonly viewId: string,
+    public readonly treeDataProvider?: unknown,
+    public readonly dragAndDropController?: unknown,
+  ) {}
+
+  async reveal(_node: T, _options?: { select?: boolean; focus?: boolean }): Promise<void> {
+    // Nothing to position against without a real tree widget: the view's own
+    // `nodeFor`/render logic is tested directly, never through this call.
+  }
+
+  /** Test-only: flips `visible` and fires the event, as the panel opening or closing would. */
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    this.visibilityEmitter.fire({ visible });
+  }
+
+  /** Test-only: the checkbox row of `kohVibe.settings` ticking a toggle. */
+  setCheckboxState(items: Array<[T, TreeItemCheckboxState]>): void {
+    this.checkboxEmitter.fire({ items });
+  }
+
+  dispose(): void {
+    this.visibilityEmitter.dispose();
+    this.checkboxEmitter.dispose();
+  }
+}
+
+/** Every tree view created so far, newest last — so a test can find the one it wants by `viewId`. */
+export const treeViews: Array<StubTreeView<unknown>> = [];
+
+/** Every webview view provider registered so far, newest last. */
+export const webviewViewProviders: Array<{ viewId: string; provider: unknown }> = [];
+
+export interface StubCommand {
+  command: string;
+  callback: (...args: unknown[]) => unknown;
+}
+
+/** Every command registered so far, newest last. */
+export const registeredCommands: StubCommand[] = [];
+
+export const ProgressLocation = { SourceControl: 1, Window: 10, Notification: 15 };
+
 export const window = {
+  createStatusBarItem: (_alignment?: StatusBarAlignment, _priority?: number): StubStatusBarItem => {
+    const item: StubStatusBarItem = {
+      visible: false,
+      show: () => {
+        item.visible = true;
+      },
+      hide: () => {
+        item.visible = false;
+      },
+      dispose: () => undefined,
+    };
+    statusBarItems.push(item);
+    return item;
+  },
   showInformationMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showWarningMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   showErrorMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
-  createTreeView: (..._args: unknown[]): never => {
-    throw new Error('vscode.window.createTreeView non bouchonné');
+  setStatusBarMessage: (..._args: unknown[]): { dispose: () => void } => ({ dispose: () => undefined }),
+  showInputBox: async (..._args: unknown[]): Promise<string | undefined> => undefined,
+  createTreeView: <T>(viewId: string, options: { treeDataProvider?: unknown; dragAndDropController?: unknown }): StubTreeView<T> => {
+    const view = new StubTreeView<T>(viewId, options.treeDataProvider, options.dragAndDropController);
+    treeViews.push(view as StubTreeView<unknown>);
+    return view;
   },
+  registerWebviewViewProvider: (viewId: string, provider: unknown): { dispose: () => void } => {
+    webviewViewProviders.push({ viewId, provider });
+    return { dispose: () => undefined };
+  },
+  registerFileDecorationProvider: (..._args: unknown[]): { dispose: () => void } => ({ dispose: () => undefined }),
+  // Runs the task right away and returns its result — there is no real
+  // progress UI to drive in a test.
+  withProgress: async <T>(_options: unknown, task: () => Promise<T> | PromiseLike<T>): Promise<T> => task(),
   // Made observable rather than fatal: reopening a terminal conversation
   // depends on it, and a test has to be able to check WHAT is sent.
   createTerminal: (_options: { cwd?: string; name?: string }): StubTerminal => ({
@@ -185,19 +296,29 @@ export const window = {
   tabGroups: stubTabGroups,
 };
 
-export const workspace: { workspaceFolders: Array<{ uri: { fsPath: string } }> | undefined } = {
+export const workspace: {
+  workspaceFolders: Array<{ uri: { fsPath: string } }> | undefined;
+  getConfiguration: (section?: string) => { get: (key: string) => unknown };
+} = {
   workspaceFolders: undefined,
+  // No editor setting is ever set in a test: what `legacySettings` (the only
+  // caller) does with an absent one is exactly what matters — see
+  // settingsFromEditor, tested on its own in test/settings.test.ts.
+  getConfiguration: (_section?: string) => ({ get: (_key: string) => undefined }),
 };
 
 export const commands = {
   executeCommand: async (..._args: unknown[]): Promise<unknown> => undefined,
-  registerCommand: (..._args: unknown[]): { dispose: () => void } => ({ dispose: () => undefined }),
+  registerCommand: (command: string, callback: (...args: unknown[]) => unknown): { dispose: () => void } => {
+    registeredCommands.push({ command, callback });
+    return { dispose: () => undefined };
+  },
 };
 
-// Couvre exactement ce dont SessionsTree.handleDrag/handleDrop ont besoin :
-// poser une valeur sous un type MIME, la relire sous ce même type. `value`
-// est typé `unknown` (la vraie API le déclare `any`) pour que le code qui le
-// lit soit obligé de le valider avant usage, jamais de le caster.
+// Covers exactly what SessionsTree.handleDrag/handleDrop need: setting a
+// value under a MIME type, reading it back under that same type. `value` is
+// typed `unknown` (the real API declares it `any`) so that the code reading
+// it is forced to validate it before use, never to cast it.
 export class DataTransferItem {
   constructor(public readonly value: unknown) {}
 }

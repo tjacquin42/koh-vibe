@@ -29,6 +29,17 @@ describe('the settings view — the two checkboxes', () => {
     expect(toggleTooltip('expireTemporary')).toContain('folder');
   });
 
+  it('gives each checkbox an icon of its own', () => {
+    // The third toggle was added after the icon ternary was written, and fell
+    // into the second one's branch: a clock for the animation of the dots.
+    const icons = SETTING_TOGGLES.map((key) => {
+      const icon = new FooterTree().getTreeItem({ kind: 'toggle', key, on: true }).iconPath;
+      return icon instanceof vscode.ThemeIcon ? icon.id : undefined;
+    });
+    expect(icons.every((id) => id !== undefined)).toBe(true);
+    expect(new Set(icons).size).toBe(SETTING_TOGGLES.length);
+  });
+
   it('follows the settings, and redraws only when one changes', () => {
     const tree = new FooterTree();
     let fired = 0;
@@ -40,5 +51,14 @@ describe('the settings view — the two checkboxes', () => {
     expect(fired).toBe(1);
     expect(tree.getChildren()[0]).toEqual({ kind: 'toggle', key: 'persistent', on: false });
     expect(tree.getChildren()[1]).toEqual({ kind: 'toggle', key: 'expireTemporary', on: true });
+  });
+});
+
+describe('the settings view — the library row', () => {
+  it('offers to install the library while it holds no sound', () => {
+    const tree = new FooterTree();
+    tree.setLibrary(0);
+    const row = tree.getChildren().find((n) => n.kind === 'library');
+    expect(row === undefined ? undefined : tree.getTreeItem(row).label).toBe('Sound library: install…');
   });
 });

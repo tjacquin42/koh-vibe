@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReentrantGuard } from '../src/lib/reentrant-guard';
 
-// Un délai franchement plus grand que n'importe quel test normal (qui se
-// règle en quelques microtasks) : la branche timeout ne doit jamais se
-// déclencher dans ces tests-là, seuls ceux qui la ciblent explicitement
-// avancent l'horloge simulée jusque-là.
+// A delay clearly larger than any normal test (which settles within a few
+// microtasks): the timeout branch must never trigger in those tests — only
+// the ones that explicitly target it advance the fake clock that far.
 const NEVER_TIMES_OUT_MS = 1_000_000;
 
 describe('ReentrantGuard', () => {
-  it('ignore un déclenchement pendant qu un appel est déjà en vol', async () => {
+  it('ignores a trigger while a call is already in flight', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let inFlight = false;
     let concurrentCalls = 0;
@@ -16,7 +15,7 @@ describe('ReentrantGuard', () => {
 
     const first = guard.run(async () => {
       inFlight = true;
-      // Un second run() déclenché pendant que le premier est en vol doit être un no-op.
+      // A second run() triggered while the first is in flight must be a no-op.
       await guard.run(async () => {
         concurrentCalls += 1;
       }, onError);
@@ -31,7 +30,7 @@ describe('ReentrantGuard', () => {
     expect(guard.running).toBe(false);
   });
 
-  it('exécute normalement quand aucun appel n est en vol', async () => {
+  it('runs normally when no call is in flight', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let calls = 0;
     await guard.run(async () => {
@@ -41,7 +40,7 @@ describe('ReentrantGuard', () => {
     expect(guard.running).toBe(false);
   });
 
-  it('retombe sur running=false après une exécution, permettant le prochain appel', async () => {
+  it('falls back to running=false after a run, allowing the next call', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     let calls = 0;
     await guard.run(async () => {
@@ -53,7 +52,7 @@ describe('ReentrantGuard', () => {
     expect(calls).toBe(2);
   });
 
-  it('avale une erreur via onError plutôt que de la laisser remonter en rejet non géré', async () => {
+  it('swallows an error via onError rather than letting it surface as an unhandled rejection', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     const errors: unknown[] = [];
     const boom = new Error('panne');
@@ -67,7 +66,7 @@ describe('ReentrantGuard', () => {
     expect(errors).toEqual([boom]);
   });
 
-  it('remet running à false après une erreur : l appel suivant n est pas bloqué', async () => {
+  it('resets running to false after an error: the next call is not blocked', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     await guard.run(async () => {
       throw new Error('panne');
@@ -82,7 +81,7 @@ describe('ReentrantGuard', () => {
     expect(ranAfter).toBe(true);
   });
 
-  it('un déclenchement pendant une exécution en vol ne fait pas perdre le travail : rejouable ensuite', async () => {
+  it('a trigger during an in-flight run does not lose the work: replayable afterwards', async () => {
     const guard = new ReentrantGuard(NEVER_TIMES_OUT_MS);
     const done: string[] = [];
 
@@ -96,7 +95,7 @@ describe('ReentrantGuard', () => {
       done.push('premier');
     }, () => undefined);
 
-    // Le second est un no-op immédiat pendant que le premier est en vol.
+    // The second is an immediate no-op while the first is in flight.
     await guard.run(async () => {
       done.push('second');
     }, () => undefined);
@@ -106,24 +105,24 @@ describe('ReentrantGuard', () => {
     await first;
     expect(done).toEqual(['premier']);
 
-    // Un nouvel appel après la fin du premier s exécute normalement.
+    // A new call after the first one ends runs normally.
     await guard.run(async () => {
       done.push('troisième');
     }, () => undefined);
     expect(done).toEqual(['premier', 'troisième']);
   });
 
-  describe('borne dans le temps (N2)', () => {
+  describe('bounded in time (N2)', () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('relâche la garde et signale une fois si fn ne se règle jamais avant le délai', async () => {
+    it('releases the guard and reports once if fn never settles before the delay', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
 
-      // Ne se règle jamais (ni résolution ni rejet) : simule un tick bloqué.
+      // Never settles (neither resolves nor rejects): simulates a stuck tick.
       const runPromise = guard.run(() => new Promise<void>(() => undefined), (err) => errors.push(err));
 
       await vi.advanceTimersByTimeAsync(999);
@@ -138,7 +137,7 @@ describe('ReentrantGuard', () => {
       expect(errors[0]).toBeInstanceOf(Error);
     });
 
-    it("passe à fn un signal dont abandoned devient true au moment du dépassement de délai, pas avant", async () => {
+    it("passes fn a signal whose abandoned becomes true at the moment the delay is exceeded, not before", async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const observedBeforeTimeout: boolean[] = [];
@@ -150,21 +149,21 @@ describe('ReentrantGuard', () => {
           setTimeout(() => {
             observedAfterTimeout = signal.abandoned;
             resolve();
-          }, 5000); // largement après le délai de la garde : fn continue en arrière-plan
+          }, 5000); // well past the guard's delay: fn keeps running in the background
         });
       }, () => undefined);
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(guard.running).toBe(false);
-      expect(observedBeforeTimeout).toEqual([false]); // pas encore abandonné quand fn a démarré
+      expect(observedBeforeTimeout).toEqual([false]); // not yet abandoned when fn started
 
       await vi.advanceTimersByTimeAsync(4000);
       await runPromise;
 
-      expect(observedAfterTimeout).toBe(true); // la même référence de signal reflète l'abandon après coup
+      expect(observedAfterTimeout).toBe(true); // the same signal reference reflects the abandonment afterwards
     });
 
-    it('deux passages concurrents après un dépassement de délai : accepté, comme deux fenêtres qui drainent en même temps', async () => {
+    it('two concurrent passes after a delay is exceeded: accepted, like two windows draining at the same time', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const order: string[] = [];
@@ -173,8 +172,8 @@ describe('ReentrantGuard', () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(guard.running).toBe(false);
 
-      // La garde ne bloque plus : un nouvel appel s'exécute pendant que le
-      // premier (abandonné, jamais annulé) est toujours virtuellement en vol.
+      // The guard no longer blocks: a new call runs while the first
+      // (abandoned, never cancelled) is still virtually in flight.
       await guard.run(async () => {
         order.push('second appel, après le délai du premier');
       }, () => undefined);
@@ -182,7 +181,7 @@ describe('ReentrantGuard', () => {
       expect(order).toEqual(['second appel, après le délai du premier']);
     });
 
-    it("l'exécution abandonnée qui finit par rejeter plus tard n'est pas un rejet non géré : onError la rattrape aussi", async () => {
+    it("the abandoned run that ends up rejecting later is not an unhandled rejection: onError catches it too", async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
@@ -197,10 +196,10 @@ describe('ReentrantGuard', () => {
       await vi.advanceTimersByTimeAsync(1000);
       await runPromise;
 
-      expect(errors).toEqual([expect.any(Error)]); // le signalement du délai dépassé
+      expect(errors).toEqual([expect.any(Error)]); // the report of the exceeded delay
 
       rejectLate(lateBoom);
-      // Laisse le .then attaché à l'exécution abandonnée se régler.
+      // Lets the .then attached to the abandoned run settle.
       await vi.advanceTimersByTimeAsync(0);
       await Promise.resolve();
 
@@ -208,7 +207,7 @@ describe('ReentrantGuard', () => {
       expect(errors).toHaveLength(2);
     });
 
-    it("l'exécution abandonnée qui finit par réussir plus tard ne déclenche pas de second signalement", async () => {
+    it("the abandoned run that ends up succeeding later does not trigger a second report", async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];
@@ -221,16 +220,16 @@ describe('ReentrantGuard', () => {
       const runPromise = guard.run(() => neverSoon, (err) => errors.push(err));
       await vi.advanceTimersByTimeAsync(1000);
       await runPromise;
-      expect(errors).toHaveLength(1); // le signalement du délai dépassé
+      expect(errors).toHaveLength(1); // the report of the exceeded delay
 
       resolveLate();
       await vi.advanceTimersByTimeAsync(0);
       await Promise.resolve();
 
-      expect(errors).toHaveLength(1); // toujours un seul, la réussite tardive ne signale rien
+      expect(errors).toHaveLength(1); // still just one, the late success reports nothing
     });
 
-    it('ne déclenche pas le délai quand fn se règle largement avant', async () => {
+    it('does not trigger the delay when fn settles well before it', async () => {
       vi.useFakeTimers();
       const guard = new ReentrantGuard(1000);
       const errors: unknown[] = [];

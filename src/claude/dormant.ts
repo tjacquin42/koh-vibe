@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process';
 import type { Session } from '../events/types';
-import { branchOf, projectOf } from '../events/origin';
 import { isValidSessionId } from '../events/parse';
+import { isRecord } from '../lib/json';
+import { blankSession } from '../store/blank';
+import { CLAUDE_PANEL_VIEW_TYPE } from './panel';
 
 /** A Claude Code panel as the editor persisted it: which conversation, under which title. */
 export interface ClaudeTab {
@@ -14,12 +16,7 @@ export interface ClaudeTab {
 }
 
 const WEBVIEW_INPUT = 'workbench.editors.webviewInput';
-const CLAUDE_PANEL = 'claudeVSCodePanel';
 const MEMENTO_KEY = 'memento/workbench.parts.editor';
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function parseJson(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
@@ -71,7 +68,7 @@ export function parseEditorMemento(raw: string): ClaudeTab[] {
 }
 
 function claudeTabOf(value: unknown, group: number, index: number): ClaudeTab | undefined {
-  if (!isRecord(value) || value['providedId'] !== CLAUDE_PANEL) return undefined;
+  if (!isRecord(value) || value['providedId'] !== CLAUDE_PANEL_VIEW_TYPE) return undefined;
   const state = parseJson(value['state']);
   if (!isRecord(state)) return undefined;
   const sessionId = state['sessionID'];
@@ -113,20 +110,6 @@ export function readStateItem(stateDb: string, key: string): Promise<string | un
 }
 
 /**
- * The conversations that exist only as a tab: restored by the editor, never
- * shown since, hence without a process — and unknown to the hooks and to the
- * registry alike. Shown so that the list matches the tab bar, and woken by a
- * click like any other conversation of this editor.
- *
- * Two filters, both necessary. `liveLabels` are the titles of the Claude tabs
- * open in this window right now: the memento is persisted state, and a tab
- * closed a moment ago may still be in it. `known` are the ids that have a
- * process or a state file: those are real sessions, and the real one wins.
- *
- * Dated zero on purpose: nothing has happened, and the labels say "tab not
- * started" instead of an age. It also sorts the dormant rows last.
- */
-/**
  * Lays this window's dormant tabs over the sessions on disk. An unknown one is
  * added. A known one that has ENDED is shown as dormant instead: its tab is
  * right there in the tab bar — the editor restored it and nobody has opened it
@@ -161,6 +144,20 @@ export function shownSession(onDisk: Session | undefined, restored: Session | un
   return next;
 }
 
+/**
+ * The conversations that exist only as a tab: restored by the editor, never
+ * shown since, hence without a process — and unknown to the hooks and to the
+ * registry alike. Shown so that the list matches the tab bar, and woken by a
+ * click like any other conversation of this editor.
+ *
+ * Two filters, both necessary. `liveLabels` are the titles of the Claude tabs
+ * open in this window right now: the memento is persisted state, and a tab
+ * closed a moment ago may still be in it. `known` are the ids that have a
+ * process or a state file: those are real sessions, and the real one wins.
+ *
+ * Dated zero on purpose: nothing has happened, and the labels say "tab not
+ * started" instead of an age. It also sorts the dormant rows last.
+ */
 export function dormantSessions(
   tabs: readonly ClaudeTab[],
   liveLabels: ReadonlySet<string>,
@@ -172,18 +169,7 @@ export function dormantSessions(
   for (const tab of tabs) {
     if (seen.has(tab.sessionId) || known.has(tab.sessionId) || !liveLabels.has(tab.title)) continue;
     seen.add(tab.sessionId);
-    const session: Session = {
-      id: tab.sessionId,
-      cwd,
-      project: projectOf(cwd),
-      origin: 'vscode',
-      status: 'idle',
-      toolCount: 0,
-      lastEventAt: 0,
-      dormant: true,
-    };
-    const branch = branchOf(cwd);
-    if (branch !== undefined) session.branch = branch;
+    const session: Session = { ...blankSession(tab.sessionId, cwd, 'vscode', 0), dormant: true };
     if (tab.title.length > 0) session.title = tab.title;
     out.push(session);
   }

@@ -9,7 +9,7 @@ import type { TranscriptStats } from '../src/transcript/reader';
 
 let dir: string;
 let goodFile: string;
-let brokenDir: string; // un dossier passé comme s'il était un fichier de transcript
+let brokenDir: string; // a folder passed as if it were a transcript file
 
 const assistant = (input: number, output: number): string =>
   `${JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: input, output_tokens: output } } })}\n`;
@@ -28,7 +28,7 @@ const session = (id: string, transcriptPath: string): Session => ({
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'koh-tokens-'));
   goodFile = join(dir, 'good.jsonl');
-  brokenDir = join(dir, 'broken.jsonl'); // un vrai dossier : readTranscript lève EISDIR à la lecture
+  brokenDir = join(dir, 'broken.jsonl'); // a real folder: readTranscript throws EISDIR when read
   await writeFile(goodFile, assistant(100, 20));
   const { mkdirSync } = await import('node:fs');
   mkdirSync(brokenDir);
@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe('withTokens', () => {
-  it('isole les échecs par session : une session illisible ne prive pas les autres de leurs compteurs', async () => {
+  it('isolates failures per session: an unreadable session does not deprive the others of their counters', async () => {
     const sessions = new Map<string, Session>([
       ['good', session('good', goodFile)],
       ['bad', session('bad', brokenDir)],
@@ -54,12 +54,12 @@ describe('withTokens', () => {
     expect(onFailure.mock.calls[0]?.[0]).toBe(out.get('bad'));
   });
 
-  it('ne lève jamais, même quand la seule session présente échoue', async () => {
+  it('never throws, even when the only session present fails', async () => {
     const sessions = new Map<string, Session>([['bad', session('bad', brokenDir)]]);
     await expect(withTokens(sessions, new Map<string, TranscriptStats>())).resolves.toBeDefined();
   });
 
-  it('le rendu suivant fonctionne toujours : un second appel après un échec réussit encore, pour la session saine comme pour la fautive', async () => {
+  it('the next render still works: a second call after a failure still succeeds, for the healthy session as much as for the faulty one', async () => {
     const sessions = new Map<string, Session>([
       ['good', session('good', goodFile)],
       ['bad', session('bad', brokenDir)],
@@ -68,22 +68,22 @@ describe('withTokens', () => {
     const onFailure = vi.fn();
 
     await withTokens(sessions, transcripts, onFailure);
-    // Deuxième « tick » sur le même état, comme le minuteur le ferait 2 s plus tard.
+    // A second "tick" on the same state, as the timer would do 2s later.
     const out = await withTokens(sessions, transcripts, onFailure);
 
     expect(out.get('good')?.tokens).toEqual({ input: 100, output: 20 });
     expect(out.get('bad')?.tokens).toBeUndefined();
-    expect(onFailure).toHaveBeenCalledTimes(2); // une fois par appel, jamais avalé
+    expect(onFailure).toHaveBeenCalledTimes(2); // once per call, never swallowed
   });
 
-  it('n appelle jamais onFailure pour une session sans transcript', async () => {
+  it('never calls onFailure for a session without a transcript', async () => {
     const sessions = new Map<string, Session>([['idle', { ...session('idle', ''), transcriptPath: undefined }]]);
     const onFailure = vi.fn();
     await withTokens(sessions, new Map<string, TranscriptStats>(), onFailure);
     expect(onFailure).not.toHaveBeenCalled();
   });
 
-  it('recopie le titre du transcript sur la session', async () => {
+  it('copies the transcript title back onto the session', async () => {
     const titleFile = join(dir, 'title.jsonl');
     await writeFile(titleFile, `${JSON.stringify({ type: 'custom-title', customTitle: '#Mon titre' })}\n${assistant(10, 5)}`);
     const sessions = new Map<string, Session>([['a', session('a', titleFile)]]);

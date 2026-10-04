@@ -254,13 +254,13 @@ describe('requestCloseSession — the trash always files what it removes', () =>
   });
 });
 
-// La couture qui a cassé une fois déjà : après un redémarrage de l éditeur, une
-// conversation marquée terminée dont l onglet a été restauré est AFFICHÉE
-// éveillée. C est cette ligne-là qu on clique, et c est donc elle que le geste
-// doit lire — le fichier d état brut, lui, porte encore sa fin et faisait
-// sortir la commande en silence.
-describe('sleepSessionHere — sur la conversation telle que sa ligne la montre', () => {
-  it('endort une conversation que son onglet restauré fait paraître éveillée', async () => {
+// The seam that broke once already: after an editor restart, a conversation
+// marked finished whose tab has been restored is DISPLAYED as awake. That
+// is the row you click, and so that is the one the gesture must read — the
+// raw state file, on the other hand, still carries its ending and made the
+// command exit silently.
+describe('sleepSessionHere — on the conversation as its row shows it', () => {
+  it('puts to sleep a conversation that its restored tab makes look awake', async () => {
     const onDisk = session({ endedAt: 10 });
     const restored = session({ dormant: true, lastEventAt: 0 });
     const shown = shownSession(onDisk, restored);
@@ -282,7 +282,7 @@ describe('sleepSessionHere — sur la conversation telle que sa ligne la montre'
     expect(calls).toEqual(['closeTab', 'markEnded']);
   });
 
-  it('refuse toujours celle que RIEN ne fait paraître éveillée', async () => {
+  it('still refuses one that NOTHING makes look awake', async () => {
     const onDisk = session({ endedAt: 10 });
     const closeTab = vi.fn();
     await sleepSessionHere('s1', {

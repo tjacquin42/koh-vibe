@@ -2,7 +2,8 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
 import type { Session } from '../events/types';
-import { branchOf, originOf, projectOf } from '../events/origin';
+import { originOf } from '../events/origin';
+import { blankSession } from '../store/blank';
 import { createSession, readSession, writeSession } from '../spool/persist';
 import type { LiveSession } from './registry';
 
@@ -77,17 +78,7 @@ export async function rescanLiveSessions(
       added.push(entry.sessionId);
       continue;
     }
-    const session: Session = {
-      id: entry.sessionId,
-      cwd: entry.cwd,
-      project: projectOf(entry.cwd),
-      origin: originOf(entry.entrypoint, ''),
-      status: 'idle',
-      toolCount: 0,
-      lastEventAt: entry.startedAt ?? now,
-    };
-    const branch = branchOf(entry.cwd);
-    if (branch !== undefined) session.branch = branch;
+    const session: Session = blankSession(entry.sessionId, entry.cwd, originOf(entry.entrypoint, ''), entry.startedAt ?? now);
     if (entry.startedAt !== undefined) session.startedAt = entry.startedAt;
     const transcript = transcriptPathFor(claudeHome, entry.cwd, entry.sessionId);
     if (await exists(transcript)) session.transcriptPath = transcript;

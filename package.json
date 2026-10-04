@@ -2,7 +2,7 @@
   "name": "koh-vibe",
   "displayName": "Koh-Vibe",
   "description": "%extension.description%",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "tjacquin42",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/tjacquin42/koh-vibe.git" },
@@ -27,6 +27,7 @@
       "koh-vibe": [
         { "id": "kohVibe.sessions", "name": "%view.kohVibe.sessions.name%", "icon": "resources/logo-mono.svg", "initialSize": 20 },
         { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.processes", "name": "%view.kohVibe.processes.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
         { "id": "kohVibe.usage", "name": "%view.kohVibe.usage.name%", "type": "webview", "icon": "resources/logo-mono.svg", "initialSize": 3 },
         { "id": "kohVibe.settings", "name": "%view.kohVibe.settings.name%", "icon": "resources/logo-mono.svg", "initialSize": 4 }
       ]
@@ -56,6 +57,9 @@
       { "command": "kohVibe.soundSession.waiting", "title": "%command.kohVibe.soundSession.waiting.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.soundSession.done", "title": "%command.kohVibe.soundSession.done.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.copySessionId", "title": "%command.kohVibe.copySessionId.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copyProcessPid", "title": "%command.kohVibe.copyProcessPid.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.copyProcessCommand", "title": "%command.kohVibe.copyProcessCommand.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.killProcess", "title": "%command.kohVibe.killProcess.title%", "category": "Koh-Vibe", "icon": "$(stop-circle)" },
       { "command": "kohVibe.sleepSession", "title": "%command.kohVibe.sleepSession.title%", "category": "Koh-Vibe", "icon": { "light": "resources/moon-light.svg", "dark": "resources/moon-dark.svg" } },
       { "command": "kohVibe.forgetSession", "title": "%command.kohVibe.forgetSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.closeSession", "title": "%command.kohVibe.closeSession.title%", "category": "Koh-Vibe", "icon": "$(trash)" },
@@ -79,6 +83,10 @@
         { "command": "kohVibe.soundGroup.waiting", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@1" },
         { "command": "kohVibe.soundGroup.done", "when": "view == kohVibe.sessions && viewItem == group", "group": "son@2" },
         { "command": "kohVibe.deleteGroup", "when": "view == kohVibe.sessions && viewItem == group", "group": "zzz@1" },
+        { "command": "kohVibe.copyProcessCommand", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@1" },
+        { "command": "kohVibe.copyProcessPid", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "copy@2" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "inline" },
+        { "command": "kohVibe.killProcess", "when": "(view == kohVibe.sessions || view == kohVibe.processes) && viewItem =~ /^(process|orphan)/", "group": "process@1" },
         { "command": "kohVibe.copySessionId", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "copy@1" },
         { "command": "kohVibe.copySessionId", "when": "view == kohVibe.closed && viewItem == closedSession", "group": "copy@1" },
         { "command": "kohVibe.soundSession.waiting", "when": "view == kohVibe.sessions && viewItem =~ /^session/", "group": "son@1" },
@@ -95,6 +103,9 @@
         { "command": "kohVibe.toggleSetting", "when": "false" },
         { "command": "kohVibe.closeSession", "when": "false" },
         { "command": "kohVibe.copySessionId", "when": "false" },
+        { "command": "kohVibe.killProcess", "when": "false" },
+        { "command": "kohVibe.copyProcessPid", "when": "false" },
+        { "command": "kohVibe.copyProcessCommand", "when": "false" },
         { "command": "kohVibe.sleepSession", "when": "false" }
       ]
     }
@@ -106,11 +117,13 @@
     "watch": "tsc -w -p .",
     "test": "pnpm build && vitest run",
     "test:watch": "vitest",
+    "test:coverage": "pnpm build && vitest run --coverage",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.94.0",
+    "@vitest/coverage-v8": "2.1.9",
     "@vscode/vsce": "^3.2.0",
     "ovsx": "^1.1.1",
     "typescript": "^5.6.0",

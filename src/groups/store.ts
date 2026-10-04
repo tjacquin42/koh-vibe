@@ -1,25 +1,25 @@
 import { commitMerged, readRaw, withFileQueue } from '../lib/shared-file';
 import { emptyGroups, type Group, type GroupsState, parseGroups, serializeGroups } from './model';
 
-/** Un classement illisible ou absent vaut « vide » : la vue doit s'afficher quoi qu'il arrive. */
+/** An unreadable or missing folder listing counts as "empty": the view has to display no matter what. */
 export async function readGroups(file: string): Promise<GroupsState> {
   return toState(await readRaw(file));
 }
 
 /**
- * Applique `fn` au classement et l'écrit. L'état est relu **à l'intérieur**, jamais détenu par
- * l'appelant au travers d'un `await` : une autre fenêtre peut avoir classé entre-temps, et son
- * travail ne doit pas être écrasé.
+ * Applies `fn` to the folder listing and writes it. The state is re-read **INSIDE**, never held
+ * by the caller across an `await`: another window may have filed something in the meantime, and
+ * its work must not be overwritten.
  *
- * Deux mécanismes, pas un — tous deux portés par lib/shared-file.ts, partagés avec l'historique
- * des conversations fermées (closed/store.ts) :
- * 1. `withFileQueue` : deux appels sur le même fichier depuis CE processus ne courent jamais
- *    l'un contre l'autre.
- * 2. `commitMerged` relit toujours juste avant de renommer, à chaque tour de fusion, sans
- *    exception ; si le fichier a changé depuis la fusion (une AUTRE fenêtre a écrit
- *    entre-temps), la fusion est rejouée à partir du nouveau contenu plutôt que d'écraser ce
- *    changement — le dernier tour fusionnant et écrivant l'état le plus frais sans relire une
- *    fois de plus.
+ * Two mechanisms, not one — both carried by lib/shared-file.ts, shared with the closed-conversation
+ * history (closed/store.ts):
+ * 1. `withFileQueue`: two calls on the same file from THIS process never race against each
+ *    other.
+ * 2. `commitMerged` always re-reads right before renaming, on every merge round, with no
+ *    exception; if the file has changed since the merge (ANOTHER window wrote in the
+ *    meantime), the merge is replayed from the new content rather than overwriting that
+ *    change — the last round merging and writing the freshest state without re-reading once
+ *    more.
  */
 export function updateGroups(
   file: string,
@@ -44,9 +44,10 @@ function merge(latestRaw: string | undefined, before: GroupsState, after: Groups
     groups: mergeGroups(latest.groups, before.groups, after.groups),
     assignments: mergeAssignments(latest.assignments, before.assignments, after.assignments),
     sessionOrder: mergeSessionOrder(latest.sessionOrder, before.sessionOrder, after.sessionOrder),
-    // Même règle, même raison que les affectations, et une fois par événement :
-    // régler le son « terminé » d'UNE conversation ne doit effacer ni son son
-    // « t'attend », ni celui qu'une autre fenêtre vient de poser sur une autre.
+    // Same rule, same reason as the assignments, and once per event: setting
+    // the "done" sound of ONE conversation must not erase either its
+    // "waiting" sound, or the one another window has just set on a
+    // different one.
     sessionSounds: {
       waiting: mergeAssignments(latest.sessionSounds.waiting, before.sessionSounds.waiting, after.sessionSounds.waiting),
       done: mergeAssignments(latest.sessionSounds.done, before.sessionSounds.done, after.sessionSounds.done),
@@ -58,7 +59,7 @@ function toState(raw: string | undefined): GroupsState {
   return raw === undefined ? emptyGroups() : parseGroups(raw);
 }
 
-/** L'ordre n'en fait pas partie : il est recalculé à la fin de la fusion. */
+/** Order is not part of it: it gets recalculated at the end of the merge. */
 function sameAttributes(a: Group, b: Group): boolean {
   return (
     a.name === b.name &&
@@ -73,10 +74,10 @@ function sameAttributes(a: Group, b: Group): boolean {
 }
 
 /**
- * Pose sur le dossier le plus frais les attributs de notre édition. Une couleur
- * retirée retire la clé plutôt que d'écrire `undefined` — même règle que
- * `setGroupColor` (model.ts), pour qu'un aller-retour par le fichier ne laisse
- * pas de clé morte derrière lui.
+ * Applies our edit's attributes onto the freshest folder. A removed color
+ * removes the key rather than writing `undefined` — same rule as
+ * `setGroupColor` (model.ts), so that a round trip through the file does not
+ * leave a dead key behind.
  */
 function applyEdit(target: Group, edit: Group): Group {
   const { color: _color, soundWaiting: _waiting, soundDone: _done, ...rest } = target;
@@ -90,12 +91,12 @@ function applyEdit(target: Group, edit: Group): Group {
 function mergeGroups(latest: readonly Group[], before: readonly Group[], after: readonly Group[]): Group[] {
   const added = after.filter((g) => !before.some((b) => b.id === g.id));
   const removed = new Set(before.filter((b) => !after.some((a) => a.id === b.id)).map((b) => b.id));
-  // Les dossiers conservés viennent de `latest` — l'état le plus frais, qui peut
-  // contenir le travail d'une autre fenêtre — et ne reçoivent de NOTRE édition
-  // que les attributs qu'elle a réellement changés. Ne propager que le nom, comme
-  // le faisait ce code, perdait en silence tout autre attribut : une couleur
-  // posée disparaissait à l'écriture. `sameAttributes` est donc la liste, à tenir
-  // à jour, de ce qu'un dossier porte et qu'une fenêtre peut modifier.
+  // The kept folders come from `latest` — the freshest state, which may hold
+  // another window's work — and receive from OUR edit only the attributes it
+  // actually changed. Propagating only the name, as this code used to do,
+  // silently lost every other attribute: a color that had been set would
+  // vanish on write. `sameAttributes` is therefore the list — to be kept up
+  // to date — of what a folder carries and a window can modify.
   const edited = new Map(
     after.filter((a) => before.some((b) => b.id === a.id && !sameAttributes(b, a))).map((a) => [a.id, a] as const),
   );
@@ -133,14 +134,14 @@ function sequence(merged: readonly Group[], before: readonly Group[], after: rea
 }
 
 /**
- * Fusionne les ordres dossier par dossier, jamais en bloc : ranger dans SON
- * dossier ne doit pas effacer l'ordre qu'une autre fenêtre vient de poser dans
- * un AUTRE. Prendre `after.sessionOrder` tel quel, comme le faisait la première
- * version, écrasait tout le reste — le même défaut que la couleur perdue par
- * mergeGroups, à un champ près.
+ * Merges orders folder by folder, never in bulk: filing into ONE'S OWN
+ * folder must not erase the order another window has just set in a
+ * DIFFERENT one. Taking `after.sessionOrder` as is, as the first version
+ * did, overwrote everything else — the same defect as the color lost by
+ * mergeGroups, one field over.
  *
- * Un ordre qu'on n'a pas touché revient de `latest` (l'état le plus frais) ;
- * celui qu'on a changé est le nôtre ; celui qu'on a vidé disparaît.
+ * An order we did not touch comes back from `latest` (the freshest state);
+ * the one we changed is ours; the one we emptied disappears.
  */
 function mergeSessionOrder(
   latest: Readonly<Record<string, readonly string[]>>,

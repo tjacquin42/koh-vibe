@@ -8,12 +8,13 @@ const BRIDGE = join(process.cwd(), 'bin/koh-vibe-bridge');
 let home: string;
 
 /**
- * `spawnSync` plutôt qu'`execFileSync` : quand le spool n'existe pas, le pont
- * sort AVANT d'avoir lu son entrée (c'est le comportement voulu), et le parent
- * reçoit alors EPIPE en écrivant dans un tuyau déjà fermé. `execFileSync` en
- * faisait une exception — un test rouge par intermittence, pour un pont qui se
- * comportait exactement comme il doit. Ici l'EPIPE est ce qu'il est : une course
- * du côté de l'appelant, sans rapport avec le code de retour qu'on vérifie.
+ * `spawnSync` rather than `execFileSync`: when the spool does not exist, the
+ * bridge exits BEFORE reading its input (that is the intended behavior),
+ * and the parent then gets EPIPE writing into an already-closed pipe.
+ * `execFileSync` turned that into an exception — an intermittently red
+ * test, for a bridge that behaved exactly as it should. Here the EPIPE is
+ * what it is: a race on the caller's side, unrelated to the exit code being
+ * checked.
  */
 function run(event: string, stdin: string, env: Record<string, string> = {}): number {
   const res = spawnSync(BRIDGE, [event], {
@@ -22,7 +23,7 @@ function run(event: string, stdin: string, env: Record<string, string> = {}): nu
     encoding: 'utf8',
   });
   if (res.error !== undefined && (res.error as NodeJS.ErrnoException).code !== 'EPIPE') throw res.error;
-  expect(res.stdout).toBe(''); // rien sur stdout, jamais
+  expect(res.stdout).toBe(''); // nothing on stdout, ever
   return res.status ?? 0;
 }
 
@@ -35,7 +36,7 @@ afterEach(() => {
 });
 
 describe('koh-vibe-bridge', () => {
-  it('dépose un fichier par événement, payload intact', () => {
+  it('drops one file per event, payload intact', () => {
     mkdirSync(join(home, 'events'), { recursive: true });
     run('PreToolUse', '{"session_id":"abc","cwd":"/tmp/p","tool_name":"Bash"}', {
       CLAUDE_CODE_ENTRYPOINT: 'cli',
@@ -52,11 +53,11 @@ describe('koh-vibe-bridge', () => {
     });
   });
 
-  it('zero-padde le pid dans le nom de fichier, pour que le tri lexicographique ne dépende pas de sa largeur', () => {
-    // Deux événements de la même milliseconde ne sont distingués que par le
-    // tri du nom de fichier une fois le champ horodatage égal ; un pid non
-    // zero-paddé trie "9" après "10" alors que 9 < 10. Un pid de largeur fixe
-    // ferme cette ambiguïté, quelle que soit la valeur réelle du pid.
+  it('zero-pads the pid in the file name, so lexicographic sort does not depend on its width', () => {
+    // Two events from the same millisecond are only distinguished by the
+    // file name's sort once the timestamp field is equal; a non-zero-padded
+    // pid sorts "9" after "10" even though 9 < 10. A fixed-width pid closes
+    // that ambiguity, whatever the pid's actual value.
     mkdirSync(join(home, 'events'), { recursive: true });
     run('Stop', '{"session_id":"abc","cwd":"/tmp/p"}');
     const files = readdirSync(join(home, 'events')).filter((f) => f.endsWith('.json'));
@@ -66,17 +67,17 @@ describe('koh-vibe-bridge', () => {
     expect(match?.[1]).toHaveLength(10);
   });
 
-  it('ne laisse aucun fichier temporaire', () => {
+  it('leaves no temporary file behind', () => {
     mkdirSync(join(home, 'events'), { recursive: true });
     run('Stop', '{"session_id":"abc","cwd":"/tmp/p"}');
     expect(readdirSync(join(home, 'events')).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
   });
 
-  it('sort en 0 quand le spool n existe pas', () => {
+  it('exits with 0 when the spool does not exist', () => {
     expect(run('Stop', '{"session_id":"abc","cwd":"/tmp/p"}')).toBe(0);
   });
 
-  it('sort en 0 quand le spool est en lecture seule', () => {
+  it('exits with 0 when the spool is read-only', () => {
     const events = join(home, 'events');
     mkdirSync(events, { recursive: true });
     chmodSync(events, 0o500);
@@ -84,9 +85,9 @@ describe('koh-vibe-bridge', () => {
     chmodSync(events, 0o700);
   });
 
-  it("ne perturbe jamais la session Claude Code qui l'appelle : rien sur stderr même quand le spool n'est pas inscriptible (M1)", () => {
-    // execFileSync ne donne accès à stderr qu'en cas d'échec : spawnSync le
-    // capture toujours, sans dépendre du code de retour.
+  it("never disturbs the Claude Code session calling it: nothing on stderr even when the spool is not writable (M1)", () => {
+    // execFileSync only gives access to stderr on failure: spawnSync
+    // captures it always, regardless of the exit code.
     const events = join(home, 'events');
     mkdirSync(events, { recursive: true });
     chmodSync(events, 0o500);

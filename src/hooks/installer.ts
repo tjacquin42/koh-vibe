@@ -1,22 +1,22 @@
 import { HOOK_EVENTS } from '../events/types';
 import { isRecord } from '../lib/json';
 
-/** Marqueur qui rend nos entrées reconnaissables : le nom de fichier de notre bridge. */
+/** Marker that makes our entries recognizable: our bridge's file name. */
 export const KOH_MARKER = 'koh-vibe-bridge';
 
 /**
- * L'ancien nom, avant que l'extension ne devienne Koh-Vibe.
+ * The old name, before the extension became Koh-Vibe.
  *
- * Il DOIT rester reconnu : les entrées posées par une version précédente vivent
- * encore dans le settings.json de ceux qui l'avaient installée. Ne plus les voir
- * ne les effacerait pas — elles deviendraient des orphelines qu'aucune
- * désinstallation ne retire, et une réinstallation poserait un second jeu de
- * hooks à côté. Chaque événement partirait alors en double dans le spool.
+ * It MUST stay recognized: entries dropped by a previous version still
+ * live in the settings.json of those who had it installed. No longer
+ * seeing them would not erase them — they would become orphans that no
+ * uninstall removes, and a reinstall would drop a second set of hooks
+ * alongside them. Every event would then leave twice into the spool.
  *
- * Reconnu à la désinstallation et au nettoyage, jamais écrit : une installation
- * neuve ne pose que le nom courant.
+ * Recognized on uninstall and on cleanup, never written: a fresh install
+ * only drops the current name.
  */
-export const KOH_LEGACY_MARKER = 'koh-claude-bridge';
+const KOH_LEGACY_MARKER = 'koh-claude-bridge';
 
 function isMarker(path: string, marker: string): boolean {
   return path === marker || path.endsWith(`/${marker}`);
@@ -32,31 +32,35 @@ interface HookMatcher {
   hooks: HookCommand[];
 }
 
-/** Une entrée de matcher reconnue : un objet dont `hooks` est un tableau. */
+/** A recognized matcher entry: an object whose `hooks` is an array. */
 function isMatcher(v: unknown): v is HookMatcher {
   return isRecord(v) && Array.isArray(v['hooks']);
 }
 
-// La forme exacte, et strictement celle-là, que `installHooks` écrit pour un
-// `bridgePath` et un `event` donnés — voir la construction de `command` plus bas.
-// Capturer le chemin une fois et le retrouver par rétro-référence (`\1`) garantit
-// que les deux occurrences sont identiques, comme dans le gabarit d'origine.
+// The exact shape, and strictly that one, that `installHooks` writes for a
+// given `bridgePath` and `event` — see the construction of `command` below.
+// Capturing the path once and finding it again through a backreference
+// (`\1`) guarantees that both occurrences are identical, as in the
+// original template.
 const OUR_COMMAND_RE = new RegExp(
   `^/bin/sh -c '\\[ -x "([^"]+)" \\] && "\\1" (?:${HOOK_EVENTS.join('|')}); exit 0'$`,
 );
 
 /**
- * Une commande est à nous seulement si elle correspond, au caractère près, au gabarit
- * que nous écrivons nous-mêmes — jamais si elle le contient ou le mentionne en passant.
- * Un test de sous-chaîne classerait comme nôtre une commande étrangère qui enrobe notre
- * bridge (`sh -c 'autre-chose && ~/.koh-vibe/bin/koh-vibe-bridge'`) : elle serait
- * alors supprimée par `installHooks`/`uninstallHooks`, et invisible pour
- * `foreignFingerprint` puisqu'il partage ce même prédicat — les deux garde-fous
- * tomberaient ensemble. La reconnaissance exacte du gabarit referme les deux à la fois.
+ * A command is ours only if it matches, character for character, the
+ * template we write ourselves — never if it merely contains it or
+ * mentions it in passing. A substring test would classify as ours a
+ * foreign command that wraps our bridge (`sh -c 'something-else &&
+ * ~/.koh-vibe/bin/koh-vibe-bridge'`): it would then get removed by
+ * `installHooks`/`uninstallHooks`, and be invisible to
+ * `foreignFingerprint` since it shares this same predicate — both
+ * safeguards would fall together. Recognizing the exact template closes
+ * both at once.
  *
- * `uninstallHooks` ne reçoit pas de `bridgePath` : reconnaître le gabarit structurel
- * (plutôt que comparer à une chaîne construite avec un `bridgePath` qu'on n'a pas) est
- * ce qui permet à cette fonction de fonctionner sans cet argument.
+ * `uninstallHooks` does not receive a `bridgePath`: recognizing the
+ * structural template (rather than comparing against a string built with
+ * a `bridgePath` we don't have) is what lets this function work without
+ * that argument.
  */
 function isOurs(h: unknown): boolean {
   if (!isRecord(h) || typeof h['command'] !== 'string') return false;
@@ -68,10 +72,10 @@ function isOurs(h: unknown): boolean {
 }
 
 /**
- * Retire nos commandes d'une entrée de matcher reconnue. Toute valeur qui n'est pas
- * une entrée de matcher reconnue (forme inattendue : `hooks` absent, pas un tableau,
- * entrée qui n'est même pas un objet…) n'est pas à nous — elle traverse intacte, à sa
- * place, plutôt que de disparaître silencieusement.
+ * Removes our commands from a recognized matcher entry. Any value that is
+ * not a recognized matcher entry (unexpected shape: `hooks` missing, not
+ * an array, an entry that is not even an object…) is not ours — it passes
+ * through intact, in its place, rather than silently disappearing.
  */
 function stripOurs(item: unknown): unknown[] {
   if (!isMatcher(item)) return [item];
@@ -80,14 +84,14 @@ function stripOurs(item: unknown): unknown[] {
 }
 
 /**
- * Ajoute nos entrées sans toucher aux autres. Notre commande n'a jamais de
- * `timeout` : un hook `PermissionRequest` bloquant déciderait à la place de
- * l'utilisateur et entrerait en concurrence avec celui de Vibe Island.
+ * Adds our entries without touching the others. Our command never has a
+ * `timeout`: a blocking `PermissionRequest` hook would decide in the
+ * user's place and would compete with Vibe Island's own.
  *
- * Si la valeur existante d'un événement n'est pas un tableau (forme que nous ne
- * reconnaissons pas), on ne la remplace pas : impossible d'y ajouter notre entrée
- * sans écraser une donnée qui n'est pas à nous, donc on la laisse telle quelle et on
- * n'installe rien pour cet événement précis.
+ * If an event's existing value is not an array (a shape we do not
+ * recognize), we do not replace it: there is no way to add our entry to
+ * it without overwriting data that is not ours, so we leave it as is and
+ * install nothing for that specific event.
  */
 export function installHooks(settings: unknown, bridgePath: string): unknown {
   const root = isRecord(settings) ? { ...settings } : {};
@@ -108,10 +112,11 @@ export function installHooks(settings: unknown, bridgePath: string): unknown {
 }
 
 /**
- * Retire nos entrées sans toucher aux autres. Un événement dont la valeur n'est pas
- * un tableau (forme que nous ne reconnaissons pas) est repris tel quel. Un événement
- * qui, une fois nos entrées retirées, ne contient plus rien du tout — ni à nous ni à
- * personne d'autre — est omis pour ne pas laisser traîner un tableau vide.
+ * Removes our entries without touching the others. An event whose value
+ * is not an array (a shape we do not recognize) is carried over as is. An
+ * event that, once our entries are removed, no longer contains anything
+ * at all — neither ours nor anyone else's — is omitted so as not to leave
+ * a stray empty array behind.
  */
 export function uninstallHooks(settings: unknown): unknown {
   const root = isRecord(settings) ? { ...settings } : {};
@@ -127,8 +132,8 @@ export function uninstallHooks(settings: unknown): unknown {
     if (kept.length > 0) hooks[event] = kept;
   }
 
-  // Rien à nous ni à personne d'autre : ne pas laisser une clé `hooks: {}`
-  // résiduelle dans un fichier qui n'est pas le nôtre.
+  // Nothing ours or anyone else's: do not leave a residual `hooks: {}`
+  // key in a file that is not ours.
   if (Object.keys(hooks).length > 0) {
     root['hooks'] = hooks;
   } else {
@@ -150,40 +155,45 @@ export function countKohEntries(settings: unknown): number {
 }
 
 /**
- * Empreinte de tout ce qui, dans l'arbre `hooks`, n'est pas à nous — y compris les
- * formes que nous ne savons pas classer, sérialisées telles quelles. Sert de garde-fou
- * côté script d'installation : si cette empreinte change après une transformation,
- * quelque chose qui n'est pas à nous a disparu, changé de place ou a été remplacé par
- * autre chose. Un compte ne peut pas prouver une conservation — deux arbres où une
- * commande étrangère a simplement changé d'événement, ou a été perdue en même temps
- * qu'une autre apparaissait, peuvent partager le même compte ; l'empreinte, elle,
- * diffère forcément puisque chaque élément est qualifié par sa position.
+ * A fingerprint of everything in the `hooks` tree that is not ours —
+ * including shapes we do not know how to classify, serialized as is.
+ * Serves as a safeguard on the installer script's side: if this
+ * fingerprint changes after a transformation, something that is not ours
+ * has disappeared, moved, or been replaced by something else. A count
+ * cannot prove conservation — two trees where a foreign command simply
+ * changed event, or was lost at the same time another one appeared, can
+ * share the same count; the fingerprint, on the other hand, necessarily
+ * differs since each element is qualified by its position.
  *
- * Chaque élément est identifié par son ascendance en noms — `hooks` → nom de
- * l'événement → valeur du champ `matcher` de l'objet qui le contient quand il en a un
- * — jamais par un indice de tableau : un indice se déplace légitimement quand on
- * insère notre propre entrée, un nom d'événement ou un motif de matcher non.
+ * Each element is identified by its ancestry in names — `hooks` → event
+ * name → the value of the `matcher` field of the object that holds it,
+ * when it has one — never by an array index: an index legitimately moves
+ * when we insert our own entry, an event name or a matcher pattern does
+ * not.
  *
- * L'ascendance est encodée comme une **suite de segments**, sérialisée en un seul
- * `JSON.stringify` avec la valeur en dernier élément — jamais par concaténation avec
- * un séparateur. Une concaténation `"hooks." + event + "." + matcher` confond
- * `event = "PreToolUse.Bash"` avec `event = "PreToolUse", matcher = "Bash.foo"` dès que
- * l'un des deux contient le séparateur ; deux segments de tableau distincts se
- * sérialisent toujours différemment, quel que soit leur contenu.
+ * The ancestry is encoded as a **sequence of segments**, serialized in a
+ * single `JSON.stringify` with the value as the last element — never by
+ * concatenation with a separator. A concatenation `"hooks." + event + "."
+ * + matcher` confuses `event = "PreToolUse.Bash"` with `event =
+ * "PreToolUse", matcher = "Bash.foo"` as soon as either one contains the
+ * separator; two distinct array segments always serialize differently, no
+ * matter their content.
  *
- * Parcours volontairement indépendant de `stripOurs`/`isMatcher` : si l'empreinte lisait
- * la structure de la même façon que la transformation qu'elle surveille, une forme que
- * cette lecture ne sait pas voir serait absente des deux côtés et le garde-fou
- * laisserait passer exactement le genre de perte qu'il doit attraper.
+ * Deliberately walked independently of `stripOurs`/`isMatcher`: if the
+ * fingerprint read the structure the same way as the transformation it is
+ * watching over, a shape that this reading cannot see would be missing
+ * from both sides and the safeguard would let through exactly the kind of
+ * loss it is meant to catch.
  *
- * Résidus assumés, documentés plutôt que cachés :
- * - Deux commandes étrangères qui échangent seulement leur ordre à l'intérieur du même
- *   matcher (donc sous la même clé d'ascendance) restent indiscernables, l'empreinte
- *   étant triée pour ignorer l'ordre d'énumération des clés d'objet.
- * - Deux blocs matcher qui partagent le même motif au sein du même événement partagent
- *   aussi la même clé d'ascendance : les commandes restent toutes présentes et
- *   qualifiées par la condition de déclenchement qu'elles partagent, mais on ne peut
- *   pas dire duquel des deux blocs chacune vient précisément.
+ * Accepted residues, documented rather than hidden:
+ * - Two foreign commands that only swap their order inside the same
+ *   matcher (so under the same ancestry key) remain indistinguishable,
+ *   the fingerprint being sorted to ignore the enumeration order of
+ *   object keys.
+ * - Two matcher blocks that share the same pattern within the same event
+ *   also share the same ancestry key: the commands all remain present
+ *   and qualified by the trigger condition they share, but one cannot
+ *   tell precisely which of the two blocks each one comes from.
  */
 export function foreignFingerprint(settings: unknown): string[] {
   if (!isRecord(settings) || !isRecord(settings['hooks'])) return [];
@@ -224,13 +234,13 @@ export function foreignFingerprint(settings: unknown): string[] {
   return out.sort();
 }
 
-/** Marqueur qui rend notre entrée de statusline reconnaissable, comme KOH_MARKER pour les hooks. */
-export const KOH_STATUSLINE_MARKER = 'koh-vibe-statusline';
+/** Marker that makes our statusline entry recognizable, like KOH_MARKER for hooks. */
+const KOH_STATUSLINE_MARKER = 'koh-vibe-statusline';
 
-// Le gabarit exact que nous écrivons, et lui seul. Le chemin du pont est capturé
-// une fois et retrouvé par rétro-référence : les deux occurrences ne peuvent pas
-// diverger. Le second groupe est la commande précédente, encodée en base64 —
-// vide si la place était libre.
+// The exact template we write, and only that one. The bridge's path is
+// captured once and found again through a backreference: the two
+// occurrences cannot diverge. The second group is the previous command,
+// base64-encoded — empty if the spot was free.
 const OUR_STATUSLINE_RE = new RegExp(
   `^/bin/sh -c '\\[ -x "([^"]+)" \\] && exec "\\1" "([A-Za-z0-9+/=]*)"; exec /bin/sh -c "\\$\\(printf %s "\\2" \\| /usr/bin/base64 -d\\)"'$`,
 );
@@ -244,12 +254,12 @@ function statusLineCommandOf(settings: unknown): string | undefined {
 }
 
 /**
- * Ce que notre entrée de statusline enveloppe : la commande qui occupait la
- * place avant nous, ou `undefined` si l'entrée n'est pas la nôtre.
+ * What our statusline entry wraps: the command that occupied the spot
+ * before us, or `undefined` if the entry is not ours.
  *
- * Reconnaissance par gabarit exact, jamais par sous-chaîne — même raison que
- * `isOurs` : une commande étrangère qui MENTIONNERAIT notre pont serait sinon
- * classée comme nôtre, puis supprimée à la désinstallation.
+ * Recognition by exact template, never by substring — same reason as
+ * `isOurs`: a foreign command that MENTIONED our bridge would otherwise
+ * be classified as ours, then removed on uninstall.
  */
 export function wrappedStatusLine(settings: unknown): string | undefined {
   const command = statusLineCommandOf(settings);
@@ -265,22 +275,22 @@ export function wrappedStatusLine(settings: unknown): string | undefined {
 }
 
 /**
- * Installe notre pont de statusline en DÉLÉGUANT à ce qui s'y trouvait.
+ * Installs our statusline bridge by DELEGATING to whatever was there.
  *
- * Claude Code n'offre qu'un seul emplacement de statusline. Le prendre sans
- * rendre la main couperait l'outil qui l'occupait — Vibe Island y lit ses
- * limites d'usage, et c'est de là que vient la donnée qu'on affiche. La commande
- * précédente est donc encodée en base64 et passée en argument : l'encodage évite
- * tout niveau de citation supplémentaire dans une chaîne qui traverse déjà JSON
- * puis deux shells.
+ * Claude Code offers only one statusline slot. Taking it without handing
+ * back control would cut off the tool that occupied it — Vibe Island reads
+ * its usage limits there, and that is where the data we display comes
+ * from. The previous command is therefore base64-encoded and passed as an
+ * argument: the encoding avoids any extra level of quoting in a string
+ * that already crosses JSON and then two shells.
  *
- * La seconde moitié de la commande est un repli : si notre pont a disparu (paquet
- * désinstallé, dossier d'état effacé), la commande précédente s'exécute quand
- * même. Perdre notre mesure est acceptable ; casser en silence la statusline de
- * quelqu'un d'autre ne l'est pas.
+ * The second half of the command is a fallback: if our bridge has
+ * disappeared (package uninstalled, state folder erased), the previous
+ * command still runs. Losing our measurement is acceptable; silently
+ * breaking someone else's statusline is not.
  *
- * Réinstaller par-dessus notre propre entrée ne l'imbrique pas : la commande
- * enveloppée est celle qu'on enveloppait déjà.
+ * Reinstalling over our own entry does not nest it: the wrapped command
+ * is the one we were already wrapping.
  */
 export function installStatusLine(settings: unknown, bridgePath: string): unknown {
   const root = isRecord(settings) ? { ...settings } : {};
@@ -295,9 +305,9 @@ export function installStatusLine(settings: unknown, bridgePath: string): unknow
 }
 
 /**
- * Rend la place à qui l'occupait. Une entrée qui n'est pas la nôtre n'est pas
- * touchée. Si nous n'enveloppions rien, la clé disparaît entièrement plutôt que
- * de laisser une statusline vide derrière nous.
+ * Gives the spot back to whoever occupied it. An entry that is not ours
+ * is not touched. If we were not wrapping anything, the key disappears
+ * entirely rather than leaving an empty statusline behind us.
  */
 export function uninstallStatusLine(settings: unknown): unknown {
   const root = isRecord(settings) ? { ...settings } : {};

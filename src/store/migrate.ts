@@ -1,20 +1,20 @@
 import { rename, stat } from 'node:fs/promises';
 
 /**
- * Reprend l'état laissé par l'ancien nom de l'extension.
+ * Picks up the state left behind by the extension's former name.
  *
- * Un renommage de dossier, pas une copie : l'état est un tout — sessions,
- * classement, ordre choisi, sauvegardes — et une copie partielle interrompue
- * laisserait deux emplacements se contredire, sans qu'aucun ne fasse foi.
+ * A folder rename, not a copy: the state is a whole — sessions, filing,
+ * chosen order, backups — and a partial copy interrupted midway would leave
+ * two locations contradicting each other, with neither one authoritative.
  *
- * Trois conditions, et il faut les trois :
- * 1. la nouvelle racine n'existe pas encore — si elle existe, elle fait foi et
- *    l'ancienne n'est plus qu'un résidu ; l'écraser effacerait du travail récent ;
- * 2. l'ancienne existe ;
- * 3. le renommage réussit — sinon on continue sans état, ce qui est le
- *    comportement d'une installation neuve, jamais une erreur affichée.
+ * Three conditions, and all three are needed:
+ * 1. the new root does not exist yet — if it does, it is authoritative and
+ *    the old one is just a leftover; overwriting it would erase recent work;
+ * 2. the old one exists;
+ * 3. the rename succeeds — otherwise we carry on with no state, which is
+ *    the behaviour of a fresh install, never an error shown to the user.
  *
- * Retourne ce qui s'est passé, pour que l'appelant puisse le dire une fois.
+ * Returns what happened, so the caller can report it once.
  */
 export async function migrateLegacyHome(legacy: string, home: string): Promise<'migrated' | 'nothing'> {
   if (legacy === home) return 'nothing';
@@ -22,8 +22,8 @@ export async function migrateLegacyHome(legacy: string, home: string): Promise<'
     await stat(home);
     return 'nothing';
   } catch {
-    // La nouvelle racine n'existe pas : c'est le seul cas où reprendre l'ancienne
-    // a un sens.
+    // The new root does not exist: this is the only case where picking up
+    // the old one makes sense.
   }
   try {
     await stat(legacy);
@@ -34,8 +34,8 @@ export async function migrateLegacyHome(legacy: string, home: string): Promise<'
     await rename(legacy, home);
     return 'migrated';
   } catch {
-    // Volumes différents, permissions, course avec une autre fenêtre : on
-    // repart d'un état vide plutôt que de bloquer l'activation.
+    // Different volumes, permissions, a race with another window: we start
+    // over with an empty state rather than block activation.
     return 'nothing';
   }
 }

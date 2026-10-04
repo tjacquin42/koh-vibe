@@ -2,16 +2,16 @@ import * as vscode from 'vscode';
 import type { ChimeEvent } from '../sound/model';
 import { isRecord } from '../lib/json';
 
-/** Les deux événements qui sonnent, dans l'ordre où ils s'affichent. */
+/** The two events that chime, in the order they are displayed. */
 export const CHIME_EVENTS: readonly ChimeEvent[] = ['waiting', 'done'];
 
 /**
- * Le champ de dossier qui porte le son d'un événement.
+ * The folder field that carries an event's sound.
  *
- * Deux champs plats plutôt qu'un objet imbriqué : la fusion à trois voies de
- * `store.ts` compare les attributs d'un dossier un à un, et un objet l'aurait
- * obligée à comparer en profondeur — le genre de détail qu'on oublie, et qui
- * fait disparaître un réglage en silence.
+ * Two flat fields rather than one nested object: `store.ts`'s three-way
+ * merge compares a folder's attributes one by one, and an object would
+ * have forced it to compare them in depth — the kind of detail that gets
+ * forgotten, and makes a setting silently disappear.
  */
 const GROUP_SOUND: Readonly<Record<ChimeEvent, 'soundWaiting' | 'soundDone'>> = {
   waiting: 'soundWaiting',
@@ -23,29 +23,30 @@ export interface Group {
   name: string;
   order: number;
   /**
-   * Identifiant de couleur, neutre et stable (« blue », « green »…), jamais un
-   * libellé traduit ni une valeur de thème : le fichier est partagé entre
-   * éditeurs et doit survivre à un changement de palette comme à un changement
-   * de langue. La correspondance vers une couleur réelle vit dans ui/colors.ts,
-   * et une valeur inconnue s'y affiche sans couleur au lieu de casser la vue.
+   * A color identifier, neutral and stable (« blue », « green »…), never a
+   * translated label nor a theme value: the file is shared between
+   * editors and has to survive a palette change as well as a language
+   * change. The mapping to an actual color lives in ui/colors.ts, and an
+   * unknown value shows up there without a color instead of breaking the
+   * view.
    */
   color?: string;
   /**
-   * Les sons de ce dossier, un par événement. Ils l'emportent sur le réglage
-   * global et cèdent devant ceux d'une conversation — voir `soundFor`.
+   * This folder's sounds, one per event. They win over the global setting
+   * and yield to a conversation's own — see `soundFor`.
    *
-   * Un son par événement, et non un pour le dossier : « le son de ce dossier »
-   * ne disait pas ce qu'il réglait, et l'utilisateur ne pouvait pas le
-   * découvrir sans attendre une vraie bascule.
+   * One sound per event, rather than a single one for the folder:
+   * « Folder sound » did not say what it was setting, and the user could
+   * not discover it without waiting for an actual trigger.
    */
   soundWaiting?: string;
   soundDone?: string;
 }
 
-/** Les sons propres aux conversations, rangés par événement. */
+/** The sounds specific to conversations, arranged by event. */
 export type SessionSounds = Readonly<Record<ChimeEvent, Readonly<Record<string, string>>>>;
 
-export function emptySessionSounds(): SessionSounds {
+function emptySessionSounds(): SessionSounds {
   return { waiting: {}, done: {} };
 }
 
@@ -53,32 +54,32 @@ export interface GroupsState {
   groups: readonly Group[];
   assignments: Readonly<Record<string, string>>;
   /**
-   * L'ordre choisi à la main, dossier par dossier. Une clé absente veut dire
-   * « aucun ordre choisi » : le dossier retombe alors sur le tri du tableau de
-   * bord (statut puis fraîcheur). Dès qu'un ordre existe, il fait loi, et les
-   * sessions qu'il ne nomme pas viennent après.
+   * The order chosen by hand, folder by folder. A missing key means
+   * « no order chosen »: the folder then falls back to the dashboard's
+   * sort (status, then freshness). As soon as an order exists, it rules,
+   * and the sessions it does not name come after.
    *
-   * La clé `UNFILED` (chaîne vide) désigne « Sans dossier » : `parseGroups`
-   * refuse tout identifiant vide, donc aucun vrai dossier ne peut la revendiquer.
+   * The `UNFILED` key (empty string) designates « Unfiled »: `parseGroups`
+   * refuses any empty identifier, so no real folder can claim it.
    */
   sessionOrder: Readonly<Record<string, readonly string[]>>;
-  /** Le son propre à une conversation. Le plus prioritaire des trois niveaux. */
+  /** The sound specific to a conversation. The highest priority of the three levels. */
   sessionSounds: SessionSounds;
-  /** Champs du fichier que nous ne connaissons pas : préservés tels quels à l'écriture. */
+  /** Fields of the file we do not know: preserved as is on write. */
   unknown: Readonly<Record<string, unknown>>;
 }
 
 const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds']);
 
-/** La clé d'ordre de « Sans dossier ». */
-export const UNFILED = '';
+/** The order key for « Unfiled ». */
+const UNFILED = '';
 
 export function emptyGroups(): GroupsState {
   return { groups: [], assignments: {}, sessionOrder: {}, sessionSounds: emptySessionSounds(), unknown: {} };
 }
 
-/** `undefined` (« Sans dossier ») et la chaîne vide désignent le même seau. */
-export function orderKey(groupId: string | undefined): string {
+/** `undefined` (« Unfiled ») and the empty string designate the same bucket. */
+function orderKey(groupId: string | undefined): string {
   return groupId ?? UNFILED;
 }
 
@@ -88,7 +89,7 @@ function name(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined;
 }
 
-/** Une donnée illisible vaut « aucun classement » : la vue doit s'afficher quoi qu'il arrive. */
+/** Unreadable data means « no sorting »: the view must render no matter what. */
 export function parseGroups(raw: string): GroupsState {
   let root: unknown;
   try {
@@ -131,13 +132,14 @@ export function parseGroups(raw: string): GroupsState {
     }
   }
 
-  // Un ordre est une liste d'identifiants de sessions, rien d'autre : une entrée
-  // mal formée est ignorée plutôt que de faire tomber toute la lecture. Les
-  // identifiants qui ne correspondent à rien ne sont PAS filtrés ici — une
-  // session peut être momentanément absente (fenêtre qui n'a pas encore lu le
-  // spool, éditeur en train de la reprendre) et retrouver sa place ensuite.
-  // Rien ne balaie jamais ces entrées : une conversation rouverte des mois
-  // plus tard revient dans son dossier, et une entrée pèse quelques octets.
+  // An order is a list of session identifiers, nothing else: a malformed
+  // entry is ignored rather than bringing down the whole read. Identifiers
+  // that match nothing are NOT filtered out here — a session can be
+  // momentarily absent (a window that has not yet read the spool, an
+  // editor in the process of resuming it) and find its place again later.
+  // Nothing ever sweeps these entries away: a conversation reopened
+  // months later comes back to its folder, and an entry weighs a few
+  // bytes.
   const sessionOrder: Record<string, readonly string[]> = {};
   const rawOrder = root['sessionOrder'];
   if (isRecord(rawOrder)) {
@@ -148,10 +150,10 @@ export function parseGroups(raw: string): GroupsState {
     }
   }
 
-  // Rangés par événement, et non à plat : une forme plate (celle d'avant les
-  // sons par événement) n'est pas convertie mais ignorée — deviner à quel
-  // événement rattacher un son ferait sonner l'éditeur là où l'utilisateur ne
-  // l'a pas demandé.
+  // Arranged by event, rather than flat: a flat shape (the one from
+  // before sounds were per event) is not converted but ignored — guessing
+  // which event to attach a sound to would make the editor chime where
+  // the user did not ask for it.
   const sessionSounds: Record<ChimeEvent, Record<string, string>> = { waiting: {}, done: {} };
   const rawSounds = root['sessionSounds'];
   if (isRecord(rawSounds)) {
@@ -177,7 +179,7 @@ export function serializeGroups(s: GroupsState): string {
 
 export function createGroup(s: GroupsState, label: string, newId: () => string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+  if (clean === undefined) throw emptyNameError();
   return { ...s, groups: [...s.groups, { id: newId(), name: clean, order: s.groups.length }] };
 }
 
@@ -213,23 +215,26 @@ export function reorderGroups(
   return { ...s, groups: next.map((g, order) => ({ ...g, order })) };
 }
 
+/**
+ * Thrown by both namings. The literal is the key of the translation bundle
+ * and the text a test matches on, so it is written once.
+ */
+function emptyNameError(): Error {
+  return new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+}
+
 export function renameGroup(s: GroupsState, id: string, label: string): GroupsState {
   const clean = name(label);
-  if (clean === undefined) throw new Error(vscode.l10n.t('A folder cannot have an empty name.'));
+  if (clean === undefined) throw emptyNameError();
   return { ...s, groups: s.groups.map((g) => (g.id === id ? { ...g, name: clean } : g)) };
 }
 
 /**
- * `color === undefined` retire la couleur au lieu de l'ignorer : « aucune » est
- * un choix de l'utilisateur, pas une absence de choix. La propriété est alors
- * retirée de l'objet, pour qu'un dossier sans couleur ne laisse pas une clé
- * morte dans le fichier partagé.
- */
-/**
- * Le son qui s'applique à une conversation, dans l'ordre de priorité voulu :
- * celui de la conversation, sinon celui de son dossier, sinon le réglage
- * global. Une chaîne vide à un niveau ne « perce » pas vers le suivant — c'est
- * un choix explicite de silence, pas une absence de choix.
+ * The sound that applies to a conversation, in the intended priority
+ * order: the conversation's own, otherwise its folder's, otherwise the
+ * global setting. An empty string at one level does not "fall through"
+ * to the next — it is an explicit choice of silence, not an absence of
+ * choice.
  */
 export function soundFor(
   s: GroupsState,
@@ -244,7 +249,7 @@ export function soundFor(
   return group?.[GROUP_SOUND[event]] ?? fallback;
 }
 
-/** `undefined` retire le son propre et rend la conversation à son dossier. */
+/** `undefined` removes the conversation's own sound and returns it to its folder. */
 export function setSessionSound(
   s: GroupsState,
   sessionId: string,
@@ -258,7 +263,7 @@ export function setSessionSound(
   };
 }
 
-/** `undefined` retire le son du dossier et le rend au réglage global. */
+/** `undefined` removes the folder's sound and returns it to the global setting. */
 export function setGroupSound(
   s: GroupsState,
   id: string,
@@ -276,6 +281,12 @@ export function setGroupSound(
   };
 }
 
+/**
+ * `color === undefined` removes the color instead of ignoring it: « None »
+ * is a choice made by the user, not an absence of choice. The property is
+ * then removed from the object, so that a colorless folder does not leave
+ * a dead key behind in the shared file.
+ */
 export function setGroupColor(s: GroupsState, id: string, color: string | undefined): GroupsState {
   return {
     ...s,
@@ -293,9 +304,10 @@ export function deleteGroup(s: GroupsState, id: string): GroupsState {
   for (const [sessionId, groupId] of Object.entries(s.assignments)) {
     if (groupId !== id) assignments[sessionId] = groupId;
   }
-  // L'ordre du dossier disparaît avec lui : ses sessions retournent à « Sans
-  // dossier », où elles reprennent le tri par défaut. Le garder ferait
-  // ressurgir un classement fantôme si un dossier réutilisait cet identifiant.
+  // The folder's order disappears with it: its sessions go back to
+  // « Unfiled », where they pick up the default sort again. Keeping it
+  // would make a ghost ordering resurface if a folder ever reused this
+  // identifier.
   const { [id]: _dropped, ...sessionOrder } = s.sessionOrder;
   return { ...s, groups, assignments, sessionOrder };
 }
@@ -321,9 +333,10 @@ export function sessionOrderOf(s: GroupsState, groupId: string | undefined): rea
 }
 
 /**
- * Fige l'ordre d'un dossier. Une liste vide retire l'entrée plutôt que d'écrire
- * un tableau vide : « aucun ordre choisi » et « un ordre vide » doivent rester
- * le même état, sinon le fichier accumulerait des dossiers ordonnés à néant.
+ * Freezes a folder's order. An empty list removes the entry rather than
+ * writing an empty array: « no order chosen » and « an empty order » must
+ * remain the same state, otherwise the file would accumulate folders
+ * ordered into nothing.
  */
 export function setSessionOrder(s: GroupsState, groupId: string | undefined, ids: readonly string[]): GroupsState {
   const key = orderKey(groupId);
@@ -332,18 +345,18 @@ export function setSessionOrder(s: GroupsState, groupId: string | undefined, ids
 }
 
 /**
- * Où atterrissent les sessions déplacées dans une liste.
+ * Where sessions moved within a list land.
  *
- * `before` est la session devant laquelle déposer — celle qu'on survolait — et
- * `undefined` veut dire « à la fin ». Les déplacées sont d'abord retirées : sans
- * ça, descendre une session dans son propre dossier la placerait avant
- * elle-même et rien ne bougerait.
+ * `before` is the session to drop in front of — the one being hovered
+ * over — and `undefined` means « to the end ». The moved ones are removed
+ * first: without that, moving a session down within its own folder would
+ * place it before itself and nothing would move.
  *
- * Le point d'insertion se calcule dans la liste D'ORIGINE, puis se corrige du
- * nombre de déplacées qui la précédaient. Le chercher dans la liste amputée
- * aurait un angle mort : quand on dépose une session sur ELLE-MÊME, elle ne
- * s'y trouve plus, et elle serait renvoyée à la fin — un geste sans intention
- * deviendrait un déplacement.
+ * The insertion point is computed against the ORIGINAL list, then
+ * corrected by the number of moved items that preceded it. Looking it up
+ * in the amputated list would have a blind spot: when a session is
+ * dropped onto ITSELF, it is no longer found there, and it would be sent
+ * to the end — a gesture with no intent would turn into a move.
  */
 export function reorder(
   current: readonly string[],
@@ -354,7 +367,7 @@ export function reorder(
   const rest = current.filter((id) => !movedSet.has(id));
   if (before === undefined) return [...rest, ...moved];
   const target = current.indexOf(before);
-  // Cible inconnue de ce dossier : à la fin, plutôt que de deviner.
+  // Target unknown to this folder: to the end, rather than guessing.
   if (target === -1) return [...rest, ...moved];
   const removedBefore = current.slice(0, target).filter((id) => movedSet.has(id)).length;
   const at = target - removedBefore;

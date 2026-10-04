@@ -1,13 +1,13 @@
 import type { Session, Status } from '../events/types';
 
 /**
- * L'événement qui mérite un son, et son réglage.
+ * The event that deserves a sound, and its setting.
  *
  * Not "every status change": a session goes from `running` to `idle` on its
  * own without anything having happened for the user, and a chime at every
  * such step would become background noise
- * qu'on apprend à ignorer — donc un signal mort. Ne sonnent que les deux
- * transitions qui appellent une action.
+ * that one learns to ignore — hence a dead signal. Only the two
+ * transitions that call for action ring.
  */
 export type ChimeEvent = 'waiting' | 'done';
 
@@ -20,26 +20,27 @@ export function statusesOf(sessions: ReadonlyMap<string, Session>): Map<string, 
   return new Map([...sessions].map(([id, s]) => [id, s.status]));
 }
 
-/** Ce qui a basculé, et laquelle : le son se résout ensuite sur cette session. */
+/** What flipped, and which one: the sound then resolves against this session. */
 export interface Chime {
   event: ChimeEvent;
   sessionId: string;
 }
 
 /**
- * Quelle bascule mérite un son, s'il y en a une.
+ * Which flip deserves a sound, if any.
  *
- * `before === undefined` est le PREMIER rendu : tout y ressemble à une
- * transition, et sonner ferait carillonner l'éditeur à chaque ouverture de
- * fenêtre pour des sessions parfois vieilles de plusieurs heures. Le premier
- * rendu ne fait que poser la référence.
+ * `before === undefined` is the FIRST render: everything in it looks like a
+ * transition, and ringing would make the editor chime on every window open
+ * for sessions sometimes hours old. The first render only sets the
+ * reference.
  *
- * Une session inconnue de `before` mais présente ensuite ne sonne pas non plus :
- * elle vient d'apparaître dans le spool, on ne sait pas d'où elle vient.
+ * A session unknown to `before` but present afterwards does not ring
+ * either: it just appeared in the spool, and we don't know where it came
+ * from.
  *
- * Une seule bascule retenue par tour, même si plusieurs surviennent : deux
- * carillons simultanés ne s'entendent pas mieux qu'un. « T'attend » l'emporte
- * sur « terminé » — c'est celui qui demande quelque chose.
+ * Only one flip is kept per turn, even if several occur: two simultaneous
+ * chimes are not heard any better than one. « Waiting » wins over
+ * « Done » — it's the one that asks for something.
  */
 export function chimeFor(
   before: ReadonlyMap<string, Status> | undefined,

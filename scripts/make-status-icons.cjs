@@ -1,43 +1,43 @@
 #!/usr/bin/env node
 /**
- * Fabrique les pastilles de statut de la barre latérale — un SVG par statut et
- * par famille de thème.
+ * Builds the status dots for the sidebar — one SVG per status and per theme
+ * family.
  *
- * Pourquoi des fichiers plutôt qu'un codicon coloré : voir src/ui/status-icon.ts.
- * En deux mots, VSCode force `color: currentColor !important` sur l'icône d'une
- * ligne SÉLECTIONNÉE, mais seulement quand c'est un codicon. Une image y échappe.
+ * Why files rather than a colored codicon: see src/ui/status-icon.ts. In two
+ * words, VSCode forces `color: currentColor !important` on the icon of a
+ * SELECTED row, but only when it is a codicon. An image escapes that.
  *
- * Pourquoi un générateur plutôt que dix fichiers écrits à la main : la table
- * ci-dessous est la source. Corriger une teinte, ou ajouter un statut, veut dire
- * toucher une ligne — pas relire dix SVG pour vérifier qu'ils ont bien le même
- * cercle. Même principe que scripts/make-icons.cjs.
+ * Why a generator rather than ten hand-written files: the table below is the
+ * source. Fixing a shade, or adding a status, means touching one line — not
+ * rereading ten SVGs to check they all share the same circle. Same principle
+ * as scripts/make-icons.cjs.
  *
- * Usage : node scripts/make-status-icons.cjs
+ * Usage: node scripts/make-status-icons.cjs
  */
 const { mkdirSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 /**
- * Les valeurs par DÉFAUT des couleurs de VSCode que portait chaque statut du
- * temps des `ThemeIcon` — relevées dans son registre plutôt que choisies ici,
- * pour que le passage à l'image ne change pas l'apparence hors sélection.
+ * The DEFAULT VSCode color values that each status carried back in the
+ * `ThemeIcon` days — read from its registry rather than chosen here, so the
+ * switch to an image would not change the look outside selection.
  *
  *   running     charts.blue    → editorInfo.foreground
  *   done_unseen charts.green
- *   idle        descriptionForeground   (le thème sombre l'obtient à 70 % du texte)
- *   stale       disabledForeground      (…et celui-ci à 50 %, d'où l'opacité)
+ *   idle        descriptionForeground   (the dark theme gets it at 70% of the text)
+ *   stale       disabledForeground      (…and this one at 50%, hence the opacity)
  *
- * Une seule exception, assumée : `waiting` était `charts.yellow`, un or foncé
- * (#CCA700) qui se lit mal comme une alerte — or c'est le seul statut qui
- * demande quelque chose à l'utilisateur, et le seul qui ne se résoudra pas tout
- * seul. Il passe donc à l'orange. Surtout pas `charts.orange`, qui vaut
- * `#EA5C0055` : une couleur de FOND de surlignage, à 33 % d'opacité, délavée en
- * pastille pleine. Les deux valeurs ci-dessous sont des oranges opaques, tenus
- * au-dessus de 3:1 sur leur fond respectif — le seuil WCAG d'un élément
- * graphique porteur de sens.
+ * One deliberate exception: `waiting` used to be `charts.yellow`, a dark gold
+ * (#CCA700) that reads poorly as an alert — yet it is the only status that
+ * asks something of the user, and the only one that will not resolve on its
+ * own. So it moves to orange. Definitely not `charts.orange`, which is worth
+ * `#EA5C0055`: a highlight-BACKGROUND color, at 33% opacity, washed out as a
+ * solid dot. The two values below are opaque oranges, kept above 3:1 against
+ * their respective background — the WCAG threshold for a graphical element
+ * that carries meaning.
  *
- * L'opacité est portée par le SVG parce qu'elle fait partie de la couleur :
- * `#CCCCCC80` est un canal alpha dans le registre de VSCode, pas une nuance de gris.
+ * The opacity is carried by the SVG because it is part of the color:
+ * `#CCCCCC80` is an alpha channel in VSCode's registry, not a shade of grey.
  */
 const PALETTE = {
   running: { dark: ['#59A4F9', 1], light: ['#0063D3', 1], glow: 0.56 },
@@ -77,10 +77,10 @@ const PALETTE = {
  */
 const LIGHT_GLOW = 0.75;
 
-// 16 px est la taille à laquelle VSCode affiche l'icône d'une ligne d'arbre
-// (`background-size: 16px`), et 4.5 le rayon qui redonne au disque l'encombrement
-// du codicon `circle-filled` qu'il remplace — une pastille plus grosse décalerait
-// l'œil d'une ligne à l'autre pendant la transition.
+// 16 px is the size at which VSCode shows a tree row's icon
+// (`background-size: 16px`), and 4.5 the radius that gives the disc back the
+// footprint of the `circle-filled` codicon it replaces — a bigger dot would
+// shift the eye from one row to the next during the transition.
 /** The subfolder holding the motionless twin of every icon. */
 const STILL_DIR = 'still';
 const SIZE = 16;
@@ -220,9 +220,9 @@ mkdirSync(stillDir, { recursive: true });
 
 for (const [status, themes] of Object.entries(PALETTE)) {
   for (const [theme, color] of Object.entries(themes).filter(([k]) => k === 'dark' || k === 'light')) {
-    // Le nom doit rester celui que calcule statusIconPath() : le statut avec ses
-    // tirets bas changés en tirets, puis le thème. Un test vérifie que chaque
-    // chemin annoncé existe pour de vrai.
+    // The name must stay the one statusIconPath() computes: the status with
+    // its underscores turned into hyphens, then the theme. A test checks that
+    // every announced path genuinely exists.
     const glow = themes.glow * (theme === 'light' ? LIGHT_GLOW : 1);
     const name = `${status.replace('_', '-')}-${theme}.svg`;
     writeFileSync(join(dir, name), disc(color, glow, RINGS[status], true), 'utf8');

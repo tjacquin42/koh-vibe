@@ -36,42 +36,42 @@ afterEach(() => {
 });
 
 describe('persist', () => {
-  it('écrit puis relit une session', async () => {
+  it('writes then reads back a session', async () => {
     await writeSession(dirs, session('a'));
     const back = await readSessions(dirs);
     expect(back.get('a')).toEqual(session('a'));
   });
 
-  // `dormant` marque une surimpression : l'onglet que CETTE fenêtre a restauré,
-  // recalculé à chaque rendu depuis le mémento de l'éditeur. Écrit sur disque,
-  // il survivrait à la fermeture de l'onglet qu'il décrit, et la conversation
-  // resterait à jamais « un onglet restauré » — impossible à rouvrir. La règle
-  // vit ici, à la seule porte qui mène au disque, plutôt que chez chaque appelant.
-  it("n'écrit jamais le drapeau dormant, qui n'appartient qu'à la fenêtre qui l'a calculé", async () => {
+  // `dormant` marks an overlay: the tab THIS window has restored, recomputed
+  // on every render from the editor's memento. Written to disk, it would
+  // survive the closing of the tab it describes, and the conversation would
+  // stay forever "a restored tab" — impossible to reopen. The rule lives
+  // here, at the one door that leads to disk, rather than in every caller.
+  it("never writes the dormant flag, which belongs only to the window that computed it", async () => {
     await writeSession(dirs, { ...session('s1'), dormant: true, endedAt: 42 });
     const back = await readSession(dirs, 's1');
     expect(back?.dormant).toBeUndefined();
-    // Tout le reste passe intact.
+    // Everything else goes through intact.
     expect(back?.endedAt).toBe(42);
   });
 
-  it("ignore un drapeau dormant déjà présent sur le disque, plutôt que de le propager", async () => {
-    // Un fichier écrit par une version qui ne retirait pas encore le drapeau.
-    // Sans cela, la conversation resterait bloquée jusqu'à une réparation à la
-    // main : l'invariant doit tenir à la lecture aussi, pas seulement à
-    // l'écriture, sinon il ne guérit rien de ce qui existe déjà.
+  it("ignores a dormant flag already present on disk, rather than propagating it", async () => {
+    // A file written by a version that did not yet strip the flag.
+    // Without this, the conversation would stay stuck until a manual repair:
+    // the invariant must hold on read too, not just on write, otherwise it
+    // heals nothing of what already exists.
     await writeFile(join(dirs.sessions, 's5.json'), JSON.stringify({ ...session('s5'), dormant: true, endedAt: 7 }), 'utf8');
     expect((await readSession(dirs, 's5'))?.dormant).toBeUndefined();
     expect((await readSessions(dirs)).get('s5')?.dormant).toBeUndefined();
     expect((await readSession(dirs, 's5'))?.endedAt).toBe(7);
   });
 
-  it("createSession ne l'écrit pas davantage — la porte a deux battants", async () => {
+  it("createSession does not write it any more either — the door has two leaves", async () => {
     await createSession(dirs, { ...session('s2'), dormant: true });
     expect((await readSession(dirs, 's2'))?.dormant).toBeUndefined();
   });
 
-  it("hideSession, qui réécrit une session lue, ne le réintroduit pas non plus", async () => {
+  it("hideSession, which rewrites a session it has read, does not reintroduce it either", async () => {
     await writeSession(dirs, { ...session('s3'), dormant: true });
     await hideSession(dirs, 's3');
     const back = await readSession(dirs, 's3');
@@ -79,36 +79,36 @@ describe('persist', () => {
     expect(back?.hidden).toBe(true);
   });
 
-  // La couture qui a réellement cassé : la sortie de `shownSession` — une
-  // conversation terminée que l'onglet restauré fait paraître éveillée — repart
-  // à l'écriture quand on la met en veille. Chaque module était juste ; c'est
-  // leur jonction qui ne l'était pas, et aucun test ne la traversait.
-  it("une session affichée éveillée par un onglet restauré reste rouvrable une fois réécrite", async () => {
+  // The seam that actually broke: the output of `shownSession` — a finished
+  // conversation that the restored tab makes look awake — goes back through
+  // writing when it is put to sleep. Each module was correct on its own; it
+  // was their junction that was not, and no test crossed it.
+  it("a session shown as awake by a restored tab stays reopenable once rewritten", async () => {
     const onDisk: Session = { ...session('s4'), endedAt: 10 };
     const restored: Session = { ...session('s4'), dormant: true, lastEventAt: 0 };
     const shown = shownSession(onDisk, restored);
-    expect(shown?.dormant).toBe(true); // la vue a bien besoin du drapeau
+    expect(shown?.dormant).toBe(true); // the view genuinely needs the flag
 
-    // Ce que fait la lune : on la marque terminée et on la réécrit.
+    // What the moon does: it marks the conversation ended and writes it back.
     await writeSession(dirs, { ...shown!, endedAt: 99 });
 
     const back = await readSession(dirs, 's4');
-    // Sans quoi le clic prendrait à jamais la branche « onglet restauré » et
-    // chercherait à ramener au premier plan un onglet qui n'existe plus.
+    // Without this, the click would forever take the "restored tab" branch
+    // and try to bring to the front a tab that no longer exists.
     expect(back?.dormant).toBeUndefined();
     expect(back?.endedAt).toBe(99);
   });
 
-  it('ne laisse aucun fichier temporaire', async () => {
+  it('leaves no temporary file behind', async () => {
     await writeSession(dirs, session('a'));
     expect(readdirSync(dirs.sessions).filter((f) => f.startsWith('.tmp'))).toHaveLength(0);
   });
 
-  it('supprime sans lever si le fichier est déjà absent', async () => {
+  it('removes without throwing if the file is already gone', async () => {
     await expect(removeSession(dirs, 'jamais-vu')).resolves.toBeUndefined();
   });
 
-  it('ignore un fichier de session illisible', async () => {
+  it('ignores an unreadable session file', async () => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(join(dirs.sessions, 'casse.json'), '{ pas du json');
     await writeSession(dirs, session('a'));
@@ -116,7 +116,7 @@ describe('persist', () => {
     expect(back.size).toBe(1);
   });
 
-  it('ignore un fichier de session partiellement conforme', async () => {
+  it('ignores a partially conforming session file', async () => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(
       join(dirs.sessions, 'incomplet.json'),
@@ -129,9 +129,9 @@ describe('persist', () => {
     expect(back.has('b')).toBe(false);
   });
 
-  it('ne laisse aucun fichier temporaire même pour des écritures concurrentes sans attente entre elles', async () => {
-    // writeSession est exportée et réutilisable : sa sûreté ne doit pas dépendre
-    // de la sérialisation qu'un appelant (SpoolWatcher.tick) lui impose par ailleurs.
+  it('leaves no temporary file even for concurrent writes with no wait between them', async () => {
+    // writeSession is exported and reusable: its safety must not depend on
+    // the serialization a caller (SpoolWatcher.tick) otherwise imposes on it.
     await Promise.all([
       writeSession(dirs, session('a')),
       writeSession(dirs, session('a')),
@@ -142,17 +142,17 @@ describe('persist', () => {
   });
 
   describe('readSession', () => {
-    it('lit une seule session par id, sans passer par le répertoire entier', async () => {
+    it('reads a single session by id, without going through the whole directory', async () => {
       await writeSession(dirs, session('a'));
       await writeSession(dirs, session('b'));
       expect(await readSession(dirs, 'a')).toEqual(session('a'));
     });
 
-    it('retourne undefined pour une session absente', async () => {
+    it('returns undefined for a session that is absent', async () => {
       expect(await readSession(dirs, 'jamais-vu')).toBeUndefined();
     });
 
-    it('retourne undefined pour un fichier illisible', async () => {
+    it('returns undefined for an unreadable file', async () => {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(join(dirs.sessions, 'casse.json'), '{ pas du json');
       expect(await readSession(dirs, 'casse')).toBeUndefined();
@@ -174,7 +174,7 @@ describe('persist', () => {
     });
   });
 
-  it('converge : deux ordres de lecture donnent le même état', () => {
+  it('converges: two reading orders give the same state', () => {
     const mk = (event: SpoolEvent['event'], at: number, id: string): SpoolEvent => ({
       event, at, entrypoint: 'cli', termProgram: '', sessionId: id, cwd: '/x',
     });

@@ -3,29 +3,29 @@ import { request } from 'node:https';
 import { isRecord } from '../lib/json';
 
 /**
- * La consommation, demandée directement à Anthropic.
+ * Usage, requested directly from Anthropic.
  *
- * Pourquoi ce chemin plutôt que le pont de statusline : Claude Code ne passe
- * `rate_limits` qu'à la statusline, et la statusline ne se déclenche pas dans
- * une session hébergée par l'éditeur — mesuré, le fichier restait vide. Ce
- * chemin-ci ne dépend d'aucune autre application.
+ * Why this path rather than the statusline bridge: Claude Code only passes
+ * `rate_limits` to the statusline, and the statusline never fires in a
+ * session hosted by the editor — measured, the file stayed empty. This path
+ * depends on no other application.
  *
- * Le jeton est celui que Claude Code a déjà déposé dans le trousseau de la
- * session : on ne s'authentifie pas à sa place, on réutilise son
- * authentification. Il n'est jamais écrit sur disque, jamais journalisé, et ne
- * quitte pas ce module.
+ * The token is the one Claude Code has already deposited in the session's
+ * keychain: we don't authenticate on its behalf, we reuse its
+ * authentication. It is never written to disk, never logged, and never
+ * leaves this module.
  */
 const SERVICE = 'Claude Code-credentials';
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const TIMEOUT_MS = 8_000;
 
 /**
- * Le jeton d'accès, ou `undefined` si on ne peut pas l'obtenir — trousseau
- * verrouillé, autorisation refusée, Claude Code authentifié autrement, ou
- * simplement une autre plateforme. Aucun de ces cas n'est une erreur : la vue
- * affiche « inconnue » et continue.
+ * The access token, or `undefined` if it cannot be obtained — locked
+ * keychain, authorization refused, Claude Code authenticated some other
+ * way, or simply another platform. None of these cases is an error: the
+ * view shows « unknown » and carries on.
  *
- * `execFile`, jamais `exec` : rien de tout ceci ne doit traverser un shell.
+ * `execFile`, never `exec`: none of this must ever go through a shell.
  */
 export function readAccessToken(): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -37,8 +37,9 @@ export function readAccessToken(): Promise<string | undefined> {
 }
 
 /**
- * Extrait le jeton du JSON du trousseau. Séparé de la lecture pour être
- * éprouvable sans trousseau — et sans jamais avoir besoin d'un vrai jeton.
+ * Extracts the token from the keychain's JSON. Kept separate from the read
+ * so it can be tested without a keychain — and without ever needing a real
+ * token.
  */
 export function accessTokenOf(raw: string): string | undefined {
   let parsed: unknown;
@@ -55,10 +56,10 @@ export function accessTokenOf(raw: string): string | undefined {
 }
 
 /**
- * Interroge le point d'usage. Toute réponse qui n'est pas un JSON exploitable
- * vaut `undefined` : ce point d'entrée n'est pas documenté et peut changer sans
- * prévenir, ce qui doit se traduire par « pas de mesure », jamais par une
- * erreur affichée ni par une exception qui remonterait dans le rendu.
+ * Queries the usage endpoint. Any response that isn't usable JSON counts as
+ * `undefined`: this endpoint isn't documented and can change without
+ * notice, which must translate into « no measurement », never into a
+ * displayed error nor an exception bubbling up into the render.
  */
 export function fetchUsage(token: string, url: string = USAGE_URL): Promise<unknown> {
   return new Promise((resolve) => {

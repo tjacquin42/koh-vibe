@@ -8,7 +8,7 @@ const ALL: readonly Status[] = ['running', 'waiting', 'done_unseen', 'idle'];
 const ROOT = join(__dirname, '..');
 
 describe('statusIconPath', () => {
-  it('donne une paire light/dark à chaque statut, sans exception', () => {
+  it('gives a light/dark pair to every status, with no exception', () => {
     for (const status of ALL) {
       const paths = statusIconPath('/ext', status);
       expect(paths.light, `statut ${status}`).toMatch(/\.svg$/);
@@ -17,20 +17,21 @@ describe('statusIconPath', () => {
     }
   });
 
-  it('ne donne jamais le même fichier à deux statuts différents', () => {
+  it('never gives the same file to two different statuses', () => {
     const seen = ALL.flatMap((s) => Object.values(statusIconPath('/ext', s)));
     expect(new Set(seen).size).toBe(seen.length);
   });
 
-  it('se range sous la racine du paquet qu on lui donne', () => {
+  it('sits under the package root it is given', () => {
     expect(statusIconPath('/ext', 'running').dark.startsWith(join('/ext', 'resources', STATUS_ICON_DIR))).toBe(true);
   });
 
-  // Le test qui compte vraiment : une table qui nomme un fichier absent produit
-  // une ligne SANS icône, et la pastille est le seul endroit où le statut se lit.
-  // Un statut ajouté sans repasser par scripts/make-status-icons.cjs doit se
-  // voir ici, pas dans la barre latérale de l utilisateur.
-  it('nomme des fichiers qui existent réellement dans le paquet', async () => {
+  // The test that really matters: a table naming a missing file produces a
+  // row WITHOUT an icon, and the badge is the only place where the status
+  // can be read. A status added without going back through
+  // scripts/make-status-icons.cjs must show up here, not in the user's
+  // sidebar.
+  it('names files that actually exist in the package', async () => {
     for (const status of ALL) {
       const paths = statusIconPath(ROOT, status);
       for (const file of [paths.light, paths.dark]) {
@@ -42,20 +43,20 @@ describe('statusIconPath', () => {
 
 const TONES = [...ALL, 'ended'] as const;
 
-describe('statusIconPath — le jeu figé, quand on coupe les animations', () => {
-  it('désigne le sous-dossier des immobiles, et lui seul', () => {
+describe('statusIconPath — the still set, when animations are turned off', () => {
+  it('points to the still subfolder, and only that one', () => {
     const still = statusIconPath('/ext', 'running', false);
     expect(still.dark.startsWith(join('/ext', 'resources', STATUS_ICON_DIR, STILL_ICON_DIR))).toBe(true);
     expect(statusIconPath('/ext', 'running', true).dark).not.toContain(STILL_ICON_DIR);
   });
 
-  it('anime par défaut : un appelant qui ne dit rien garde le mouvement', () => {
+  it('animates by default: a caller that says nothing keeps the motion', () => {
     expect(statusIconPath('/ext', 'running').dark).toBe(statusIconPath('/ext', 'running', true).dark);
   });
 
-  // Le même invariant que ci-dessus, pour le second jeu : une case décochée ne
-  // doit pas produire des lignes SANS pastille.
-  it('nomme des fichiers qui existent vraiment, pour chaque ton', async () => {
+  // The same invariant as above, for the second set: an unchecked box must
+  // not produce rows WITHOUT a badge.
+  it('names files that really exist, for every tone', async () => {
     for (const tone of TONES) {
       const paths = statusIconPath(ROOT, tone, false);
       for (const file of [paths.light, paths.dark]) {
@@ -64,24 +65,24 @@ describe('statusIconPath — le jeu figé, quand on coupe les animations', () =>
     }
   });
 
-  it('ne porte aucune animation, là où le jeu animé en porte une', async () => {
-    // La vraie garantie derrière la case : décochée, plus rien ne bouge.
+  it('carries no animation, where the animated set carries one', async () => {
+    // The real guarantee behind the checkbox: unchecked, nothing moves anymore.
     for (const tone of TONES) {
       const still = await readFile(statusIconPath(ROOT, tone, false).dark, 'utf8');
       expect(still, `${tone} figé`).not.toContain('animation:');
     }
-    // Et le mouvement existe bel et bien quelque part, sinon le test au-dessus
-    // passerait tout seul le jour où l animation disparaîtrait par accident.
+    // And the motion does exist somewhere, otherwise the test above would
+    // pass on its own the day the animation vanished by accident.
     const moving = await Promise.all(
       TONES.map((t) => readFile(statusIconPath(ROOT, t, true).dark, 'utf8')),
     );
     expect(moving.some((svg) => svg.includes('animation:'))).toBe(true);
   });
 
-  it('dessine la MÊME chose, au mouvement près — sinon couper l animation changerait le sens', async () => {
-    // Les deux fichiers doivent parler des mêmes formes : mêmes rayons, mêmes
-    // couleurs, même pointillé. Seuls le bloc <style> et l angle de départ,
-    // porté par un attribut d un côté et par les keyframes de l autre, varient.
+  it('draws the SAME thing, motion aside — otherwise cutting the animation would change the meaning', async () => {
+    // The two files must speak of the same shapes: same radii, same colors,
+    // same dashing. Only the <style> block and the starting angle — carried
+    // by an attribute on one side and by the keyframes on the other — vary.
     for (const tone of TONES) {
       const strip = (svg: string): string =>
         svg.replace(/<style>[\s\S]*?<\/style>/, '')

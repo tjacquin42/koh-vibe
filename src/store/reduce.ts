@@ -1,43 +1,33 @@
-import { branchOf, originOf, projectOf } from '../events/origin';
+import { originOf } from '../events/origin';
+import { blankSession } from './blank';
 import { HOOK_EVENTS, type EventName, type HookEvent, type Session, type SpoolEvent } from '../events/types';
 
-/** Seul un événement de hook Claude Code décrit une session qui existe : un de
- * nos événements locaux (`Ack`) réagit à une session déjà vue, il ne doit
- * jamais en faire naître une nouvelle de toutes pièces. */
+/** Only a Claude Code hook event describes a session that exists: one of
+ * our local events (`Ack`) reacts to a session already seen, and must
+ * never spawn a new one out of thin air. */
 function isHookEvent(event: EventName): event is HookEvent {
   return (HOOK_EVENTS as readonly string[]).includes(event);
 }
 
 function create(ev: SpoolEvent): Session {
-  const session: Session = {
-    id: ev.sessionId,
-    cwd: ev.cwd,
-    project: projectOf(ev.cwd),
-    origin: originOf(ev.entrypoint, ev.termProgram),
-    status: 'idle',
-    toolCount: 0,
-    lastEventAt: ev.at,
-  };
-  const branch = branchOf(ev.cwd);
-  if (branch !== undefined) session.branch = branch;
-  return session;
+  return blankSession(ev.sessionId, ev.cwd, originOf(ev.entrypoint, ev.termProgram), ev.at);
 }
 
 /**
- * Fonction pure. Deux fenêtres VSCode qui rejouent les mêmes événements
- * aboutissent au même état — c'est ce qui rend la convergence possible sans verrou.
+ * A pure function. Two VSCode windows replaying the same events end up at
+ * the same state — that is what makes convergence possible without a lock.
  *
- * Retourne `undefined` quand la session doit disparaître — ce qui n'arrive
- * plus qu'à un événement sans session préalable : une conversation qui se
- * termine reste, marquée `endedAt`, jusqu'à ce que l'utilisateur la retire.
+ * Returns `undefined` when the session must disappear — which now only
+ * happens for an event with no prior session: a conversation that ends
+ * stays, marked `endedAt`, until the user removes it.
  */
 export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | undefined {
   if (prev === undefined && (ev.event === 'SessionEnd' || !isHookEvent(ev.event))) return undefined;
 
   const base = prev ?? create(ev);
 
-  // Le spool n'ordonne pas : un événement peut arriver après un plus récent.
-  // On accepte ses effets cumulatifs, jamais ses transitions de statut.
+  // The spool does not order: an event can arrive after a more recent one.
+  // We accept its cumulative effects, never its status transitions.
   const late = ev.at < base.lastEventAt;
   const next: Session = { ...base, lastEventAt: Math.max(base.lastEventAt, ev.at) };
   if (ev.transcriptPath !== undefined) next.transcriptPath = ev.transcriptPath;
@@ -117,10 +107,10 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (!late && base.status === 'done_unseen') next.status = 'idle';
       break;
     default: {
-      // Garde d'exhaustivité : un futur membre d'`EventName` non traité ici
-      // devient une erreur de compilation plutôt qu'un trou silencieux.
+      // Exhaustiveness guard: a future member of `EventName` not handled
+      // here becomes a compile error rather than a silent gap.
       const exhaustive: never = ev.event;
-      throw new Error(`événement non géré par le réducteur : ${String(exhaustive)}`);
+      throw new Error(`event the reducer does not handle: ${String(exhaustive)}`);
     }
   }
 

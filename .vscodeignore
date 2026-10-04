@@ -1,13 +1,14 @@
-# vsce ne lit pas .gitignore : sans ce fichier, le .vsix embarquerait src/, test/,
-# tsconfig.json et surtout .superpowers/ (rapports de revue internes, chemins privés).
-# Liste blanche explicite : tout est exclu par défaut, seul ce dont l'extension a
-# besoin à l'exécution est réintégré.
+# vsce does not read .gitignore: without this file, the .vsix would carry
+# src/, test/, tsconfig.json and above all .superpowers/ (internal review
+# reports, private paths). Explicit allowlist: everything is excluded by
+# default, and only what the extension needs at runtime is brought back in.
 #
-# Chaque entrée réintégrée doit rester un motif se terminant par un segment à
-# joker (ex. `out/**`) ou un fichier exact (ex. `bin/koh-vibe-bridge`), jamais
-# un nom de dossier nu (`!scripts`) : vsce le développe automatiquement en
-# `scripts/**` et réintègre alors tout le dossier, pas seulement le fichier visé —
-# ce qui aurait ramené bump-version.sh et capture-fixtures.sh dans le paquet.
+# Every re-included entry must stay a pattern ending in a wildcard segment
+# (e.g. `out/**`) or an exact file (e.g. `bin/koh-vibe-bridge`), never a bare
+# folder name (`!scripts`): vsce automatically expands that to `scripts/**`
+# and then brings the whole folder back in, not just the targeted file —
+# which would have pulled bump-version.sh and capture-fixtures.sh into the
+# package.
 **
 
 !out/**
