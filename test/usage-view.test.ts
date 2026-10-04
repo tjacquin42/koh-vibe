@@ -1,7 +1,55 @@
-import { describe, expect, it } from 'vitest';
-import { escape, percentColor, resetExact, resetText, usageHtml } from '../src/ui/usage-view';
+import { describe, expect, it, vi } from 'vitest';
+import { escape, percentColor, resetExact, resetText, usageHtml, UsageView } from '../src/ui/usage-view';
 import { parseUsage } from '../src/usage/model';
 import type { UsageReading } from '../src/usage/reader';
+
+type Listener = () => void;
+
+/**
+ * A `WebviewView` faithful enough for `UsageView`: `webview.options`,
+ * `webview.html` (read back by the tests), `webview.onDidReceiveMessage`, and
+ * `onDidDispose`. Not built on the shared `vscode` stub (test/stubs/vscode.ts):
+ * nothing else in the codebase needs a webview, and a second consumer is what
+ * would justify growing that file rather than this one.
+ */
+function fakeWebviewView(): {
+  webview: { options: unknown; html: string; onDidReceiveMessage: (l: Listener) => { dispose: () => void } };
+  onDidDispose: (l: Listener) => { dispose: () => void };
+  htmlWriteCount: number;
+  fireMessage: () => void;
+  fireDispose: () => void;
+} {
+  let messageListener: Listener | undefined;
+  let disposeListener: Listener | undefined;
+  let html = '';
+  let htmlWriteCount = 0;
+  const self = {
+    webview: {
+      options: undefined as unknown,
+      get html(): string {
+        return html;
+      },
+      set html(value: string) {
+        html = value;
+        htmlWriteCount += 1;
+      },
+      onDidReceiveMessage: (listener: Listener) => {
+        messageListener = listener;
+        return { dispose: () => undefined };
+      },
+    },
+    onDidDispose: (listener: Listener) => {
+      disposeListener = listener;
+      return { dispose: () => undefined };
+    },
+    get htmlWriteCount(): number {
+      return htmlWriteCount;
+    },
+    fireMessage: () => messageListener?.(),
+    fireDispose: () => disposeListener?.(),
+  };
+  return self;
+}
 
 const reading = (five: number, seven: number, resetsAt?: number, at = 0): UsageReading => ({
   usage: parseUsage({
@@ -256,5 +304,76 @@ describe('usageHtml', () => {
     // The source and the labels are our own, but the rule holds by default:
     // a webview must never interpolate without escaping.
     expect(usageHtml(undefined, now)).not.toContain('<script>alert');
+  });
+});
+
+describe('UsageView', () => {
+  const aReading = (percent: number): UsageReading => ({
+    usage: parseUsage({ five_hour: { used_percentage: percent } })!,
+    source: 'api',
+    at: Date.now(),
+  });
+
+  it('keeps a reading set before any view exists, without writing anywhere', () => {
+    const view = new UsageView(() => undefined);
+    expect(() => view.setUsage(aReading(10))).not.toThrow();
+  });
+
+  it('paints the webview with whatever reading it already had, as soon as it resolves', () => {
+    const view = new UsageView(() => undefined);
+    view.setUsage(aReading(42));
+    const webview = fakeWebviewView();
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    expect(webview.webview.options).toEqual({ enableScripts: true });
+    expect(webview.webview.html).toContain('42 %');
+    expect(webview.htmlWriteCount).toBe(1);
+  });
+
+  it('repaints on every new reading once a view is attached', () => {
+    const view = new UsageView(() => undefined);
+    const webview = fakeWebviewView();
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    view.setUsage(aReading(7));
+    expect(webview.webview.html).toContain('7 %');
+    expect(webview.htmlWriteCount).toBe(2);
+  });
+
+  it('never rewrites the webview for a repaint that renders the same html', () => {
+    const view = new UsageView(() => undefined);
+    const webview = fakeWebviewView();
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    const reading = aReading(55);
+    view.setUsage(reading);
+    view.setUsage(reading);
+    // One write for the initial resolve, and a SECOND one for the first
+    // setUsage above — not a third: the two calls to setUsage render the
+    // exact same html, and a rewritten webview loses its selection and hover.
+    expect(webview.htmlWriteCount).toBe(2);
+  });
+
+  it('calls the constructor callback when the webview posts a message back', () => {
+    const onRefresh = vi.fn();
+    const view = new UsageView(onRefresh);
+    const webview = fakeWebviewView();
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    webview.fireMessage();
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops painting a webview that disposed itself, and paints again on the next resolve', () => {
+    const view = new UsageView(() => undefined);
+    const webview = fakeWebviewView();
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    webview.fireDispose();
+    // Writing here would throw against a real, disposed webview — the whole
+    // reason the reference is dropped on dispose.
+    view.setUsage(aReading(99));
+    expect(webview.htmlWriteCount).toBe(1);
+
+    // Resolved again (e.g. the container is shown again): forced to repaint
+    // even though the reading has not changed since the last paint.
+    view.resolveWebviewView(webview as unknown as Parameters<UsageView['resolveWebviewView']>[0]);
+    expect(webview.htmlWriteCount).toBe(2);
+    expect(webview.webview.html).toContain('99 %');
   });
 });
