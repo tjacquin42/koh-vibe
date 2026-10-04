@@ -275,11 +275,11 @@ panneau est ouvert et parcourue une fois par session — sans hook, et sans rien
 
 ## Nouveautés
 
-La **1.2.0** garde toutes les conversations : les terminées restent grisées dans leur dossier,
-en rouvrir une ramène cette conversation-là et non une vierge, celles rangées nulle part sont
-*temporaires* jusqu'à ce que vous les rangiez, la corbeille ferme l'onglet et la ligne d'un
-clic, et un **+** démarre une session depuis le tableau de bord. Plus rien n'est oublié pour
-s'être tu.
+La **1.5.0** ajoute une vue Processus : chaque session montre ce qu'elle exécute, en direct,
+une commande lancée par un sous-agent porte sa propre icône, un processus détaché retrouve la
+session qui l'a lancé, et ce qui n'appartient à aucune conversation obtient sa propre vue,
+jusqu'à copier le pid ou la commande de n'importe quelle ligne. Plus rien de ce qu'une session
+exécute ne reste invisible.
 
 Chaque version, et ce qu'elle a changé, est dans le [changelog](CHANGELOG.md).
 

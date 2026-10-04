@@ -255,10 +255,10 @@ walked once per session — no hook, and nothing to install.
 
 ## What's new
 
-**1.2.0** keeps every conversation: ended ones stay greyed in their folder, reopening brings
-back that very conversation rather than a blank one, unfiled ones are *temporary* until you
-file them, the trash closes tab and row in one click, and a **+** starts a new session from
-the dashboard. Nothing is forgotten for going quiet any more.
+**1.5.0** adds a Processes view: each session shows what it's running, live, a command started
+by a subagent carries an icon of its own, a detached process is put back under the session that
+started it, and what no conversation accounts for gets a view of its own, down to copying any
+row's pid or command line. Nothing a session runs stays invisible any more.
 
 Every version, and what it changed, is in the [changelog](CHANGELOG.md).
 
