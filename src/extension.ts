@@ -26,6 +26,7 @@ import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
+import { closedSource } from './closed/source';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
 import { defaultSettings, settingsFromEditor, settingsPatch, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
@@ -49,7 +50,7 @@ import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
 import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
-import type { TranscriptStats } from './transcript/reader';
+import { readTranscript, type TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
 import { SessionsTree, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
 import { decorationColorOf } from './ui/decorations';
@@ -755,9 +756,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * and `branch` for anything but a worktree path, are never written to
    * `sessions/<id>.json` — `withTokens` (transcript/tokens.ts) only ever
    * attaches them to the in-memory Map that `render()` holds here, in
-   * `transcripts`. Without this lookup, every archived conversation would
-   * carry neither, and five closed conversations of the same project would all
-   * show the bare project name.
+   * `transcripts`. That Map is still empty when the drain archives the
+   * `SessionEnd`s of the reload that started this window, so `closedSource`
+   * reads the transcript itself, on from where the Map stopped.
    *
    * Shared by the drain (a natural `SessionEnd`) and, from the next task on, by
    * the trash: two divergent archiving paths would silently lose the title on
@@ -766,8 +767,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const archive = async (s: Session): Promise<void> => {
     // A conversation that never got a message has nothing to come back to.
     if (!(await hasTranscript(s))) return;
-    const stats = transcripts.get(s.id);
-    const source = { ...s, title: s.title ?? stats?.title, branch: s.branch ?? stats?.branch };
+    const source = await closedSource(s, transcripts.get(s.id), readTranscript);
     return rememberClosed(closedPath, toClosedEntry(source, Date.now())).then(() => undefined);
   };
 
