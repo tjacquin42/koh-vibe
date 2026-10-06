@@ -77,8 +77,19 @@ describe('the manifest', () => {
     expect(palette?.when).toBe('false');
   });
 
-  it('puts Routines right after Processes, folded until someone opens it', () => {
-    expect(viewIds().indexOf('kohVibe.routines')).toBe(viewIds().indexOf('kohVibe.processes') + 1);
+  it('lays the views out in the order settled on in use: the sessions and what they cost, the cloud, then the rest', () => {
+    expect(viewIds()).toEqual([
+      'kohVibe.sessions',
+      'kohVibe.usage',
+      'kohVibe.artifacts',
+      'kohVibe.routines',
+      'kohVibe.processes',
+      'kohVibe.closed',
+      'kohVibe.settings',
+    ]);
+  });
+
+  it('folds Routines until someone opens it', () => {
     const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.routines');
     expect(view?.visibility).toBe('collapsed');
   });
@@ -120,8 +131,7 @@ describe('the manifest', () => {
     }
   });
 
-  it('puts Artifacts right after Routines, folded until someone opens it', () => {
-    expect(viewIds().indexOf('kohVibe.artifacts')).toBe(viewIds().indexOf('kohVibe.routines') + 1);
+  it('folds Artifacts until someone opens it', () => {
     const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.artifacts');
     expect(view?.visibility).toBe('collapsed');
   });

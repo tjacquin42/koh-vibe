@@ -26,11 +26,11 @@
     "views": {
       "koh-vibe": [
         { "id": "kohVibe.sessions", "name": "%view.kohVibe.sessions.name%", "icon": "resources/logo-mono.svg", "initialSize": 20 },
-        { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
-        { "id": "kohVibe.processes", "name": "%view.kohVibe.processes.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
-        { "id": "kohVibe.routines", "name": "%view.kohVibe.routines.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
-        { "id": "kohVibe.artifacts", "name": "%view.kohVibe.artifacts.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
         { "id": "kohVibe.usage", "name": "%view.kohVibe.usage.name%", "type": "webview", "icon": "resources/logo-mono.svg", "initialSize": 3 },
+        { "id": "kohVibe.artifacts", "name": "%view.kohVibe.artifacts.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.routines", "name": "%view.kohVibe.routines.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.processes", "name": "%view.kohVibe.processes.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
+        { "id": "kohVibe.closed", "name": "%view.kohVibe.closed.name%", "icon": "resources/logo-mono.svg", "initialSize": 5, "visibility": "collapsed" },
         { "id": "kohVibe.settings", "name": "%view.kohVibe.settings.name%", "icon": "resources/logo-mono.svg", "initialSize": 4 }
       ]
     },
