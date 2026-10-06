@@ -219,8 +219,8 @@ artifacts, at most once every five minutes and only while their view is open; an
 ask of those two views — run, pause, rename, pin — when you click. The OAuth token it needs is
 the one Claude Code keeps in the system keychain — never logged, never written to disk. No
 prompt, no transcript and no path ever leaves the machine. A call that fails is noted in the
-*Koh-Vibe* output channel with its method, its path and its status — never a header, never a
-body.
+*Koh-Vibe* output channel with its method, its path, its status and the reason the API gives
+for a refusal — never a header, and nothing else of a body.
 
 Everything else sits under `~/.koh-vibe/`:
 

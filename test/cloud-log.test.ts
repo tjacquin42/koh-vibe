@@ -32,6 +32,33 @@ describe('failureLine', () => {
     expect(line).not.toContain('secret');
     expect(line).not.toContain('limit');
   });
+
+  it('adds the reason the API gives for a refusal, in its own error envelope', () => {
+    const refusal = { type: 'error', error: { type: 'invalid_request_error', message: 'some header is required' } };
+    expect(failureLine(req('GET'), { status: 400, body: refusal }, AT)).toBe(
+      '2026-09-28T06:00:00.000Z GET /v1/code/triggers → HTTP 400 (invalid_request_error: some header is required)',
+    );
+    expect(failureLine(req('GET'), { status: 404, body: { error: { message: 'Not found' } } }, AT)).toBe(
+      '2026-09-28T06:00:00.000Z GET /v1/code/triggers → HTTP 404 (Not found)',
+    );
+  });
+
+  it('keeps that reason to one short line, and reads nothing else of the body', () => {
+    const long = { error: { type: 'invalid_request_error', message: `first line\n${'x'.repeat(400)}` } };
+    const line = failureLine(req('GET'), { status: 400, body: long }, AT) ?? '';
+    expect(line).not.toContain('\n');
+    expect(line.endsWith('…)')).toBe(true);
+    expect(line.length).toBeLessThan(260);
+    const elsewhere = { detail: 'secret detail', error: { code: 42 } };
+    expect(failureLine(req('GET'), { status: 400, body: elsewhere }, AT)).toBe(
+      '2026-09-28T06:00:00.000Z GET /v1/code/triggers → HTTP 400',
+    );
+  });
+
+  it('never reads a reason out of a call that went through', () => {
+    const odd = { error: { type: 'x', message: 'y' } };
+    expect(failureLine(req('POST'), { status: 200, body: odd }, AT)).toBeUndefined();
+  });
 });
 
 describe('logged', () => {

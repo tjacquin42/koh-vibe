@@ -237,7 +237,8 @@ est ouverte ; et pour ce que vous demandez à ces deux vues — lancer, mettre e
 épingler — au moment où vous cliquez. Le jeton OAuth dont il a besoin est celui que Claude Code
 garde dans le trousseau du système — jamais journalisé, jamais écrit sur le disque. Aucun prompt,
 aucun transcript, aucun chemin ne quitte la machine. Un appel qui échoue est noté dans le canal de
-sortie *Koh-Vibe* avec sa méthode, son chemin et son statut — jamais un en-tête, jamais un corps.
+sortie *Koh-Vibe* avec sa méthode, son chemin, son statut et le motif que l'API donne d'un refus —
+jamais un en-tête, et rien d'autre d'un corps.
 
 Tout le reste tient dans `~/.koh-vibe/` :
 
