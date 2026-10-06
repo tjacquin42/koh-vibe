@@ -11,6 +11,13 @@ import { parseRoutines, type Routine } from './model';
  */
 const TRIGGERS = `${API_ORIGIN}/v1/code/triggers`;
 const BETA = 'ccr-triggers-2026-01-30';
+/**
+ * Never written in the tool's call: its HTTP client adds it for the auth mode
+ * the call names (`teleport-org`), along with the token and the organization —
+ * so a copy of the call alone misses it, as this module first did. Sent on
+ * every call, as that client does.
+ */
+const VERSION = '2023-06-01';
 
 interface SignedIn {
   token: string;
@@ -28,7 +35,12 @@ async function signedIn(deps: CloudDeps): Promise<SignedIn | undefined> {
 }
 
 function headers(s: SignedIn): Record<string, string> {
-  return { authorization: `Bearer ${s.token}`, 'anthropic-beta': BETA, 'x-organization-uuid': s.organization };
+  return {
+    authorization: `Bearer ${s.token}`,
+    'anthropic-version': VERSION,
+    'anthropic-beta': BETA,
+    'x-organization-uuid': s.organization,
+  };
 }
 
 export async function listRoutines(deps: CloudDeps = CLOUD): Promise<Fetched<Routine>> {

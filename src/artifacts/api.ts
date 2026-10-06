@@ -11,12 +11,21 @@ import { ARTIFACTS_PAGE, isFramesListing, parseArtifacts, type Artifact } from '
  */
 const FRAME = `${API_ORIGIN}/api/frame`;
 const BETA = 'oauth-2025-04-20';
+/**
+ * What sends a call on to the artifacts service. Without `x-frame-cp`, the
+ * gateway in front of it answers 404 to every `/api/frame` path, token or not —
+ * this view's first try in the editor failed that way. Claude Code sends these two
+ * on every artifact call (its `X-Frame-*` set), alongside its own version and
+ * session, which are not ours to claim and are left out.
+ */
+const FRAME_ROUTE = { 'x-frame-cp': 'go', 'x-frame-surface': 'code' };
 
 /** The organization goes along when known: no effect if useless, one cause of failure less if not. */
 function headers(c: Credentials): Record<string, string> {
   return {
     authorization: `Bearer ${c.token}`,
     'anthropic-beta': BETA,
+    ...FRAME_ROUTE,
     ...(c.organization === undefined ? {} : { 'x-organization-uuid': c.organization }),
   };
 }

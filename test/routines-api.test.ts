@@ -24,7 +24,7 @@ const LIST = {
 };
 
 describe('listRoutines', () => {
-  it('asks for the routines with the token, the triggers beta and the organization', async () => {
+  it('asks for the routines with the token, the API version, the triggers beta and the organization', async () => {
     const { deps, sent } = fake({ status: 200, body: LIST });
     expect(await listRoutines(deps)).toMatchObject({ kind: 'ok', truncated: false, items: [{ id: 'trig_test_01' }] });
     expect(sent).toEqual([
@@ -33,12 +33,20 @@ describe('listRoutines', () => {
         url: 'https://api.anthropic.com/v1/code/triggers',
         headers: {
           authorization: 'Bearer tok',
+          'anthropic-version': '2023-06-01',
           'anthropic-beta': 'ccr-triggers-2026-01-30',
           'x-organization-uuid': 'org-test',
         },
         expects: expect.any(Function),
       },
     ]);
+  });
+
+  it('sends the API version on the switches too, as Claude Code does on every call', async () => {
+    const { deps, sent } = fake({ status: 200, body: {} });
+    await runRoutine('trig_test_01', deps);
+    await setRoutineEnabled('trig_test_01', false, deps);
+    expect(sent.map((r) => r.headers['anthropic-version'])).toEqual(['2023-06-01', '2023-06-01']);
   });
 
   it('tells the log what a usable answer looks like, so a changed shape is named there', async () => {

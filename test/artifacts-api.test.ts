@@ -5,6 +5,15 @@ import type { CloudRequest, CloudResponse } from '../src/cloud/request';
 
 const SIGNED: Credentials = { token: 'tok', organization: 'org-test' };
 
+/** What every call carries when signed in to an organization. */
+const SIGNED_HEADERS = {
+  authorization: 'Bearer tok',
+  'anthropic-beta': 'oauth-2025-04-20',
+  'x-frame-cp': 'go',
+  'x-frame-surface': 'code',
+  'x-organization-uuid': 'org-test',
+};
+
 function fake(response: CloudResponse | undefined, signedIn: Credentials | 'signed-out' = SIGNED) {
   const sent: CloudRequest[] = [];
   const deps: CloudDeps = {
@@ -18,16 +27,28 @@ function fake(response: CloudResponse | undefined, signedIn: Credentials | 'sign
 }
 
 describe('listArtifacts', () => {
-  it('asks for one page of the listing with the token, the OAuth beta and the organization', async () => {
+  it('asks for one page of the listing with the token, the OAuth beta, the frame route and the organization', async () => {
     const { deps, sent } = fake({ status: 200, body: { frames: [], starsEnabled: true } });
     expect(await listArtifacts(deps)).toEqual({ kind: 'ok', items: [], truncated: false });
     expect(sent).toEqual([
       {
         method: 'GET',
         url: 'https://api.anthropic.com/api/frame/frames?limit=200',
-        headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+        headers: SIGNED_HEADERS,
         expects: expect.any(Function),
       },
+    ]);
+  });
+
+  it('routes the rename and the pin to the frame service as well — the gateway answers 404 to /api/frame without it', async () => {
+    const { deps, sent } = fake({ status: 200, body: {} });
+    await renameArtifact('page-test-01', 'Title', deps);
+    await setArtifactPinned('page-test-01', true, deps);
+    await setArtifactPinned('page-test-01', false, deps);
+    expect(sent.map((r) => [r.headers['x-frame-cp'], r.headers['x-frame-surface']])).toEqual([
+      ['go', 'code'],
+      ['go', 'code'],
+      ['go', 'code'],
     ]);
   });
 
@@ -43,7 +64,12 @@ describe('listArtifacts', () => {
   it('makes do without an organization', async () => {
     const { deps, sent } = fake({ status: 200, body: { frames: [] } }, { token: 'tok', organization: undefined });
     await listArtifacts(deps);
-    expect(sent[0]?.headers).toEqual({ authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20' });
+    expect(sent[0]?.headers).toEqual({
+      authorization: 'Bearer tok',
+      'anthropic-beta': 'oauth-2025-04-20',
+      'x-frame-cp': 'go',
+      'x-frame-surface': 'code',
+    });
   });
 
   it('is signed out without a token, and sends nothing', async () => {
@@ -67,7 +93,7 @@ describe('renameArtifact', () => {
       {
         method: 'POST',
         url: 'https://api.anthropic.com/api/frame/retitle/Art%2F01',
-        headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+        headers: SIGNED_HEADERS,
         body: { title: 'Notes' },
       },
     ]);
@@ -88,7 +114,7 @@ describe('setArtifactPinned', () => {
     expect(pin.sent[0]).toEqual({
       method: 'POST',
       url: 'https://api.anthropic.com/api/frame/favorite/ArtTest01',
-      headers: { authorization: 'Bearer tok', 'anthropic-beta': 'oauth-2025-04-20', 'x-organization-uuid': 'org-test' },
+      headers: SIGNED_HEADERS,
     });
     const unpin = fake({ status: 204, body: undefined });
     expect(await setArtifactPinned('ArtTest01', false, unpin.deps)).toBe(true);
