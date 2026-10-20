@@ -132,9 +132,17 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   la routine sur claude.ai. Au survol d'une ligne, **lancez-la maintenant** — après confirmation,
   puisqu'un run agit pour de vrai — ou **mettez-la en pause** ; une routine en pause propose
   **réactiver** à la place. Le clic droit copie son lien.
-- **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, les épinglées
-  d'abord, puis les plus récemment mises à jour. Un clic en ouvre une ; au survol, épinglez-la ou
-  désépinglez-la ; le clic droit permet de la **renommer** ou de copier son lien.
+- **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, **rangées par
+  projet** — un dossier chacun, *Divers* en dernier — les épinglées d'abord, puis les plus
+  récemment mises à jour. Une page publiée depuis une session va d'elle-même dans le dossier du
+  dépôt de cette session ; une page jamais rangée s'affiche sous le projet que nomme son titre,
+  s'il y en a un. Glissez des pages d'un dossier à l'autre, ou clic droit → *Ranger dans un
+  projet…*, plusieurs à la fois ; clic droit sur un dossier pour le renommer. Un clic ouvre une
+  page ; au survol, épinglez-la ou désépinglez-la ; le clic droit permet de la **renommer** ou de
+  copier son lien.
+
+  Le rangement reste sur cette machine : claude.ai n'a pas de dossiers pour les artifacts, rien
+  n'en est donc envoyé là-bas.
 
   Les deux vues n'interrogent claude.ai que lorsqu'elles sont ouvertes, au plus une fois toutes
   les cinq minutes, et partagent ce qu'elles lisent entre les fenêtres. Un appel qui échoue est
@@ -228,7 +236,7 @@ Depuis la palette de commandes, sous **Koh-Vibe** :
 | *Rafraîchir les routines* · *Rafraîchir les artifacts* | relit la liste sur claude.ai, sinon mise en cache cinq minutes |
 
 Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation, lancer ou
-mettre en pause une routine, renommer ou épingler un artifact — est sur le clic droit de la ligne
+mettre en pause une routine, renommer, épingler ou ranger un artifact — est sur le clic droit de la ligne
 concernée.
 
 ## Vos données, et ce qui quitte la machine
@@ -259,6 +267,7 @@ Tout le reste tient dans `~/.koh-vibe/` :
 | `usage.json` | le dernier relevé de consommation, mis en cache |
 | `routines.json` | la dernière liste de routines lue sur claude.ai, en cache |
 | `artifacts.json` | la dernière liste d'artifacts lue sur claude.ai, en cache |
+| `artifact-projects.json` | le projet sous lequel chaque artifact est rangé |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |
 

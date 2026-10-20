@@ -122,9 +122,16 @@ reinstalling under the same number leaves the editor serving what it already had
   that already ran folded away under *Paused*. A click opens the routine on claude.ai. Hover a
   row to **run it now** — after a confirmation, since a run acts for real — or to **pause** it;
   a paused one offers **resume** instead. Right-click copies its link.
-- **Artifacts**, a view of its own: the pages you published on claude.ai, pinned ones first,
-  then the most recently updated. A click opens one; hover to **pin** or **unpin** it,
-  right-click to **rename** it or copy its link.
+- **Artifacts**, a view of its own: the pages you published on claude.ai, **filed by
+  project** — one folder each, *Other* last — pinned ones first, then the most recently
+  updated. A page published from a session goes on its own into the folder of that session's
+  repository; one never filed shows under the project its title names, if any. Drag pages
+  between folders, or right-click → *Move to project…*, several at once; right-click a folder
+  to rename it. A click opens a page; hover to **pin** or **unpin** it, right-click to
+  **rename** it or copy its link.
+
+  The filing stays on this machine: claude.ai has no folders for artifacts, so nothing of it
+  is sent there.
 
   Both views ask claude.ai only while they are open, at most every five minutes, and share
   what they read across windows. A call that fails is noted in the *Koh-Vibe* output channel —
@@ -212,7 +219,7 @@ From the command palette, under **Koh-Vibe**:
 | *Refresh routines* · *Refresh artifacts* | reads the list again from claude.ai, which is otherwise cached for five minutes |
 
 The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds,
-running or pausing a routine, renaming or pinning an artifact — is on the right-click menu of
+running or pausing a routine, renaming, pinning or filing an artifact — is on the right-click menu of
 the row it applies to.
 
 ## Your data, and what leaves the machine
@@ -242,6 +249,7 @@ Everything else sits under `~/.koh-vibe/`:
 | `usage.json` | the last usage reading, cached |
 | `routines.json` | the last list of routines read from claude.ai, cached |
 | `artifacts.json` | the last list of artifacts read from claude.ai, cached |
+| `artifact-projects.json` | which project each artifact is filed under |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |
 
