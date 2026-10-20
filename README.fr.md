@@ -83,8 +83,9 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   vous lui avez donné, sinon celui que Claude a engendré, sinon le dernier prompt.
 - **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
   que *Sessions persistantes* est coché dans les réglages (il l'est par défaut). Décoché,
-  fermer un onglet retire la ligne. *Fermé récemment*, une vue à part, retient dans les deux
-  cas les dix conversations terminées le plus récemment.
+  fermer un onglet retire la ligne — sauf dans un dossier : une conversation qui y est rangée
+  ne quitte jamais la liste d'elle-même. *Fermé récemment*, une vue à part, retient dans les
+  deux cas les dix conversations terminées le plus récemment.
 - **Sessions temporaires** est le dossier où une conversation atterrit tant qu'on ne l'a pas
   glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
   réglage désactive ce comportement.
@@ -183,9 +184,11 @@ Code tourne dans son terminal, et une session encore vivante réapparaîtra à s
 **Sessions persistantes.** La première ligne des réglages, une case à cocher, décide de ce que
 fermer un onglet fait à sa ligne. Cochée — le défaut — la conversation reste dans la liste,
 grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les cinquante
-plus récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée,
-fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux cas. Le survol
-de la ligne donne la même explication.
+plus récentes hors de tout dossier sont gardées, et *Retirer de la liste* en enlève une pour de
+bon. Décochée, fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux
+cas. Une conversation rangée dans un dossier reste quels que soient le réglage, son âge ou le
+nombre de lignes grisées — même quand il n'y a plus rien à reprendre : seuls *Retirer de la
+liste* ou la corbeille l'enlèvent. Le survol de la ligne donne la même explication.
 
 **Sessions temporaires.** La seconde case. Une conversation rangée dans aucun dossier est
 temporaire : après 24 heures sans activité, elle quitte la liste — masquée, pas oubliée : toute
