@@ -5,7 +5,7 @@ import type { SpoolDirs } from '../paths';
 import type { LocalEvent, Session, SpoolEvent } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
-import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession } from './persist';
+import { capEndedSessions, ensureDirs, readSession, removeSession, writeSession, type IsFiled } from './persist';
 import { MAX_ENDED } from '../store/open';
 import { type AbandonSignal, GUARD_TIMEOUT_MS, ReentrantGuard } from '../lib/reentrant-guard';
 import { isErrnoException } from '../lib/errno';
@@ -45,8 +45,9 @@ export type ArchiveClosed = (s: Session) => Promise<void>;
 
 /**
  * What `SessionEnd` does to the row: `'keep'` marks it ended and leaves it in
- * the list, greyed out; `'remove'` takes it away, as closing the tab used to.
- * The user's "persistent sessions" setting, read by the watcher at every pass.
+ * the list, greyed out; `'remove'` takes it away, as closing the tab used to —
+ * but never a filed conversation, which is kept under both. The user's
+ * "persistent sessions" setting, read by the watcher at every pass.
  */
 export type EndPolicy = 'keep' | 'remove';
 
@@ -91,7 +92,9 @@ function eventTimestamp(name: string): number | undefined {
  * Only the user, closing or removing it, takes it off the list — and
  * `SessionEnd` when `endPolicy` is `'remove'` (the « persistent sessions »
  * setting unchecked); otherwise the ended conversation stays, marked
- * `endedAt`.
+ * `endedAt`. A filed conversation always stays: neither the policy nor the
+ * cap takes it out of its folder (`filed`) — only an end before its first
+ * message does, as for any other: there never was a conversation.
  *
  * The order matters: the state is written BEFORE the event is deleted.
  * Another window that misses the deleted event still finds the state in
@@ -127,6 +130,8 @@ export async function drain(
   // panel it opens, and drops it moments later — so its row goes, whatever
   // the policy, and the history never hears of it. Absent, every end counts.
   hasTranscript?: (s: Session) => Promise<boolean>,
+  // Whether a folder holds the conversation. Absent, nothing is filed.
+  filed?: IsFiled,
 ): Promise<DrainResult> {
   let names: string[] = [];
   try {
@@ -193,6 +198,11 @@ export async function drain(
       // "Recently closed" view shows once the setting is turned off.
       const ended = ev.event === 'SessionEnd';
       const blank = ended && current !== undefined && hasTranscript !== undefined && !(await hasTranscript(current));
+      // A folder is a keep: whatever the policy, a filed conversation stays in
+      // the list, ended. Not one that never got a message — a folder's « + »
+      // files the session before its first prompt, and one closed right away
+      // never was a conversation to keep.
+      const kept = ended && !blank && filed !== undefined && (await filed(ev.sessionId));
       if (ended && current !== undefined && archive !== undefined && !blank) {
         await archive(current);
       }
@@ -204,7 +214,7 @@ export async function drain(
       if (signal?.abandoned) {
         return { applied, rejected, deferred, rejectedPermanently, toolCalls };
       }
-      if (next === undefined || blank || (ended && endPolicy === 'remove')) {
+      if (next === undefined || blank || (ended && endPolicy === 'remove' && !kept)) {
         // `'remove'` takes the end at face value, late or not: the policy is
         // "closing the tab takes the row away", and that is what it does.
         await removeSession(dirs, ev.sessionId);
@@ -264,8 +274,8 @@ export async function drain(
   }
 
   // Ended conversations are kept, up to a point: past MAX_ENDED the oldest
-  // goes. Only worth a look when this pass ended one.
-  if (endedOne) await capEndedSessions(dirs, MAX_ENDED);
+  // unfiled one goes. Only worth a look when this pass ended one.
+  if (endedOne) await capEndedSessions(dirs, MAX_ENDED, filed);
 
   return { applied, rejected, deferred, rejectedPermanently, toolCalls };
 }
@@ -333,6 +343,8 @@ export class SpoolWatcher {
     // user can flip at any time, in any window.
     private readonly endPolicy: () => EndPolicy,
     private readonly hasTranscript: (s: Session) => Promise<boolean>,
+    // Read at every pass too: filing is done in any window, at any time.
+    private readonly filed: IsFiled,
   ) {}
 
   start(): void {
@@ -362,7 +374,7 @@ export class SpoolWatcher {
 
   private tick(): Promise<void> {
     return this.guard.run(async (signal) => {
-      const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy(), this.hasTranscript);
+      const res = await drain(this.dirs, this.now(), signal, this.archive, this.endPolicy(), this.hasTranscript, this.filed);
       if (res.rejectedPermanently.length > 0) {
         // Dedicated reporting: drain() did not fail (the other events
         // applied normally), but this one failed while already too old

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { spoolDirs, type SpoolDirs } from '../src/paths';
-import { capEndedSessions, ensureDirs, readSession, readSessions, writeSession } from '../src/spool/persist';
+import { capEndedSessions, dropEndedWithoutTranscript, ensureDirs, readSession, readSessions, writeSession } from '../src/spool/persist';
 import { reduce } from '../src/store/reduce';
 import { isOpen, openSessions } from '../src/store/open';
 import { rescanLiveSessions } from '../src/claude/rescan';
@@ -84,6 +84,43 @@ describe('capEndedSessions', () => {
   it('removes nothing under the cap', async () => {
     await writeSession(dirs, ended('a', 1));
     expect(await capEndedSessions(dirs, 2)).toEqual([]);
+  });
+
+  it('never removes a filed conversation, and does not count it against the cap', async () => {
+    await writeSession(dirs, ended('filed-old', 1));
+    await writeSession(dirs, ended('old', 2));
+    await writeSession(dirs, ended('new', 3));
+    const filed = async (id: string): Promise<boolean> => id === 'filed-old';
+    expect(await capEndedSessions(dirs, 1, filed)).toEqual(['old']);
+    expect([...(await readSessions(dirs)).keys()].sort()).toEqual(['filed-old', 'new']);
+  });
+});
+
+describe('dropEndedWithoutTranscript', () => {
+  let home: string;
+  let dirs: SpoolDirs;
+
+  beforeEach(async () => {
+    home = mkdtempSync(join(tmpdir(), 'koh-empty-'));
+    dirs = spoolDirs(home);
+    await ensureDirs(dirs);
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  const ended = (id: string): Session => ({ ...base, id, status: 'idle', endedAt: 5 });
+
+  it('drops an ended row with nothing to resume, unless a folder holds it', async () => {
+    await writeSession(dirs, ended('empty'));
+    await writeSession(dirs, ended('empty-filed'));
+    await writeSession(dirs, ended('resumable'));
+    await writeSession(dirs, { ...base, id: 'open' });
+    const hasTranscript = async (s: Session): Promise<boolean> => s.id === 'resumable';
+    const filed = async (id: string): Promise<boolean> => id === 'empty-filed';
+    expect(await dropEndedWithoutTranscript(dirs, hasTranscript, filed)).toEqual(['empty']);
+    expect([...(await readSessions(dirs)).keys()].sort()).toEqual(['empty-filed', 'open', 'resumable']);
   });
 });
 

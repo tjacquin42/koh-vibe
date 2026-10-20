@@ -38,7 +38,7 @@ import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
+import { dropEndedWithoutTranscript, ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
@@ -46,7 +46,7 @@ import {
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
-import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
+import { CHIME_EVENTS, isFiled, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
 import type { TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
@@ -238,6 +238,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const hasTranscript = async (s: Session): Promise<boolean> =>
     (s.transcriptPath !== undefined && existsSync(s.transcriptPath)) || (await findTranscript(claudeRoot, s.id)) !== undefined;
   /**
+   * Whether a folder holds the conversation, re-read from the shared file
+   * every time: another window may have filed it a moment ago. A filed
+   * conversation is never taken off the list but by the user's own gesture.
+   */
+  const filedNow = async (id: string): Promise<boolean> => isFiled(await readGroups(groupsPath), id);
+  /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
    * fails: the registry and the editor's memory are conveniences over the
@@ -248,10 +254,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const live = await readLiveSessions(registryDir);
       const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot, dismissed);
       // An ended row with nothing to resume — a conversation that never got a
-      // message — has no business on screen (see the watcher's `hasTranscript`).
-      for (const s of (await readSessions(dirs)).values()) {
-        if (s.endedAt !== undefined && !(await hasTranscript(s))) await removeSession(dirs, s.id);
-      }
+      // message — has no business on screen (see the watcher's `hasTranscript`),
+      // unless the user filed it.
+      await dropEndedWithoutTranscript(dirs, hasTranscript, filedNow);
       await refreshDormant(live);
       return added;
     } catch {
@@ -664,10 +669,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // activity (store/temporary.ts), when the setting says so. An open one
         // is hidden (the next hook lifts it), an ended one removed for good.
         if (sound.expireTemporary) {
-          const filed = (id: string): boolean => {
-            const g = groupIdOf(groups, id);
-            return g !== undefined && g.length > 0;
-          };
+          const filed = (id: string): boolean => isFiled(groups, id);
           for (const s of temporaryToForget(shown.values(), filed, Date.now())) {
             if (s.endedAt !== undefined) await removeSession(dirs, s.id);
             else await hideSession(dirs, s.id);
@@ -876,6 +878,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // What `SessionEnd` does to the row, per the setting as last read.
     () => (sound.persistent ? 'keep' : 'remove'),
     hasTranscript,
+    filedNow,
   );
   watcher.start();
   broker.start();
@@ -1044,11 +1047,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const endedAt = s.endedAt;
         void hasTranscript(s).then((has) => {
           if (has) return bringBack(toClosedEntry(s, endedAt));
-          // Nothing to resume: the row should not even be here (rescan drops such rows).
+          // Nothing to resume: the row should not even be here (rescan drops such rows)
+          // — unless a folder holds it, and then it stays where it was put.
           void vscode.window.showInformationMessage(
             vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
           );
-          return remove(s.id);
+          return filedNow(s.id).then((filed) => (filed ? undefined : remove(s.id)));
         });
         return;
       }

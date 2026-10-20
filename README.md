@@ -77,7 +77,8 @@ reinstalling under the same number leaves the editor serving what it already had
   one Claude generated, else the last prompt.
 - **Ended conversations** stay in the list, greyed out and in their folder, for as long as
   *Persistent sessions* is on in the settings (it is by default). Turn it off and closing a
-  tab takes the row away instead. *Recently closed*, a view of its own, keeps the ten
+  tab takes the row away instead — except in a folder: a conversation filed in one never
+  leaves the list on its own. *Recently closed*, a view of its own, keeps the ten
   conversations that ended most recently either way.
 - **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
   there for 24 hours without activity, it leaves the list — a setting turns that off.
@@ -155,9 +156,12 @@ runs in its own terminal, and a session still alive reappears on its next event.
 
 **Persistent sessions.** The first row of the settings, a checkbox, decides what closing a tab
 does to its row. Checked — the default — the conversation stays in the list, greyed out, in
-its folder, with a muted dot and the time it closed; the fifty most recent are kept, and
-*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row
-instead; the rows already greyed stay either way. Hover the row for the same explanation.
+its folder, with a muted dot and the time it closed; the fifty most recent outside any folder
+are kept, and *Remove from the list* takes one away for good. Unchecked, closing the tab
+removes the row instead; the rows already greyed stay either way. A conversation filed in a
+folder stays whatever the setting, its age or the number of greyed rows — even once there is
+nothing left to resume: only *Remove from the list* or the trash takes it away. Hover the row
+for the same explanation.
 
 **Temporary sessions.** The second checkbox. A conversation filed in no folder is temporary:
 after 24 hours without activity it leaves the list — hidden, not forgotten, so any activity in

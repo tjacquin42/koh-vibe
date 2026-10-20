@@ -27,6 +27,8 @@ vi.mock('../src/usage/oauth', () => ({
 }));
 
 import { activate } from '../src/extension';
+import type { Session } from '../src/events/types';
+import { assign, createGroup, emptyGroups, serializeGroups } from '../src/groups/model';
 import { forgetAttempts } from '../src/usage/reader';
 import { registeredCommands, statusBarItems, treeViews, webviewViewProviders } from './stubs/vscode';
 
@@ -136,6 +138,44 @@ describe('activate', () => {
       // A no-op registered so a title button always has a command to bind
       // to; package.json keeps it disabled.
       expect(byId('kohVibe.rescanning')()).toBeUndefined();
+    },
+    10_000,
+  );
+
+  it(
+    'keeps a filed ended conversation that has no transcript, through the rescan and a click on it',
+    async () => {
+      const home = process.env['KOH_VIBE_HOME'];
+      if (home === undefined) throw new Error('KOH_VIBE_HOME was not set');
+      const sessions = join(home, 'sessions');
+      mkdirSync(sessions, { recursive: true });
+      const ended = (id: string): Session => ({
+        id, cwd: '/Users/dev/projet', project: 'projet', origin: 'vscode',
+        status: 'idle', toolCount: 0, lastEventAt: Date.now(), endedAt: Date.now(),
+      });
+      const write = (s: Session): void => writeFileSync(join(sessions, `${s.id}.json`), JSON.stringify(s), 'utf8');
+      const groups = assign(assign(createGroup(emptyGroups(), 'folder', () => 'g1'), 'filed', 'g1'), 'clicked', 'g1');
+      writeFileSync(join(home, 'groups.json'), serializeGroups(groups), 'utf8');
+      write(ended('filed'));
+      write(ended('loose'));
+
+      await activate(fakeContext());
+
+      // The rescan at activation drops the loose one: once it is gone, the
+      // pass is over and the filed one has been looked at too.
+      await vi.waitFor(() => expect(existsSync(join(sessions, 'loose.json'))).toBe(false), { timeout: 5_000 });
+      expect(existsSync(join(sessions, 'filed.json'))).toBe(true);
+
+      // Clicked: nothing to resume, said so — and the row stays in its folder.
+      const told = vi.spyOn(vscode.window, 'showInformationMessage');
+      write(ended('clicked'));
+      const focus = registeredCommands.find((c) => c.command === 'kohVibe.focusSession');
+      if (focus === undefined) throw new Error('kohVibe.focusSession was not registered');
+      focus.callback(ended('clicked'));
+      await vi.waitFor(() => expect(told).toHaveBeenCalled(), { timeout: 5_000 });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(existsSync(join(sessions, 'clicked.json'))).toBe(true);
+      told.mockRestore();
     },
     10_000,
   );

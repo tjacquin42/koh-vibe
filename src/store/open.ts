@@ -5,7 +5,8 @@ import type { Session } from '../events/types';
  * "Recently closed" view, doubled: they no longer sit in a view of their own
  * but in the folders they were filed in, where twenty greyed rows are still
  * a history rather than a heap. Beyond it the oldest ended one goes
- * (`capEndedSessions`); an open conversation is never touched by this.
+ * (`capEndedSessions`); an open conversation is never touched by this, nor
+ * a filed one — it is not even counted.
  */
 // Generous on purpose: quitting the editor ends every tab at once, and a
 // user who keeps twenty tabs open must find all twenty greyed out — not the

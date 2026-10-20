@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  assign, createGroup, deleteGroup, emptyGroups, groupIdOf, parseGroups,
+  assign, createGroup, deleteGroup, emptyGroups, groupIdOf, isFiled, parseGroups,
   renameGroup, reorder, serializeGroups, sessionOrderOf, setGroupColor,
   setGroupSound, setSessionOrder, setSessionSound, soundFor, unassign,
 } from '../src/groups/model';
@@ -106,6 +106,13 @@ describe('assign / unassign', () => {
     const s = assign(assign(deux, 's1', 'g1'), 's1', 'g2');
     expect(groupIdOf(s, 's1')).toBe('g2');
     expect(Object.keys(s.assignments)).toHaveLength(1);
+  });
+
+  it('says a conversation is filed only while a folder holds it', () => {
+    const filed = assign(base, 's1', 'g1');
+    expect(isFiled(filed, 's1')).toBe(true);
+    expect(isFiled(filed, 's2')).toBe(false);
+    expect(isFiled(unassign(filed, 's1'), 's1')).toBe(false);
   });
 
   it('removing returns the session to « no folder »', () => {
