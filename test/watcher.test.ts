@@ -570,6 +570,19 @@ describe('drain — the tool calls it hands to the process view', () => {
   });
 });
 
+describe('drain — the artifacts it hands to the filing by project', () => {
+  it('collects the artifacts published by the calls it applied, with the directory each ran in', async () => {
+    const published = { artifact_id: '332a4531-0d6b-435e-a7bb-d7a886f07715', title: 'Plans', updated: false };
+    await dropEvent('1-1-PostToolUse.json', hook('PostToolUse', 1, { tool_name: 'Artifact', tool_response: published }));
+    // A refusal publishes nothing, and an artifact is not a process.
+    await dropEvent('2-1-PostToolUse.json', hook('PostToolUse', 2, { tool_name: 'Artifact', tool_response: 'Error: refused' }));
+    const res = await drain(dirs, NOW);
+    expect(res.applied).toBe(2);
+    expect(res.published).toEqual([{ slug: '332a4531-0d6b-435e-a7bb-d7a886f07715', cwd: '/Users/dev/projet' }]);
+    expect(res.toolCalls).toEqual([]);
+  });
+});
+
 describe('SpoolWatcher', () => {
   it('start() tolerates a missing events folder, without throwing, and still arms the periodic safety net', () => {
     // Verified only structurally, never through the actual firing of start()'s

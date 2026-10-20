@@ -131,3 +131,12 @@ export function claudeConfigFile(env: NodeJS.ProcessEnv = process.env): string {
   if (override !== undefined && override.length > 0) return join(override, '.claude.json');
   return join(env['HOME'] ?? '', '.claude.json');
 }
+
+/**
+ * Which project each artifact is filed under. claude.ai has no folders for
+ * artifacts, so the filing lives here — shared between windows like the
+ * session folders, and for the same reason.
+ */
+export function artifactProjectsFile(home: string): string {
+  return join(home, 'artifact-projects.json');
+}

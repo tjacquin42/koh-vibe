@@ -161,4 +161,19 @@ describe('the manifest', () => {
     expect(icon('kohVibe.unpinArtifact')).toBe('$(pinned)');
     for (const command of ['kohVibe.pinArtifact', 'kohVibe.unpinArtifact']) expect(palette(command)?.when).toBe('false');
   });
+
+  it('files any artifact row into a project from its right-click menu, and never a folder', () => {
+    const [entry, ...rest] = context('kohVibe.fileArtifact');
+    expect(rest).toEqual([]);
+    expect(entry?.when).toBe('view == kohVibe.artifacts && viewItem =~ /^artifact/');
+    expect(entry?.group?.startsWith('inline')).toBe(false);
+    expect(palette('kohVibe.fileArtifact')?.when).toBe('false');
+  });
+
+  it('renames a named project from its folder row — not Other, which is no project', () => {
+    const [entry, ...rest] = context('kohVibe.renameArtifactProject');
+    expect(rest).toEqual([]);
+    expect(entry?.when).toBe('view == kohVibe.artifacts && viewItem == project.named');
+    expect(palette('kohVibe.renameArtifactProject')?.when).toBe('false');
+  });
 });

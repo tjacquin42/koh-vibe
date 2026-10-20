@@ -209,5 +209,15 @@
   "Koh-Vibe: “{0}” pinned": "Koh-Vibe : « {0} » épinglé",
   "Koh-Vibe: “{0}” unpinned": "Koh-Vibe : « {0} » désépinglé",
   "Could not pin “{0}”.": "Impossible d'épingler « {0} ».",
-  "Could not unpin “{0}”.": "Impossible de désépingler « {0} »."
+  "Could not unpin “{0}”.": "Impossible de désépingler « {0} ».",
+  "Other": "Divers",
+  "{0} — 1 artifact": "{0} — 1 artifact",
+  "{0} — {1} artifacts": "{0} — {1} artifacts",
+  "current": "actuel",
+  "New project…": "Nouveau projet…",
+  "Move to which project?": "Ranger dans quel projet ?",
+  "Name of the new project": "Nom du nouveau projet",
+  "New project name": "Nouveau nom du projet",
+  "Koh-Vibe: could not file the artifacts.": "Koh-Vibe : impossible de ranger les artifacts.",
+  "Koh-Vibe: could not rename the project.": "Koh-Vibe : impossible de renommer le projet."
 }

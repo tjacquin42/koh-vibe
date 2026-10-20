@@ -25,3 +25,12 @@ export function artifactTooltip(a: Artifact, locale: string): string {
   lines.push(vscode.l10n.t('Click to open on claude.ai'));
   return lines.join('\n');
 }
+
+/** The folder of what is filed under no project — « Divers » in French. */
+export function otherLabel(): string {
+  return vscode.l10n.t('Other');
+}
+
+export function projectTooltip(label: string, count: number): string {
+  return count === 1 ? vscode.l10n.t('{0} — 1 artifact', label) : vscode.l10n.t('{0} — {1} artifacts', label, count);
+}

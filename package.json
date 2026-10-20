@@ -77,7 +77,9 @@
       { "command": "kohVibe.copyArtifactLink", "title": "%command.kohVibe.copyArtifactLink.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.renameArtifact", "title": "%command.kohVibe.renameArtifact.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.pinArtifact", "title": "%command.kohVibe.pinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pin)" },
-      { "command": "kohVibe.unpinArtifact", "title": "%command.kohVibe.unpinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pinned)" }
+      { "command": "kohVibe.unpinArtifact", "title": "%command.kohVibe.unpinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pinned)" },
+      { "command": "kohVibe.fileArtifact", "title": "%command.kohVibe.fileArtifact.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.renameArtifactProject", "title": "%command.kohVibe.renameArtifactProject.title%", "category": "Koh-Vibe" }
     ],
     "keybindings": [
       { "command": "kohVibe.replaySound", "key": "right", "when": "kohVibe.pickingSound && inQuickOpen" }
@@ -122,7 +124,9 @@
         { "command": "kohVibe.pinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.unpinned", "group": "inline@1" },
         { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "inline@1" },
         { "command": "kohVibe.pinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.unpinned", "group": "artifact@2" },
-        { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "artifact@2" }
+        { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "artifact@2" },
+        { "command": "kohVibe.fileArtifact", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@3" },
+        { "command": "kohVibe.renameArtifactProject", "when": "view == kohVibe.artifacts && viewItem == project.named", "group": "project@1" }
       ],
       "commandPalette": [
         { "command": "kohVibe.rescanning", "when": "false" },
@@ -145,7 +149,9 @@
         { "command": "kohVibe.copyArtifactLink", "when": "false" },
         { "command": "kohVibe.renameArtifact", "when": "false" },
         { "command": "kohVibe.pinArtifact", "when": "false" },
-        { "command": "kohVibe.unpinArtifact", "when": "false" }
+        { "command": "kohVibe.unpinArtifact", "when": "false" },
+        { "command": "kohVibe.fileArtifact", "when": "false" },
+        { "command": "kohVibe.renameArtifactProject", "when": "false" }
       ]
     }
   },

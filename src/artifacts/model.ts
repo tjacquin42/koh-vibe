@@ -21,6 +21,18 @@ export interface ArtifactList {
 /** One page of the listing — what Claude Code itself asks for. */
 export const ARTIFACTS_PAGE = 200;
 
+/**
+ * What a slug may be: claude.ai's are UUIDs. An allow list, like the session
+ * ids (events/parse.ts) — and never `__proto__`, which as a key of a plain
+ * object would set its prototype instead of an entry: slugs key the filing
+ * by project (projects.ts).
+ */
+const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
+
+export function isSlug(v: unknown): v is string {
+  return typeof v === 'string' && SLUG.test(v) && v !== '__proto__';
+}
+
 export function parseArtifacts(raw: unknown): ArtifactList | undefined {
   if (!isRecord(raw)) return undefined;
   const frames = raw['frames'];

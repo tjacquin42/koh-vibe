@@ -1,18 +1,31 @@
+import { homedir } from 'node:os';
 import * as vscode from 'vscode';
 import { pinArtifact, retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../artifacts/actions';
 import { listArtifacts, renameArtifact, setArtifactPinned } from '../artifacts/api';
 import { artifactUrl, isArtifact, type Artifact } from '../artifacts/model';
+import { fileArtifacts, knownProjects, projectOfArtifact, renameFolder } from '../artifacts/projects';
+import { readArtifactProjects, updateArtifactProjects } from '../artifacts/projects-store';
+import { fileNewArtifacts, type PublishedArtifact } from '../artifacts/publish';
 import { readCredentials, type CloudDeps } from '../cloud/account';
 import { Feed } from '../cloud/feed';
 import { logged } from '../cloud/log';
 import { send } from '../cloud/request';
-import { artifactsFile, routinesFile } from '../paths';
+import { artifactProjectsFile, artifactsFile, routinesFile } from '../paths';
 import { launchRoutine, pauseRoutine, type RoutineCalls, type RoutineUi } from '../routines/actions';
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines/api';
 import { isRoutine, routineUrl, type Routine } from '../routines/model';
-import { ArtifactsTree, artifactSlugOfNode } from './artifacts-tree';
+import { ArtifactsTree, artifactSlugOfNode, projectOfNode, selectedSlugs } from './artifacts-tree';
 import { feedDescription } from './feed-labels';
+import { chooseProject, projectName } from './project-picks';
 import { RoutinesTree, routineIdOfNode } from './routines-tree';
+
+/** What the dashboard calls on these views. */
+export interface CloudViews {
+  /** The one call the render loop makes. */
+  render: () => Promise<void>;
+  /** Files the artifacts a drain saw published under their session's project. */
+  filePublished: (published: readonly PublishedArtifact[]) => Promise<void>;
+}
 
 /**
  * The views of what lives on claude.ai rather than on this machine.
@@ -29,7 +42,7 @@ export function registerCloudViews(
   context: vscode.ExtensionContext,
   home: string,
   render: () => Promise<void>,
-): () => Promise<void> {
+): CloudViews {
   // Where a failed call says what failed. The endpoints are undocumented; the
   // day one changes, this channel is the only place that tells which call
   // broke, and how (cloud/log.ts).
@@ -49,8 +62,26 @@ export function registerCloudViews(
     fetch: () => listArtifacts(cloud),
     now: () => Date.now(),
   });
-  const artifactsTree = new ArtifactsTree();
-  const artifactsView = vscode.window.createTreeView('kohVibe.artifacts', { treeDataProvider: artifactsTree });
+  // Which project each artifact is filed under — on this machine, since
+  // claude.ai has no folders for them (artifacts/projects.ts).
+  const projectsFile = artifactProjectsFile(home);
+  /** Files pages into a project, or into « Other » with `null` — a drop and the menu both end here. */
+  const fileInto = async (slugs: string[], project: string | null): Promise<void> => {
+    try {
+      await updateArtifactProjects(projectsFile, (s) => fileArtifacts(s, slugs, project));
+    } catch (err) {
+      channel.appendLine(`${new Date().toISOString()} artifact projects → ${err instanceof Error ? err.message : String(err)}`);
+      void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: could not file the artifacts.'));
+    }
+    await render();
+  };
+  const artifactsTree = new ArtifactsTree(fileInto);
+  const artifactsView = vscode.window.createTreeView('kohVibe.artifacts', {
+    treeDataProvider: artifactsTree,
+    dragAndDropController: artifactsTree,
+    // Several pages at once: filed together by a drag or by the menu.
+    canSelectMany: true,
+  });
 
   const open = (url: string): void => {
     void vscode.env.openExternal(vscode.Uri.parse(url));
@@ -192,13 +223,43 @@ export function registerCloudViews(
       const a = artifactAt(node);
       if (a !== undefined) await pinArtifact(a, false, artifactCalls, artifactUi);
     }),
+    // The row clicked, and the selection: the whole of it when the row is part of it.
+    vscode.commands.registerCommand('kohVibe.fileArtifact', async (node: unknown, nodes: unknown) => {
+      const slugs = selectedSlugs(node, nodes);
+      if (slugs.length === 0) return;
+      const projects = await readArtifactProjects(projectsFile);
+      // Where the page is now, marked in the list — for one page only: several
+      // may sit in as many places.
+      const only = slugs.length === 1 ? artifactsTree.artifact(slugs[0] ?? '') : undefined;
+      const current = only === undefined ? undefined : (projectOfArtifact(only, projects) ?? null);
+      const project = await chooseProject(knownProjects(projects), current, {
+        pick: async (items) => vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t('Move to which project?') }),
+        askName: async () => vscode.window.showInputBox({ prompt: vscode.l10n.t('Name of the new project') }),
+      });
+      if (project !== undefined) await fileInto(slugs, project);
+    }),
+    vscode.commands.registerCommand('kohVibe.renameArtifactProject', async (node: unknown) => {
+      const from = projectOfNode(node);
+      if (from === undefined) return;
+      const to = projectName(await vscode.window.showInputBox({ prompt: vscode.l10n.t('New project name'), value: from }));
+      if (to === undefined || to === from) return;
+      // What the folder holds now, its pages there by their title included.
+      const shown = artifactsTree.shownIn(from);
+      try {
+        await updateArtifactProjects(projectsFile, (s) => renameFolder(s, from, shown, to));
+      } catch (err) {
+        channel.appendLine(`${new Date().toISOString()} artifact projects → ${err instanceof Error ? err.message : String(err)}`);
+        void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: could not rename the project.'));
+      }
+      await render();
+    }),
   );
 
   // The last failure written to the channel, so a fault that repeats on every
   // render is written once, not every two seconds.
   let lastFault: string | undefined;
 
-  return async () => {
+  const show = async (): Promise<void> => {
     // The cloud views fail alone: nothing that goes wrong here may stop the
     // render of the sessions underneath. The channel says what it was.
     try {
@@ -213,6 +274,7 @@ export function registerCloudViews(
       if (artifactsView.visible) {
         void artifactsFeed.refresh(false);
         const view = await artifactsFeed.read();
+        artifactsTree.setProjects(await readArtifactProjects(projectsFile));
         artifactsTree.setFeed(view, now, locale);
         artifactsView.description = feedDescription(view, now);
       }
@@ -223,5 +285,18 @@ export function registerCloudViews(
       lastFault = fault;
       channel.appendLine(`${new Date().toISOString()} cloud views → ${fault}`);
     }
+  };
+
+  return {
+    render: show,
+    // Filed whether or not the view is open: the publish happens once, and a
+    // view opened later must find the page already in its project.
+    filePublished: async (published) => {
+      await fileNewArtifacts(projectsFile, published, homedir(), (slug, err) => {
+        channel.appendLine(
+          `${new Date().toISOString()} artifact projects → ${slug}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    },
   };
 }

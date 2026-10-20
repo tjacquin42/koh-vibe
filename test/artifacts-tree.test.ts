@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { DataTransfer, DataTransferItem, TreeItemCollapsibleState } from 'vscode';
 import type { Artifact } from '../src/artifacts/model';
+import type { ArtifactProjects } from '../src/artifacts/projects';
 import type { FeedView } from '../src/cloud/feed';
 import { updatedText } from '../src/ui/artifact-labels';
-import { ArtifactsTree, artifactNodeId, artifactSlugOfNode, type ArtifactNode } from '../src/ui/artifacts-tree';
+import {
+  ArtifactsTree,
+  artifactNodeId,
+  artifactSlugOfNode,
+  projectOfNode,
+  selectedSlugs,
+  type ArtifactNode,
+} from '../src/ui/artifacts-tree';
+
+// The view's own type: written out rather than imported, because the exact
+// value is part of its contract — same rule as test/tree-dnd.test.ts.
+const MIME = 'application/vnd.code.tree.kohvibe.artifacts';
 
 const at = (y: number, m: number, d: number, h = 12, min = 0): number => new Date(y, m - 1, d, h, min).getTime();
 /** Monday 28 September 2026, 10:00 local time. */
@@ -67,6 +80,115 @@ describe('the artifacts view', () => {
   });
 });
 
+describe('the artifacts view, by project', () => {
+  const projects = (filed: Record<string, string | null>): ArtifactProjects => ({ filed, aliases: {}, unknown: {} });
+
+  const filedTree = (items: Artifact[], filed: Record<string, string | null>, onFile = vi.fn(async () => undefined)) => {
+    const tree = new ArtifactsTree(onFile);
+    tree.setFeed(ready(items), NOW, 'fr');
+    tree.setProjects(projects(filed));
+    return { tree, onFile };
+  };
+
+  it('shows one folder per project, by name, Other last — folded, with how many each holds', () => {
+    const { tree } = filedTree(
+      [artifact({ slug: 'n1' }), artifact({ slug: 'n2' }), artifact({ slug: 'k' }), artifact({ slug: 'loose' })],
+      { n1: 'NTI', n2: 'NTI', k: 'koh-vibe' },
+    );
+    const rows = tree.getChildren();
+    const items = rows.map((r) => tree.getTreeItem(r));
+    expect(items.map((i) => i.label)).toEqual(['koh-vibe', 'NTI', 'Other']);
+    expect(items.map((i) => i.description)).toEqual(['1', '2', '1']);
+    expect(items.map((i) => i.contextValue)).toEqual(['project.named', 'project.named', 'project.other']);
+    for (const item of items) expect(item.collapsibleState).toBe(TreeItemCollapsibleState.Collapsed);
+    expect(new Set(items.map((i) => i.id)).size).toBe(3);
+  });
+
+  it('lists a folder’s artifacts as the flat list did: pinned first, then the most recent', () => {
+    const { tree } = filedTree(
+      [
+        artifact({ slug: 'old', updatedAt: at(2026, 8, 30) }),
+        artifact({ slug: 'pin', pinned: true, updatedAt: at(2026, 9, 1) }),
+        artifact({ slug: 'new', updatedAt: at(2026, 9, 27) }),
+      ],
+      { old: 'NTI', pin: 'NTI', new: 'NTI' },
+    );
+    const [folder] = tree.getChildren();
+    expect(tree.getChildren(folder).map(artifactNodeId)).toEqual(['artifact:pin', 'artifact:new', 'artifact:old']);
+  });
+
+  it('files an artifact never filed under the project its title names', () => {
+    const { tree } = filedTree(
+      [artifact({ slug: 'a', updatedAt: at(2026, 9, 27) }), artifact({ slug: 'b', title: 'NTI — logos', updatedAt: at(2026, 9, 1) })],
+      { a: 'NTI' },
+    );
+    const [folder] = tree.getChildren();
+    expect(tree.getChildren(folder).map(artifactNodeId)).toEqual(['artifact:a', 'artifact:b']);
+  });
+
+  it('stays a flat list while nothing is filed under a project', () => {
+    const { tree } = filedTree([artifact({ slug: 'a' }), artifact({ slug: 'b' })], { a: null });
+    expect(tree.getChildren().map((n) => n.kind)).toEqual(['artifact', 'artifact']);
+  });
+
+  it('picks up the artifacts of the rows dragged, and nothing of a folder', () => {
+    const { tree } = filedTree([artifact({ slug: 'a' }), artifact({ slug: 'b' })], { a: 'NTI' });
+    const [folder] = tree.getChildren();
+    const rows = tree.getChildren(folder);
+    const data = new DataTransfer();
+    tree.handleDrag([...rows, folder!], data);
+    expect(data.get(MIME)?.value).toEqual(['a']);
+    const empty = new DataTransfer();
+    tree.handleDrag([folder!], empty);
+    expect(empty.get(MIME)).toBeUndefined();
+  });
+
+  it('files what is dropped into the folder it lands on — or into the folder of the row it lands on', async () => {
+    const { tree, onFile } = filedTree([artifact({ slug: 'a' }), artifact({ slug: 'b' }), artifact({ slug: 'c' })], {
+      a: 'NTI',
+      b: 'koh-vibe',
+    });
+    const [kohVibe, nti, other] = tree.getChildren();
+    const dragged = (slugs: unknown): DataTransfer => {
+      const data = new DataTransfer();
+      data.set(MIME, new DataTransferItem(slugs));
+      return data;
+    };
+    await tree.handleDrop(nti, dragged(['c']));
+    expect(onFile).toHaveBeenLastCalledWith(['c'], 'NTI');
+    await tree.handleDrop(other, dragged(['a']));
+    expect(onFile).toHaveBeenLastCalledWith(['a'], null);
+    await tree.handleDrop(tree.getChildren(kohVibe)[0], dragged(['c']));
+    expect(onFile).toHaveBeenLastCalledWith(['c'], 'koh-vibe');
+    expect(onFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('files nothing dropped in the flat list — there is no folder to drop into', async () => {
+    // A row's folder is « Other » there; filing into it on such a drop would
+    // mark the page as « Other » chosen, for good, without anything showing it.
+    const { tree, onFile } = filedTree([artifact({ slug: 'a' }), artifact({ slug: 'b' })], {});
+    const data = new DataTransfer();
+    data.set(MIME, new DataTransferItem(['a']));
+    await tree.handleDrop(tree.getChildren()[1], data);
+    expect(onFile).not.toHaveBeenCalled();
+  });
+
+  it('ignores a drop on nothing, and anything that is not a list of artifacts', async () => {
+    const { tree, onFile } = filedTree([artifact({ slug: 'a' })], { a: 'NTI' });
+    const [nti] = tree.getChildren();
+    const data = new DataTransfer();
+    data.set(MIME, new DataTransferItem(['a']));
+    await tree.handleDrop(undefined, data);
+    for (const value of ['a', [1], [], ['../x'], { slugs: ['a'] }]) {
+      const odd = new DataTransfer();
+      odd.set(MIME, new DataTransferItem(value));
+      await tree.handleDrop(nti, odd);
+    }
+    await tree.handleDrop(nti, new DataTransfer());
+    expect(onFile).not.toHaveBeenCalled();
+  });
+});
+
 describe('updatedText', () => {
   it('reads recent work in days, older work in dates', () => {
     expect(updatedText(at(2026, 9, 28, 8), NOW, 'fr')).toBe('today');
@@ -88,6 +210,29 @@ describe('artifactSlugOfNode', () => {
     expect(artifactSlugOfNode(node)).toBe('ArtTest01');
     for (const v of [undefined, null, 'x', { kind: 'empty' }, { kind: 'artifact', artifact: { slug: 1 } }]) {
       expect(artifactSlugOfNode(v)).toBeUndefined();
+    }
+  });
+});
+
+describe('selectedSlugs', () => {
+  const row = (slug: string): ArtifactNode => ({ kind: 'artifact', artifact: artifact({ slug }) });
+
+  it('acts on the whole selection when the row clicked is part of it', () => {
+    expect(selectedSlugs(row('b'), [row('a'), row('b'), { kind: 'project', project: 'NTI' }])).toEqual(['a', 'b']);
+  });
+
+  it('acts on the row clicked alone when it is outside the selection, or there is none', () => {
+    expect(selectedSlugs(row('c'), [row('a'), row('b')])).toEqual(['c']);
+    expect(selectedSlugs(row('c'), undefined)).toEqual(['c']);
+    expect(selectedSlugs({ kind: 'project', project: 'NTI' }, [row('a')])).toEqual([]);
+  });
+});
+
+describe('projectOfNode', () => {
+  it('reads the project of a named folder row, and nothing else — Other included', () => {
+    expect(projectOfNode({ kind: 'project', project: 'NTI' })).toBe('NTI');
+    for (const v of [undefined, null, 'NTI', { kind: 'project' }, { kind: 'project', project: 3 }, { kind: 'artifact', project: 'NTI' }]) {
+      expect(projectOfNode(v)).toBeUndefined();
     }
   });
 });

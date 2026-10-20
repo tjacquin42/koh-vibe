@@ -453,7 +453,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Routines and artifacts live on claude.ai: their views, feeds and commands
   // are wired in their own module, which hands back the one call the render
   // loop makes (ui/cloud-views.ts).
-  const showCloud = registerCloudViews(context, home, () => render());
+  const cloud = registerCloudViews(context, home, () => render());
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -624,7 +624,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         usageView.setUsage(await readUsage(home));
         // The cloud views read their shared caches — and ask claude.ai, at
         // their own pace, only while they are open.
-        await showCloud();
+        await cloud.render();
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
         footer.setToggles({
@@ -870,6 +870,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // are already unlinked, and this is the only place the agent behind a
       // command is ever visible (process/agents.ts).
       for (const call of result.toolCalls) agents.note(call);
+      // Same reason: a publish is only ever seen here, once.
+      if (result.published.length > 0) void cloud.filePublished(result.published).then(() => render());
       void render();
     },
     () => {

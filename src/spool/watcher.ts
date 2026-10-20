@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpoolDirs } from '../paths';
+import type { PublishedArtifact } from '../artifacts/publish';
 import type { LocalEvent, Session, SpoolEvent } from '../events/types';
 import { parseSpoolFile } from '../events/parse';
 import { reduce } from '../store/reduce';
@@ -33,6 +34,12 @@ export interface DrainResult {
    * short-lived. See process/agents.ts.
    */
   toolCalls: SpoolEvent[];
+  /**
+   * The artifacts this pass saw published, each with the directory its
+   * session ran in — what files a new artifact under that session's project
+   * (artifacts/publish.ts). Carried out for the same reason as `toolCalls`.
+   */
+  published: PublishedArtifact[];
 }
 
 /**
@@ -157,6 +164,7 @@ export async function drain(
   // Collected as they go by, for the process view's agent index: the files
   // are unlinked moments later, so this pass is the only chance to see them.
   const toolCalls: SpoolEvent[] = [];
+  const published: PublishedArtifact[] = [];
 
   for (const name of files) {
     const path = join(dirs.events, name);
@@ -186,7 +194,7 @@ export async function drain(
         // event stays in place, neither applied nor deleted, and will be
         // reprocessed. Nothing else can safely be done by this execution
         // any more: we stop the whole drain, not just this event.
-        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls, published };
       }
 
       // Archive BEFORE writing, for the same reason the state is written
@@ -212,7 +220,7 @@ export async function drain(
       // with the reading above gone stale — putting the conversation back to
       // ended over the prompt that had just woken it.
       if (signal?.abandoned) {
-        return { applied, rejected, deferred, rejectedPermanently, toolCalls };
+        return { applied, rejected, deferred, rejectedPermanently, toolCalls, published };
       }
       if (next === undefined || blank || (ended && endPolicy === 'remove' && !kept)) {
         // `'remove'` takes the end at face value, late or not: the policy is
@@ -257,6 +265,7 @@ export async function drain(
     // an event that failed to reduce will be retried, and counting it here
     // would claim a command twice.
     if (ev.toolName === 'Bash') toolCalls.push(ev);
+    if (ev.artifactId !== undefined) published.push({ slug: ev.artifactId, cwd: ev.cwd });
     try {
       await unlink(path);
     } catch (err) {
@@ -277,7 +286,7 @@ export async function drain(
   // unfiled one goes. Only worth a look when this pass ended one.
   if (endedOne) await capEndedSessions(dirs, MAX_ENDED, filed);
 
-  return { applied, rejected, deferred, rejectedPermanently, toolCalls };
+  return { applied, rejected, deferred, rejectedPermanently, toolCalls, published };
 }
 
 export interface LocalEventInput {

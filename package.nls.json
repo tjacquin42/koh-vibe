@@ -49,5 +49,7 @@
   "command.kohVibe.copyArtifactLink.title": "Copy link",
   "command.kohVibe.renameArtifact.title": "Rename…",
   "command.kohVibe.pinArtifact.title": "Pin",
-  "command.kohVibe.unpinArtifact.title": "Unpin"
+  "command.kohVibe.unpinArtifact.title": "Unpin",
+  "command.kohVibe.fileArtifact.title": "Move to project…",
+  "command.kohVibe.renameArtifactProject.title": "Rename project…"
 }
