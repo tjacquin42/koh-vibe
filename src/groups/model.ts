@@ -328,6 +328,16 @@ export function groupIdOf(s: GroupsState, sessionId: string): string | undefined
   return s.assignments[sessionId];
 }
 
+/**
+ * Whether a folder holds the conversation. A filed conversation is a keep:
+ * nothing but the user's own gesture takes it off the list — not its age,
+ * not the end of its session, not a cap, not a transcript gone missing.
+ */
+export function isFiled(s: GroupsState, sessionId: string): boolean {
+  const g = groupIdOf(s, sessionId);
+  return g !== undefined && g.length > 0;
+}
+
 export function sessionOrderOf(s: GroupsState, groupId: string | undefined): readonly string[] {
   return s.sessionOrder[orderKey(groupId)] ?? [];
 }

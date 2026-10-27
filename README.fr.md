@@ -83,8 +83,9 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   vous lui avez donné, sinon celui que Claude a engendré, sinon le dernier prompt.
 - **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
   que *Sessions persistantes* est coché dans les réglages (il l'est par défaut). Décoché,
-  fermer un onglet retire la ligne. *Fermé récemment*, une vue à part, retient dans les deux
-  cas les dix conversations terminées le plus récemment.
+  fermer un onglet retire la ligne — sauf dans un dossier : une conversation qui y est rangée
+  ne quitte jamais la liste d'elle-même. *Fermé récemment*, une vue à part, retient dans les
+  deux cas les dix conversations terminées le plus récemment.
 - **Sessions temporaires** est le dossier où une conversation atterrit tant qu'on ne l'a pas
   glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
   réglage désactive ce comportement.
@@ -125,6 +126,28 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
 
   Une sortie propre ne laisse rien ici : Claude Code emporte ses enfants avec lui, donc recharger
   une fenêtre n'en produit pas. Un plantage, un `kill -9` ou une machine mise en veille, si.
+- **Routines**, une vue à part : les agents que vous avez planifiés sur claude.ai, rangés selon
+  leur prochaine exécution — *Aujourd'hui*, *Demain*, *Cette semaine*, *Plus tard* — avec, repliées
+  sous *En pause*, celles qui sont suspendues et les exécutions uniques déjà passées. Un clic ouvre
+  la routine sur claude.ai. Au survol d'une ligne, **lancez-la maintenant** — après confirmation,
+  puisqu'un run agit pour de vrai — ou **mettez-la en pause** ; une routine en pause propose
+  **réactiver** à la place. Le clic droit copie son lien.
+- **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, **rangées par
+  projet** — un dossier chacun, *Divers* en dernier — les épinglées d'abord, puis les plus
+  récemment mises à jour. Une page publiée depuis une session va d'elle-même dans le dossier du
+  dépôt de cette session ; une page jamais rangée s'affiche sous le projet que nomme son titre,
+  s'il y en a un. Glissez des pages d'un dossier à l'autre, ou clic droit → *Ranger dans un
+  projet…*, plusieurs à la fois ; clic droit sur un dossier pour le renommer. Un clic ouvre une
+  page ; au survol, épinglez-la ou désépinglez-la ; le clic droit permet de la **renommer** ou de
+  copier son lien.
+
+  Le rangement reste sur cette machine : claude.ai n'a pas de dossiers pour les artifacts, rien
+  n'en est donc envoyé là-bas.
+
+  Les deux vues n'interrogent claude.ai que lorsqu'elles sont ouvertes, au plus une fois toutes
+  les cinq minutes, et partagent ce qu'elles lisent entre les fenêtres. Un appel qui échoue est
+  noté dans le canal de sortie *Koh-Vibe* — voir
+  [ce qui quitte la machine](#vos-données-et-ce-qui-quitte-la-machine).
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -169,9 +192,11 @@ Code tourne dans son terminal, et une session encore vivante réapparaîtra à s
 **Sessions persistantes.** La première ligne des réglages, une case à cocher, décide de ce que
 fermer un onglet fait à sa ligne. Cochée — le défaut — la conversation reste dans la liste,
 grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les cinquante
-plus récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée,
-fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux cas. Le survol
-de la ligne donne la même explication.
+plus récentes hors de tout dossier sont gardées, et *Retirer de la liste* en enlève une pour de
+bon. Décochée, fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux
+cas. Une conversation rangée dans un dossier reste quels que soient le réglage, son âge ou le
+nombre de lignes grisées — même quand il n'y a plus rien à reprendre : seuls *Retirer de la
+liste* ou la corbeille l'enlèvent. Le survol de la ligne donne la même explication.
 
 **Sessions temporaires.** La seconde case. Une conversation rangée dans aucun dossier est
 temporaire : après 24 heures sans activité, elle quitte la liste — masquée, pas oubliée : toute
@@ -208,17 +233,23 @@ Depuis la palette de commandes, sous **Koh-Vibe** :
 | *Son d'un événement* · *Volume des carillons* | les carillons globaux |
 | *Installer la bibliothèque de sons* / *Retirer la bibliothèque de sons* | les cent sons Kenney |
 | *Rafraîchir la consommation* | force un relevé, sinon mis en cache cinq minutes |
+| *Rafraîchir les routines* · *Rafraîchir les artifacts* | relit la liste sur claude.ai, sinon mise en cache cinq minutes |
 
-Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation — est sur
-le clic droit de la ligne concernée.
+Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation, lancer ou
+mettre en pause une routine, renommer, épingler ou ranger un artifact — est sur le clic droit de la ligne
+concernée.
 
 ## Vos données, et ce qui quitte la machine
 
-**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Le seul appel réseau que fait
-Koh-Vibe va chez Anthropic, pour vos chiffres de consommation, au plus une fois toutes les
-cinq minutes. Le jeton OAuth dont il a besoin est lu dans le trousseau du système — jamais
-journalisé, jamais écrit sur le disque. Aucun prompt, aucun transcript, aucun chemin ne quitte
-la machine.
+**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Koh-Vibe ne parle qu'à
+Anthropic : pour vos chiffres de consommation, au plus une fois toutes les cinq minutes ; pour vos
+routines et vos artifacts, au plus une fois toutes les cinq minutes et seulement tant que leur vue
+est ouverte ; et pour ce que vous demandez à ces deux vues — lancer, mettre en pause, renommer,
+épingler — au moment où vous cliquez. Le jeton OAuth dont il a besoin est celui que Claude Code
+garde dans le trousseau du système — jamais journalisé, jamais écrit sur le disque. Aucun prompt,
+aucun transcript, aucun chemin ne quitte la machine. Un appel qui échoue est noté dans le canal de
+sortie *Koh-Vibe* avec sa méthode, son chemin, son statut et le motif que l'API donne d'un refus —
+jamais un en-tête, et rien d'autre d'un corps.
 
 Tout le reste tient dans `~/.koh-vibe/` :
 
@@ -234,6 +265,9 @@ Tout le reste tient dans `~/.koh-vibe/` :
 | `closed.json` | les dix conversations fermées le plus récemment |
 | `settings.json` | les sons globaux, le volume, et les deux réglages de la liste |
 | `usage.json` | le dernier relevé de consommation, mis en cache |
+| `routines.json` | la dernière liste de routines lue sur claude.ai, en cache |
+| `artifacts.json` | la dernière liste d'artifacts lue sur claude.ai, en cache |
+| `artifact-projects.json` | le projet sous lequel chaque artifact est rangé |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |
 

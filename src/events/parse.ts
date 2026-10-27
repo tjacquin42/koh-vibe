@@ -1,5 +1,6 @@
 import { HOOK_EVENTS, LOCAL_EVENTS, type EventName, type SpoolEvent } from './types';
 import { isRecord, nonEmptyString } from '../lib/json';
+import { isSlug } from '../artifacts/model';
 
 const NAMES: readonly string[] = [...HOOK_EVENTS, ...LOCAL_EVENTS];
 
@@ -62,6 +63,27 @@ function targetOf(toolInput: Record<string, unknown> | undefined): string | unde
 }
 
 /**
+ * The artifact a publish produced, read off the Artifact tool's structured
+ * result — the object Claude Code also saves as the call's `toolUseResult`.
+ * Its `artifact_id` is the slug the listing uses; the URL beside it carries a
+ * short id the listing does not, hence this field and not the link. A refusal
+ * comes back as a string, and reads as nothing.
+ */
+function artifactIdOf(event: string, toolName: string | undefined, payload: Record<string, unknown>): string | undefined {
+  if (event !== 'PostToolUse' || toolName !== 'Artifact') return undefined;
+  // A publish only — `action` omitted means one. Reading, pinning or opening
+  // a page, or uploading an asset to it, says nothing of where it was made.
+  const input = payload['tool_input'];
+  if (isRecord(input) && ((input['action'] !== undefined && input['action'] !== 'publish') || input['asset'] === true)) {
+    return undefined;
+  }
+  const response = payload['tool_response'];
+  if (!isRecord(response)) return undefined;
+  const id = response['artifact_id'];
+  return isSlug(id) ? id : undefined;
+}
+
+/**
  * Validates a spool file. Returns `undefined` for anything that is not
  * usable — a payload from a future version of Claude Code must never make
  * the extension crash.
@@ -85,6 +107,8 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
   if (sessionId === undefined || cwd === undefined || !isValidSessionId(sessionId)) return undefined;
 
   const toolInput = isRecord(payload['tool_input']) ? payload['tool_input'] : undefined;
+  const toolName = nonEmptyString(payload['tool_name']);
+  const artifactId = artifactIdOf(event, toolName, payload);
 
   return {
     event,
@@ -94,7 +118,7 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
     sessionId,
     cwd,
     transcriptPath: nonEmptyString(payload['transcript_path']),
-    toolName: nonEmptyString(payload['tool_name']),
+    toolName,
     toolTarget: targetOf(toolInput),
     message: displayText(payload['message']),
     // Present only on the calls a subagent makes. Read as plain strings and
@@ -102,5 +126,6 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
     // that touches the filesystem.
     agentId: nonEmptyString(payload['agent_id']),
     agentType: nonEmptyString(payload['agent_type']),
+    ...(artifactId === undefined ? {} : { artifactId }),
   };
 }

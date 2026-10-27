@@ -26,6 +26,7 @@ import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
+import { closedSource } from './closed/source';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
 import { defaultSettings, settingsFromEditor, settingsPatch, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
@@ -36,9 +37,10 @@ import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type Soun
 import { UsageView } from './ui/usage-view';
 import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
+import { registerCloudViews } from './ui/cloud-views';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
+import { dropEndedWithoutTranscript, ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
@@ -46,9 +48,9 @@ import {
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
-import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
+import { CHIME_EVENTS, isFiled, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
-import type { TranscriptStats } from './transcript/reader';
+import { readTranscript, type TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
 import { SessionsTree, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
 import { decorationColorOf } from './ui/decorations';
@@ -238,6 +240,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const hasTranscript = async (s: Session): Promise<boolean> =>
     (s.transcriptPath !== undefined && existsSync(s.transcriptPath)) || (await findTranscript(claudeRoot, s.id)) !== undefined;
   /**
+   * Whether a folder holds the conversation, re-read from the shared file
+   * every time: another window may have filed it a moment ago. A filed
+   * conversation is never taken off the list but by the user's own gesture.
+   */
+  const filedNow = async (id: string): Promise<boolean> => isFiled(await readGroups(groupsPath), id);
+  /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
    * fails: the registry and the editor's memory are conveniences over the
@@ -248,10 +256,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const live = await readLiveSessions(registryDir);
       const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot, dismissed);
       // An ended row with nothing to resume — a conversation that never got a
-      // message — has no business on screen (see the watcher's `hasTranscript`).
-      for (const s of (await readSessions(dirs)).values()) {
-        if (s.endedAt !== undefined && !(await hasTranscript(s))) await removeSession(dirs, s.id);
-      }
+      // message — has no business on screen (see the watcher's `hasTranscript`),
+      // unless the user filed it.
+      await dropEndedWithoutTranscript(dirs, hasTranscript, filedNow);
       await refreshDormant(live);
       return added;
     } catch {
@@ -443,6 +450,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // conversations and the usage.
   const processesTree = new ProcessesTree();
   const processesView = vscode.window.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
+  // Routines and artifacts live on claude.ai: their views, feeds and commands
+  // are wired in their own module, which hands back the one call the render
+  // loop makes (ui/cloud-views.ts).
+  const cloud = registerCloudViews(context, home, () => render());
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -611,6 +622,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // only reads the freshest of the two.
         void refreshFromApi(home, false);
         usageView.setUsage(await readUsage(home));
+        // The cloud views read their shared caches — and ask claude.ai, at
+        // their own pace, only while they are open.
+        await cloud.render();
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
         footer.setToggles({
@@ -664,10 +678,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // activity (store/temporary.ts), when the setting says so. An open one
         // is hidden (the next hook lifts it), an ended one removed for good.
         if (sound.expireTemporary) {
-          const filed = (id: string): boolean => {
-            const g = groupIdOf(groups, id);
-            return g !== undefined && g.length > 0;
-          };
+          const filed = (id: string): boolean => isFiled(groups, id);
           for (const s of temporaryToForget(shown.values(), filed, Date.now())) {
             if (s.endedAt !== undefined) await removeSession(dirs, s.id);
             else await hideSession(dirs, s.id);
@@ -747,9 +758,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * and `branch` for anything but a worktree path, are never written to
    * `sessions/<id>.json` — `withTokens` (transcript/tokens.ts) only ever
    * attaches them to the in-memory Map that `render()` holds here, in
-   * `transcripts`. Without this lookup, every archived conversation would
-   * carry neither, and five closed conversations of the same project would all
-   * show the bare project name.
+   * `transcripts`. That Map is still empty when the drain archives the
+   * `SessionEnd`s of the reload that started this window, so `closedSource`
+   * reads the transcript itself, on from where the Map stopped.
    *
    * Shared by the drain (a natural `SessionEnd`) and, from the next task on, by
    * the trash: two divergent archiving paths would silently lose the title on
@@ -758,8 +769,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const archive = async (s: Session): Promise<void> => {
     // A conversation that never got a message has nothing to come back to.
     if (!(await hasTranscript(s))) return;
-    const stats = transcripts.get(s.id);
-    const source = { ...s, title: s.title ?? stats?.title, branch: s.branch ?? stats?.branch };
+    const source = await closedSource(s, transcripts.get(s.id), readTranscript);
     return rememberClosed(closedPath, toClosedEntry(source, Date.now())).then(() => undefined);
   };
 
@@ -860,6 +870,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // are already unlinked, and this is the only place the agent behind a
       // command is ever visible (process/agents.ts).
       for (const call of result.toolCalls) agents.note(call);
+      // Same reason: a publish is only ever seen here, once.
+      if (result.published.length > 0) void cloud.filePublished(result.published).then(() => render());
       void render();
     },
     () => {
@@ -876,6 +888,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // What `SessionEnd` does to the row, per the setting as last read.
     () => (sound.persistent ? 'keep' : 'remove'),
     hasTranscript,
+    filedNow,
   );
   watcher.start();
   broker.start();
@@ -1044,11 +1057,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const endedAt = s.endedAt;
         void hasTranscript(s).then((has) => {
           if (has) return bringBack(toClosedEntry(s, endedAt));
-          // Nothing to resume: the row should not even be here (rescan drops such rows).
+          // Nothing to resume: the row should not even be here (rescan drops such rows)
+          // — unless a folder holds it, and then it stays where it was put.
           void vscode.window.showInformationMessage(
             vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
           );
-          return remove(s.id);
+          return filedNow(s.id).then((filed) => (filed ? undefined : remove(s.id)));
         });
         return;
       }

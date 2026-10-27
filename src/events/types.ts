@@ -41,6 +41,13 @@ export interface SpoolEvent {
    */
   agentId?: string;
   agentType?: string;
+  /**
+   * The artifact a call of the Artifact tool published or updated — its slug,
+   * as the artifacts listing names it. Read on PostToolUse only, off the
+   * tool's result: what files a new artifact under its session's project
+   * (artifacts/publish.ts).
+   */
+  artifactId?: string;
 }
 
 export interface Session {
