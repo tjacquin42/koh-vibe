@@ -16,8 +16,8 @@ import { copyableCommand, type SessionProcess } from './process/classify';
 import { ProcessesTree, orphanOfNode } from './ui/process-tree';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
-import { temporaryToForget } from './store/temporary';
+import { isClaudeTabAt, locateClaudeTab, locateClaudeTabToClose, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
+import { temporaryToExpire } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
 import { newSessionAmong } from './store/new-session';
@@ -167,6 +167,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const pos = locateClaudeTab(groups, want, mementoTabs);
     const tab = pos === undefined ? undefined : groups[pos.group]?.tabs[pos.index];
     return pos === undefined || tab === undefined ? undefined : { tab, pos };
+  };
+  /**
+   * The tab of a session this window may close in the background — the
+   * expiry of a temporary conversation. Stricter than `locateSessionTab`: see
+   * `locateClaudeTabToClose`.
+   */
+  const tabToCloseOf = (id: string): vscode.Tab | undefined => {
+    const want = dormantTabs.get(id);
+    if (want === undefined) return undefined;
+    const groups = vscode.window.tabGroups.all;
+    const pos = locateClaudeTabToClose(groups, want, mementoTabs);
+    return pos === undefined ? undefined : groups[pos.group]?.tabs[pos.index];
   };
   /**
    * Brings a restored tab to the front, by its position — never through the
@@ -661,16 +673,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // guard is needed here.
         const groups = await readGroups(groupsPath);
         // Temporary conversations — filed nowhere — leave after a day without
-        // activity (store/temporary.ts), when the setting says so. An open one
-        // is hidden (the next hook lifts it), an ended one removed for good.
+        // activity (store/temporary.ts), when the setting says so. An ended one
+        // is removed for good; an open one leaves with its tab, or stays.
+        // Read over `map`, hidden rows included: the ones the old rule hid
+        // still have a tab to close.
         if (sound.expireTemporary) {
           const filed = (id: string): boolean => {
             const g = groupIdOf(groups, id);
             return g !== undefined && g.length > 0;
           };
-          for (const s of temporaryToForget(shown.values(), filed, Date.now())) {
-            if (s.endedAt !== undefined) await removeSession(dirs, s.id);
-            else await hideSession(dirs, s.id);
+          const expiry = temporaryToExpire(map.values(), filed, (id) => tabToCloseOf(id) !== undefined, Date.now());
+          for (const s of expiry.remove) {
+            await removeSession(dirs, s.id);
+            shown.delete(s.id);
+          }
+          for (const s of expiry.close) {
+            // Located again at the moment of closing: a tab may have moved, or
+            // gone, while the ended rows were being removed.
+            const tab = tabToCloseOf(s.id);
+            if (tab === undefined || !(await vscode.window.tabGroups.close(tab))) continue;
+            // What the trash does once its tab is closed (`closeSessionHere`):
+            // filed under « recently closed », then removed for good.
+            await archive(s);
+            dormant.delete(s.id);
+            dismissed.add(s.id);
+            await removeSession(dirs, s.id);
             shown.delete(s.id);
           }
         }

@@ -65,7 +65,7 @@ export function toggleTooltip(key: SettingToggle): string {
         'Keep a conversation in the list after its tab is closed: greyed out, in its folder, a click reopens it.\nUnchecked, closing the tab removes it from the list instead. Rows already greyed stay either way.',
       )
     : vscode.l10n.t(
-        'A conversation left out of every folder is temporary: after 24 hours without activity it leaves the list. Any activity brings it back; filing it in a folder keeps it for good.\nUnchecked, temporary conversations stay until you remove them.',
+        'A conversation left out of every folder is temporary: after 24 hours without activity it leaves the list, and its tab closes with it — Recently closed can bring it back. A tab that cannot be told apart from another is never closed: its row stays, for you to close. Filing a conversation in a folder keeps it for good.\nUnchecked, temporary conversations stay until you remove them.',
       );
 }
 
