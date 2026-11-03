@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type GroupLike } from '../src/claude/reveal';
+import { isClaudeTabAt, locateClaudeTab, locateClaudeTabToClose, revealTabAt, sessionOfClaudeTab, type GroupLike } from '../src/claude/reveal';
 import type { ClaudeTab } from '../src/claude/dormant';
 import { TabInputWebview } from './stubs/vscode';
 
@@ -199,5 +199,30 @@ describe('sessionOfClaudeTab — two tabs of the same name point to nobody', () 
   it('counts the tabs of ALL groups, a duplicate elsewhere counts just as much', () => {
     const split: GroupLike[] = [{ tabs: [claude('Claude Code')] }, { tabs: [claude('Claude Code')] }];
     expect(sessionOfClaudeTab(memento, split, { group: 0, index: 0 })).toBeUndefined();
+  });
+});
+
+describe('locateClaudeTabToClose — a tab closed with nobody watching', () => {
+  it('finds a tab whose title no other open Claude tab carries', () => {
+    const groups: GroupLike[] = [{ tabs: [file('Old run'), claude('Old run'), claude('Other')] }];
+    expect(locateClaudeTabToClose(groups, { sessionId: 'S', group: 0, index: 1, title: 'Old run' })).toEqual({ group: 0, index: 1 });
+    expect(locateClaudeTabToClose(groups, { sessionId: 'S', group: 4, index: 0, title: 'Old run' })).toEqual({ group: 0, index: 1 });
+  });
+
+  it('refuses a title two open tabs share, even at the memento position', () => {
+    // The other one may be a conversation opened since, that the memento has
+    // not caught yet: closing it would end someone's live work.
+    const groups: GroupLike[] = [{ tabs: [claude('Claude Code')] }, { tabs: [claude('Claude Code')] }];
+    expect(locateClaudeTabToClose(groups, { sessionId: 'S', group: 0, index: 0, title: 'Claude Code' })).toBeUndefined();
+  });
+
+  it('refuses what `locateClaudeTab` refuses, and finds nothing where nothing is', () => {
+    const groups: GroupLike[] = [{ tabs: [claude('Shared')] }];
+    const memento: ClaudeTab[] = [
+      { sessionId: 'S', group: 0, index: 0, title: 'Shared' },
+      { sessionId: 'T', group: 0, index: 1, title: 'Shared' },
+    ];
+    expect(locateClaudeTabToClose(groups, { sessionId: 'S', group: 2, index: 0, title: 'Shared' }, memento)).toBeUndefined();
+    expect(locateClaudeTabToClose(groups, { sessionId: 'S', group: 0, index: 0, title: 'Gone' })).toBeUndefined();
   });
 });

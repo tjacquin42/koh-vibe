@@ -16,8 +16,8 @@ import { copyableCommand, type SessionProcess } from './process/classify';
 import { ProcessesTree, orphanOfNode } from './ui/process-tree';
 import { dormantSessions, mergeDormant, parseEditorMemento, readEditorMemento, readStateItem, shownSession, type ClaudeTab } from './claude/dormant';
 import { CLAUDE_STATE_KEY, findTranscript, listingFolder, parseHiddenSessionIds, sessionListedIn } from './claude/listed';
-import { isClaudeTabAt, locateClaudeTab, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
-import { temporaryToForget } from './store/temporary';
+import { isClaudeTabAt, locateClaudeTab, locateClaudeTabToClose, revealTabAt, sessionOfClaudeTab, type TabPosition } from './claude/reveal';
+import { temporaryToExpire } from './store/temporary';
 import { visibleSessions } from './store/visible';
 import { openSessions } from './store/open';
 import { newSessionAmong } from './store/new-session';
@@ -33,7 +33,8 @@ import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
-import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
+import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, tabsModeLabel, type SettingToggle, type SoundSettings } from './ui/footer-tree';
+import { parseTabsMode, TABS_MODES, tabsTarget, type TabsMode } from './settings/tabs';
 import { UsageView } from './ui/usage-view';
 import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
@@ -170,6 +171,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const pos = locateClaudeTab(groups, want, mementoTabs);
     const tab = pos === undefined ? undefined : groups[pos.group]?.tabs[pos.index];
     return pos === undefined || tab === undefined ? undefined : { tab, pos };
+  };
+  /**
+   * The tab of a session this window may close in the background — the
+   * expiry of a temporary conversation. Stricter than `locateSessionTab`: see
+   * `locateClaudeTabToClose`.
+   */
+  const tabToCloseOf = (id: string): vscode.Tab | undefined => {
+    const want = dormantTabs.get(id);
+    if (want === undefined) return undefined;
+    const groups = vscode.window.tabGroups.all;
+    const pos = locateClaudeTabToClose(groups, want, mementoTabs);
+    return pos === undefined ? undefined : groups[pos.group]?.tabs[pos.index];
   };
   /**
    * Brings a restored tab to the front, by its position — never through the
@@ -478,6 +491,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (outcome === 'explain' || outcome === 'failed') reopening.stop(entry.id);
   }
   const settingsView = vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer });
+  // The editor's tab bar: the editor's own setting, read where it lives and
+  // followed when changed from anywhere — settings/tabs.ts.
+  const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
+  const showTabs = (): TabsMode => parseTabsMode(editorConfig().get('showTabs'));
+  footer.setTabs(showTabs());
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('workbench.editor.showTabs')) footer.setTabs(showTabs());
+    }),
+  );
   context.subscriptions.push(
     footer,
     closedTree,
@@ -679,13 +702,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // guard is needed here.
         const groups = await readGroups(groupsPath);
         // Temporary conversations — filed nowhere — leave after a day without
-        // activity (store/temporary.ts), when the setting says so. An open one
-        // is hidden (the next hook lifts it), an ended one removed for good.
+        // activity (store/temporary.ts), when the setting says so. An ended one
+        // is removed for good; an open one leaves with its tab, or stays.
+        // Read over `map`, hidden rows included: the ones the old rule hid
+        // still have a tab to close.
         if (sound.expireTemporary) {
           const filed = (id: string): boolean => isFiled(groups, id);
-          for (const s of temporaryToForget(shown.values(), filed, Date.now())) {
-            if (s.endedAt !== undefined) await removeSession(dirs, s.id);
-            else await hideSession(dirs, s.id);
+          const expiry = temporaryToExpire(map.values(), filed, (id) => tabToCloseOf(id) !== undefined, Date.now());
+          for (const s of expiry.remove) {
+            await removeSession(dirs, s.id);
+            shown.delete(s.id);
+          }
+          for (const s of expiry.close) {
+            // Located again at the moment of closing: a tab may have moved, or
+            // gone, while the ended rows were being removed.
+            const tab = tabToCloseOf(s.id);
+            if (tab === undefined || !(await vscode.window.tabGroups.close(tab))) continue;
+            // What the trash does once its tab is closed (`closeSessionHere`):
+            // filed under « recently closed », then removed for good.
+            await archive(s);
+            dormant.delete(s.id);
+            dismissed.add(s.id);
+            await removeSession(dirs, s.id);
             shown.delete(s.id);
           }
         }
@@ -1253,6 +1291,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.toggleSetting', (key: unknown) => {
       const toggle = SETTING_TOGGLES.find((k) => k === key);
       return toggle === undefined ? undefined : toggleSetting(toggle, !sound[toggle]);
+    }),
+    vscode.commands.registerCommand('kohVibe.chooseTabs', async () => {
+      const current = showTabs();
+      const describe: Record<TabsMode, string> = {
+        multiple: vscode.l10n.t('Every open file and conversation has its tab'),
+        single: vscode.l10n.t('Only the current one, as a title — switch from the session list'),
+        none: vscode.l10n.t('No tab bar at all'),
+      };
+      const chosen = await vscode.window.showQuickPick(
+        TABS_MODES.map((mode) => ({ label: tabsModeLabel(mode), description: describe[mode], picked: mode === current, mode })),
+        { title: vscode.l10n.t('Editor tabs') },
+      );
+      if (chosen === undefined || chosen.mode === current) return;
+      const target = tabsTarget(editorConfig().inspect('showTabs') ?? {});
+      await editorConfig().update(
+        'showTabs',
+        chosen.mode,
+        target === 'workspaceFolder'
+          ? vscode.ConfigurationTarget.WorkspaceFolder
+          : target === 'workspace'
+            ? vscode.ConfigurationTarget.Workspace
+            : vscode.ConfigurationTarget.Global,
+      );
     }),
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();

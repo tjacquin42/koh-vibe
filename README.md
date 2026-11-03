@@ -81,7 +81,8 @@ reinstalling under the same number leaves the editor serving what it already had
   leaves the list on its own. *Recently closed*, a view of its own, keeps the ten
   conversations that ended most recently either way.
 - **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
-  there for 24 hours without activity, it leaves the list — a setting turns that off.
+  there for 24 hours without activity, it leaves the list and its tab closes — a setting turns
+  that off.
 - **Close a conversation** with the trash icon that appears when you hover a live row. It
   closes its Claude Code tab and removes the row — the conversation goes to *Recently
   closed* — in one click, whatever *Persistent sessions* says: that setting is for the tabs
@@ -193,9 +194,16 @@ nothing left to resume: only *Remove from the list* or the trash takes it away. 
 for the same explanation.
 
 **Temporary sessions.** The second checkbox. A conversation filed in no folder is temporary:
-after 24 hours without activity it leaves the list — hidden, not forgotten, so any activity in
-it brings it back, and filing it in a folder keeps it for good. Unchecked, temporary
-conversations stay until you remove them.
+after 24 hours without activity it leaves the list, and its tab closes with it — *Recently
+closed* can bring it back. A tab Koh-Vibe cannot tell apart from another (two tabs of the same
+title) is never closed behind your back: the row stays in the list for you to close. Filing a
+conversation in a folder keeps it for good. Unchecked, temporary conversations stay until you
+remove them.
+
+**Editor tabs.** The row under the checkboxes chooses the editor's tab bar: all tabs, one, or
+none. With *one*, only the current conversation shows, as a title, and the session list is how
+you move from one to the next. It is the editor's own setting, `workbench.editor.showTabs`:
+changing it here or in the editor's settings is the same thing.
 
 **Reopening.** One click on an ended conversation — a greyed row, or an entry of *Recently
 closed* — brings it back: in the editor tab it ran in, or a fresh terminal on its folder,

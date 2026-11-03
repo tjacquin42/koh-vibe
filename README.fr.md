@@ -87,8 +87,8 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   ne quitte jamais la liste d'elle-même. *Fermé récemment*, une vue à part, retient dans les
   deux cas les dix conversations terminées le plus récemment.
 - **Sessions temporaires** est le dossier où une conversation atterrit tant qu'on ne l'a pas
-  glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
-  réglage désactive ce comportement.
+  glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste et son
+  onglet se ferme — un réglage désactive ce comportement.
 - **Fermer une conversation** avec l'icône corbeille qui apparaît au survol d'une ligne
   vivante. Elle ferme son onglet Claude Code et retire la ligne — la conversation passe dans
   *Fermé récemment* — en un clic, quoi que dise *Sessions persistantes* : ce réglage concerne
@@ -210,9 +210,17 @@ nombre de lignes grisées — même quand il n'y a plus rien à reprendre : seul
 liste* ou la corbeille l'enlèvent. Le survol de la ligne donne la même explication.
 
 **Sessions temporaires.** La seconde case. Une conversation rangée dans aucun dossier est
-temporaire : après 24 heures sans activité, elle quitte la liste — masquée, pas oubliée : toute
-activité la ramène, et la ranger dans un dossier la garde pour de bon. Décochée, les
-conversations temporaires restent jusqu'à ce que vous les retiriez.
+temporaire : après 24 heures sans activité, elle quitte la liste, et son onglet se ferme avec
+elle — *Fermé récemment* peut la ramener. Un onglet que Koh-Vibe ne peut pas distinguer d'un
+autre (deux onglets du même titre) n'est jamais fermé dans votre dos : la ligne reste dans la
+liste, à vous de la fermer. Ranger une conversation dans un dossier la garde pour de bon.
+Décochée, les conversations temporaires restent jusqu'à ce que vous les retiriez.
+
+**Onglets de l'éditeur.** La ligne sous les cases choisit la barre d'onglets de l'éditeur : tous
+les onglets, un seul, ou aucun. Avec *un seul*, seule la conversation courante s'affiche, en
+titre, et c'est la liste des sessions qui permet de passer de l'une à l'autre. C'est le réglage
+de l'éditeur lui-même, `workbench.editor.showTabs` : le changer ici ou dans les réglages de
+l'éditeur revient au même.
 
 **Rouvrir.** Un clic sur une conversation terminée — ligne grisée, ou entrée de *Fermé
 récemment* — la ramène : dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf

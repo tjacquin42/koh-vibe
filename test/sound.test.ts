@@ -153,7 +153,7 @@ describe('FooterTree — the view pinned at the bottom', () => {
 
   it('exposes the list settings and the sound ones, and nothing else — usage has its own view', () => {
     expect(footer().getChildren().map((n) => n.kind)).toEqual([
-      'toggle', 'toggle', 'toggle', 'sound', 'sound', 'volume', 'library',
+      'toggle', 'toggle', 'toggle', 'tabs', 'sound', 'sound', 'volume', 'library',
     ]);
   });
 
@@ -163,6 +163,7 @@ describe('FooterTree — the view pinned at the bottom', () => {
       'kohVibe.toggleSetting',
       'kohVibe.toggleSetting',
       'kohVibe.toggleSetting',
+      'kohVibe.chooseTabs',
       'kohVibe.chooseSound',
       'kohVibe.chooseSound',
       'kohVibe.chooseVolume',
@@ -183,7 +184,7 @@ describe('FooterTree — the view pinned at the bottom', () => {
 
   it('tells the command which event it is about', () => {
     const f = footer();
-    const [, , , waiting, done] = f.getChildren();
+    const [, , , , waiting, done] = f.getChildren();
     expect(f.getTreeItem(waiting!).command?.arguments).toEqual(['waiting']);
     expect(f.getTreeItem(done!).command?.arguments).toEqual(['done']);
   });

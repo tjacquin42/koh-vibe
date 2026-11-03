@@ -41,6 +41,25 @@ export function locateClaudeTab(
   return undefined;
 }
 
+/**
+ * `locateClaudeTab`, for a close nobody asked for at that moment — the expiry
+ * of a temporary conversation (store/temporary.ts).
+ *
+ * Stricter in one way: the title must be carried by no other open Claude tab.
+ * `locateClaudeTab` only weighs the conversations the memento knows, and the
+ * memento lags behind — a conversation opened a minute ago, under the same
+ * default title, may not be in it yet. A click can afford that doubt, since
+ * the user sees what comes to the front; a close in the background cannot.
+ */
+export function locateClaudeTabToClose(
+  groups: readonly GroupLike[],
+  want: ClaudeTab,
+  memento: readonly ClaudeTab[] = [want],
+): TabPosition | undefined {
+  const sameTitle = groups.flatMap((g) => g.tabs).filter((t) => isClaudeTab(t) && t.label === want.title);
+  return sameTitle.length === 1 ? locateClaudeTab(groups, want, memento) : undefined;
+}
+
 /** Whether the given position actually holds a conversation, and not a file or nothing. */
 export function isClaudeTabAt(groups: readonly GroupLike[], at: TabPosition): boolean {
   const tab = groups[at.group]?.tabs[at.index];
