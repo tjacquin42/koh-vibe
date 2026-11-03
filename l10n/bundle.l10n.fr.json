@@ -159,5 +159,14 @@
   "{0} processes": "{0} processus",
   "unknown conversation": "conversation inconnue",
   "Processes no conversation carries any more: their session is gone, and the system reparented them. A forgotten development server still holding its port is the usual case.": "Des processus qu’aucune conversation ne porte plus : leur session a disparu, et le système les a rattachés ailleurs. Le cas courant est un serveur de développement oublié qui tient encore son port.",
-  "run by a subagent: {0} ({1})": "lancé par un sous-agent : {0} ({1})"
+  "run by a subagent: {0} ({1})": "lancé par un sous-agent : {0} ({1})",
+  "Every open file and conversation has its tab": "Chaque fichier et chaque conversation ouverts ont leur onglet",
+  "Only the current one, as a title — switch from the session list": "Seulement l'onglet courant, en titre — on change de conversation depuis la liste",
+  "No tab bar at all": "Aucune barre d'onglets",
+  "Editor tabs": "Onglets de l'éditeur",
+  "one": "un seul",
+  "all": "tous",
+  "Editor tabs: {0}": "Onglets de l'éditeur : {0}",
+  "Which tabs the editor shows above its files and conversations. One: only the current one, as a title — the session list then does the switching.\nThis is the editor's own setting, workbench.editor.showTabs: changed here or in the editor's settings alike.": "Les onglets que l'éditeur affiche au-dessus de ses fichiers et conversations. Un seul : seulement l'onglet courant, en titre — on passe alors d'une conversation à l'autre depuis la liste.\nC'est le réglage de l'éditeur lui-même, workbench.editor.showTabs : le changer ici ou dans les réglages de l'éditeur revient au même.",
+  "Choose the editor tabs": "Choisir les onglets de l'éditeur"
 }

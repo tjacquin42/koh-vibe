@@ -167,6 +167,11 @@ title) is never closed behind your back: the row stays in the list for you to cl
 conversation in a folder keeps it for good. Unchecked, temporary conversations stay until you
 remove them.
 
+**Editor tabs.** The row under the checkboxes chooses the editor's tab bar: all tabs, one, or
+none. With *one*, only the current conversation shows, as a title, and the session list is how
+you move from one to the next. It is the editor's own setting, `workbench.editor.showTabs`:
+changing it here or in the editor's settings is the same thing.
+
 **Reopening.** One click on an ended conversation — a greyed row, or an entry of *Recently
 closed* — brings it back: in the editor tab it ran in, or a fresh terminal on its folder,
 whichever it came from. The editor tab only when Claude Code will find the conversation from

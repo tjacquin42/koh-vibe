@@ -180,6 +180,12 @@ autre (deux onglets du même titre) n'est jamais fermé dans votre dos : la lign
 liste, à vous de la fermer. Ranger une conversation dans un dossier la garde pour de bon.
 Décochée, les conversations temporaires restent jusqu'à ce que vous les retiriez.
 
+**Onglets de l'éditeur.** La ligne sous les cases choisit la barre d'onglets de l'éditeur : tous
+les onglets, un seul, ou aucun. Avec *un seul*, seule la conversation courante s'affiche, en
+titre, et c'est la liste des sessions qui permet de passer de l'une à l'autre. C'est le réglage
+de l'éditeur lui-même, `workbench.editor.showTabs` : le changer ici ou dans les réglages de
+l'éditeur revient au même.
+
 **Rouvrir.** Un clic sur une conversation terminée — ligne grisée, ou entrée de *Fermé
 récemment* — la ramène : dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf
 posé sur son dossier, selon d'où elle venait. L'onglet d'éditeur seulement si Claude Code

@@ -32,7 +32,8 @@ import { migrateLegacyHome } from './store/migrate';
 import { readUsage, refreshFromApi } from './usage/reader';
 import { chimeFor, statusesOf, type ChimeEvent } from './sound/model';
 import { availableSounds, NO_SOUND, playFile, playNamed, soundDirs } from './sound/player';
-import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, type SettingToggle, type SoundSettings } from './ui/footer-tree';
+import { EVENT_TITLE, FooterTree, SETTING_TOGGLES, tabsModeLabel, type SettingToggle, type SoundSettings } from './ui/footer-tree';
+import { parseTabsMode, TABS_MODES, tabsTarget, type TabsMode } from './settings/tabs';
 import { UsageView } from './ui/usage-view';
 import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
@@ -475,6 +476,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (outcome === 'explain' || outcome === 'failed') reopening.stop(entry.id);
   }
   const settingsView = vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer });
+  // The editor's tab bar: the editor's own setting, read where it lives and
+  // followed when changed from anywhere — settings/tabs.ts.
+  const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
+  const showTabs = (): TabsMode => parseTabsMode(editorConfig().get('showTabs'));
+  footer.setTabs(showTabs());
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('workbench.editor.showTabs')) footer.setTabs(showTabs());
+    }),
+  );
   context.subscriptions.push(
     footer,
     closedTree,
@@ -1244,6 +1255,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('kohVibe.toggleSetting', (key: unknown) => {
       const toggle = SETTING_TOGGLES.find((k) => k === key);
       return toggle === undefined ? undefined : toggleSetting(toggle, !sound[toggle]);
+    }),
+    vscode.commands.registerCommand('kohVibe.chooseTabs', async () => {
+      const current = showTabs();
+      const describe: Record<TabsMode, string> = {
+        multiple: vscode.l10n.t('Every open file and conversation has its tab'),
+        single: vscode.l10n.t('Only the current one, as a title — switch from the session list'),
+        none: vscode.l10n.t('No tab bar at all'),
+      };
+      const chosen = await vscode.window.showQuickPick(
+        TABS_MODES.map((mode) => ({ label: tabsModeLabel(mode), description: describe[mode], picked: mode === current, mode })),
+        { title: vscode.l10n.t('Editor tabs') },
+      );
+      if (chosen === undefined || chosen.mode === current) return;
+      const target = tabsTarget(editorConfig().inspect('showTabs') ?? {});
+      await editorConfig().update(
+        'showTabs',
+        chosen.mode,
+        target === 'workspaceFolder'
+          ? vscode.ConfigurationTarget.WorkspaceFolder
+          : target === 'workspace'
+            ? vscode.ConfigurationTarget.Workspace
+            : vscode.ConfigurationTarget.Global,
+      );
     }),
     vscode.commands.registerCommand('kohVibe.chooseVolume', async () => {
       const settings = soundSettings();

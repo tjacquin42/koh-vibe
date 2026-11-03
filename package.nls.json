@@ -15,6 +15,7 @@
   "command.kohVibe.deleteGroup.title": "Delete folder",
   "command.kohVibe.chooseSound.title": "Sound for an event",
   "command.kohVibe.chooseVolume.title": "Chime volume",
+  "command.kohVibe.chooseTabs.title": "Editor tabs",
   "command.kohVibe.installSounds.title": "Install the sound library",
   "command.kohVibe.removeSounds.title": "Remove the sound library",
   "command.kohVibe.offerSounds.title": "Offer the sound library",
