@@ -221,5 +221,7 @@
   "Koh-Vibe: could not file the artifacts.": "Koh-Vibe : impossible de ranger les artifacts.",
   "Koh-Vibe: could not rename the project.": "Koh-Vibe : impossible de renommer le projet.",
   "Pinned": "Épinglés",
-  "Recent": "Récents"
+  "Recent": "Récents",
+  "Folder rule — {0}\n\nUse the {1} skill. Koh-Vibe folder: « {0} » (id {2}).\nAsk me which rule to add to this folder.": "Règle de dossier — {0}\n\nUtilise le skill {1}. Dossier Koh-Vibe : « {0} » (id {2}).\nDemande-moi quelle règle ajouter à ce dossier.",
+  "Koh-Vibe: could not open the rules of « {0} ».": "Koh-Vibe : impossible d'ouvrir les règles de « {0} »."
 }

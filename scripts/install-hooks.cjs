@@ -52,6 +52,10 @@ const bridgeTarget = join(HOME, 'bin', 'koh-vibe-bridge');
 // limits are readable locally.
 const statusSource = join(__dirname, '..', 'bin', 'koh-vibe-statusline');
 const statusTarget = join(HOME, 'bin', 'koh-vibe-statusline');
+// Third, same rule: the folder rules hook, which adds a folder's rules to the
+// context of the conversations filed in it (bin/koh-vibe-rules).
+const rulesSource = join(__dirname, '..', 'bin', 'koh-vibe-rules');
+const rulesTarget = join(HOME, 'bin', 'koh-vibe-rules');
 
 function fail(message) {
   console.error(message);
@@ -91,7 +95,7 @@ if (!uninstall && !existsSync(bridgeSource)) {
 }
 
 const style = creating ? { indent: 2, newline: true } : detectStyle(raw);
-const afterHooks = uninstall ? uninstallHooks(before) : installHooks(before, bridgeTarget);
+const afterHooks = uninstall ? uninstallHooks(before) : installHooks(before, bridgeTarget, rulesTarget);
 const after = uninstall ? uninstallStatusLine(afterHooks) : installStatusLine(afterHooks, statusTarget);
 
 // Safety net: a count cannot prove preservation (two trees where a foreign
@@ -147,6 +151,9 @@ if (!uninstall) {
   copyFileSync(statusSource, statusTarget);
   chmodSync(statusTarget, 0o755);
   console.log(`Pont statusline copié : ${statusSource} → ${statusTarget}`);
+  copyFileSync(rulesSource, rulesTarget);
+  chmodSync(rulesTarget, 0o755);
+  console.log(`Hook des règles de dossier copié : ${rulesSource} → ${rulesTarget}`);
 }
 
 // Atomic write: a concurrent reader sees the old file or the new one, never a

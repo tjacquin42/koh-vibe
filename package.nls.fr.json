@@ -51,5 +51,7 @@
   "command.kohVibe.pinArtifact.title": "Épingler",
   "command.kohVibe.unpinArtifact.title": "Désépingler",
   "command.kohVibe.fileArtifact.title": "Ranger dans un projet…",
-  "command.kohVibe.renameArtifactProject.title": "Renommer le projet…"
+  "command.kohVibe.renameArtifactProject.title": "Renommer le projet…",
+  "command.kohVibe.addFolderRule.title": "Ajouter une règle…",
+  "command.kohVibe.openFolderRules.title": "Voir les règles"
 }

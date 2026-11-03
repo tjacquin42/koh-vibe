@@ -51,5 +51,7 @@
   "command.kohVibe.pinArtifact.title": "Pin",
   "command.kohVibe.unpinArtifact.title": "Unpin",
   "command.kohVibe.fileArtifact.title": "Move to project…",
-  "command.kohVibe.renameArtifactProject.title": "Rename project…"
+  "command.kohVibe.renameArtifactProject.title": "Rename project…",
+  "command.kohVibe.addFolderRule.title": "Add a rule…",
+  "command.kohVibe.openFolderRules.title": "Open the rules"
 }

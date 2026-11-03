@@ -15,6 +15,7 @@
 !resources/**
 !bin/koh-vibe-bridge
 !bin/koh-vibe-statusline
+!bin/koh-vibe-rules
 !scripts/install-hooks.cjs
 !build-info.json
 !l10n/**

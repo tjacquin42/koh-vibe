@@ -73,6 +73,15 @@ export function settingsFile(home: string): string {
   return join(home, 'settings.json');
 }
 
+/**
+ * A folder's rules: what bin/koh-vibe-rules adds to the context of the
+ * conversations filed in it. Under the folder's id, not its name — a rename
+ * keeps them.
+ */
+export function folderRulesFile(home: string, groupId: string): string {
+  return join(home, 'rules', `${groupId}.md`);
+}
+
 /** Shared file for the classification into folders, at the root of koh-vibe's state. */
 export function groupsFile(home: string): string {
   return join(home, 'groups.json');

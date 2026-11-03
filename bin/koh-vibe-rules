@@ -1,0 +1,46 @@
+#!/bin/zsh -f
+# koh-vibe-rules — on UserPromptSubmit, adds to a conversation's context the
+# rules of the Koh-Vibe folder it is filed in: ~/.koh-vibe/rules/<folder id>.md.
+# Prints them only when this conversation has not had this version yet, and
+# says once when they stop applying. What it prints, Claude Code adds to the
+# context; nothing else ever goes to stdout. Always exits 0: a hook must
+# never stand in the way of the prompt that calls it.
+# -f stops the user's startup files from polluting the hooks protocol.
+emulate -L zsh
+exec 2>/dev/null
+
+DIR="${KOH_VIBE_HOME:-$HOME/.koh-vibe}"
+INPUT="$(/bin/cat)"
+
+# The ids end up in paths and in a plutil key path: an allow list, no dot.
+SID="$(print -r -- "$INPUT" | /usr/bin/plutil -extract session_id raw -o - - 2>/dev/null)"
+[[ "$SID" =~ '^[A-Za-z0-9_-]+$' ]] || exit 0
+SEEN="$DIR/rules-seen/$SID"
+
+FOLDER="$(/usr/bin/plutil -extract "assignments.$SID" raw -o - "$DIR/groups.json" 2>/dev/null)"
+RULES=""
+[[ "$FOLDER" =~ '^[A-Za-z0-9_-]+$' && -s "$DIR/rules/$FOLDER.md" ]] && RULES="$DIR/rules/$FOLDER.md"
+# A file with nothing but its header has no rules yet: nothing to give.
+if [[ -n "$RULES" ]]; then
+  BODY="$(/usr/bin/awk 'NR == 1 && /^---$/ { head = 1; next } head && /^---$/ { head = 0; next } !head && NF' "$RULES")"
+  [[ -n "$BODY" ]] || RULES=""
+fi
+
+if [[ -z "$RULES" ]]; then
+  # Out of the folder, or its rules gone: what was given earlier must not
+  # keep steering the conversation. Said once.
+  if [[ -f "$SEEN" ]]; then
+    print -r -- "Koh-Vibe: the folder rules given earlier in this conversation no longer apply — it has left that folder, or the rules were removed."
+    /bin/rm -f "$SEEN"
+  fi
+  exit 0
+fi
+
+STAMP="$FOLDER $(/sbin/md5 -q "$RULES" 2>/dev/null)"
+[[ -f "$SEEN" && "$(<"$SEEN")" == "$STAMP" ]] && exit 0
+
+print -r -- "Koh-Vibe folder rules: this conversation is filed in a Koh-Vibe folder whose rules follow. Apply them for the rest of the conversation. A later version, if one comes, replaces this one."
+print
+/bin/cat "$RULES"
+/bin/mkdir -p "$DIR/rules-seen" && print -r -- "$STAMP" > "$SEEN"
+exit 0

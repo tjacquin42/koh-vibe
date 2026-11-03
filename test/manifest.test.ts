@@ -176,4 +176,13 @@ describe('the manifest', () => {
     expect(entry?.when).toBe('view == kohVibe.artifacts && viewItem == project.named');
     expect(palette('kohVibe.renameArtifactProject')?.when).toBe('false');
   });
+
+  it('offers the folder rules on every named folder, from the right-click menu only', () => {
+    for (const command of ['kohVibe.addFolderRule', 'kohVibe.openFolderRules']) {
+      const [entry, ...rest] = context(command);
+      expect(rest).toEqual([]);
+      expect(entry?.when).toBe('view == kohVibe.sessions && viewItem == group');
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
 });

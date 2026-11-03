@@ -48,6 +48,7 @@ import {
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
+import { addRulePrompt, ensureRulesFile } from './groups/rules';
 import { CHIME_EVENTS, isFiled, soundFor } from './groups/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
 import { readTranscript, type TranscriptStats } from './transcript/reader';
@@ -190,11 +191,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * there as soon as its first hook names it: left unfiled, it would be a
    * temporary one. The id is only known through the spool, hence the wait.
    */
-  const newSession = async (groupId: string | undefined): Promise<void> => {
+  const newSession = async (groupId: string | undefined, prompt?: string): Promise<void> => {
     const before = new Set((await readSessions(dirs)).keys());
     const since = Date.now();
     try {
-      await vscode.commands.executeCommand('claude-vscode.editor.open');
+      // No session id — a new conversation — and the start of a prompt when
+      // one is given: Claude Code puts it in the input, unsent.
+      if (prompt === undefined) await vscode.commands.executeCommand('claude-vscode.editor.open');
+      else await vscode.commands.executeCommand('claude-vscode.editor.open', undefined, prompt);
     } catch {
       void vscode.window.showWarningMessage(
         vscode.l10n.t('Koh-Vibe: the Claude Code extension does not expose a command to open a conversation in this version.'),
@@ -1184,6 +1188,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // reject — into a displayed message, never into an unhandled stack trace.
     vscode.commands.registerCommand('kohVibe.newSession', () => newSession(undefined)),
     vscode.commands.registerCommand('kohVibe.newSessionInGroup', (node: unknown) => newSession(groupIdOfNode(node))),
+    // A folder's rules (groups/rules.ts): added by a conversation opened for
+    // it — filed in the folder, the skill named — or written by hand.
+    vscode.commands.registerCommand('kohVibe.addFolderRule', async (node: unknown) => {
+      const id = groupIdOfNode(node);
+      const group = id === undefined ? undefined : (await readGroups(groupsPath)).groups.find((g) => g.id === id);
+      if (group !== undefined) await newSession(group.id, addRulePrompt(group.name, group.id));
+    }),
+    vscode.commands.registerCommand('kohVibe.openFolderRules', async (node: unknown) => {
+      const id = groupIdOfNode(node);
+      const group = id === undefined ? undefined : (await readGroups(groupsPath)).groups.find((g) => g.id === id);
+      if (group === undefined) return;
+      try {
+        const path = await ensureRulesFile(home, group.id, group.name);
+        await vscode.window.showTextDocument(vscode.Uri.file(path));
+      } catch {
+        void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not open the rules of « {0} ».', group.name));
+      }
+    }),
     vscode.commands.registerCommand('kohVibe.newGroup', async () => {
       const label = await vscode.window.showInputBox({
         prompt: vscode.l10n.t('Folder name'),

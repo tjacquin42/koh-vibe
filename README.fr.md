@@ -168,6 +168,16 @@ apparaît à droite de sa ligne (le clic droit le propose aussi, *Nouvelle sessi
 range la conversation dans ce dossier dès qu'elle apparaît, pour qu'elle ne soit pas
 temporaire.
 
+**Règles de dossier.** Un dossier peut porter des règles, comme un skill qui lui serait attaché :
+ce qui y est écrit s'ajoute au contexte de chaque conversation rangée dans le dossier, à son
+message suivant — une nouvelle, une glissée dedans, une déjà là quand les règles changent. Elles
+ne sont renvoyées que lorsqu'elles changent, et une conversation qui quitte le dossier apprend
+qu'elles ne s'appliquent plus. Clic droit sur un dossier → *Ajouter une règle…* ouvre une
+conversation rangée dedans, son prompt déjà commencé avec le dossier et le skill
+`koh-vibe-folder-rules`, qui demande quelle règle ajouter ; *Voir les règles* ouvre le fichier
+pour les écrire à la main. Il faut réinstaller les hooks une fois, pour que celui des règles
+soit ajouté.
+
 **Sonner.** Un carillon quand une session se met à vous attendre, un autre quand elle vient
 de finir. Trois niveaux, du plus précis au plus général : le son d'une conversation l'emporte
 sur celui de son dossier, qui l'emporte sur le réglage global. « Aucun » est un choix de
@@ -256,13 +266,15 @@ Tout le reste tient dans `~/.koh-vibe/` :
 
 | | |
 |---|---|
-| `bin/` | le pont et l'enrobage de statusline, copiés à l'installation des hooks |
+| `bin/` | le pont, l'enrobage de statusline et le hook des règles de dossier, copiés à l'installation des hooks |
 | `events/` | le spool : un fichier par événement, consommé puis effacé |
 | `events/rejected/` | ce qui n'a pas pu être lu, gardé plutôt que jeté |
 | `sessions/` | l'état réduit, un fichier par session |
 | `requests/` | les demandes de mise au premier plan, de réouverture et de fermeture, d'une fenêtre à l'autre |
 | `backups/` | les copies de `settings.json` prises avant chaque pose de hooks |
 | `groups.json` | les dossiers, leurs couleurs, l'ordre choisi et les sons |
+| `rules/` | les règles de chaque dossier, un fichier par dossier |
+| `rules-seen/` | la version des règles de son dossier que chaque conversation a reçue |
 | `closed.json` | les dix conversations fermées le plus récemment |
 | `settings.json` | les sons globaux, le volume, et les deux réglages de la liste |
 | `usage.json` | le dernier relevé de consommation, mis en cache |

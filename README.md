@@ -153,6 +153,15 @@ conversation in the window's folder. Hover a folder: the same **+** appears at t
 its row (right-click offers it too, as *New session here*) and files the conversation in that
 folder as soon as it shows up, so it is not a temporary one.
 
+**Folder rules.** A folder can carry rules, like a skill tied to it: whatever is written there
+is added to the context of every conversation filed in the folder, at its next message — a new
+one, one dragged in, one already there when the rules change. They are sent again only when
+they change, and a conversation that leaves the folder is told they no longer apply.
+Right-click a folder → *Add a rule…* opens a conversation filed in it, its prompt already
+started with the folder and the `koh-vibe-folder-rules` skill, asking which rule to add;
+*Open the rules* opens the file to write them by hand. This needs the hooks installed again
+once, for the rules hook to be added.
+
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
 setting. "None" is a chosen silence rather than an absent choice, so it does not fall through
@@ -238,13 +247,15 @@ Everything else sits under `~/.koh-vibe/`:
 
 | | |
 |---|---|
-| `bin/` | the bridge and the status-line wrapper, copied when the hooks are installed |
+| `bin/` | the bridge, the status-line wrapper and the folder rules hook, copied when the hooks are installed |
 | `events/` | the spool: one file per event, consumed then deleted |
 | `events/rejected/` | what could not be read, kept rather than dropped |
 | `sessions/` | the reduced state, one file per session |
 | `requests/` | focus, reopen and close requests, from one window to another |
 | `backups/` | copies of `settings.json` taken before each hook install |
 | `groups.json` | folders, their colours, the chosen order and the sounds |
+| `rules/` | each folder's rules, one file per folder |
+| `rules-seen/` | which version of its folder's rules each conversation was given |
 | `closed.json` | the ten most recently closed conversations |
 | `settings.json` | global sounds, volume, and the two list settings |
 | `usage.json` | the last usage reading, cached |
