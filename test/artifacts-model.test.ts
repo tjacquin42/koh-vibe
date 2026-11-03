@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { artifactUrl, isArtifact, parseArtifacts, sortArtifacts, type Artifact } from '../src/artifacts/model';
+import { artifactUrl, isArtifact, parseArtifacts, pinnedArtifacts, recentArtifacts, sortArtifacts, type Artifact } from '../src/artifacts/model';
 
 /** One row of the listing, as the endpoint returns it, with invented values. */
 const frame = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -66,6 +66,20 @@ describe('sortArtifacts', () => {
       a('pin', { pinned: true, updatedAt: 2 }),
     ]);
     expect(sorted.map((x) => x.slug)).toEqual(['pin', 'new', 'old', 'undated']);
+  });
+});
+
+describe('pinnedArtifacts and recentArtifacts', () => {
+  const a = (slug: string, updatedAt?: number, pinned = false): Artifact => ({ slug, title: slug, pinned, ...(updatedAt === undefined ? {} : { updatedAt }) });
+
+  it('lists the pinned, the most recent first', () => {
+    expect(pinnedArtifacts([a('x', 1, true), a('y', 5), a('z', 3, true)]).map((r) => r.slug)).toEqual(['z', 'x']);
+  });
+
+  it('lists the most recently updated, newest first, up to the count — never an undated one', () => {
+    const list = [a('old', 1), a('pin', 9, true), a('none'), a('mid', 5), a('new', 7)];
+    expect(recentArtifacts(list, 3).map((r) => r.slug)).toEqual(['pin', 'new', 'mid']);
+    expect(recentArtifacts(list, 10).map((r) => r.slug)).toEqual(['pin', 'new', 'mid', 'old']);
   });
 });
 

@@ -26,6 +26,11 @@ export function artifactTooltip(a: Artifact, locale: string): string {
   return lines.join('\n');
 }
 
+/** The two folders above the projects: the pinned pages, and the most recent. */
+export function shelfLabel(shelf: 'pinned' | 'recent'): string {
+  return shelf === 'pinned' ? vscode.l10n.t('Pinned') : vscode.l10n.t('Recent');
+}
+
 /** The folder of what is filed under no project — « Divers » in French. */
 export function otherLabel(): string {
   return vscode.l10n.t('Other');

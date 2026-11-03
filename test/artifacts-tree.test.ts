@@ -113,8 +113,12 @@ describe('the artifacts view, by project', () => {
       ],
       { old: 'NTI', pin: 'NTI', new: 'NTI' },
     );
-    const [folder] = tree.getChildren();
-    expect(tree.getChildren(folder).map(artifactNodeId)).toEqual(['artifact:pin', 'artifact:new', 'artifact:old']);
+    const project = tree.getChildren().find((n) => n.kind === 'project');
+    expect(tree.getChildren(project).map(artifactNodeId)).toEqual([
+      'artifact:project:NTI/pin',
+      'artifact:project:NTI/new',
+      'artifact:project:NTI/old',
+    ]);
   });
 
   it('files an artifact never filed under the project its title names', () => {
@@ -122,8 +126,47 @@ describe('the artifacts view, by project', () => {
       [artifact({ slug: 'a', updatedAt: at(2026, 9, 27) }), artifact({ slug: 'b', title: 'NTI — logos', updatedAt: at(2026, 9, 1) })],
       { a: 'NTI' },
     );
-    const [folder] = tree.getChildren();
-    expect(tree.getChildren(folder).map(artifactNodeId)).toEqual(['artifact:a', 'artifact:b']);
+    const folder = tree.getChildren().find((n) => n.kind === 'project');
+    expect(tree.getChildren(folder).map(artifactNodeId)).toEqual(['artifact:project:NTI/a', 'artifact:project:NTI/b']);
+  });
+
+  it('puts the pinned on top and the most recent next, each also left in its own project', () => {
+    const items = [
+      ...Array.from({ length: 12 }, (_, i) => artifact({ slug: `n${i}`, updatedAt: at(2026, 9, 1 + i) })),
+      artifact({ slug: 'pin', pinned: true, updatedAt: at(2026, 8, 1) }),
+    ];
+    const { tree } = filedTree(items, Object.fromEntries(items.map((a) => [a.slug, 'NTI'])));
+    const rows = tree.getChildren();
+    const items0 = rows.map((r) => tree.getTreeItem(r));
+    expect(items0.map((i) => i.label)).toEqual(['Pinned', 'Recent', 'NTI']);
+    expect(items0.map((i) => i.iconPath)).toMatchObject([{ id: 'pinned' }, { id: 'history' }, { id: 'folder' }]);
+    expect(items0.map((i) => i.collapsibleState)).toEqual([
+      TreeItemCollapsibleState.Expanded,
+      TreeItemCollapsibleState.Expanded,
+      TreeItemCollapsibleState.Collapsed,
+    ]);
+    expect(items0.map((i) => i.description)).toEqual(['1', '10', '13']);
+    expect(tree.getChildren(rows[0]).map((n) => artifactSlugOfNode(n))).toEqual(['pin']);
+    // The ten most recently updated, newest first — a pinned page too, were it recent.
+    expect(tree.getChildren(rows[1]).map((n) => artifactSlugOfNode(n))).toEqual(
+      ['n11', 'n10', 'n9', 'n8', 'n7', 'n6', 'n5', 'n4', 'n3', 'n2'],
+    );
+    // One page on several rows: each row its own id, as VSCode requires.
+    const ids = rows.flatMap((r) => tree.getChildren(r)).map(artifactNodeId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('shows no Pinned folder when nothing is pinned, and takes no drop on either', async () => {
+    const { tree, onFile } = filedTree([artifact({ slug: 'a', updatedAt: at(2026, 9, 1) })], { a: 'NTI' });
+    const rows = tree.getChildren();
+    expect(rows.map((r) => tree.getTreeItem(r).label)).toEqual(['Recent', 'NTI']);
+    const data = new DataTransfer();
+    data.set(MIME, new DataTransferItem(['a']));
+    await tree.handleDrop(rows[0], data);
+    expect(onFile).not.toHaveBeenCalled();
+    // Dropped on a page in Recent: into that page's own project.
+    await tree.handleDrop(tree.getChildren(rows[0])[0], data);
+    expect(onFile).toHaveBeenCalledWith(['a'], 'NTI');
   });
 
   it('stays a flat list while nothing is filed under a project', () => {

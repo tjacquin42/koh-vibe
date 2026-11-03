@@ -124,7 +124,8 @@ reinstalling under the same number leaves the editor serving what it already had
   a paused one offers **resume** instead. Right-click copies its link.
 - **Artifacts**, a view of its own: the pages you published on claude.ai, **filed by
   project** — one folder each, *Other* last — pinned ones first, then the most recently
-  updated. A page published from a session goes on its own into the folder of that session's
+  updated. Above the projects, *Pinned* and *Recent* (the ten last updated) gather those pages
+  again, each staying in its project too. A page published from a session goes on its own into the folder of that session's
   repository; one never filed shows under the project its title names, if any. Drag pages
   between folders, or right-click → *Move to project…*, several at once; right-click a folder
   to rename it. A click opens a page; hover to **pin** or **unpin** it, right-click to

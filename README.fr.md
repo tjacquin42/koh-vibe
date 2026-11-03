@@ -134,7 +134,8 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   **réactiver** à la place. Le clic droit copie son lien.
 - **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, **rangées par
   projet** — un dossier chacun, *Divers* en dernier — les épinglées d'abord, puis les plus
-  récemment mises à jour. Une page publiée depuis une session va d'elle-même dans le dossier du
+  récemment mises à jour. Au-dessus des projets, *Épinglés* et *Récents* (les dix dernières mises
+  à jour) regroupent ces pages une seconde fois, chacune restant aussi dans son projet. Une page publiée depuis une session va d'elle-même dans le dossier du
   dépôt de cette session ; une page jamais rangée s'affiche sous le projet que nomme son titre,
   s'il y en a un. Glissez des pages d'un dossier à l'autre, ou clic droit → *Ranger dans un
   projet…*, plusieurs à la fois ; clic droit sur un dossier pour le renommer. Un clic ouvre une

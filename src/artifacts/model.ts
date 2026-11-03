@@ -84,6 +84,29 @@ export function sortArtifacts(list: readonly Artifact[]): Artifact[] {
   });
 }
 
+/** The newest first; an undated page last. */
+function byRecency(a: Artifact, b: Artifact): number {
+  const ta = a.updatedAt ?? Number.NEGATIVE_INFINITY;
+  const tb = b.updatedAt ?? Number.NEGATIVE_INFINITY;
+  return ta !== tb ? tb - ta : a.title.localeCompare(b.title);
+}
+
+/** The pinned pages, the most recently updated first. */
+export function pinnedArtifacts(list: readonly Artifact[]): Artifact[] {
+  return list.filter((a) => a.pinned).sort(byRecency);
+}
+
+/**
+ * The `count` most recently updated pages, newest first — pinned or not. An
+ * undated page is never among them: nothing says it is recent.
+ */
+export function recentArtifacts(list: readonly Artifact[], count: number): Artifact[] {
+  return list
+    .filter((a) => a.updatedAt !== undefined)
+    .sort(byRecency)
+    .slice(0, count);
+}
+
 /** Whether a value read back from the cache is an artifact — same caution as `isRoutine`. */
 export function isArtifact(v: unknown): v is Artifact {
   if (!isRecord(v)) return false;

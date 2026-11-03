@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isSlug, sortArtifacts, type Artifact } from '../artifacts/model';
+import { isSlug, pinnedArtifacts, recentArtifacts, sortArtifacts, type Artifact } from '../artifacts/model';
 import {
   emptyArtifactProjects,
   groupByProject,
@@ -8,16 +8,28 @@ import {
   type ProjectGroup,
 } from '../artifacts/projects';
 import type { FeedView } from '../cloud/feed';
-import { artifactLabel, artifactTooltip, otherLabel, projectTooltip, updatedText } from './artifact-labels';
+import { artifactLabel, artifactTooltip, otherLabel, projectTooltip, shelfLabel, updatedText } from './artifact-labels';
 import { loadingItem, retryItem, unavailableTooltip } from './feed-labels';
 
 /**
+ * The two folders that file nothing: the pinned pages, and the most recent.
+ * A page shown there is still in its project's folder too.
+ */
+export type Shelf = 'pinned' | 'recent';
+
+/** How many pages the Recent folder holds. */
+export const RECENT_COUNT = 10;
+
+/**
  * A row of the Artifacts view: a project's folder (`project` undefined for
- * « Other »), a page, or the line standing in for the list.
+ * « Other »), one of the two shelves, a page, or the line standing in for the
+ * list. A page carries the folder it is shown in — one page can be on three
+ * rows (Pinned, Recent, its project), and each row needs an id of its own.
  */
 export type ArtifactNode =
   | { kind: 'project'; project: string | undefined }
-  | { kind: 'artifact'; artifact: Artifact }
+  | { kind: 'shelf'; shelf: Shelf }
+  | { kind: 'artifact'; artifact: Artifact; folder?: string }
   | { kind: 'loading' }
   | { kind: 'signed-out' }
   | { kind: 'unavailable' }
@@ -26,8 +38,17 @@ export type ArtifactNode =
 /** What a drop files: the dragged slugs, into a project or into « Other » (`null`). */
 export type FileArtifacts = (slugs: string[], project: string | null) => Promise<void>;
 
+/** The key of a folder, as the ids of the pages shown in it carry it. */
+function folderKey(node: { kind: 'project'; project: string | undefined } | { kind: 'shelf'; shelf: Shelf }): string {
+  if (node.kind === 'shelf') return node.shelf;
+  return node.project === undefined ? 'other' : `project:${node.project}`;
+}
+
 export function artifactNodeId(node: ArtifactNode): string {
-  if (node.kind === 'artifact') return `artifact:${node.artifact.slug}`;
+  if (node.kind === 'artifact') {
+    return node.folder === undefined ? `artifact:${node.artifact.slug}` : `artifact:${node.folder}/${node.artifact.slug}`;
+  }
+  if (node.kind === 'shelf') return `artifacts:shelf:${node.shelf}`;
   if (node.kind === 'project') return node.project === undefined ? 'artifacts:other' : `artifacts:project:${node.project}`;
   return `artifacts:${node.kind}`;
 }
@@ -122,11 +143,11 @@ export class ArtifactsTree implements vscode.TreeDataProvider<ArtifactNode>, vsc
 
   getChildren(node?: ArtifactNode): ArtifactNode[] {
     if (node !== undefined) {
-      if (node.kind !== 'project') return [];
+      if (node.kind !== 'project' && node.kind !== 'shelf') return [];
       // Read again from what is on screen now, never from the node VSCode hands
       // back: it may predate the last move.
-      const group = this.groups().find((g) => g.project === node.project);
-      return (group?.artifacts ?? []).map((artifact) => ({ kind: 'artifact', artifact }));
+      const folder = folderKey(node);
+      return this.folderItems(node).map((artifact) => ({ kind: 'artifact', artifact, folder }));
     }
     if (this.view.kind === 'loading') return [{ kind: 'loading' }];
     if (this.view.kind === 'signed-out') return [{ kind: 'signed-out' }];
@@ -134,7 +155,20 @@ export class ArtifactsTree implements vscode.TreeDataProvider<ArtifactNode>, vsc
     const groups = this.groups();
     if (groups.length === 0) return [{ kind: 'empty' }];
     if (isFlat(groups)) return sortArtifacts(this.items()).map((artifact) => ({ kind: 'artifact', artifact }));
-    return groups.map((g) => ({ kind: 'project', project: g.project }));
+    // The shelves first — the pinned at the very top — then the projects. An
+    // empty shelf is not shown.
+    const shelves: ArtifactNode[] = (['pinned', 'recent'] as const)
+      .filter((shelf) => this.folderItems({ kind: 'shelf', shelf }).length > 0)
+      .map((shelf) => ({ kind: 'shelf', shelf }));
+    return [...shelves, ...groups.map((g): ArtifactNode => ({ kind: 'project', project: g.project }))];
+  }
+
+  /** The pages a folder holds right now. */
+  private folderItems(node: { kind: 'project'; project: string | undefined } | { kind: 'shelf'; shelf: Shelf }): Artifact[] {
+    if (node.kind === 'shelf') {
+      return node.shelf === 'pinned' ? pinnedArtifacts(this.items()) : recentArtifacts(this.items(), RECENT_COUNT);
+    }
+    return this.groups().find((g) => g.project === node.project)?.artifacts ?? [];
   }
 
   getTreeItem(node: ArtifactNode): vscode.TreeItem {
@@ -163,6 +197,20 @@ export class ArtifactsTree implements vscode.TreeDataProvider<ArtifactNode>, vsc
       case 'empty': {
         const item = new vscode.TreeItem(vscode.l10n.t('No artifacts'));
         item.id = id;
+        return item;
+      }
+      case 'shelf': {
+        const count = this.folderItems(node).length;
+        const label = shelfLabel(node.shelf);
+        // Open: what is pinned or recent is what one comes here for.
+        const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
+        item.id = id;
+        item.description = String(count);
+        item.tooltip = projectTooltip(label, count);
+        // The pin of a pinned row; the clock of history for the recent ones.
+        item.iconPath = new vscode.ThemeIcon(node.shelf === 'pinned' ? 'pinned' : 'history');
+        item.contextValue = `shelf.${node.shelf}`;
+        item.accessibilityInformation = { label: projectTooltip(label, count) };
         return item;
       }
       case 'project': {
@@ -212,6 +260,7 @@ export class ArtifactsTree implements vscode.TreeDataProvider<ArtifactNode>, vsc
     // screen to show for it.
     if (target === undefined || isFlat(this.groups())) return;
     let project: string | undefined;
+    // A shelf files nothing: being pinned or recent is not a place one puts a page.
     if (target.kind === 'project') project = target.project;
     else if (target.kind === 'artifact') project = projectOfArtifact(target.artifact, this.projects);
     else return;
@@ -237,7 +286,12 @@ export class ArtifactsTree implements vscode.TreeDataProvider<ArtifactNode>, vsc
       artifactContext(a),
       artifactTooltip(a, this.locale),
     ];
-    return JSON.stringify(this.groups().map((g) => [g.project ?? null, g.artifacts.map(row)]));
+    return JSON.stringify(
+      this.getChildren().map((node) => [
+        artifactNodeId(node),
+        node.kind === 'project' || node.kind === 'shelf' ? this.folderItems(node).map(row) : [],
+      ]),
+    );
   }
 
   private refresh(): void {

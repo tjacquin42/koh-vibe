@@ -219,5 +219,7 @@
   "Name of the new project": "Nom du nouveau projet",
   "New project name": "Nouveau nom du projet",
   "Koh-Vibe: could not file the artifacts.": "Koh-Vibe : impossible de ranger les artifacts.",
-  "Koh-Vibe: could not rename the project.": "Koh-Vibe : impossible de renommer le projet."
+  "Koh-Vibe: could not rename the project.": "Koh-Vibe : impossible de renommer le projet.",
+  "Pinned": "Épinglés",
+  "Recent": "Récents"
 }
