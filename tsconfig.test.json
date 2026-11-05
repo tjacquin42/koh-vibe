@@ -1,13 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Le tsconfig principal ne couvre que `src` : c'est ce que `tsc` compile vers `out`,
-  // et les tests n'ont rien à y faire. Mais « pas compilé » était devenu « pas vérifié » —
-  // un fixture de test a survécu à un changement de type sans que rien ne le signale.
-  // Ce fichier ne produit rien : il ne fait que passer le typeur sur les deux dossiers.
+  // The main tsconfig only covers `src`: that is what `tsc` compiles to `out`,
+  // and tests have no business there. But "not compiled" had turned into "not
+  // checked" — a test fixture survived a type change without anything flagging it.
+  // This file produces nothing: it only runs the type checker over both folders.
   "extends": "./tsconfig.json",
   "compilerOptions": { "noEmit": true, "rootDir": "." },
-  // `vitest.config.ts` reste dehors : c'est un module ES, et la base compile en
-  // CommonJS pour l'hôte d'extensions. Le typer ici demanderait un second réglage
-  // de module pour un fichier de configuration de six lignes.
+  // `vitest.config.ts` stays out: it is an ES module, and the base compiles to
+  // CommonJS for the extension host. Type-checking it here would call for a
+  // second module setting for a six-line configuration file.
   "include": ["src", "test"]
 }

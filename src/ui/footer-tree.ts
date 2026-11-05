@@ -1,14 +1,17 @@
 import * as vscode from 'vscode';
 import { NO_SOUND } from '../sound/player';
 import type { ChimeEvent } from '../sound/model';
+import type { AppSettingsToggle } from '../settings/model';
+import { keysOf } from '../lib/record';
+import type { TabsMode } from '../settings/tabs';
 
 /**
- * Les réglages, dans une vue SÉPARÉE de la liste des sessions.
+ * The settings, in a view SEPARATE from the session list.
  *
- * VSCode n'offre aucun moyen d'épingler une ligne au bas d'un arbre : tout ce
- * qu'on y met défile avec le reste. Une seconde vue dans le même conteneur, en
- * revanche, se pose sous la première et n'en suit pas le défilement — c'est le
- * seul « fixé en bas » que la plateforme permette.
+ * VSCode offers no way to pin a row to the bottom of a tree: everything put
+ * in one scrolls with the rest. A second view in the same container, on the
+ * other hand, sits below the first and does not follow its scrolling — it is
+ * the only "fixed at the bottom" the platform allows.
  */
 export interface SoundSettings {
   waiting: string;
@@ -16,13 +19,29 @@ export interface SoundSettings {
   volume: number;
 }
 
-/** The on/off settings, as the shared file names them (settings/model.ts). */
-export type SettingToggle = 'persistent' | 'expireTemporary' | 'animate';
+/**
+ * The on/off settings: every boolean field of the shared file, derived from
+ * it (settings/model.ts) rather than listed again by hand. A hand-written
+ * copy is what let a fourth toggle exist in the model with no checkbox here.
+ */
+export type SettingToggle = AppSettingsToggle;
 
-export const SETTING_TOGGLES: readonly SettingToggle[] = ['persistent', 'expireTemporary', 'animate'];
+/**
+ * The glyph beside each checkbox, and the one list of the toggles: the
+ * record has to name every member of `SettingToggle` or it does not compile,
+ * so a toggle added tomorrow gets its checkbox and its icon the moment it
+ * exists. The third one was added after a two-way ternary had chosen the
+ * icons, and fell into the second's branch — a clock for the motion of the
+ * dots.
+ */
+const TOGGLE_ICON: Record<SettingToggle, string> = { persistent: 'pin', expireTemporary: 'clock', animate: 'pulse' };
+
+/** In the order the checkboxes are shown. */
+export const SETTING_TOGGLES: readonly SettingToggle[] = keysOf(TOGGLE_ICON);
 
 export type FooterNode =
   | { kind: 'toggle'; key: SettingToggle; on: boolean }
+  | { kind: 'tabs'; mode: TabsMode }
   | { kind: 'sound'; event: ChimeEvent; name: string }
   | { kind: 'volume'; volume: number }
   | { kind: 'library'; count: number };
@@ -48,8 +67,19 @@ export function toggleTooltip(key: SettingToggle): string {
         'Keep a conversation in the list after its tab is closed: greyed out, in its folder, a click reopens it.\nUnchecked, closing the tab removes it from the list instead. Rows already greyed stay either way.',
       )
     : vscode.l10n.t(
-        'A conversation left out of every folder is temporary: after 24 hours without activity it leaves the list. Any activity brings it back; filing it in a folder keeps it for good.\nUnchecked, temporary conversations stay until you remove them.',
+        'A conversation left out of every folder is temporary: after 24 hours without activity it leaves the list, and its tab closes with it — Recently closed can bring it back. A tab that cannot be told apart from another is never closed: its row stays, for you to close. Filing a conversation in a folder keeps it for good.\nUnchecked, temporary conversations stay until you remove them.',
       );
+}
+
+/** A mode, as the row and the picker name it. */
+export function tabsModeLabel(mode: TabsMode): string {
+  if (mode === 'single') return vscode.l10n.t('one');
+  if (mode === 'none') return vscode.l10n.t('none');
+  return vscode.l10n.t('all');
+}
+
+export function tabsRowLabel(mode: TabsMode): string {
+  return vscode.l10n.t('Editor tabs: {0}', tabsModeLabel(mode));
 }
 
 /**
@@ -87,8 +117,9 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
   private sound: SoundSettings = { waiting: NO_SOUND, done: NO_SOUND, volume: 0.5 };
   private library = 0;
   private toggles: Record<SettingToggle, boolean> = { persistent: true, expireTemporary: true, animate: true };
-  // Même règle que l'arbre des sessions : ne rien annoncer quand rien n'a
-  // changé, sinon l'infobulle s'escamote sous la souris.
+  private tabs: TabsMode = 'multiple';
+  // Same rule as the session tree: announce nothing when nothing has
+  // changed, otherwise the tooltip slips away from under the mouse.
   private rendered: string | undefined;
 
   setSound(sound: SoundSettings): void {
@@ -106,8 +137,13 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
     this.refresh();
   }
 
+  setTabs(mode: TabsMode): void {
+    this.tabs = mode;
+    this.refresh();
+  }
+
   private refresh(): void {
-    const next = JSON.stringify([this.sound, this.library, this.toggles]);
+    const next = JSON.stringify([this.sound, this.library, this.toggles, this.tabs]);
     if (next === this.rendered) return;
     this.rendered = next;
     this.emitter.fire();
@@ -118,6 +154,8 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
     return [
       // First: they are about the list itself, the sounds only comment on it.
       ...SETTING_TOGGLES.map((key): FooterNode => ({ kind: 'toggle', key, on: this.toggles[key] })),
+      // With them: with one tab, the list is how one moves between conversations.
+      { kind: 'tabs', mode: this.tabs },
       { kind: 'sound', event: 'waiting', name: this.sound.waiting },
       { kind: 'sound', event: 'done', name: this.sound.done },
       { kind: 'volume', volume: this.sound.volume },
@@ -133,8 +171,17 @@ export class FooterTree implements vscode.TreeDataProvider<FooterNode> {
       // itself is a target. The row is one too — `onDidChangeCheckboxState`
       // and the command both land on the same toggle.
       item.checkboxState = node.on ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
-      item.iconPath = new vscode.ThemeIcon(node.key === 'persistent' ? 'pin' : 'clock', new vscode.ThemeColor('descriptionForeground'));
+      item.iconPath = new vscode.ThemeIcon(TOGGLE_ICON[node.key], new vscode.ThemeColor('descriptionForeground'));
       item.command = { command: 'kohVibe.toggleSetting', title: vscode.l10n.t('Toggle this setting'), arguments: [node.key] };
+      return item;
+    }
+    if (node.kind === 'tabs') {
+      const item = new vscode.TreeItem(tabsRowLabel(node.mode));
+      item.tooltip = vscode.l10n.t(
+        'Which tabs the editor shows above its files and conversations. One: only the current one, as a title — the session list then does the switching.\nThis is the editor\'s own setting, workbench.editor.showTabs: changed here or in the editor\'s settings alike.',
+      );
+      item.iconPath = new vscode.ThemeIcon('browser', new vscode.ThemeColor('descriptionForeground'));
+      item.command = { command: 'kohVibe.chooseTabs', title: vscode.l10n.t('Choose the editor tabs') };
       return item;
     }
     if (node.kind === 'sound') {

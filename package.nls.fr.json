@@ -15,6 +15,7 @@
   "command.kohVibe.deleteGroup.title": "Supprimer le dossier",
   "command.kohVibe.chooseSound.title": "Son d'un événement",
   "command.kohVibe.chooseVolume.title": "Volume des carillons",
+  "command.kohVibe.chooseTabs.title": "Onglets de l'éditeur",
   "command.kohVibe.installSounds.title": "Installer la bibliothèque de sons",
   "command.kohVibe.removeSounds.title": "Retirer la bibliothèque de sons",
   "command.kohVibe.offerSounds.title": "Proposer la bibliothèque de sons",
@@ -31,5 +32,9 @@
   "view.kohVibe.closed.name": "Fermé récemment",
   "view.kohVibe.sessions.name": "Sessions",
   "view.kohVibe.usage.name": "Consommation",
-  "view.kohVibe.settings.name": "Réglages"
+  "view.kohVibe.settings.name": "Réglages",
+  "command.kohVibe.killProcess.title": "Terminer le processus",
+  "command.kohVibe.copyProcessPid.title": "Copier le pid",
+  "command.kohVibe.copyProcessCommand.title": "Copier la commande",
+  "view.kohVibe.processes.name": "Processus"
 }

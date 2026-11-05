@@ -15,6 +15,7 @@
   "command.kohVibe.deleteGroup.title": "Delete folder",
   "command.kohVibe.chooseSound.title": "Sound for an event",
   "command.kohVibe.chooseVolume.title": "Chime volume",
+  "command.kohVibe.chooseTabs.title": "Editor tabs",
   "command.kohVibe.installSounds.title": "Install the sound library",
   "command.kohVibe.removeSounds.title": "Remove the sound library",
   "command.kohVibe.offerSounds.title": "Offer the sound library",
@@ -31,5 +32,9 @@
   "view.kohVibe.closed.name": "Recently closed",
   "view.kohVibe.sessions.name": "Sessions",
   "view.kohVibe.usage.name": "Usage",
-  "view.kohVibe.settings.name": "Settings"
+  "view.kohVibe.settings.name": "Settings",
+  "command.kohVibe.killProcess.title": "Terminate process",
+  "command.kohVibe.copyProcessPid.title": "Copy pid",
+  "command.kohVibe.copyProcessCommand.title": "Copy command",
+  "view.kohVibe.processes.name": "Processes"
 }

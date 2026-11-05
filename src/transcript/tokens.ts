@@ -2,16 +2,16 @@ import type { Session } from '../events/types';
 import { readTranscript, type TranscriptStats } from './reader';
 
 /**
- * Attache à chaque session les compteurs de tokens de son transcript.
+ * Attaches each session's transcript token counters to it.
  *
- * Isolée par session : `readTranscript` ne protège que le cas du fichier
- * absent (open() qui échoue). Tout le reste — permission refusée, chemin
- * devenu un dossier, descripteurs épuisés, volume démonté en cours de
- * lecture — lève encore, et la seule garantie possible est qu'aucune de ces
- * causes ne doit priver les *autres* sessions de leurs compteurs, ni faire
- * disparaître l'appelant sans qu'il ait pu rendre les sessions qui ont
- * fonctionné. Une session dont la lecture échoue garde simplement ses
- * anciens compteurs (ou n'en a jamais eu) ; le prochain appel réessaiera.
+ * Isolated per session: `readTranscript` only guards against the missing-
+ * file case (a failing open()). Everything else — permission denied, the
+ * path having become a folder, exhausted descriptors, a volume unmounted
+ * mid-read — still throws, and the only guarantee possible is that none of
+ * these causes must deprive the *other* sessions of their counters, nor
+ * make the caller disappear without having been able to return the
+ * sessions that did work. A session whose read fails simply keeps its old
+ * counters (or never had any); the next call will try again.
  */
 export async function withTokens(
   sessions: Map<string, Session>,

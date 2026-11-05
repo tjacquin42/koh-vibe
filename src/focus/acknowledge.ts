@@ -5,14 +5,14 @@ import { appendLocalEvent } from '../spool/watcher';
 import { sessionsToAcknowledge } from './claims';
 
 /**
- * Acquitte (spec §5) les sessions « terminé non lu » que ces dossiers de
- * workspace revendiquent — l'action complète déclenchée quand la vue devient
- * visible dans une fenêtre. Extraite d'`onVisible` (extension.ts) pour rester
- * testable à la frontière de composition, pas seulement au niveau de la
- * primitive pure (`sessionsToAcknowledge`) qu'elle appelle : un relecteur a
- * prouvé par mutation qu'acquitter directement dans `extension.ts` sans
- * passer par cette primitive compilait et laissait tous les tests verts tant
- * que seule la primitive, jamais le point d'appel, était couverte.
+ * Acknowledges (spec §5) the « done unseen » sessions these workspace
+ * folders claim — the complete action triggered when the view becomes
+ * visible in a window. Extracted from `onVisible` (extension.ts) to stay
+ * testable at the composition boundary, not only at the level of the pure
+ * primitive (`sessionsToAcknowledge`) it calls: a reviewer proved by
+ * mutation that acknowledging directly in `extension.ts` without going
+ * through this primitive compiled and left every test green as long as
+ * only the primitive, never the call site, was covered.
  */
 export async function acknowledgeVisibleSessions(dirs: SpoolDirs, folders: readonly string[]): Promise<void> {
   const sessions = await readSessions(dirs);
@@ -22,14 +22,14 @@ export async function acknowledgeVisibleSessions(dirs: SpoolDirs, folders: reado
 }
 
 /**
- * Acquitte une session au clic (spec §5 : « clic sur la session »),
- * inconditionnellement — indépendamment de `claims()`, qui ne gouverne que
- * l'acquittement passif de `acknowledgeVisibleSessions` ci-dessus. Extraite
- * pour la même raison : le clic (kohVibe.focusSession) est le second
- * endroit où I6 a été perdu, et n'était protégé par aucun test avant cette
- * extraction. Un `Ack` sur une session inconnue ou déjà purgée ne la recrée
- * pas (I2, `reduce()` ignore un `Ack` sans session préalable) : aucune
- * vérification d'ordre n'est nécessaire ici.
+ * Acknowledges a session on click (spec §5: « click on the session »),
+ * unconditionally — independent of `claims()`, which only governs the
+ * passive acknowledgement of `acknowledgeVisibleSessions` above. Extracted
+ * for the same reason: the click (kohVibe.focusSession) is the second place
+ * where I6 was lost, and was covered by no test before this extraction. An
+ * `Ack` on an unknown or already purged session does not recreate it (I2,
+ * `reduce()` ignores an `Ack` with no prior session): no ordering check is
+ * needed here.
  */
 export async function acknowledgeClickedSession(
   dirs: SpoolDirs,

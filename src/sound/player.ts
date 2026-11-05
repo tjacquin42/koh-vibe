@@ -6,39 +6,41 @@ import { bundledSoundsDir } from './bundled';
 import { librarySoundsDir } from './library';
 
 /**
- * Où l'on cherche les sons.
+ * Where sounds are looked for.
  *
- * Quatre emplacements, dans cet ordre : ceux du système, ceux que l'utilisateur
- * a déposés dans `~/Library/Sounds` (l'endroit prévu par macOS), la
- * bibliothèque que Koh-Vibe propose d'installer chez lui, et les deux sons que
- * le paquet embarque — les seuls, voir `bundled.ts`.
+ * Four locations, in this order: the system's own, the ones the user has
+ * dropped into `~/Library/Sounds` (the place macOS provides for this), the
+ * library Koh-Vibe offers to install for them, and the two sounds the
+ * package bundles — the only two, see `bundled.ts`.
  *
- * L'ordre suit une seule règle : en cas de noms identiques, le premier trouvé
- * gagne, et ce que l'utilisateur a posé lui-même ne doit jamais être supplanté
- * par ce que nous avons mis là. Nos deux sons passent donc APRÈS la
- * bibliothèque, qu'il a au moins choisi d'installer.
+ * The order follows a single rule: on identical names, the first one found
+ * wins, and what the user has placed there themselves must never be
+ * supplanted by what we put there. Our two sounds therefore come AFTER the
+ * library, which they at least chose to install.
  *
- * Les dossiers se donnent, ils ne se devinent pas : le chemin du paquet vient
- * de l'hôte d'extensions. Sans valeur par défaut, aucun appel ne peut oublier
- * les sons embarqués — un oubli qui rendrait muet le réglage par défaut sans
- * rien afficher d'anormal.
+ * The folders are given, not guessed: the package path comes from the
+ * extension host. Without a default value, no call can forget the bundled
+ * sounds — an omission that would silence the default setting without
+ * showing anything abnormal.
  */
-export function soundDirs(home: string, extensionPath: string): string[] {
+export function soundDirs(kohHome: string, extensionPath: string): string[] {
+  // `kohHome` is koh-vibe's own root, the one a test can redirect; the user's
+  // `~/Library/Sounds` deliberately is not, and comes from the real home.
   return [
     '/System/Library/Sounds',
     join(homedir(), 'Library', 'Sounds'),
-    librarySoundsDir(home),
+    librarySoundsDir(kohHome),
     bundledSoundsDir(extensionPath),
   ];
 }
 
-/** Ce qu'`afplay` sait lire, et qui a un sens comme notification. */
+/** What `afplay` knows how to read, and that makes sense as a notification. */
 const PLAYABLE = new Set(['.aiff', '.aif', '.wav', '.m4a', '.m4r', '.mp3', '.caf']);
 
-/** Ce que vaut « pas de son » dans un réglage : une chaîne vide, pas une absence. */
+/** What « no sound » means in a setting: an empty string, not an absence. */
 export const NO_SOUND = '';
 
-/** Volume par défaut : audible sans faire sursauter. */
+/** Default volume: audible without startling. */
 export const DEFAULT_VOLUME = 0.5;
 
 export interface SoundEntry {
@@ -47,15 +49,16 @@ export interface SoundEntry {
 }
 
 /**
- * Les sons disponibles, lus sur la machine plutôt que codés en dur : la liste
- * varie d'une version de macOS à l'autre, et l'utilisateur peut en déposer.
+ * The available sounds, read from the machine rather than hard-coded: the
+ * list varies from one macOS version to the next, and the user can add
+ * their own.
  *
- * Un dossier absent ou illisible ne vaut jamais une erreur — sur un autre
- * système, les deux le sont, et la liste est simplement vide.
+ * A missing or unreadable folder is never an error — on another system,
+ * both are, and the list is simply empty.
  *
- * Les doublons de nom sont résolus en faveur du PREMIER dossier trouvé, donc
- * du système : un fichier personnel homonyme ne remplace pas silencieusement un
- * son que l'utilisateur croit connaître.
+ * Name collisions are resolved in favor of the FIRST folder found, hence
+ * the system one: a personal file with the same name does not silently
+ * replace a sound the user believes they know.
  */
 export async function availableSounds(dirs: readonly string[]): Promise<SoundEntry[]> {
   const seen = new Map<string, SoundEntry>();
@@ -77,10 +80,10 @@ export async function availableSounds(dirs: readonly string[]): Promise<SoundEnt
 }
 
 /**
- * Ramène un volume à ce qu'`afplay` accepte. Une valeur absente ou aberrante
- * retombe sur la valeur par défaut plutôt que sur le silence : un réglage
- * abîmé ne doit pas se traduire par « le son ne marche plus », qui enverrait
- * chercher la panne ailleurs.
+ * Clamps a volume to what `afplay` accepts. A missing or nonsensical value
+ * falls back to the default rather than to silence: a corrupted setting must
+ * not translate into « the sound doesn't work anymore », which would send
+ * someone looking for the fault elsewhere.
  */
 export function clampVolume(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_VOLUME;
@@ -88,17 +91,17 @@ export function clampVolume(value: unknown): number {
 }
 
 /**
- * Joue un fichier, et n'échoue jamais bruyamment : un carillon raté ne doit pas
- * remonter d'erreur — le tableau de bord reste utilisable sans son.
+ * Plays a file, and never fails loudly: a missed chime must not bubble up
+ * an error — the dashboard stays usable without sound.
  *
- * `execFile` et non `exec` : le chemin vient d'un réglage, donc de l'extérieur,
- * et ne doit jamais traverser un shell.
+ * `execFile`, not `exec`: the path comes from a setting, hence from the
+ * outside, and must never go through a shell.
  */
 export function playFile(path: string, volume: number): void {
   execFile('/usr/bin/afplay', ['-v', String(clampVolume(volume)), path], () => undefined);
 }
 
-/** Joue un son par son nom, en le résolvant dans les dossiers connus. */
+/** Plays a sound by its name, resolving it within the known folders. */
 export async function playNamed(
   name: string,
   volume: number,

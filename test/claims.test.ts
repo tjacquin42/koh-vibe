@@ -5,38 +5,38 @@ import type { Session } from '../src/events/types';
 describe('claims', () => {
   const folders = ['/Users/dev/projet', '/Users/dev/autre-projet'];
 
-  it('revendique une session dans un dossier du workspace', () => {
+  it('claims a session in a workspace folder', () => {
     expect(claims(folders, '/Users/dev/projet')).toBe(true);
     expect(claims(folders, '/Users/dev/projet/web')).toBe(true);
   });
 
-  it('revendique un worktree situé sous le dossier', () => {
+  it('claims a worktree located under the folder', () => {
     expect(claims(folders, '/Users/dev/projet/.worktrees/feat-seo')).toBe(true);
   });
 
-  it('ne revendique pas un projet voisin au préfixe trompeur', () => {
+  it('does not claim a neighboring project with a misleading prefix', () => {
     expect(claims(folders, '/Users/dev/projet-old')).toBe(false);
   });
 
-  it('ne revendique rien sans dossier ouvert', () => {
+  it('claims nothing without an open folder', () => {
     expect(claims([], '/Users/dev/projet')).toBe(false);
   });
 
-  it('revendique indépendamment de la casse (macOS insensible à la casse)', () => {
+  it('claims regardless of case (macOS is case-insensitive)', () => {
     expect(claims(folders, '/users/dev/projet')).toBe(true);
     expect(claims(folders, '/Users/dev/PROJET/web')).toBe(true);
   });
 
-  it('ne revendique toujours pas le préfixe trompeur, même avec une casse différente', () => {
+  it('still does not claim the misleading prefix, even with different casing', () => {
     expect(claims(folders, '/Users/dev/PROJET-old')).toBe(false);
   });
 });
 
-// I6 : la spec (§5) acquitte « terminé non lu » à l'affichage de la vue
-// seulement pour la fenêtre qui revendique la session — pas pour toutes les
-// sessions de tous les projets. Extraite en fonction pure (même raison que
-// claims() elle-même) pour rester testable sans vscode : c'est exactement la
-// logique câblée dans onDidChangeVisibility (extension.ts).
+// I6: the spec (§5) acknowledges "unread finished" when the view is shown
+// only for the window that claims the session — not for every session in
+// every project. Extracted as a pure function (same reason as claims()
+// itself) to stay testable without vscode: it is exactly the logic wired
+// into onDidChangeVisibility (extension.ts).
 describe('sessionsToAcknowledge', () => {
   const base: Session = {
     id: 's', cwd: '/Users/dev/projet', project: 'projet', origin: 'vscode',
@@ -44,18 +44,18 @@ describe('sessionsToAcknowledge', () => {
   };
   const folders = ['/Users/dev/projet'];
 
-  it('retient les sessions terminées non lues que ces dossiers revendiquent', () => {
+  it('keeps the unread finished sessions that these folders claim', () => {
     const claimed: Session = { ...base, id: 'a', cwd: '/Users/dev/projet' };
     const foreign: Session = { ...base, id: 'b', cwd: '/Users/dev/autre-projet' };
     expect(sessionsToAcknowledge([claimed, foreign], folders)).toEqual([claimed]);
   });
 
-  it('ignore une session revendiquée mais pas terminée non lue', () => {
+  it('ignores a session that is claimed but not an unread finished one', () => {
     const running: Session = { ...base, id: 'a', status: 'running' };
     expect(sessionsToAcknowledge([running], folders)).toEqual([]);
   });
 
-  it('ne retient rien sans dossier ouvert', () => {
+  it('keeps nothing without an open folder', () => {
     expect(sessionsToAcknowledge([base], [])).toEqual([]);
   });
 });

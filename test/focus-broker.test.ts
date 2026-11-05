@@ -24,10 +24,10 @@ const session = (over: Partial<Session> = {}): Session => ({
 
 let home: string;
 let dirs: SpoolDirs;
-// Un `request()` non revendiqué arme un minuteur de repli à 2s réelles :
-// sans stop(), il survivrait au test et pourrait lancer `code -r` pour de
-// vrai une fois le test terminé. Chaque broker créé par un test s'enregistre
-// ici pour être arrêté sans exception dans afterEach.
+// An unclaimed `request()` arms a fallback timer at a real 2s: without
+// stop(), it would outlive the test and could actually run `code -r` once
+// the test is over. Every broker created by a test registers here so it can
+// be stopped, exception-free, in afterEach.
 let brokers: FocusBroker[];
 
 interface CloseCalls {
@@ -64,12 +64,13 @@ function makeBroker(): FocusBroker {
 }
 
 /**
- * Pose les dossiers de l'espace de travail sur le bouchon de `vscode`.
+ * Sets the workspace folders on the `vscode` stub.
  *
- * La vraie API les expose en LECTURE SEULE, et c'est bien contre elle que le
- * typeur travaille — un bouchon qui divergerait de ses signatures ne prouverait
- * plus rien. Cette vue étroite dit donc exactement ce qu'on force, et rien de
- * plus : le jour où l'API changerait de forme, la ligne casserait ici.
+ * The real API exposes them as READ-ONLY, and that is exactly what the
+ * type-checker works against — a stub that diverged from its signatures
+ * would no longer prove anything. This narrow view therefore says exactly
+ * what we are forcing, and nothing more: the day the API's shape changes,
+ * the line breaks here.
  */
 function setWorkspaceFolders(folders: readonly { uri: { fsPath: string } }[] | undefined): void {
   (vscode.workspace as { workspaceFolders?: unknown }).workspaceFolders = folders;
@@ -93,7 +94,7 @@ afterEach(() => {
 });
 
 describe('FocusBroker.request', () => {
-  it('révèle le panneau de la session (par son identifiant) quand la fenêtre courante la revendique', async () => {
+  it('reveals the session\'s panel (by its id) when the current window claims it', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
     const broker = makeBroker();
@@ -103,7 +104,7 @@ describe('FocusBroker.request', () => {
     expect(executeCommand).toHaveBeenCalledWith('claude-vscode.editor.open', 'sess-1');
   });
 
-  it("n'exécute aucune commande pour une session terminal revendiquée localement — elle explique à la place", async () => {
+  it("executes no command for a terminal session claimed locally — it explains instead", async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
     const showInformationMessage = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
@@ -115,7 +116,7 @@ describe('FocusBroker.request', () => {
     expect(showInformationMessage).toHaveBeenCalled();
   });
 
-  it("écrit un fichier de requête portant le libellé et l'origine de la session quand aucune fenêtre ne la revendique", async () => {
+  it("writes a request file carrying the session's label and origin when no window claims it", async () => {
     const broker = makeBroker();
 
     await broker.request(session({ id: 's-remote', branch: 'feat-x', origin: 'vscode' }));
@@ -123,19 +124,19 @@ describe('FocusBroker.request', () => {
     const raw = await readFile(join(dirs.requests, 'focus-s-remote.json'), 'utf8');
     const parsed = JSON.parse(raw) as { sessionId: string; cwd: string; label: string; origin: string };
     expect(parsed.sessionId).toBe('s-remote');
-    expect(parsed.label).toBe('projet · feat-x'); // sessionLabel() retombe sur projet · branche sans titre
+    expect(parsed.label).toBe('projet · feat-x'); // sessionLabel() falls back to project · branch with no title
     expect(parsed.origin).toBe('vscode');
   });
 });
 
-describe('FocusBroker — consommation des requêtes (I3)', () => {
-  it("focalise sans attendre que le message d'information se referme", async () => {
-    // Un vrai showInformationMessage ne se règle qu'à la fermeture du toast :
-    // simulé ici par une promesse qui ne se règle jamais. Si le broker
-    // l'attendait encore avant de focaliser (bug I3), l'appel ci-dessous à
-    // consume() ne se terminerait jamais et ce test expirerait sur le délai
-    // par défaut de vitest — piloté par l'enchaînement réel des promesses,
-    // jamais par un minuteur ajouté pour l'occasion.
+describe('FocusBroker — consuming requests (I3)', () => {
+  it("focuses without waiting for the information message to close", async () => {
+    // A real showInformationMessage only settles when the toast closes:
+    // simulated here by a promise that never settles. If the broker were
+    // still awaiting it before focusing (bug I3), the call below to
+    // consume() would never finish and this test would time out on vitest's
+    // default delay — driven by the real chaining of promises, never by a
+    // timer added for the occasion.
     let messageCalled = false;
     let focusCalled = false;
     vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation(() => {
@@ -148,8 +149,8 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     });
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
 
-    // La requête est écrite pendant que personne ne revendie encore (dossier
-    // vide), pour forcer l'écriture d'un fichier plutôt qu'un focus direct.
+    // The request is written while no one claims it yet (empty folder), to
+    // force writing a file rather than a direct focus.
     setWorkspaceFolders(undefined);
     const other = makeBroker();
     await other.request(session({ id: 's-cross' }));
@@ -163,7 +164,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(focusCalled).toBe(true);
   });
 
-  it('nomme la session dans le message plutôt que rester générique (mineur T11)', async () => {
+  it('names the session in the message rather than staying generic (minor T11)', async () => {
     let message: unknown;
     vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation((m: string) => {
       message = m;
@@ -183,7 +184,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(message as string).toContain('feat-x');
   });
 
-  it('ignore une requête que la fenêtre courante ne revendique pas', async () => {
+  it('ignores a request that the current window does not claim', async () => {
     vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
 
@@ -198,7 +199,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(executeCommand).not.toHaveBeenCalled();
   });
 
-  it('reçoit exactement la commande de révélation, avec l identifiant de session en argument', async () => {
+  it('receives exactly the reveal command, with the session id as argument', async () => {
     vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
 
@@ -213,7 +214,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(executeCommand).toHaveBeenCalledWith('claude-vscode.editor.open', 'sess-1');
   });
 
-  it("n'affiche qu'un seul message pour une session distante hors éditeur — l'annonce et l'explication ne doivent pas se contredire", async () => {
+  it("shows only a single message for a remote non-editor session — the announcement and the explanation must not contradict each other", async () => {
     const showInformationMessage = vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
 
@@ -228,7 +229,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(showInformationMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("n'exécute aucune commande pour une session terminal consommée à distance", async () => {
+  it("executes no command for a terminal session consumed remotely", async () => {
     vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
 
@@ -243,7 +244,7 @@ describe('FocusBroker — consommation des requêtes (I3)', () => {
     expect(executeCommand).not.toHaveBeenCalled();
   });
 
-  it("n'exécute aucune commande pour une requête sans champ origin (écrite par une version antérieure)", async () => {
+  it("executes no command for a request with no origin field (written by an earlier version)", async () => {
     vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
     const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
 
@@ -495,12 +496,12 @@ describe('requestClose', () => {
   });
 });
 
-// La mise en veille voyage par le même rail que la fermeture, et sa seule
-// divergence est le repli : une fermeture que personne ne consomme conclut
-// « aucune fenêtre, donc aucun onglet » et retire la ligne ; un sommeil conclut
-// la même chose et ne touche à rien, puisqu'il n'y a pas d'onglet à fermer.
+// Going to sleep travels over the same rail as closing, and its only
+// divergence is the fallback: a close that nobody consumes concludes
+// « no window, therefore no tab » and removes the row; a sleep concludes the
+// same thing and touches nothing, since there is no tab to close.
 describe('requestSleep', () => {
-  it('endort ici, sans écrire de requête, quand cette fenêtre détient le dossier', async () => {
+  it('sleeps here, without writing a request, when this window holds the folder', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     const broker = makeBroker();
 
@@ -510,7 +511,7 @@ describe('requestSleep', () => {
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
-  it("écrit une requête quand une autre fenêtre détient le dossier", async () => {
+  it("writes a request when another window holds the folder", async () => {
     const broker = makeBroker();
 
     await broker.requestSleep(session());
@@ -520,7 +521,7 @@ describe('requestSleep', () => {
     expect(closeCalls.sleepHere).toEqual([]);
   });
 
-  it("ne retire RIEN quand personne ne consomme — contrairement à la fermeture, il n'y a pas d'onglet à fermer", async () => {
+  it("removes NOTHING when nobody consumes — unlike closing, there is no tab to close", async () => {
     vi.useFakeTimers();
     try {
       const broker = makeBroker();
@@ -528,8 +529,8 @@ describe('requestSleep', () => {
 
       await vi.advanceTimersByTimeAsync(2_000);
       await vi.waitFor(async () => expect(await readdir(dirs.requests)).toEqual([]));
-      // Le repli d'une fermeture retire la ligne ; celui d'un sommeil ne touche
-      // à rien : sans fenêtre, il n'y a pas d'onglet, donc rien à endormir.
+      // A close's fallback removes the row; a sleep's fallback touches
+      // nothing: with no window, there is no tab, so nothing to sleep.
       expect(closeCalls.forget).toEqual([]);
       expect(closeCalls.sleepHere).toEqual([]);
     } finally {
@@ -537,7 +538,7 @@ describe('requestSleep', () => {
     }
   });
 
-  it('consomme une requête de sommeil écrite pour un dossier qu elle détient', async () => {
+  it('consumes a sleep request written for a folder it holds', async () => {
     const other = makeBroker();
     await other.requestSleep(session({ id: 's-cross' }));
 
@@ -550,7 +551,7 @@ describe('requestSleep', () => {
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
-  it("écarte une requête de sommeil sans origine éditeur, et n endort rien", async () => {
+  it("discards a sleep request with no editor origin, and puts nothing to sleep", async () => {
     await writeFile(
       join(dirs.requests, 'sleep-s-term.json'),
       JSON.stringify({ sessionId: 's-term', cwd: '/Users/dev/projet', label: 'projet', origin: 'terminal', at: Date.now() }),
@@ -567,13 +568,13 @@ describe('requestSleep', () => {
   });
 });
 
-// Le signal qui alimente la mémoire des onglets ouverts ici (claude/opened-here).
-// C'est le seul instant où cette fenêtre sait à quelle conversation appartient
-// l'onglet qui va apparaître : si le signal manque, la sélection de ligne
-// retombe sur le mémento de l'éditeur, qui retarde de plusieurs dizaines de
-// secondes. Rien ne le vérifiait.
-describe('FocusBroker — annonce la conversation dont il vient de demander l onglet', () => {
-  it('annonce après une révélation locale, avec l identifiant en argument', async () => {
+// The signal that feeds the memory of tabs opened here (claude/opened-here).
+// This is the only instant where this window knows which conversation the
+// tab about to appear belongs to: if the signal is missing, row selection
+// falls back to the editor's memento, which lags by several tens of
+// seconds. Nothing was checking it.
+describe('FocusBroker — announces the conversation whose tab it just requested', () => {
+  it('announces after a local reveal, with the id as argument', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     const broker = makeBroker();
 
@@ -582,7 +583,7 @@ describe('FocusBroker — annonce la conversation dont il vient de demander l on
     expect(opened).toEqual(['s1']);
   });
 
-  it('annonce aussi pour une réouverture, qui ouvre un onglet tout autant', async () => {
+  it('announces for a reopen too, which opens a tab just as much', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     listed = true;
     const broker = makeBroker();
@@ -592,7 +593,7 @@ describe('FocusBroker — annonce la conversation dont il vient de demander l on
     expect(opened).toEqual(['s1']);
   });
 
-  it("n annonce rien quand aucune commande n a été exécutée — un terminal n ouvre pas d onglet", async () => {
+  it("announces nothing when no command was executed — a terminal opens no tab", async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     const broker = makeBroker();
 
@@ -601,7 +602,7 @@ describe('FocusBroker — annonce la conversation dont il vient de demander l on
     expect(opened).toEqual([]);
   });
 
-  it("n annonce rien quand aucune fenêtre ne détient le dossier : la requête part, aucun onglet ne s ouvre ici", async () => {
+  it("announces nothing when no window holds the folder: the request goes out, no tab opens here", async () => {
     const broker = makeBroker();
 
     await broker.request(session());

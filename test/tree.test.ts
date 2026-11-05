@@ -4,9 +4,9 @@ import type { TreeNode } from '../src/ui/tree';
 import type { Session } from '../src/events/types';
 import type { GroupsState } from '../src/groups/model';
 
-// La racine du paquet, dont la vue tire ses pastilles de statut. Un chemin
-// fictif suffit ici : ce qui est vérifié, c'est la FORME de l'iconPath, pas le
-// contenu des fichiers — test/status-icon.test.ts s'assure, lui, qu'ils existent.
+// The package root, from which the view draws its status dots. A fake path
+// is enough here: what is verified is the SHAPE of the iconPath, not the
+// files' content — test/status-icon.test.ts, for its part, makes sure they exist.
 const EXT = '/ext';
 
 const session = (id: string, overrides: Partial<Session> = {}): Session => ({
@@ -29,14 +29,14 @@ const groups = (state: Partial<GroupsState>): GroupsState => ({
   ...state,
 });
 
-// onDrop est obligatoire au constructeur : ces tests portent sur l'affichage,
-// pas sur le glisser-déposer, donc un bouchon sans effet partagé suffit ici.
+// onDrop is mandatory in the constructor: these tests are about the display,
+// not about drag-and-drop, so a stub with no shared effect is enough here.
 const noopOnDrop = async (): Promise<void> => undefined;
 const noopOnGroupsDropped = async (): Promise<void> => undefined;
 
-// Les tests affirment la liste des libellés effectivement rendus (via
-// getTreeItem), pas un simple compte de nœuds : un compte ne dit rien de
-// l'ordre ni du contenu, deux propriétés que ces règles portent explicitement.
+// The tests assert the list of labels actually rendered (via getTreeItem),
+// not a mere node count: a count says nothing about the order or the
+// content, two properties these rules explicitly carry.
 const labelsOf = async (tree: SessionsTree, node?: TreeNode): Promise<string[]> => {
   const children = await tree.getChildren(node);
   return children.map((child) => String(tree.getTreeItem(child).label));
@@ -44,15 +44,14 @@ const labelsOf = async (tree: SessionsTree, node?: TreeNode): Promise<string[]> 
 
 const bodyOf = async (tree: SessionsTree): Promise<TreeNode[]> => tree.getChildren();
 
-// I5 : l'état « hooks installés » ne doit être recalculé que lorsqu'il est
-// réellement consulté — c'est-à-dire quand l'arbre s'apprête à afficher son
-// nœud vide, donc uniquement quand il n'y a aucune session à montrer. Deux
-// propriétés vérifiées : le coût n'est payé que dans ce cas, et le symptôme
-// (l'arbre affiche « non installés » alors que des sessions existent déjà)
-// disparaît par construction puisque la vérification n'est même pas
-// consultée quand des sessions sont là.
-describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => {
-  it("n'interroge pas l'état des hooks quand des sessions sont à afficher, même s'ils sont en réalité désinstallés", async () => {
+// I5: the « hooks installed » state must only be recomputed when it is
+// actually consulted — that is, when the tree is about to show its empty
+// node, so only when there is no session to show. Two properties verified:
+// the cost is only paid in that case, and the symptom (the tree shows « not
+// installed » when sessions already exist) disappears by construction since
+// the check is not even consulted when sessions are there.
+describe('SessionsTree — hooksInstalled recomputed on demand (I5)', () => {
+  it("does not query the hooks state when there are sessions to display, even if they are actually uninstalled", async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')]]));
@@ -63,7 +62,7 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     expect(children).toEqual([{ kind: 'group', group: undefined, sessions: [session('s1')] }]);
   });
 
-  it("interroge l'état des hooks seulement quand il n'y a aucune session, et affiche le nœud d'installation s'ils manquent", async () => {
+  it("queries the hooks state only when there is no session at all, and shows the installation node if they are missing", async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
 
@@ -75,7 +74,7 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     ]);
   });
 
-  it("un rendu sans session reflète une installation faite entre-temps, sans rechargement de fenêtre", async () => {
+  it("a render with no session reflects an installation done in the meantime, without a window reload", async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
 
@@ -90,7 +89,7 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     expect(checkHooksInstalled).toHaveBeenCalledTimes(2);
   });
 
-  it("setHooksInstalled fait redessiner la ligne vide : une installation observée par le rendu se voit sans rechargement, même quand rien d'autre ne change", async () => {
+  it("setHooksInstalled redraws the empty row: an installation observed by the render is visible without a reload, even when nothing else changes", async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
     let fired = 0;
@@ -106,28 +105,28 @@ describe('SessionsTree — hooksInstalled recalculé à la demande (I5)', () => 
     const before = fired;
     tree.setHooksInstalled(true);
 
-    // La valeur observée participe à la signature : le changement déclenche un
-    // redessin, et getChildren la consulte sans repasser par le vérificateur.
+    // The observed value is part of the signature: the change triggers a
+    // redraw, and getChildren consults it without going back through the checker.
     expect(fired).toBe(before + 1);
     expect(await bodyOf(tree)).toEqual([{ kind: 'empty', message: 'No active Claude Code session' }]);
     expect(checkHooksInstalled).toHaveBeenCalledTimes(1);
   });
 
-  it('ne consulte plus jamais les hooks une fois que des sessions apparaissent (le symptôme I5 disparaît par construction)', async () => {
+  it('never consults the hooks again once sessions appear (the I5 symptom disappears by construction)', async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(false);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
 
-    await tree.getChildren(); // aucune session : interroge, affiche « non installés »
+    await tree.getChildren(); // no session: queries, shows « not installed »
     tree.setSessions(new Map([['s1', session('s1')]]));
     const children = await bodyOf(tree);
 
     expect(children).toEqual([{ kind: 'group', group: undefined, sessions: [session('s1')] }]);
-    expect(checkHooksInstalled).toHaveBeenCalledTimes(1); // pas un second appel
+    expect(checkHooksInstalled).toHaveBeenCalledTimes(1); // not a second call
   });
 });
 
-describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
-  it('range les sessions sous leur dossier, dans l ordre des dossiers', async () => {
+describe('SessionsTree — two levels: folders then sessions', () => {
+  it('files the sessions under their folder, in the order of the folders', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(
       new Map([
@@ -152,7 +151,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     expect(await labelsOf(tree, tafNode)).toEqual(['alpha']);
   });
 
-  it('« Sans dossier » vient toujours en dernier', async () => {
+  it('« Unfiled » always comes last', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(
       new Map([
@@ -163,14 +162,14 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     tree.setGroups(
       groups({
         groups: [{ id: 'g1', name: 'Dossier unique', order: 0 }],
-        assignments: { s1: 'g1' }, // s2 reste non rangée
+        assignments: { s1: 'g1' }, // s2 stays unfiled
       }),
     );
 
     expect(await labelsOf(tree)).toEqual(['Dossier unique', '', 'Temporary sessions']);
   });
 
-  it('« Sans dossier » disparaît quand toutes les sessions sont rangées', async () => {
+  it('« Unfiled » disappears once every session is filed', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')]]));
     tree.setGroups(
@@ -183,9 +182,9 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     expect(await labelsOf(tree)).toEqual(['Dossier']);
   });
 
-  it('un dossier vide reste visible, pour pouvoir y déposer', async () => {
+  it('an empty folder stays visible, so it can be dropped into', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
-    tree.setSessions(new Map([['s1', session('s1')]])); // non rangée
+    tree.setSessions(new Map([['s1', session('s1')]])); // unfiled
     tree.setGroups(
       groups({
         groups: [{ id: 'g1', name: 'Dossier vide', order: 0 }],
@@ -198,7 +197,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     expect(await labelsOf(tree, emptyGroupNode)).toEqual([]);
   });
 
-  it('trie les sessions d un dossier par statut puis par récence, comme la liste globale', async () => {
+  it('sorts a folder\'s sessions by status then by recency, like the global list', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(
       new Map([
@@ -219,13 +218,13 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     expect(await labelsOf(tree, groupNode)).toEqual(['waiting', 'termine', 'idle-new', 'idle-old']);
   });
 
-  it('donne un contextValue distinct à un vrai dossier et à « Sans dossier »', async () => {
+  it('gives a distinct contextValue to a real folder and to « Unfiled »', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
     tree.setGroups(
       groups({
         groups: [{ id: 'g1', name: 'Dossier', order: 0 }],
-        assignments: { s1: 'g1' }, // s2 reste non rangée
+        assignments: { s1: 'g1' }, // s2 stays unfiled
       }),
     );
 
@@ -234,7 +233,7 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
     expect(tree.getTreeItem(unfiledNode!).contextValue).toBe('unfiled');
   });
 
-  it('l état vide global est inchangé quand il n y a aucune session', async () => {
+  it('the global empty state is unchanged when there is no session at all', async () => {
     const checkHooksInstalled = vi.fn().mockResolvedValue(true);
     const tree = new SessionsTree(checkHooksInstalled, noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setGroups(groups({ groups: [{ id: 'g1', name: 'Dossier', order: 0 }] }));
@@ -246,25 +245,25 @@ describe('SessionsTree — deux niveaux : dossiers puis sessions', () => {
   });
 });
 
-// groupIdOfNode : ce que VSCode passe à kohVibe.renameGroup/deleteGroup
-// depuis le menu contextuel (view/item/context) est l'élément de l'arbre
-// tel quel, jamais un TreeItem — donc n'importe quoi du point de vue du
-// typage TypeScript. Ces tests couvrent la validation sans cast, comme
-// handleDrop dans test/tree-dnd.test.ts.
-describe('groupIdOfNode — résout un identifiant de dossier sans jamais caster', () => {
-  it("retrouve l'identifiant d'un nœud de dossier nommé", () => {
+// groupIdOfNode: what VSCode passes to kohVibe.renameGroup/deleteGroup from
+// the context menu (view/item/context) is the tree element as it is, never a
+// TreeItem — so anything at all from TypeScript's typing point of view.
+// These tests cover the validation without a cast, like handleDrop in
+// test/tree-dnd.test.ts.
+describe('groupIdOfNode — resolves a folder identifier without ever casting', () => {
+  it("finds the identifier of a named folder node", () => {
     const node: TreeNode = { kind: 'group', group: { id: 'g1', name: 'Perso', order: 0 }, sessions: [] };
 
     expect(groupIdOfNode(node)).toBe('g1');
   });
 
-  it('renvoie undefined pour « Sans dossier » (group: undefined)', () => {
+  it('returns undefined for « Unfiled » (group: undefined)', () => {
     const node: TreeNode = { kind: 'group', group: undefined, sessions: [] };
 
     expect(groupIdOfNode(node)).toBeUndefined();
   });
 
-  it('renvoie undefined pour un nœud de session', () => {
+  it('returns undefined for a session node', () => {
     const node: TreeNode = {
       kind: 'session',
       session: {
@@ -281,32 +280,32 @@ describe('groupIdOfNode — résout un identifiant de dossier sans jamais caster
     expect(groupIdOfNode(node)).toBeUndefined();
   });
 
-  it('renvoie undefined pour un nœud vide', () => {
+  it('returns undefined for an empty node', () => {
     expect(groupIdOfNode({ kind: 'empty', message: 'No active Claude Code session' })).toBeUndefined();
   });
 
-  it.each([undefined, null, 'g1', 42, []])('renvoie undefined pour une valeur non objet : %p', (value) => {
+  it.each([undefined, null, 'g1', 42, []])('returns undefined for a non-object value: %p', (value) => {
     expect(groupIdOfNode(value)).toBeUndefined();
   });
 
-  it("renvoie undefined quand group.id n'est pas une chaîne", () => {
+  it("returns undefined when group.id is not a string", () => {
     expect(groupIdOfNode({ kind: 'group', group: { id: 42, name: 'x', order: 0 } })).toBeUndefined();
   });
 
-  // Preuve par mutation (revue Task 9, tour 2) : sans ce test, retirer
-  // `candidate.kind !== 'group' ||` laisse les autres tests de ce bloc verts
-  // quand même — aucun d'eux ne combine un `kind` différent de `'group'` avec
-  // un `group.id` par ailleurs valide, donc rien ne dépendait réellement de
-  // cette moitié de la garde. Un objet malformé (aucune forme réelle de
-  // TreeNode ne porte à la fois `kind: 'session'` et un champ `group`) suffit
-  // à le prouver : sans la vérification du `kind`, la seule condition
-  // restante (`group !== undefined`) laisserait passer 'g1'.
-  it('ignore un group.id valide porté par un nœud dont le kind n est pas "group"', () => {
+  // Proof by mutation (Task 9 review, round 2): without this test, removing
+  // `candidate.kind !== 'group' ||` still leaves the other tests in this
+  // block green — none of them combines a `kind` other than `'group'` with
+  // an otherwise valid `group.id`, so nothing actually depended on this half
+  // of the guard. A malformed object (no real TreeNode shape carries both
+  // `kind: 'session'` and a `group` field) is enough to prove it: without
+  // the check on `kind`, the only remaining condition (`group !== undefined`)
+  // would let 'g1' through.
+  it('ignores a valid group.id carried by a node whose kind is not "group"', () => {
     expect(groupIdOfNode({ kind: 'session', group: { id: 'g1', name: 'x', order: 0 } })).toBeUndefined();
   });
 });
 
-describe('SessionsTree — espace et couleur des dossiers', () => {
+describe('SessionsTree — folder spacing and colour', () => {
   const withGroups = (list: Array<{ id: string; name: string; order: number; color?: string }>): SessionsTree => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')]]));
@@ -314,7 +313,7 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
     return tree;
   };
 
-  it('sépare les dossiers par une ligne vide, jamais avant le premier ni après le dernier', async () => {
+  it('separates folders with a blank line, never before the first one nor after the last', async () => {
     const tree = withGroups([
       { id: 'g-1', name: 'Un', order: 0 },
       { id: 'g-2', name: 'Deux', order: 1 },
@@ -323,24 +322,24 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
     expect(await labelsOf(tree)).toEqual(['Un', '', 'Deux', '', 'Trois']);
   });
 
-  it('n\'ajoute aucune ligne quand il n\'y a qu\'un seul dossier', async () => {
+  it('adds no line when there is only a single folder', async () => {
     const tree = withGroups([{ id: 'g-1', name: 'Seul', order: 0 }]);
     expect(await labelsOf(tree)).toEqual(['Seul']);
   });
 
-  it('donne des identités distinctes aux séparateurs — deux nœuds identiques se marcheraient dessus', async () => {
+  it('gives spacers distinct identities — two identical nodes would stomp on each other', async () => {
     const tree = withGroups([
       { id: 'g-1', name: 'Un', order: 0 },
       { id: 'g-2', name: 'Deux', order: 1 },
       { id: 'g-3', name: 'Trois', order: 2 },
     ]);
-    // Le pied de vue en apporte un troisième, qui sépare la liste des réglages.
+    // The view's footer brings a third one, which separates it from the settings list.
     const spacers = (await bodyOf(tree)).filter((n) => n.kind === 'spacer');
     expect(spacers).toHaveLength(2);
     expect(new Set(spacers.map((n) => (n.kind === 'spacer' ? n.after : ''))).size).toBe(2);
   });
 
-  it('ne rend le séparateur ni cliquable, ni ciblable par un menu', async () => {
+  it('makes the separator neither clickable nor a target for a menu', async () => {
     const tree = withGroups([
       { id: 'g-1', name: 'Un', order: 0 },
       { id: 'g-2', name: 'Deux', order: 1 },
@@ -352,7 +351,7 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
     expect(await tree.getChildren(spacer)).toEqual([]);
   });
 
-  it('colore l\'icône du dossier avec la couleur choisie', async () => {
+  it('colours the folder icon with the chosen colour', async () => {
     const tree = withGroups([{ id: 'g-1', name: 'Un', order: 0, color: 'green' }]);
     const [node] = await tree.getChildren();
     const icon = tree.getTreeItem(node!).iconPath as { id: string; color?: { id: string } };
@@ -360,7 +359,7 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
     expect(icon.color?.id).toBe('charts.green');
   });
 
-  it('affiche sans couleur un dossier sans choix, ou dont la couleur nous est inconnue', async () => {
+  it('shows a folder with no colour when it has no choice, or one whose colour we do not know', async () => {
     for (const color of [undefined, 'turquoise']) {
       const tree = withGroups([{ id: 'g-1', name: 'Un', order: 0, color }]);
       const [node] = await tree.getChildren();
@@ -370,7 +369,7 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
     }
   });
 
-  it('ne colore pas « Sans dossier », qui ne porte aucun choix de l\'utilisateur', async () => {
+  it('does not colour « Unfiled », which carries no choice of the user\'s own', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')]]));
     tree.setGroups(groups({ groups: [] }));
@@ -380,7 +379,7 @@ describe('SessionsTree — espace et couleur des dossiers', () => {
   });
 });
 
-describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouverte', () => {
+describe('SessionsTree — the colour preview, while the list is open', () => {
   const iconColorOf = (tree: SessionsTree, node: TreeNode): string | undefined =>
     (tree.getTreeItem(node).iconPath as { color?: { id: string } }).color?.id;
 
@@ -399,23 +398,23 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     return tree;
   };
 
-  it('montre la couleur parcourue sur le dossier, avant toute validation', async () => {
+  it('shows the browsed colour on the folder, before any confirmation', async () => {
     const tree = twoFolders();
     tree.setPreview('g-1', 'blue');
     const [node] = await tree.getChildren();
     expect(iconColorOf(tree, node!)).toBe('charts.blue');
   });
 
-  it('colore aussi le LIBELLÉ, et pas seulement l\'icône', async () => {
-    // Le libellé passe par une resourceUri : sans elle, la moitié de la ligne
-    // garderait l'ancienne couleur pendant qu'on parcourt la liste.
+  it('colours the LABEL too, and not just the icon', async () => {
+    // The label goes through a resourceUri: without it, half the row would
+    // keep the old colour while the list is being browsed.
     const tree = twoFolders();
     tree.setPreview('g-1', 'blue');
     const [node] = await tree.getChildren();
     expect(tree.getTreeItem(node!).resourceUri?.query).toContain('charts.blue');
   });
 
-  it('laisse les autres dossiers sur leur propre couleur', async () => {
+  it('leaves the other folders on their own colour', async () => {
     const tree = twoFolders();
     tree.setPreview('g-1', 'blue');
     const body = await tree.getChildren();
@@ -423,9 +422,9 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     expect(iconColorOf(tree, other!)).toBe('charts.red');
   });
 
-  it('décolore vraiment le dossier quand on parcourt « Aucune »', async () => {
-    // L'aperçu d'un retrait est un aperçu comme un autre : sans lui, on
-    // validerait « Aucune » sans jamais avoir vu ce que ça donne.
+  it('really uncolours the folder when browsing to "None"', async () => {
+    // A preview of a removal is a preview like any other: without it, one
+    // would confirm "None" without ever having seen what that looks like.
     const tree = twoFolders();
     tree.setPreview('g-1', undefined);
     const [node] = await tree.getChildren();
@@ -433,7 +432,7 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     expect(tree.getTreeItem(node!).resourceUri).toBeUndefined();
   });
 
-  it('rend au dossier sa couleur dès que la liste se ferme', async () => {
+  it('gives the folder back its colour as soon as the list closes', async () => {
     const tree = twoFolders();
     tree.setPreview('g-1', 'blue');
     tree.clearPreview();
@@ -441,9 +440,9 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     expect(iconColorOf(tree, node!)).toBe('charts.green');
   });
 
-  it('prévient VSCode à chaque pas — sinon l\'aperçu ne se verrait jamais', () => {
-    // `refresh` ne signale que ce qui CHANGE À L'ÉCRAN : l'aperçu doit donc
-    // entrer dans sa signature, ou le calque resterait invisible.
+  it('notifies VSCode at every step — otherwise the preview would never be seen', () => {
+    // `refresh` only signals what CHANGES ON SCREEN: the preview must
+    // therefore be part of its signature, or the overlay would stay invisible.
     const tree = twoFolders();
     const seen = vi.fn();
     tree.onDidChangeTreeData(seen);
@@ -453,7 +452,7 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     expect(seen).toHaveBeenCalledTimes(3);
   });
 
-  it('ne signale rien quand il n\'y a aucun aperçu à retirer', () => {
+  it('signals nothing when there is no preview to remove', () => {
     const tree = twoFolders();
     const seen = vi.fn();
     tree.onDidChangeTreeData(seen);
@@ -461,10 +460,11 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
     expect(seen).not.toHaveBeenCalled();
   });
 
-  it('ne touche pas à la couleur que le dossier PORTE, seulement à celle qu\'il montre', async () => {
-    // Le calque est de la présentation, et rien d'autre : la couleur rangée
-    // reste celle du classement, faute de quoi une couleur seulement survolée
-    // finirait dans le fichier partagé — et dans l'autre éditeur.
+  it('does not touch the colour the folder HOLDS, only the one it shows', async () => {
+    // The overlay is presentation, and nothing else: the colour actually
+    // filed stays the one from the classification, for lack of which a
+    // colour merely hovered over would end up in the shared file — and in
+    // the other editor.
     const tree = twoFolders();
     tree.setPreview('g-1', 'blue');
     const [node] = await tree.getChildren();
@@ -473,7 +473,7 @@ describe('SessionsTree — l\'aperçu de couleur, pendant que la liste est ouver
   });
 });
 
-describe('SessionsTree — ordre choisi à la main', () => {
+describe('SessionsTree — hand-picked order', () => {
   const three = (): Map<string, Session> =>
     new Map([
       ['s1', session('s1', { project: 'un', status: 'idle', lastEventAt: 30 })],
@@ -494,40 +494,40 @@ describe('SessionsTree — ordre choisi à la main', () => {
     return tree;
   };
 
-  it('sans ordre choisi, garde le tri du tableau de bord', async () => {
+  it('with no order chosen, keeps the dashboard\'s sort order', async () => {
     const [group] = await treeWith({}).getChildren();
     expect(await labelsOf(treeWith({}), group)).toEqual(['un', 'deux', 'trois']);
   });
 
-  it('respecte l ordre choisi, quel que soit le tri par défaut', async () => {
+  it('respects the chosen order, whatever the default sort order', async () => {
     const tree = treeWith({ g1: ['s3', 's1', 's2'] });
     const [group] = await tree.getChildren();
     expect(await labelsOf(tree, group)).toEqual(['trois', 'un', 'deux']);
   });
 
-  it('ne bouge pas quand un statut change — c est tout l intérêt d un ordre fixe', async () => {
+  it('does not move when a status changes — that is the whole point of a fixed order', async () => {
     const tree = treeWith({ g1: ['s3', 's1', 's2'] });
     const bumped = three();
-    // s2 passe en tête du tri par défaut (elle t attend) : l ordre choisi tient.
+    // s2 jumps to the head of the default sort (it is waiting for you): the chosen order holds.
     bumped.set('s2', session('s2', { project: 'deux', status: 'waiting', lastEventAt: 99 }));
     tree.setSessions(bumped);
     const [group] = await tree.getChildren();
     expect(await labelsOf(tree, group)).toEqual(['trois', 'un', 'deux']);
   });
 
-  it('place à la fin une session que l ordre ne nomme pas, sans bousculer les autres', async () => {
+  it('places at the end a session the order does not name, without disturbing the others', async () => {
     const tree = treeWith({ g1: ['s3', 's1'] });
     const [group] = await tree.getChildren();
     expect(await labelsOf(tree, group)).toEqual(['trois', 'un', 'deux']);
   });
 
-  it('ignore un identifiant qui ne correspond à aucune session vivante', async () => {
+  it('ignores an identifier that matches no live session', async () => {
     const tree = treeWith({ g1: ['fantome', 's2'] });
     const [group] = await tree.getChildren();
     expect(await labelsOf(tree, group)).toEqual(['deux', 'un', 'trois']);
   });
 
-  it('ordonne aussi « Sans dossier »', async () => {
+  it('also orders « Unfiled »', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(three());
     tree.setGroups(groups({ sessionOrder: { '': ['s3', 's2', 's1'] } }));
@@ -535,7 +535,7 @@ describe('SessionsTree — ordre choisi à la main', () => {
     expect(await labelsOf(tree, unfiled)).toEqual(['trois', 'deux', 'un']);
   });
 
-  it('ne mélange pas l ordre d un dossier avec celui de « Sans dossier »', async () => {
+  it('does not mix a folder\'s order with that of « Unfiled »', async () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(three());
     tree.setGroups(
@@ -551,7 +551,7 @@ describe('SessionsTree — ordre choisi à la main', () => {
   });
 });
 
-describe('SessionsTree — pastilles de statut', () => {
+describe('SessionsTree — status dots', () => {
   const iconOf = (status: Session['status']) => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1', { status })]]));
@@ -562,38 +562,38 @@ describe('SessionsTree — pastilles de statut', () => {
 
   const ALL: Array<Session['status']> = ['running', 'waiting', 'done_unseen', 'idle'];
 
-  it('donne une pastille à CHAQUE statut, sans exception', () => {
-    // L invariant que ce test garde : un statut sans pastille laisse une ligne
-    // dont l état ne se lit nulle part, et dont le libellé part plus à gauche
-    // que celui des autres.
+  it('gives a dot to EVERY status, with no exception', () => {
+    // The invariant this test guards: a status with no dot leaves a row
+    // whose state cannot be read anywhere, and whose label starts further
+    // left than the others'.
     for (const status of ALL) {
       expect(iconOf(status).light.fsPath, `statut ${status}`).toMatch(/\.svg$/);
       expect(iconOf(status).dark.fsPath, `statut ${status}`).toMatch(/\.svg$/);
     }
   });
 
-  it('n emploie JAMAIS un codicon, que la sélection éteindrait', () => {
-    // Le cœur du sujet. VSCode force `color: currentColor !important` sur
-    // l icône d une ligne sélectionnée — mais seulement si c est un codicon.
-    // La pastille perdait donc sa couleur au moment précis où on cliquait la
-    // session, et son état devenait illisible. Une image y échappe.
+  it('NEVER uses a codicon, which selection would wash out', () => {
+    // The heart of the matter. VSCode forces `color: currentColor !important`
+    // on the icon of a selected row — but only if it is a codicon. The dot
+    // therefore lost its colour at the exact moment the session was clicked,
+    // and its state became unreadable. An image escapes that.
     for (const status of ALL) {
       const icon = iconOf(status) as unknown as { id?: string };
       expect(icon.id, `statut ${status}`).toBeUndefined();
     }
   });
 
-  it('distingue les statuts par le fichier, jamais par la forme', () => {
-    // C est l alignement qui l exige : des formes différentes ne se posaient pas
-    // au même endroit dans la ligne, et le libellé héritait du décalage. Les
-    // cinq pastilles sont le même disque ; seule la couleur change, et elle vit
-    // dans le fichier. Le statut se nomme, lui, dans l infobulle.
+  it('tells statuses apart by the file, never by the shape', () => {
+    // It is alignment that demands it: different shapes did not sit at the
+    // same spot in the row, and the label inherited the offset. The five
+    // dots are the same disc; only the colour changes, and it lives in the
+    // file. The status, for its part, is named in the tooltip.
     const fichiers = ALL.map((s) => iconOf(s).dark.fsPath);
     expect(new Set(fichiers).size).toBe(ALL.length);
   });
 });
 
-describe('SessionsTree — la couleur atteint le libellé, pas seulement l icône', () => {
+describe('SessionsTree — colour reaches the label, not just the icon', () => {
   const colored = (): SessionsTree => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')], ['s2', session('s2')]]));
@@ -609,17 +609,17 @@ describe('SessionsTree — la couleur atteint le libellé, pas seulement l icôn
     return tree;
   };
 
-  it('pose une URI de décoration sur le dossier coloré', async () => {
+  it('sets a decoration URI on the coloured folder', async () => {
     const [group] = await colored().getChildren();
     const uri = colored().getTreeItem(group!).resourceUri as { scheme: string; query: string } | undefined;
     expect(uri?.scheme).toBe('koh-vibe');
     expect(uri?.query).toBe('c=charts.green');
   });
 
-  it('ne colore JAMAIS une session, même dans un dossier coloré', async () => {
-    // Deux raisons, et la seconde est un piège : la teinte du dossier répétée
-    // sur chaque conversation noyait la lecture, et le resourceUri qu'elle
-    // exigeait décalait le libellé de ces lignes-là par rapport aux autres.
+  it('NEVER colours a session, even in a coloured folder', async () => {
+    // Two reasons, and the second one is a trap: the folder's tint repeated
+    // on every conversation drowned out readability, and the resourceUri it
+    // required offset the label of those rows relative to the others.
     const tree = colored();
     const [group] = await tree.getChildren();
     for (const child of await tree.getChildren(group!)) {
@@ -627,7 +627,7 @@ describe('SessionsTree — la couleur atteint le libellé, pas seulement l icôn
     }
   });
 
-  it('ne pose aucune URI sur un dossier sans couleur, ni sur ses sessions', async () => {
+  it('sets no URI on a colourless folder, nor on its sessions', async () => {
     const tree = colored();
     const children = await tree.getChildren();
     const plain = children[2];
@@ -637,7 +637,7 @@ describe('SessionsTree — la couleur atteint le libellé, pas seulement l icôn
   });
 });
 
-describe('SessionsTree — ne prévient VSCode que si l affichage a changé', () => {
+describe('SessionsTree — only notifies VSCode if the display changed', () => {
   const listen = (tree: SessionsTree): { count: () => number } => {
     let n = 0;
     tree.onDidChangeTreeData(() => {
@@ -646,11 +646,11 @@ describe('SessionsTree — ne prévient VSCode que si l affichage a changé', ()
     return { count: () => n };
   };
 
-  it('ne signale rien quand le rendu est identique', async () => {
-    // Le bug que ce test garde : le rendu tourne toutes les deux secondes et
-    // appelle quatre setters. Signaler à chaque fois faisait reconstruire
-    // l arbre deux fois par seconde, ce qui escamotait l infobulle sous la
-    // souris avant qu on ait fini de la lire.
+  it('signals nothing when the render is identical', async () => {
+    // The bug this test guards: the render runs every two seconds and calls
+    // four setters. Signalling every time made the tree get rebuilt twice a
+    // second, which whisked the tooltip out from under the mouse before one
+    // had finished reading it.
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     const map = new Map([['s1', session('s1', { lastEventAt: 1000 })]]);
     tree.setSessions(map);
@@ -664,7 +664,7 @@ describe('SessionsTree — ne prévient VSCode que si l affichage a changé', ()
     expect(heard.count()).toBe(0);
   });
 
-  it('signale dès qu un statut change', () => {
+  it('signals as soon as a status changes', () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1', { status: 'idle' })]]));
     const heard = listen(tree);
@@ -672,7 +672,7 @@ describe('SessionsTree — ne prévient VSCode que si l affichage a changé', ()
     expect(heard.count()).toBe(1);
   });
 
-  it('signale dès qu un dossier change de nom ou de couleur', () => {
+  it('signals as soon as a folder changes name or colour', () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     tree.setSessions(new Map([['s1', session('s1')]]));
     tree.setGroups(groups({ groups: [{ id: 'g1', name: 'Un', order: 0 }] }));
@@ -683,26 +683,26 @@ describe('SessionsTree — ne prévient VSCode que si l affichage a changé', ()
     expect(heard.count()).toBe(2);
   });
 
-  it('signale quand l âge affiché franchit une minute, pas à chaque seconde', () => {
+  it('signals when the displayed age crosses a minute, not every second', () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     const now = Date.now();
     tree.setSessions(new Map([['s1', session('s1', { status: 'idle', lastEventAt: now - 30_000 })]]));
     const heard = listen(tree);
-    // Toujours « 3x s » : rien à annoncer.
+    // Still « 3x s »: nothing to announce.
     tree.setSessions(new Map([['s1', session('s1', { status: 'idle', lastEventAt: now - 31_000 })]]));
     expect(heard.count()).toBe(0);
-    // Passe la minute : l affichage change, donc on annonce.
+    // Crosses the minute: the display changes, so it is announced.
     tree.setSessions(new Map([['s1', session('s1', { status: 'idle', lastEventAt: now - 61_000 })]]));
     expect(heard.count()).toBe(1);
   });
 });
 
-describe('identité des lignes — ce qui permet à une infobulle de survivre', () => {
-  it('donne à chaque ligne un identifiant stable, distinct de ses voisines', () => {
-    // Sans `id`, VSCode reconnaît une ligne à l OBJET rendu par getChildren, et
-    // nous en construisons de neufs à chaque tour : un seul rafraîchissement
-    // faisait détruire et refaire TOUTES les lignes, emportant l infobulle
-    // qu on était en train de lire.
+describe('row identity — what lets a tooltip survive', () => {
+  it('gives each row a stable identifier, distinct from its neighbours', () => {
+    // Without `id`, VSCode recognizes a row by the OBJECT rendered by
+    // getChildren, and we build fresh ones on every pass: a single refresh
+    // made it destroy and remake EVERY row, sweeping away the tooltip one
+    // was in the middle of reading.
     const s = session('s1', { status: 'running' });
     const group = { kind: 'group' as const, group: { id: 'g1', name: 'Perso', order: 0 }, sessions: [s] };
     expect(nodeId(group)).toBe('group:g1');
@@ -712,7 +712,7 @@ describe('identité des lignes — ce qui permet à une infobulle de survivre', 
     expect(nodeId({ kind: 'empty', message: 'rien' })).toBe('empty');
   });
 
-  it('pose cet identifiant sur l élément rendu, pas seulement dans la fonction', () => {
+  it('sets this identifier on the rendered element, not only in the function', () => {
     const tree = new SessionsTree(
       async () => true,
       async () => undefined,
@@ -724,10 +724,10 @@ describe('identité des lignes — ce qui permet à une infobulle de survivre', 
     expect(tree.getTreeItem(nodes[0]!).id).toBe('session:s1');
   });
 
-  it('ne demande jamais le glyphe que VSCode délègue au thème d icônes', () => {
-    // `folder` et `file` sont traités à part : au lieu de dessiner le codicon,
-    // VSCode passe la main au thème de fichiers, qui ne dessine rien quand il
-    // vaut « Aucun ». Un éditeur affichait donc un dossier, l autre rien.
+  it('never asks for the glyph that VSCode delegates to the icon theme', () => {
+    // `folder` and `file` are treated apart: instead of drawing the codicon,
+    // VSCode hands off to the file icon theme, which draws nothing when it
+    // is set to "None". One editor would then show a folder, the other nothing.
     const tree = new SessionsTree(
       async () => true,
       async () => undefined,
@@ -964,12 +964,12 @@ describe('SessionsTree — reaching a row from outside', () => {
   });
 });
 
-// La chaîne visible du sommeil, d un bout à l autre : le tri, la coupure entre
-// les deux blocs, et ce que les menus voient de la ligne. Chaque maillon est
-// testé isolément plus haut ; ce scénario les enchaîne, parce que c est leur
-// enchaînement que l utilisateur regarde et qu aucune régression ne doit
-// laisser une ligne endormie au milieu des vivantes.
-describe('endormir une conversation, vu depuis la vue', () => {
+// The visible chain of sleep, end to end: the sort, the break between the
+// two blocks, and what the menus see of the row. Each link is tested in
+// isolation higher up; this scenario chains them, because it is their
+// chaining that the user watches, and no regression must leave an asleep
+// row in the middle of the live ones.
+describe('putting a conversation to sleep, seen from the view', () => {
   const make = (): SessionsTree => new SessionsTree(async () => true, noopOnDrop, noopOnGroupsDropped, EXT);
 
   const rowsOf = async (t: SessionsTree): Promise<string[]> => {
@@ -983,23 +983,23 @@ describe('endormir une conversation, vu depuis la vue', () => {
       .map((n) => t.getTreeItem(n).contextValue);
   };
 
-  it('déplace la ligne sous la coupure et lui retire sa lune, sans toucher aux autres', async () => {
+  it('moves the row below the break and takes its moon away, without touching the others', async () => {
     const t = make();
     t.setSessions(new Map([['a', session('a')], ['b', session('b')], ['c', session('c')]]));
 
-    // Avant : trois conversations vivantes, aucune coupure, trois lunes.
+    // Before: three live conversations, no break, three moons.
     expect(await rowsOf(t)).toEqual(['a', 'b', 'c']);
     expect(await menusOf(t)).toEqual(['session', 'session', 'session']);
 
-    // La lune a fait son travail sur « b » : elle est marquée terminée.
+    // The moon has done its job on « b »: it is marked ended.
     t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })], ['c', session('c')]]));
 
     expect(await rowsOf(t)).toEqual(['a', 'c', 'spacer', 'b']);
-    // « b » n a plus d onglet à fermer ; « a » et « c » gardent le leur.
+    // « b » no longer has a tab to close; « a » and « c » keep theirs.
     expect(await menusOf(t)).toEqual(['session', 'session', 'sessionAsleep']);
   });
 
-  it('retire la coupure quand la dernière endormie est réveillée', async () => {
+  it('removes the break when the last asleep one wakes up', async () => {
     const t = make();
     t.setSessions(new Map([['a', session('a')], ['b', session('b', { endedAt: 10 })]]));
     expect(await rowsOf(t)).toEqual(['a', 'spacer', 'b']);
@@ -1010,7 +1010,7 @@ describe('endormir une conversation, vu depuis la vue', () => {
   });
 });
 
-describe("SessionsTree — quand les animations sont coupées", () => {
+describe("SessionsTree — when animations are turned off", () => {
   const treeWith = (): SessionsTree => {
     const t = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
     t.setSessions(new Map([['s1', session('s1', { status: 'running' })]]));
@@ -1022,26 +1022,26 @@ describe("SessionsTree — quand les animations sont coupées", () => {
     return (item.iconPath as { dark: { fsPath: string } }).dark.fsPath;
   };
 
-  it('anime tant que personne n a rien dit — c est ce qui est livré', () => {
+  it('animates as long as nobody has said anything — that is what ships', () => {
     expect(iconOf(treeWith())).not.toContain('still');
   });
 
-  it('bascule sur le jeu figé quand la case est décochée', () => {
+  it('switches to the still icon set when the box is unchecked', () => {
     const t = treeWith();
     t.setAnimate(false);
     expect(iconOf(t)).toContain('still');
   });
 
-  it('revient au mouvement quand on la recoche', () => {
+  it('goes back to motion when it is checked again', () => {
     const t = treeWith();
     t.setAnimate(false);
     t.setAnimate(true);
     expect(iconOf(t)).not.toContain('still');
   });
 
-  it('prévient VSCode du changement — sans quoi la vue garderait ses anciennes pastilles', () => {
-    // `refresh` ne signale que ce qui CHANGE À L ÉCRAN : le réglage doit donc
-    // entrer dans la signature, comme l aperçu de couleur avant lui.
+  it('notifies VSCode of the change — without which the view would keep its old dots', () => {
+    // `refresh` only signals what CHANGES ON SCREEN: the setting must
+    // therefore be part of the signature, like the colour preview before it.
     const t = treeWith();
     const seen = vi.fn();
     t.onDidChangeTreeData(seen);

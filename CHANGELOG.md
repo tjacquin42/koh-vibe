@@ -15,6 +15,50 @@ entry can reach the repository from. `scripts/bump-version.sh` steps in only whe
 missing — it inserts a bare heading and says so — and an entry that stands as a bare link is a
 version whose promotion forgot to describe it.
 
+## [1.5.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.5.0) — 2026-10-04
+
+`minor` · [#34](https://github.com/tjacquin42/koh-vibe/pull/34) — Koh-Vibe 1.5.0 — a Processes view for what runs under every session
+
+Carries [#32](https://github.com/tjacquin42/koh-vibe/pull/32) and [#33](https://github.com/tjacquin42/koh-vibe/pull/33).
+
+The dashboard said a session was working. It did not say at what. A Processes view now
+accounts for what runs under each conversation — live, with subagent commands and detached
+processes correctly placed — and the whole source tree crosses an 80% line-coverage floor
+that CI now enforces on its own.
+
+### Added
+
+- **A Processes view for what runs under each session.** Commands appear as they run, a
+  command a subagent started carries an icon of its own, a detached process is put back under
+  the session that started it instead of floating, and what no conversation accounts for gets
+  its own view instead of disappearing — judged by its subtree, so `launchd` adopting a child
+  does not make that child an orphan. The pid or the command line of any row copies with a
+  click, and the octal escapes `ps` puts into an accented path (`caf\303\251`) are decoded.
+- **Unit test coverage is now a CI gate.** `pnpm test:coverage` measures the whole source tree
+  and fails under 80% of lines — a ratchet, not today's 87.2%, so a future regression is
+  caught without pinning an ever-climbing exact number.
+
+### Changed
+
+- **The repository's comments and test titles are in English**, as `CLAUDE.md` has always
+  required. French display labels quoted inside tests (`« Aucune »`, `« Sans dossier »`) are
+  left alone — they are what the interface shows, not prose.
+- **Structure and performance**: one home for what three files each defined separately, one
+  builder for a process row shared by both views that draw one, a registry that reads its
+  entries together instead of one after the other, and a process table indexed once per
+  snapshot instead of once per walk.
+
+### Fixed
+
+- **Sounds**: the installer said how many sounds there were, not how many actually went —
+  those numbers differ exactly when something failed.
+- **Labels**: a duration past a day is now said in days rather than hours.
+- **Settings**: the animation checkbox gets an icon of its own, and the shared settings file
+  is written through the same queue as every other shared file — two windows saving at once
+  could otherwise lose one of the two.
+- **Spool**: the abandon signal is read again just before an end is written, so an aborted run
+  stops without recording an end that never happened.
+
 ## [1.4.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.4.0) — 2026-09-09
 
 `minor` · [#31](https://github.com/tjacquin42/koh-vibe/pull/31) — Koh-Vibe 1.4.0 — every version reaches Open VSX on its own

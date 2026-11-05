@@ -9,14 +9,15 @@ export type UsageSource = 'api' | 'statusline';
 export interface UsageReading {
   usage: Usage;
   source: UsageSource;
-  /** Date de dernière écriture du fichier, pour dire l'âge de la mesure. */
+  /** Last-write date of the file, to say how old the reading is. */
   at: number;
 }
 
 /**
- * Au-delà, on redemande à l'API. En deçà, le cache partagé suffit : plusieurs
- * fenêtres rendent leur arbre toutes les deux secondes, et chacune interrogeant
- * l'API pour afficher le même chiffre serait absurde autant qu'impoli.
+ * Beyond this, we ask the API again. Below it, the shared cache is enough:
+ * several windows render their tree every two seconds, and each one
+ * querying the API to display the same figure would be as absurd as it
+ * would be rude.
  */
 export const REFRESH_AFTER_MS = 5 * 60_000;
 
@@ -31,17 +32,17 @@ async function reading(path: string, source: UsageSource): Promise<UsageReading 
 }
 
 /**
- * Dernière TENTATIVE, par racine d'état et pour ce processus.
+ * Last ATTEMPT, per state root and for this process.
  *
- * Compter les tentatives et non les succès est tout l'intérêt : sans ça, une
- * API injoignable ou un trousseau refusé ne produisent aucun fichier, donc rien
- * qui date — et le rendu, qui tourne toutes les deux secondes, relancerait un
- * `security` et une requête HTTPS à chaque tour. Un échec doit coûter aussi peu
- * qu'un succès.
+ * Counting attempts rather than successes is the whole point: without
+ * this, an unreachable API or a refused keychain produce no file, so
+ * nothing to date — and the render, which runs every two seconds, would
+ * fire off a `security` call and an HTTPS request on every pass. A failure
+ * must cost as little as a success.
  */
 const lastAttempt = new Map<string, number>();
 
-/** Injectable pour éprouver le rythme sans trousseau ni réseau. */
+/** Injectable so the pacing can be tested without a keychain or network. */
 export interface UsageDeps {
   readToken: () => Promise<string | undefined>;
   fetch: (token: string) => Promise<unknown>;
@@ -50,19 +51,19 @@ export interface UsageDeps {
 
 const REAL_DEPS: UsageDeps = { readToken: readAccessToken, fetch: fetchUsage, now: () => Date.now() };
 
-/** Remet le compteur de tentatives à zéro (tests). */
+/** Resets the attempt counter to zero (tests). */
 export function forgetAttempts(): void {
   lastAttempt.clear();
 }
 
 /**
- * Interroge l'API et met le résultat en cache. `force` court-circuite le délai :
- * c'est ce que fait le bouton de rafraîchissement, dont l'intérêt serait nul
- * s'il devait attendre l'échéance comme un rendu ordinaire.
+ * Queries the API and caches the result. `force` bypasses the delay: that
+ * is what the refresh button does, which would be pointless if it had to
+ * wait for the deadline like an ordinary render.
  *
- * N'échoue jamais bruyamment : trousseau refusé, hors ligne, point d'entrée
- * changé — tout cela vaut « pas de nouvelle mesure », et l'ancienne reste
- * affichée avec son âge.
+ * Never fails loudly: refused keychain, offline, changed endpoint — all of
+ * that counts as "no new reading", and the old one stays displayed with its
+ * age.
  */
 export async function refreshFromApi(
   home: string,
@@ -73,9 +74,9 @@ export async function refreshFromApi(
   const now = deps.now();
   if (!force) {
     if (now - (lastAttempt.get(home) ?? 0) < REFRESH_AFTER_MS) return cached;
-    // Une autre fenêtre vient peut-être de le faire pour nous : le cache est
-    // partagé, et deux fenêtres qui interrogent l'API pour afficher le même
-    // chiffre seraient une dépense pour rien.
+    // Another window may have just done it for us: the cache is shared,
+    // and two windows querying the API to display the same figure would be
+    // an expense for nothing.
     if (cached !== undefined && now - cached.at < REFRESH_AFTER_MS) return cached;
   }
   lastAttempt.set(home, now);
@@ -85,26 +86,26 @@ export async function refreshFromApi(
   const raw = await deps.fetch(token);
   if (parseUsage(raw) === undefined) return cached;
 
-  // Écriture atomique : une autre fenêtre peut lire pendant qu'on écrit — même
-  // règle que le spool et le classement.
+  // Atomic write: another window may read while we write — same rule as
+  // the spool and the folder listing.
   const target = usageFile(home);
   const tmp = join(dirname(target), `.tmp-usage-${process.pid}`);
   try {
     await writeFile(tmp, JSON.stringify(raw), 'utf8');
     await rename(tmp, target);
   } catch {
-    // Le relevé vaut d'être affiché même si on n'a pas su le garder.
+    // The reading is worth displaying even if we failed to keep it.
   }
   return (await reading(target, 'api')) ?? cached;
 }
 
 /**
- * La plus FRAÎCHE des deux mesures locales, jamais la première trouvée.
+ * The FRESHEST of the two local readings, never the first one found.
  *
- * Un ordre de priorité fixe afficherait un chiffre périmé dès que la source
- * préférée se tait — et les deux se taisent tour à tour : la statusline ne se
- * déclenche pas dans une session hébergée par l'éditeur, et l'API peut être
- * hors d'atteinte.
+ * A fixed priority order would display a stale figure as soon as the
+ * preferred source falls silent — and each falls silent in turn: the
+ * status line does not trigger in a session hosted by the editor, and the
+ * API can be out of reach.
  */
 export async function readUsage(home: string): Promise<UsageReading | undefined> {
   const [api, line] = await Promise.all([

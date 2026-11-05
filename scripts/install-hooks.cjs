@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Installe ou désinstalle les hooks koh-vibe dans ~/.claude/settings.json.
-//   node scripts/install-hooks.cjs --bridge <chemin>
+// Installs or uninstalls the koh-vibe hooks in ~/.claude/settings.json.
+//   node scripts/install-hooks.cjs --bridge <path>
 //   node scripts/install-hooks.cjs --uninstall
 const {
   chmodSync,
@@ -29,10 +29,10 @@ const HOME = kohVibeHome();
 const BACKUPS = spoolDirs(HOME).backups;
 const uninstall = process.argv.includes('--uninstall');
 const bridgeArg = process.argv.indexOf('--bridge');
-// Source à copier, jamais la cible des hooks. Résolue à côté du script lui-même,
-// jamais du cwd : ainsi le script fonctionne identiquement lancé depuis le dépôt
-// (scripts/ et bin/ sont frères) ou depuis l'extension installée (même
-// arborescence dans le .vsix, cf. .vscodeignore).
+// Source to copy, never the hooks' target. Resolved next to the script
+// itself, never from the cwd: this way the script behaves identically
+// whether launched from the repository (scripts/ and bin/ are siblings) or
+// from the installed extension (same tree inside the .vsix, cf. .vscodeignore).
 // `--bridge` with no value after it: refused right away with a message,
 // rather than letting existsSync(undefined) throw a TypeError further down.
 // The message itself stays French like every other message this script
@@ -42,14 +42,14 @@ if (bridgeArg > -1 && process.argv[bridgeArg + 1] === undefined) {
 }
 const bridgeSource =
   bridgeArg > -1 ? process.argv[bridgeArg + 1] : join(__dirname, '..', 'bin', 'koh-vibe-bridge');
-// Cible stable, sous kohVibeHome() : ni le dépôt ni l'extension installée ne
-// sont des emplacements stables (le premier peut être déplacé ou supprimé, la
-// seconde est un dossier versionné qui disparaît à la prochaine mise à jour).
-// Les hooks pointent toujours vers cette copie, jamais vers la source.
+// Stable target, under kohVibeHome(): neither the repository nor the
+// installed extension is a stable location (the former can be moved or
+// deleted, the latter is a versioned folder that disappears on the next
+// update). The hooks always point at this copy, never at the source.
 const bridgeTarget = join(HOME, 'bin', 'koh-vibe-bridge');
-// Second pont, même règle de source et de cible : il capte l'instantané que
-// Claude Code passe à la statusline, seul endroit où les limites d'usage sont
-// lisibles en local.
+// Second bridge, same rule for source and target: it captures the snapshot
+// that Claude Code passes to the statusline, the only place where usage
+// limits are readable locally.
 const statusSource = join(__dirname, '..', 'bin', 'koh-vibe-statusline');
 const statusTarget = join(HOME, 'bin', 'koh-vibe-statusline');
 
@@ -59,9 +59,10 @@ function fail(message) {
 }
 
 /**
- * Détecte l'indentation et la présence d'un retour à la ligne final du fichier
- * d'origine, pour réécrire dans le même style plutôt que d'imposer le nôtre : un
- * fichier indenté à quatre espaces ne doit pas revenir reformaté à deux.
+ * Detects the indentation and the presence of a trailing newline in the
+ * original file, so as to rewrite it in the same style rather than impose
+ * our own: a file indented with four spaces must not come back reformatted
+ * to two.
  */
 function detectStyle(raw) {
   const match = /^[ \t]+/m.exec(raw);
@@ -82,7 +83,7 @@ try {
   before = JSON.parse(raw);
 } catch (err) {
   fail(`JSON invalide dans ${SETTINGS} : ${err.message}\nRien n'a été écrit.`);
-  return; // fail() quitte le process ; le return est une garde en plus, pas un besoin
+  return; // fail() exits the process; the return is a belt-and-suspenders guard, not a requirement
 }
 
 if (!uninstall && !existsSync(bridgeSource)) {
@@ -93,12 +94,12 @@ const style = creating ? { indent: 2, newline: true } : detectStyle(raw);
 const afterHooks = uninstall ? uninstallHooks(before) : installHooks(before, bridgeTarget);
 const after = uninstall ? uninstallStatusLine(afterHooks) : installStatusLine(afterHooks, statusTarget);
 
-// Garde-fou : un compte ne peut pas prouver une conservation (deux arbres où une
-// commande étrangère a changé de place, ou a été perdue en même temps qu'une autre
-// apparaissait, peuvent partager le même compte). On compare donc une empreinte —
-// chaque commande étrangère qualifiée par son ascendance — avant et après la
-// transformation, et on refuse d'écrire au moindre écart plutôt que de risquer de
-// perdre l'outillage d'un autre programme (ex. Vibe Island).
+// Safety net: a count cannot prove preservation (two trees where a foreign
+// command moved elsewhere, or was lost at the same time another one
+// appeared, can share the same count). So a fingerprint — every foreign
+// command qualified by its ancestry — is compared before and after the
+// transformation, and writing is refused at the slightest discrepancy rather
+// than risk losing another program's tooling (e.g. Vibe Island).
 function diffFingerprints(beforeFp, afterFp) {
   const beforeSet = new Set(beforeFp);
   const afterSet = new Set(afterFp);
@@ -134,11 +135,10 @@ if (creating) {
   console.log(`Sauvegarde : ${backup}`);
 }
 
-// Copie le bridge avant d'écrire settings.json : si la copie échoue (source
-// disparue entre la vérification et ici, disque plein…), les hooks référencés
-// dans settings.json ne doivent jamais être posés avant que la cible existe.
-// copyFileSync écrase une copie précédente sans se plaindre : une réinstallation
-// reste idempotente.
+// Copy the bridge before writing settings.json: if the copy fails (source
+// gone between the check and here, disk full…), the hooks referenced in
+// settings.json must never be set before the target exists. copyFileSync
+// overwrites a previous copy without complaint: a reinstall stays idempotent.
 if (!uninstall) {
   mkdirSync(dirname(bridgeTarget), { recursive: true });
   copyFileSync(bridgeSource, bridgeTarget);
@@ -149,8 +149,8 @@ if (!uninstall) {
   console.log(`Pont statusline copié : ${statusSource} → ${statusTarget}`);
 }
 
-// Écriture atomique : un lecteur concurrent voit l'ancien fichier ou le nouveau,
-// jamais un fichier à moitié écrit.
+// Atomic write: a concurrent reader sees the old file or the new one, never a
+// half-written file.
 const serialized = JSON.stringify(after, null, style.indent);
 const tmp = join(dirname(SETTINGS), `.tmp-settings-${process.pid}`);
 writeFileSync(tmp, style.newline ? `${serialized}\n` : serialized, 'utf8');
@@ -158,8 +158,8 @@ renameSync(tmp, SETTINGS);
 
 console.log(`Entrées koh-vibe : ${countKohEntries(before)} → ${countKohEntries(after)}`);
 
-// Dire ce qui a été fait de la statusline : c'est le seul réglage partagé avec
-// d'autres outils, et le seul qu'on remet en place à la désinstallation.
+// Say what happened to the statusline: it is the only setting shared with
+// other tools, and the only one restored on uninstall.
 const wrapped = wrappedStatusLine(after);
 if (uninstall) {
   console.log('Statusline : rendue à son occupant précédent.');

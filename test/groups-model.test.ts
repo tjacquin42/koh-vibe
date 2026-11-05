@@ -7,18 +7,18 @@ import {
 import type { GroupsState } from '../src/groups/model';
 
 describe('parseGroups', () => {
-  it('rend un état vide sur une donnée illisible', () => {
+  it('yields an empty state on unreadable data', () => {
     expect(parseGroups('pas du json')).toEqual(emptyGroups());
     expect(parseGroups('null')).toEqual(emptyGroups());
     expect(parseGroups('[]')).toEqual(emptyGroups());
   });
 
-  it('préserve les champs inconnus du fichier', () => {
+  it('preserves the file\'s unknown fields', () => {
     const s = parseGroups(JSON.stringify({ version: 1, groups: [], assignments: {}, futur: { a: 1 } }));
     expect(s.unknown).toEqual({ futur: { a: 1 } });
   });
 
-  it('écarte un dossier sans identifiant ou sans nom, garde les autres', () => {
+  it('discards a folder with no id or no name, keeps the others', () => {
     const s = parseGroups(JSON.stringify({
       groups: [{ id: 'g1', name: 'bon', order: 0 }, { id: 'g2' }, { name: 'sans id' }],
       assignments: {},
@@ -26,7 +26,7 @@ describe('parseGroups', () => {
     expect(s.groups.map((g) => g.id)).toEqual(['g1']);
   });
 
-  it('écarte une affectation qui ne pointe sur aucun dossier', () => {
+  it('discards an assignment that points to no folder', () => {
     const s = parseGroups(JSON.stringify({
       groups: [{ id: 'g1', name: 'bon', order: 0 }],
       assignments: { s1: 'g1', s2: 'disparu' },
@@ -34,7 +34,7 @@ describe('parseGroups', () => {
     expect(s.assignments).toEqual({ s1: 'g1' });
   });
 
-  it('déduplique les dossiers de même identifiant, garde la première occurrence', () => {
+  it('deduplicates folders with the same id, keeps the first occurrence', () => {
     const s = parseGroups(JSON.stringify({
       groups: [
         { id: 'g1', name: 'premier', order: 0 },
@@ -46,12 +46,12 @@ describe('parseGroups', () => {
     expect(s.groups[0]?.name).toBe('premier');
   });
 
-  it('ignore un champ groups qui n est pas un tableau', () => {
+  it('ignores a groups field that is not an array', () => {
     const s = parseGroups(JSON.stringify({ groups: 'pas un tableau', assignments: {} }));
     expect(s.groups).toEqual([]);
   });
 
-  it('ignore un champ assignments qui est une chaîne', () => {
+  it('ignores an assignments field that is a string', () => {
     const s = parseGroups(JSON.stringify({
       groups: [{ id: 'g1', name: 'bon', order: 0 }],
       assignments: 'pas un objet',
@@ -59,7 +59,7 @@ describe('parseGroups', () => {
     expect(s.assignments).toEqual({});
   });
 
-  it('garde une affectation dont la clé de session est vide', () => {
+  it('keeps an assignment whose session key is empty', () => {
     const s = parseGroups(JSON.stringify({
       groups: [{ id: 'g1', name: 'bon', order: 0 }],
       assignments: { '': 'g1' },
@@ -69,20 +69,20 @@ describe('parseGroups', () => {
 });
 
 describe('createGroup', () => {
-  it('ajoute le dossier en dernier', () => {
+  it('adds the folder last', () => {
     const s = createGroup(createGroup(emptyGroups(), 'un', () => 'a'), 'deux', () => 'b');
     expect(s.groups.map((g) => [g.name, g.order])).toEqual([['un', 0], ['deux', 1]]);
   });
 
-  it('refuse un nom vide ou fait d espaces', () => {
+  it('refuses a name that is empty or made of spaces', () => {
     expect(() => createGroup(emptyGroups(), '   ', () => 'a')).toThrow();
   });
 
-  it('coupe les espaces autour du nom', () => {
+  it('trims the spaces around the name', () => {
     expect(createGroup(emptyGroups(), '  Boutique  ', () => 'a').groups[0]?.name).toBe('Boutique');
   });
 
-  it('accepte deux dossiers de même nom, avec des identifiants distincts', () => {
+  it('accepts two folders with the same name, with distinct ids', () => {
     let n = 0;
     const s = createGroup(createGroup(emptyGroups(), 'même', () => `g${++n}`), 'même', () => `g${++n}`);
     expect(s.groups).toHaveLength(2);
@@ -93,34 +93,34 @@ describe('createGroup', () => {
 describe('assign / unassign', () => {
   const base = createGroup(emptyGroups(), 'dossier', () => 'g1');
 
-  it('affecte une session à un dossier', () => {
+  it('assigns a session to a folder', () => {
     expect(groupIdOf(assign(base, 's1', 'g1'), 's1')).toBe('g1');
   });
 
-  it('ignore une affectation vers un dossier inexistant', () => {
+  it('ignores an assignment to a nonexistent folder', () => {
     expect(groupIdOf(assign(base, 's1', 'fantôme'), 's1')).toBeUndefined();
   });
 
-  it('déplacer remplace, ça ne cumule pas', () => {
+  it('moving replaces, it does not accumulate', () => {
     const deux = createGroup(base, 'autre', () => 'g2');
     const s = assign(assign(deux, 's1', 'g1'), 's1', 'g2');
     expect(groupIdOf(s, 's1')).toBe('g2');
     expect(Object.keys(s.assignments)).toHaveLength(1);
   });
 
-  it('retirer rend la session à « sans dossier »', () => {
+  it('removing returns the session to « no folder »', () => {
     expect(groupIdOf(unassign(assign(base, 's1', 'g1'), 's1'), 's1')).toBeUndefined();
   });
 });
 
 describe('deleteGroup', () => {
-  it('rend ses sessions à « sans dossier » plutôt que de les perdre', () => {
+  it('returns its sessions to « no folder » rather than losing them', () => {
     const s = deleteGroup(assign(createGroup(emptyGroups(), 'd', () => 'g1'), 's1', 'g1'), 'g1');
     expect(s.groups).toHaveLength(0);
     expect(s.assignments).toEqual({});
   });
 
-  it('renumérote l ordre des dossiers restants sans trou', () => {
+  it('renumbers the order of the remaining folders without a gap', () => {
     let n = 0;
     let s = emptyGroups();
     for (const nom of ['a', 'b', 'c']) s = createGroup(s, nom, () => `g${++n}`);
@@ -129,19 +129,19 @@ describe('deleteGroup', () => {
 });
 
 describe('renameGroup', () => {
-  it('renomme sans toucher aux affectations', () => {
+  it('renames without touching the assignments', () => {
     const s = renameGroup(assign(createGroup(emptyGroups(), 'vieux', () => 'g1'), 's1', 'g1'), 'g1', 'neuf');
     expect(s.groups[0]?.name).toBe('neuf');
     expect(groupIdOf(s, 's1')).toBe('g1');
   });
 
-  it('refuse un nom vide', () => {
+  it('refuses an empty name', () => {
     expect(() => renameGroup(createGroup(emptyGroups(), 'x', () => 'g1'), 'g1', ' ')).toThrow();
   });
 });
 
 describe('serializeGroups', () => {
-  it('un champ inconnu traverse un aller-retour complet intact', () => {
+  it('an unknown field travels through a full round trip intact', () => {
     const original = parseGroups(JSON.stringify({
       groups: [{ id: 'g1', name: 'dossier', order: 0 }],
       assignments: { s1: 'g1' },
@@ -155,7 +155,7 @@ describe('setGroupColor', () => {
   const state = (): GroupsState =>
     parseGroups(JSON.stringify({ version: 1, groups: [{ id: 'g-1', name: 'Un', order: 0 }], assignments: {} }));
 
-  it('pose la couleur sur le bon dossier, et sur lui seul', () => {
+  it('sets the color on the right folder, and on it alone', () => {
     const two = parseGroups(
       JSON.stringify({
         version: 1,
@@ -170,26 +170,26 @@ describe('setGroupColor', () => {
     expect(after.groups.map((g) => g.color)).toEqual([undefined, 'red']);
   });
 
-  it('remplace une couleur déjà posée', () => {
+  it('replaces an already-set color', () => {
     expect(setGroupColor(setGroupColor(state(), 'g-1', 'blue'), 'g-1', 'green').groups[0]?.color).toBe('green');
   });
 
-  it('retire la clé plutôt que d\'écrire une couleur vide', () => {
+  it('removes the key rather than writing an empty color', () => {
     const cleared = setGroupColor(setGroupColor(state(), 'g-1', 'blue'), 'g-1', undefined);
     expect(cleared.groups[0]).not.toHaveProperty('color');
     expect(JSON.parse(serializeGroups(cleared)).groups[0]).not.toHaveProperty('color');
   });
 
-  it('ignore un dossier qui n\'existe pas', () => {
+  it('ignores a folder that does not exist', () => {
     expect(setGroupColor(state(), 'g-inconnu', 'red').groups[0]?.color).toBeUndefined();
   });
 
-  it('fait le tour du fichier : une couleur écrite se relit', () => {
+  it('makes the round trip through the file: a written color reads back', () => {
     const written = serializeGroups(setGroupColor(state(), 'g-1', 'purple'));
     expect(parseGroups(written).groups[0]?.color).toBe('purple');
   });
 
-  it('conserve une couleur qu\'on ne connaît pas — l\'autre éditeur peut être plus récent', () => {
+  it('keeps a color we don\'t recognize — the other editor may be more recent', () => {
     const raw = JSON.stringify({
       version: 1,
       groups: [{ id: 'g-1', name: 'Un', order: 0, color: 'turquoise' }],
@@ -201,35 +201,35 @@ describe('setGroupColor', () => {
 });
 
 describe('reorder', () => {
-  it('place les déplacées devant la cible', () => {
+  it('places the moved ones ahead of the target', () => {
     expect(reorder(['a', 'b', 'c'], ['c'], 'b')).toEqual(['a', 'c', 'b']);
   });
 
-  it('place à la fin quand il n y a pas de cible', () => {
+  it('places at the end when there is no target', () => {
     expect(reorder(['a', 'b'], ['a'], undefined)).toEqual(['b', 'a']);
   });
 
-  it('ne déplace rien quand on dépose une session sur elle-même', () => {
+  it('moves nothing when a session is dropped onto itself', () => {
     expect(reorder(['a', 'b', 'c'], ['b'], 'b')).toEqual(['a', 'b', 'c']);
     expect(reorder(['a', 'b', 'c'], ['a'], 'a')).toEqual(['a', 'b', 'c']);
     expect(reorder(['a', 'b', 'c'], ['c'], 'c')).toEqual(['a', 'b', 'c']);
   });
 
-  it('descend correctement une session vers le bas de sa propre liste', () => {
-    // Le cas que le retrait préalable rendrait impossible : sans lui, « a »
-    // serait inséré avant lui-même et rien ne bougerait.
+  it('correctly moves a session down within its own list', () => {
+    // The case a prior removal would make impossible: without it, « a »
+    // would be inserted before itself and nothing would move.
     expect(reorder(['a', 'b', 'c'], ['a'], 'c')).toEqual(['b', 'a', 'c']);
   });
 
-  it('accueille une session venue d un autre dossier', () => {
+  it('welcomes a session coming from another folder', () => {
     expect(reorder(['a', 'b'], ['x'], 'b')).toEqual(['a', 'x', 'b']);
   });
 
-  it('garde les déplacées ensemble et dans leur ordre', () => {
+  it('keeps the moved ones together and in their order', () => {
     expect(reorder(['a', 'b', 'c', 'd'], ['d', 'a'], 'c')).toEqual(['b', 'd', 'a', 'c']);
   });
 
-  it('place à la fin quand la cible est inconnue, plutôt que de deviner', () => {
+  it('places at the end when the target is unknown, rather than guessing', () => {
     expect(reorder(['a', 'b'], ['x'], 'inexistante')).toEqual(['a', 'b', 'x']);
   });
 });
@@ -237,24 +237,24 @@ describe('reorder', () => {
 describe('sessionOrder', () => {
   const state = (): GroupsState => parseGroups(JSON.stringify({ version: 1, groups: [], assignments: {} }));
 
-  it('sépare l ordre d un dossier de celui de « Sans dossier »', () => {
+  it('separates a folder\'s order from that of « No folder »', () => {
     let s = setSessionOrder(state(), 'g-1', ['a', 'b']);
     s = setSessionOrder(s, undefined, ['x']);
     expect(sessionOrderOf(s, 'g-1')).toEqual(['a', 'b']);
     expect(sessionOrderOf(s, undefined)).toEqual(['x']);
   });
 
-  it('retire l entrée plutôt que d écrire une liste vide', () => {
+  it('removes the entry rather than writing an empty list', () => {
     const cleared = setSessionOrder(setSessionOrder(state(), 'g-1', ['a']), 'g-1', []);
     expect(JSON.parse(serializeGroups(cleared)).sessionOrder).toEqual({});
   });
 
-  it('fait le tour du fichier', () => {
+  it('makes the round trip through the file', () => {
     const written = serializeGroups(setSessionOrder(state(), 'g-1', ['a', 'b']));
     expect(sessionOrderOf(parseGroups(written), 'g-1')).toEqual(['a', 'b']);
   });
 
-  it('ignore une entrée mal formée sans faire tomber toute la lecture', () => {
+  it('ignores a malformed entry without bringing down the whole read', () => {
     const raw = JSON.stringify({
       version: 1,
       groups: [{ id: 'g-1', name: 'Un', order: 0 }],
@@ -267,7 +267,7 @@ describe('sessionOrder', () => {
     expect(s.groups).toHaveLength(1);
   });
 
-  it('oublie l ordre d un dossier supprimé', () => {
+  it('forgets the order of a deleted folder', () => {
     let s = parseGroups(JSON.stringify({ version: 1, groups: [{ id: 'g-1', name: 'Un', order: 0 }], assignments: {} }));
     s = setSessionOrder(s, 'g-1', ['a', 'b']);
     expect(sessionOrderOf(deleteGroup(s, 'g-1'), 'g-1')).toEqual([]);
@@ -275,7 +275,7 @@ describe('sessionOrder', () => {
 
 });
 
-describe('soundFor — trois niveaux de priorité, un réglage par événement', () => {
+describe('soundFor — three priority levels, one setting per event', () => {
   const state = (): GroupsState =>
     parseGroups(
       JSON.stringify({
@@ -288,54 +288,54 @@ describe('soundFor — trois niveaux de priorité, un réglage par événement',
       }),
     );
 
-  it('la conversation l emporte sur son dossier', () => {
+  it('the conversation wins over its folder', () => {
     expect(soundFor(state(), 's1', 'waiting', 'Global')).toBe('ConvAttend');
     expect(soundFor(state(), 's1', 'done', 'Global')).toBe('ConvFini');
   });
 
-  it('le dossier l emporte sur le réglage global', () => {
+  it('the folder wins over the global setting', () => {
     const s = setSessionSound(state(), 's1', 'waiting', undefined);
     expect(soundFor(s, 's1', 'waiting', 'Global')).toBe('DossierAttend');
   });
 
-  it('le réglage global sert de dernier recours', () => {
+  it('the global setting serves as a last resort', () => {
     let s = setSessionSound(state(), 's1', 'waiting', undefined);
     s = setGroupSound(s, 'g1', 'waiting', undefined);
     expect(soundFor(s, 's1', 'waiting', 'Global')).toBe('Global');
   });
 
-  it('une session hors dossier retombe directement sur le global', () => {
+  it('a session outside any folder falls straight back to the global setting', () => {
     expect(soundFor(state(), 'inconnue', 'waiting', 'Global')).toBe('Global');
   });
 
-  it('un silence choisi ne perce PAS vers le niveau au-dessus', () => {
-    // « Aucun » est un choix explicite : il doit taire la conversation même si
-    // son dossier a un son. Sans ça, on ne pourrait jamais faire taire une seule
-    // conversation d un dossier sonore.
+  it('a chosen silence does NOT leak through to the level above', () => {
+    // « None » is an explicit choice: it must silence the conversation even
+    // if its folder has a sound. Without that, we could never silence a
+    // single conversation within a folder that has a sound.
     expect(soundFor(setSessionSound(state(), 's1', 'waiting', ''), 's1', 'waiting', 'Global')).toBe('');
     const muet = setGroupSound(setSessionSound(state(), 's1', 'waiting', undefined), 'g1', 'waiting', '');
     expect(soundFor(muet, 's1', 'waiting', 'Global')).toBe('');
   });
 
-  it('régler un événement ne touche pas à l autre — à aucun des deux niveaux', () => {
-    // Le défaut que ces réglages par événement viennent corriger : un seul son
-    // par niveau, dont on ne savait pas quand il sonnerait. Les poser
-    // séparément n a de sens que s ils restent séparés.
+  it('setting one event does not touch the other — at neither level', () => {
+    // The bug these per-event settings come to fix: a single sound per level,
+    // and no way to know when it would ring. Setting them separately only
+    // makes sense if they stay separate.
     const s = setSessionSound(setGroupSound(state(), 'g1', 'done', 'AutreFini'), 's1', 'done', 'AutreConvFini');
     expect(soundFor(s, 's1', 'waiting', 'Global')).toBe('ConvAttend');
     expect(s.groups[0]?.soundWaiting).toBe('DossierAttend');
   });
 
-  it('fait le tour du fichier', () => {
+  it('makes the round trip through the file', () => {
     const relu = parseGroups(serializeGroups(state()));
     expect(soundFor(relu, 's1', 'waiting', 'Global')).toBe('ConvAttend');
     expect(soundFor(relu, 's1', 'done', 'Global')).toBe('ConvFini');
     expect(relu.groups[0]?.soundDone).toBe('DossierFini');
   });
 
-  it('ignore un fichier écrit avant les sons par événement, plutôt que de deviner', () => {
-    // Rattacher un ancien son à un événement au hasard ferait carillonner
-    // l éditeur là où l utilisateur ne l a pas demandé.
+  it('ignores a file written before per-event sounds, rather than guessing', () => {
+    // Reattaching an old sound to a random event would make the editor chime
+    // where the user never asked for it.
     const ancien = parseGroups(
       JSON.stringify({ version: 1, groups: [], assignments: {}, sessionSounds: { s1: 'Ping' } }),
     );

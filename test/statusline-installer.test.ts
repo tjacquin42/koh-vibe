@@ -12,18 +12,18 @@ const commandOf = (settings: unknown): string | undefined =>
   (settings as { statusLine?: { command?: string } }).statusLine?.command;
 
 describe('installStatusLine', () => {
-  it('prend la place quand elle est libre', () => {
+  it('takes the spot when it is free', () => {
     const after = installStatusLine({}, BRIDGE);
     expect(commandOf(after)).toContain(BRIDGE);
     expect(wrappedStatusLine(after)).toBe('');
   });
 
-  it('enveloppe la commande qui occupait la place, sans la perdre', () => {
+  it('wraps the command that occupied the spot, without losing it', () => {
     const after = installStatusLine({ statusLine: { type: 'command', command: FOREIGN } }, BRIDGE);
     expect(wrappedStatusLine(after)).toBe(FOREIGN);
   });
 
-  it('encode la commande précédente : ni apostrophe ni guillemet ne traverse en clair', () => {
+  it('encodes the previous command: neither an apostrophe nor a quote gets through unescaped', () => {
     const tordue = `/bin/sh -c 'echo "salut" && jq -r .x'`;
     const after = installStatusLine({ statusLine: { type: 'command', command: tordue } }, BRIDGE);
     const command = commandOf(after) ?? '';
@@ -31,22 +31,22 @@ describe('installStatusLine', () => {
     expect(wrappedStatusLine(after)).toBe(tordue);
   });
 
-  it('ne s imbrique pas quand on réinstalle par-dessus soi-même', () => {
+  it('does not nest when reinstalling over itself', () => {
     const once = installStatusLine({ statusLine: { type: 'command', command: FOREIGN } }, BRIDGE);
     const twice = installStatusLine(once, BRIDGE);
     expect(wrappedStatusLine(twice)).toBe(FOREIGN);
     expect(commandOf(twice)).toBe(commandOf(once));
   });
 
-  it('garde un repli qui lance la commande précédente si notre pont a disparu', () => {
+  it('keeps a fallback that runs the previous command if our bridge has disappeared', () => {
     const after = installStatusLine({ statusLine: { type: 'command', command: FOREIGN } }, BRIDGE);
     const command = commandOf(after) ?? '';
-    // Deux exec : le nôtre sous condition, celui du repli sans condition.
+    // Two execs: ours conditional, the fallback's unconditional.
     expect(command).toContain('[ -x "');
     expect(command.match(/exec/g) ?? []).toHaveLength(2);
   });
 
-  it('ne touche à rien d autre dans le fichier', () => {
+  it('touches nothing else in the file', () => {
     const after = installStatusLine({ model: 'opus', hooks: { Stop: [] } }, BRIDGE);
     expect((after as { model?: string }).model).toBe('opus');
     expect((after as { hooks?: unknown }).hooks).toEqual({ Stop: [] });
@@ -54,19 +54,19 @@ describe('installStatusLine', () => {
 });
 
 describe('wrappedStatusLine', () => {
-  it('ne reconnaît pas une commande étrangère qui mentionne notre pont', () => {
-    // Le piège que la reconnaissance par sous-chaîne laisserait passer : cette
-    // commande serait classée comme nôtre, puis supprimée à la désinstallation.
+  it('does not recognize a foreign command that merely mentions our bridge', () => {
+    // The trap that substring recognition would let through: this command
+    // would be classified as ours, then removed on uninstall.
     const settings = { statusLine: { type: 'command', command: `/bin/sh -c 'autre && ${BRIDGE}'` } };
     expect(wrappedStatusLine(settings)).toBeUndefined();
   });
 
-  it('ne reconnaît pas un pont dont le nom se termine autrement', () => {
+  it('does not recognize a bridge whose name ends differently', () => {
     const settings = installStatusLine({}, '/Users/dev/bin/pas-notre-statusline');
     expect(wrappedStatusLine(settings)).toBeUndefined();
   });
 
-  it('ignore une statusline absente ou de forme inattendue', () => {
+  it('ignores a missing statusline or one of an unexpected shape', () => {
     expect(wrappedStatusLine({})).toBeUndefined();
     expect(wrappedStatusLine({ statusLine: 'une chaîne' })).toBeUndefined();
     expect(wrappedStatusLine({ statusLine: { type: 'command' } })).toBeUndefined();
@@ -75,22 +75,22 @@ describe('wrappedStatusLine', () => {
 });
 
 describe('uninstallStatusLine', () => {
-  it('rend la place à qui l occupait', () => {
+  it('gives the spot back to whoever occupied it', () => {
     const after = uninstallStatusLine(installStatusLine({ statusLine: { type: 'command', command: FOREIGN } }, BRIDGE));
     expect(commandOf(after)).toBe(FOREIGN);
   });
 
-  it('retire la clé quand nous n enveloppions rien', () => {
+  it('removes the key when we were not wrapping anything', () => {
     const after = uninstallStatusLine(installStatusLine({}, BRIDGE));
     expect(after).not.toHaveProperty('statusLine');
   });
 
-  it('ne touche pas à une statusline qui n est pas la nôtre', () => {
+  it('does not touch a statusline that is not ours', () => {
     const settings = { statusLine: { type: 'command', command: FOREIGN } };
     expect(uninstallStatusLine(settings)).toEqual(settings);
   });
 
-  it('fait l aller-retour complet sans rien changer', () => {
+  it('does the full round trip without changing anything', () => {
     const before = { statusLine: { type: 'command', command: FOREIGN }, model: 'opus' };
     expect(uninstallStatusLine(installStatusLine(before, BRIDGE))).toEqual(before);
   });
