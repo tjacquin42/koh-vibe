@@ -48,6 +48,7 @@
       { "command": "kohVibe.deleteGroup", "title": "%command.kohVibe.deleteGroup.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.chooseSound", "title": "%command.kohVibe.chooseSound.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.chooseVolume", "title": "%command.kohVibe.chooseVolume.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.chooseTabs", "title": "%command.kohVibe.chooseTabs.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.installSounds", "title": "%command.kohVibe.installSounds.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.removeSounds", "title": "%command.kohVibe.removeSounds.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.offerSounds", "title": "%command.kohVibe.offerSounds.title%", "category": "Koh-Vibe" },

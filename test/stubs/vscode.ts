@@ -296,15 +296,34 @@ export const window = {
   tabGroups: stubTabGroups,
 };
 
+export enum ConfigurationTarget {
+  Global = 1,
+  Workspace = 2,
+  WorkspaceFolder = 3,
+}
+
 export const workspace: {
   workspaceFolders: Array<{ uri: { fsPath: string } }> | undefined;
-  getConfiguration: (section?: string) => { get: (key: string) => unknown };
+  getConfiguration: (section?: string) => {
+    get: (key: string) => unknown;
+    inspect: (key: string) => undefined;
+    update: (key: string, value: unknown, target?: ConfigurationTarget) => Promise<void>;
+  };
+  onDidChangeConfiguration: (listener: (e: { affectsConfiguration: (section: string) => boolean }) => void) => {
+    dispose: () => void;
+  };
 } = {
   workspaceFolders: undefined,
-  // No editor setting is ever set in a test: what `legacySettings` (the only
-  // caller) does with an absent one is exactly what matters — see
-  // settingsFromEditor, tested on its own in test/settings.test.ts.
-  getConfiguration: (_section?: string) => ({ get: (_key: string) => undefined }),
+  // No editor setting is ever set in a test: what `legacySettings` does with
+  // an absent one is exactly what matters — see settingsFromEditor, tested on
+  // its own in test/settings.test.ts — and an absent `showTabs` reads as the
+  // editor default (settings/tabs.ts, tested in test/tabs-mode.test.ts).
+  getConfiguration: (_section?: string) => ({
+    get: (_key: string) => undefined,
+    inspect: (_key: string) => undefined,
+    update: async () => undefined,
+  }),
+  onDidChangeConfiguration: () => ({ dispose: () => undefined }),
 };
 
 export const commands = {

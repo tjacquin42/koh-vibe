@@ -15,6 +15,7 @@
   "command.kohVibe.deleteGroup.title": "Supprimer le dossier",
   "command.kohVibe.chooseSound.title": "Son d'un événement",
   "command.kohVibe.chooseVolume.title": "Volume des carillons",
+  "command.kohVibe.chooseTabs.title": "Onglets de l'éditeur",
   "command.kohVibe.installSounds.title": "Installer la bibliothèque de sons",
   "command.kohVibe.removeSounds.title": "Retirer la bibliothèque de sons",
   "command.kohVibe.offerSounds.title": "Proposer la bibliothèque de sons",
