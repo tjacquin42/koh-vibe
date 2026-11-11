@@ -340,6 +340,16 @@ export const commands = {
 // it is forced to validate it before use, never to cast it.
 export class DataTransferItem {
   constructor(public readonly value: unknown) {}
+
+  // What the real API gives a drop from another view: the value as text.
+  async asString(): Promise<string> {
+    return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+  }
+}
+
+export enum QuickPickItemKind {
+  Separator = -1,
+  Default = 0,
 }
 
 export class DataTransfer {

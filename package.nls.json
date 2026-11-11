@@ -52,6 +52,9 @@
   "command.kohVibe.pinArtifact.title": "Pin",
   "command.kohVibe.unpinArtifact.title": "Unpin",
   "command.kohVibe.fileArtifact.title": "Move to project…",
+  "command.kohVibe.fileArtifactInFolder.title": "Put in a Sessions folder…",
+  "command.kohVibe.unfileFolderArtifact.title": "Remove from folder",
+  "command.kohVibe.searchSessions.title": "Search conversations",
   "command.kohVibe.renameArtifactProject.title": "Rename project…",
   "command.kohVibe.addFolderRule.title": "Add a rule…",
   "command.kohVibe.openFolderRules.title": "Open the rules"

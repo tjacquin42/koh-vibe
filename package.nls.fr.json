@@ -52,6 +52,9 @@
   "command.kohVibe.pinArtifact.title": "Épingler",
   "command.kohVibe.unpinArtifact.title": "Désépingler",
   "command.kohVibe.fileArtifact.title": "Ranger dans un projet…",
+  "command.kohVibe.fileArtifactInFolder.title": "Mettre dans un dossier de Sessions…",
+  "command.kohVibe.unfileFolderArtifact.title": "Retirer du dossier",
+  "command.kohVibe.searchSessions.title": "Rechercher une conversation",
   "command.kohVibe.renameArtifactProject.title": "Renommer le projet…",
   "command.kohVibe.addFolderRule.title": "Ajouter une règle…",
   "command.kohVibe.openFolderRules.title": "Voir les règles"

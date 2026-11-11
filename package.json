@@ -82,6 +82,9 @@
       { "command": "kohVibe.pinArtifact", "title": "%command.kohVibe.pinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pin)" },
       { "command": "kohVibe.unpinArtifact", "title": "%command.kohVibe.unpinArtifact.title%", "category": "Koh-Vibe", "icon": "$(pinned)" },
       { "command": "kohVibe.fileArtifact", "title": "%command.kohVibe.fileArtifact.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.fileArtifactInFolder", "title": "%command.kohVibe.fileArtifactInFolder.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.unfileFolderArtifact", "title": "%command.kohVibe.unfileFolderArtifact.title%", "category": "Koh-Vibe", "icon": "$(close)" },
+      { "command": "kohVibe.searchSessions", "title": "%command.kohVibe.searchSessions.title%", "category": "Koh-Vibe", "icon": "$(search)" },
       { "command": "kohVibe.renameArtifactProject", "title": "%command.kohVibe.renameArtifactProject.title%", "category": "Koh-Vibe" }
     ],
     "keybindings": [
@@ -91,6 +94,7 @@
       "view/title": [
         { "command": "kohVibe.refresh", "when": "view == kohVibe.sessions && !kohVibe.rescanning", "group": "navigation" },
         { "command": "kohVibe.rescanning", "when": "view == kohVibe.sessions && kohVibe.rescanning", "group": "navigation" },
+        { "command": "kohVibe.searchSessions", "when": "view == kohVibe.sessions", "group": "navigation@-1" },
         { "command": "kohVibe.newSession", "when": "view == kohVibe.sessions", "group": "navigation@0" },
         { "command": "kohVibe.newGroup", "when": "view == kohVibe.sessions", "group": "navigation" },
         { "command": "kohVibe.refreshRoutines", "when": "view == kohVibe.routines", "group": "navigation" },
@@ -131,6 +135,10 @@
         { "command": "kohVibe.pinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.unpinned", "group": "artifact@2" },
         { "command": "kohVibe.unpinArtifact", "when": "view == kohVibe.artifacts && viewItem == artifact.pinned", "group": "artifact@2" },
         { "command": "kohVibe.fileArtifact", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@3" },
+        { "command": "kohVibe.fileArtifactInFolder", "when": "view == kohVibe.artifacts && viewItem =~ /^artifact/", "group": "artifact@4" },
+        { "command": "kohVibe.copyArtifactLink", "when": "view == kohVibe.sessions && viewItem == folderArtifact", "group": "copy@1" },
+        { "command": "kohVibe.unfileFolderArtifact", "when": "view == kohVibe.sessions && viewItem == folderArtifact", "group": "inline@1" },
+        { "command": "kohVibe.unfileFolderArtifact", "when": "view == kohVibe.sessions && viewItem == folderArtifact", "group": "zzz@1" },
         { "command": "kohVibe.renameArtifactProject", "when": "view == kohVibe.artifacts && viewItem == project.named", "group": "project@1" }
       ],
       "commandPalette": [
@@ -158,6 +166,8 @@
         { "command": "kohVibe.pinArtifact", "when": "false" },
         { "command": "kohVibe.unpinArtifact", "when": "false" },
         { "command": "kohVibe.fileArtifact", "when": "false" },
+        { "command": "kohVibe.fileArtifactInFolder", "when": "false" },
+        { "command": "kohVibe.unfileFolderArtifact", "when": "false" },
         { "command": "kohVibe.renameArtifactProject", "when": "false" }
       ]
     }

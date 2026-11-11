@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ChimeEvent } from '../sound/model';
 import { isRecord } from '../lib/json';
+import { isSlug } from '../artifacts/model';
 
 /** The two events that chime, in the order they are displayed. */
 export const CHIME_EVENTS: readonly ChimeEvent[] = ['waiting', 'done'];
@@ -43,6 +44,17 @@ export interface Group {
   soundDone?: string;
 }
 
+/**
+ * A claude.ai artifact filed in a folder of the Sessions view, beside its
+ * conversations. The title is a snapshot taken when it was filed: the
+ * artifacts listing is only read while its own view is open, and the row has
+ * to read as something even when that view has never been opened.
+ */
+export interface FiledArtifact {
+  group: string;
+  title: string;
+}
+
 /** The sounds specific to conversations, arranged by event. */
 export type SessionSounds = Readonly<Record<ChimeEvent, Readonly<Record<string, string>>>>;
 
@@ -65,17 +77,22 @@ export interface GroupsState {
   sessionOrder: Readonly<Record<string, readonly string[]>>;
   /** The sound specific to a conversation. The highest priority of the three levels. */
   sessionSounds: SessionSounds;
+  /**
+   * The artifacts filed in a folder, by slug. Insertion order is the order
+   * they show in: filing one again moves it to the end of its folder.
+   */
+  artifacts: Readonly<Record<string, FiledArtifact>>;
   /** Fields of the file we do not know: preserved as is on write. */
   unknown: Readonly<Record<string, unknown>>;
 }
 
-const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds']);
+const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds', 'artifacts']);
 
 /** The order key for « Unfiled ». */
 const UNFILED = '';
 
 export function emptyGroups(): GroupsState {
-  return { groups: [], assignments: {}, sessionOrder: {}, sessionSounds: emptySessionSounds(), unknown: {} };
+  return { groups: [], assignments: {}, sessionOrder: {}, sessionSounds: emptySessionSounds(), artifacts: {}, unknown: {} };
 }
 
 /** `undefined` (« Unfiled ») and the empty string designate the same bucket. */
@@ -166,14 +183,37 @@ export function parseGroups(raw: string): GroupsState {
     }
   }
 
+  // Same rule as the assignments: an artifact filed in a folder that no
+  // longer exists is not filed anywhere. A slug that is not one is dropped —
+  // it ends up in a URL, and as a key of a plain object.
+  const artifacts: Record<string, FiledArtifact> = {};
+  const rawArtifacts = root['artifacts'];
+  if (isRecord(rawArtifacts)) {
+    for (const [slug, entry] of Object.entries(rawArtifacts)) {
+      if (!isSlug(slug) || !isRecord(entry)) continue;
+      const group = entry['group'];
+      if (typeof group !== 'string' || !ids.has(group)) continue;
+      const title = entry['title'];
+      artifacts[slug] = { group, title: typeof title === 'string' ? title : '' };
+    }
+  }
+
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(root)) if (!KNOWN.has(k)) unknown[k] = v;
 
-  return { groups, assignments, sessionOrder, sessionSounds, unknown };
+  return { groups, assignments, sessionOrder, sessionSounds, artifacts, unknown };
 }
 
 export function serializeGroups(s: GroupsState): string {
-  const body = { ...s.unknown, version: 1, groups: s.groups, assignments: s.assignments, sessionOrder: s.sessionOrder, sessionSounds: s.sessionSounds };
+  const body = {
+    ...s.unknown,
+    version: 1,
+    groups: s.groups,
+    assignments: s.assignments,
+    sessionOrder: s.sessionOrder,
+    sessionSounds: s.sessionSounds,
+    artifacts: s.artifacts,
+  };
   return `${JSON.stringify(body, null, 2)}\n`;
 }
 
@@ -309,7 +349,54 @@ export function deleteGroup(s: GroupsState, id: string): GroupsState {
   // would make a ghost ordering resurface if a folder ever reused this
   // identifier.
   const { [id]: _dropped, ...sessionOrder } = s.sessionOrder;
-  return { ...s, groups, assignments, sessionOrder };
+  // The artifacts filed there leave with it: they are still on claude.ai, and
+  // in the Artifacts view — only their place here goes.
+  const artifacts: Record<string, FiledArtifact> = {};
+  for (const [slug, filed] of Object.entries(s.artifacts)) {
+    if (filed.group !== id) artifacts[slug] = filed;
+  }
+  return { ...s, groups, assignments, sessionOrder, artifacts };
+}
+
+/**
+ * Files artifacts into a folder, at its end — a page already filed elsewhere
+ * moves. The title is the one known now; an empty one keeps the title already
+ * recorded rather than erasing it.
+ */
+export function fileArtifactsInGroup(
+  s: GroupsState,
+  items: readonly { slug: string; title: string }[],
+  groupId: string,
+): GroupsState {
+  if (!s.groups.some((g) => g.id === groupId)) return s;
+  const moving = new Set(items.map((i) => i.slug));
+  const artifacts: Record<string, FiledArtifact> = {};
+  for (const [slug, filed] of Object.entries(s.artifacts)) {
+    if (!moving.has(slug)) artifacts[slug] = filed;
+  }
+  for (const { slug, title } of items) {
+    if (!isSlug(slug)) continue;
+    artifacts[slug] = { group: groupId, title: title.length > 0 ? title : (s.artifacts[slug]?.title ?? '') };
+  }
+  return { ...s, artifacts };
+}
+
+/** Takes artifacts out of their folder. Nothing happens on claude.ai. */
+export function unfileArtifacts(s: GroupsState, slugs: readonly string[]): GroupsState {
+  const leaving = new Set(slugs);
+  if (!Object.keys(s.artifacts).some((slug) => leaving.has(slug))) return s;
+  const artifacts: Record<string, FiledArtifact> = {};
+  for (const [slug, filed] of Object.entries(s.artifacts)) {
+    if (!leaving.has(slug)) artifacts[slug] = filed;
+  }
+  return { ...s, artifacts };
+}
+
+/** The artifacts a folder holds, in the order they were filed. */
+export function artifactsOfGroup(s: GroupsState, groupId: string): { slug: string; title: string }[] {
+  return Object.entries(s.artifacts)
+    .filter(([, filed]) => filed.group === groupId)
+    .map(([slug, filed]) => ({ slug, title: filed.title }));
 }
 
 export function assign(s: GroupsState, sessionId: string, groupId: string): GroupsState {

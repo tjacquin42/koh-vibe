@@ -1,5 +1,18 @@
 import type { ChimeEvent } from '../sound/model';
-import { assign, createGroup, deleteGroup, renameGroup, reorderGroups, setGroupColor, setGroupSound, setSessionOrder, setSessionSound, unassign } from './model';
+import {
+  assign,
+  createGroup,
+  deleteGroup,
+  fileArtifactsInGroup,
+  renameGroup,
+  reorderGroups,
+  setGroupColor,
+  setGroupSound,
+  setSessionOrder,
+  setSessionSound,
+  unassign,
+  unfileArtifacts,
+} from './model';
 import type { GroupsState } from './model';
 import { updateGroups } from './store';
 
@@ -132,6 +145,26 @@ export async function reorderGroupsCommand(
  * `vscode.window.showErrorMessage`, only the wiring point (extension.ts)
  * hooks it up to `onError`.
  */
+/**
+ * Files artifacts in a folder of the Sessions view, or takes them out of
+ * theirs with `groupId === undefined`. Same single write path as everything
+ * else in the shared file.
+ */
+export async function fileArtifactsCommand(
+  groupsFilePath: string,
+  items: readonly { slug: string; title: string }[],
+  groupId: string | undefined,
+): Promise<GroupsState> {
+  return updateGroups(groupsFilePath, (s) =>
+    groupId === undefined
+      ? unfileArtifacts(
+          s,
+          items.map((i) => i.slug),
+        )
+      : fileArtifactsInGroup(s, items, groupId),
+  );
+}
+
 export async function runGroupAction(
   action: () => Promise<unknown>,
   onError: (message: string) => void,

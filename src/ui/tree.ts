@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import type { Session, Status } from '../events/types';
 import { sessionDescription, sessionLabel, sessionTooltip, statusLabel } from './labels';
-import { emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
+import { artifactsOfGroup, emptyGroups, groupIdOf, reorder, sessionOrderOf, type Group, type GroupsState } from '../groups/model';
+import { isSlug } from '../artifacts/model';
 import { shownColor, themeColorOf, type ColorPreview } from './colors';
 import { decorationUriParts } from './decorations';
 import { statusIconPath } from './status-icon';
@@ -9,11 +10,28 @@ import { isOpen } from '../store/open';
 import type { SessionProcess } from '../process/classify';
 import { childrenOf, glyphOf, hasChildren, processCount, processDescription, processItem, rootsOf } from './process-labels';
 
+/** An artifact as a folder shows it: its page, and the title to read. */
+export interface FolderArtifact {
+  slug: string;
+  title: string;
+}
+
+/**
+ * The type the Artifacts view drags its pages under. Accepted here too: a page
+ * dropped on a folder of this view is filed in it.
+ */
+export const ARTIFACTS_MIME = 'application/vnd.code.tree.kohvibe.artifacts';
+
 export type TreeNode =
   // `group: undefined` names « Unfiled », the leftover of sessions not
   // filed — not a folder in the user's sense, see contextValue further down.
-  | { kind: 'group'; group: Group | undefined; sessions: Session[] }
+  | { kind: 'group'; group: Group | undefined; sessions: Session[]; artifacts?: FolderArtifact[] }
   | { kind: 'session'; session: Session }
+  // A claude.ai artifact filed in a folder beside its conversations. The
+  // shape of `artifact` is the one the Artifacts view's rows carry, so the
+  // commands that open or copy a page read both views' rows alike
+  // (artifactSlugOfNode). Only a named folder holds one.
+  | { kind: 'artifact'; groupId: string; artifact: FolderArtifact }
   // A process the session started, unfolded under it. Carries the session it
   // belongs to as well as the process: a pid alone is not a stable identity —
   // the system reuses them — and the row has to be attributable to a
@@ -106,6 +124,8 @@ export function nodeId(node: TreeNode): string {
       return `group:${node.group?.id ?? 'unfiled'}`;
     case 'session':
       return `session:${node.session.id}`;
+    case 'artifact':
+      return `artifact:${node.groupId}/${node.artifact.slug}`;
     // Scoped by session, and not by pid alone: the system reuses pids, and two
     // rows sharing an identity is how a refresh ends up redrawing the wrong
     // one — the very failure `nodeId` exists to prevent.
@@ -188,11 +208,29 @@ function withSpacers(nodes: readonly TreeNode[]): TreeNode[] {
  * travels as `unknown` and is only accepted once its shape has been checked,
  * because what a drop hands us may come from another tree, or from the OS.
  */
-function idsOf(item: vscode.DataTransferItem | undefined): string[] {
+async function idsOf(item: vscode.DataTransferItem | undefined): Promise<string[]> {
   if (item === undefined) return [];
-  const value: unknown = item.value;
+  let value: unknown = item.value;
+  // From ANOTHER view the value may arrive serialised rather than as the
+  // array its view set: read the string form then, with the same checks.
+  if (!Array.isArray(value)) {
+    try {
+      value = JSON.parse(typeof value === 'string' ? value : await item.asString());
+    } catch {
+      return [];
+    }
+  }
   if (!Array.isArray(value)) return [];
   return value.filter((id): id is string => typeof id === 'string');
+}
+
+/** The slug and the folder an artifact row of this view stands for. */
+export function folderArtifactOfNode(node: unknown): { slug: string; groupId: string } | undefined {
+  if (typeof node !== 'object' || node === null) return undefined;
+  const candidate = node as { kind?: unknown; groupId?: unknown; artifact?: { slug?: unknown } };
+  if (candidate.kind !== 'artifact' || typeof candidate.groupId !== 'string') return undefined;
+  const slug = candidate.artifact?.slug;
+  return isSlug(slug) ? { slug, groupId: candidate.groupId } : undefined;
 }
 
 export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.TreeDragAndDropController<TreeNode> {
@@ -205,8 +243,8 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // handleDrop picks the one that matches what it was dropped on — instead of
   // having to arbitrate between two kinds inside one payload.
   private static readonly GROUP_MIME = 'application/vnd.code.tree.kohvibe.groups';
-  readonly dropMimeTypes = [SessionsTree.MIME, SessionsTree.GROUP_MIME];
-  readonly dragMimeTypes = [SessionsTree.MIME, SessionsTree.GROUP_MIME];
+  readonly dropMimeTypes = [SessionsTree.MIME, SessionsTree.GROUP_MIME, ARTIFACTS_MIME];
+  readonly dragMimeTypes = [SessionsTree.MIME, SessionsTree.GROUP_MIME, ARTIFACTS_MIME];
 
   private readonly emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
@@ -234,6 +272,9 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
   // Empty until the first scan, and empty again whenever the view is hidden:
   // an invisible tree is not worth a `ps` every two seconds.
   private processes: ReadonlyMap<string, SessionProcess[]> = new Map();
+  // The titles the Artifacts view last read, by slug. A filed page shows its
+  // live title when one is known, else the one recorded when it was filed.
+  private artifactTitles: ReadonlyMap<string, string> = new Map();
 
   constructor(
     // Receives the check rather than owning it: reading settings.json every
@@ -264,7 +305,41 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // with no icon at all, and the status is not readable anywhere else in
     // the row. Better that it does not compile.
     private readonly extensionPath: string,
+    // Artifacts dropped on a folder (`undefined` = taken out of their
+    // folder). Defaulted, unlike the drops above, because the view works
+    // without it: a window that never wires it only loses filing artifacts
+    // by drag, which the context menu still offers.
+    private readonly onArtifactsDropped: (slugs: readonly string[], groupId: string | undefined) => Promise<void> = async () =>
+      undefined,
   ) {}
+
+  /** Fed by the render loop from what the Artifacts view has read. */
+  setArtifactTitles(titles: ReadonlyMap<string, string>): void {
+    this.artifactTitles = titles;
+    this.refresh();
+  }
+
+  /** The artifacts a folder shows, with the freshest title known. */
+  private folderArtifacts(groupId: string | undefined): FolderArtifact[] {
+    if (groupId === undefined) return [];
+    return artifactsOfGroup(this.groups, groupId).map((a) => ({ slug: a.slug, title: this.artifactTitles.get(a.slug) ?? a.title }));
+  }
+
+  /** Every artifact filed in a folder, with its folder — what the search lists. */
+  filedArtifacts(): { artifact: FolderArtifact; group: Group }[] {
+    return this.groups.groups.flatMap((group) => this.folderArtifacts(group.id).map((artifact) => ({ artifact, group })));
+  }
+
+  /** The sessions currently listed — what the search lists. */
+  listedSessions(): readonly Session[] {
+    return this.sessions;
+  }
+
+  /** The folder a session shows in, if any. */
+  folderOf(sessionId: string): Group | undefined {
+    const id = this.groupOfSession(sessionId);
+    return id === undefined ? undefined : this.groups.groups.find((g) => g.id === id);
+  }
 
   setSessions(map: Map<string, Session>): void {
     this.sessions = [...map.values()].sort(compareSessions);
@@ -366,6 +441,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       ]),
       this.groups.groups,
       this.groups.sessionOrder,
+      this.groups.groups.map((g) => this.folderArtifacts(g.id)),
       // Without this, a preview changed nothing VSCode could see: `refresh`
       // compares what is DISPLAYED, and the displayed colour of a folder is no
       // longer `groups` alone.
@@ -453,14 +529,27 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
    * two must never diverge.
    */
   getParent(node: TreeNode): TreeNode | undefined {
+    if (node.kind === 'artifact') return this.groupNode(node.groupId);
     if (node.kind !== 'session') return undefined;
-    const id = this.groupOfSession(node.session.id);
+    return this.groupNode(this.groupOfSession(node.session.id));
+  }
+
+  /** A folder's node, built exactly as `getChildren` builds it. */
+  private groupNode(id: string | undefined): TreeNode {
     const group = id === undefined ? undefined : this.groups.groups.find((g) => g.id === id);
     const sessions = this.ordered(
       this.sessions.filter((s) => this.groupOfSession(s.id) === id),
       id,
     );
-    return { kind: 'group', group, sessions };
+    return { kind: 'group', group, sessions, artifacts: this.folderArtifacts(id) };
+  }
+
+  /** An artifact's row in its folder, for the search to reveal. */
+  artifactNodeFor(slug: string): TreeNode | undefined {
+    const filed = this.groups.artifacts[slug];
+    if (filed === undefined || !this.groups.groups.some((g) => g.id === filed.group)) return undefined;
+    const artifact = this.folderArtifacts(filed.group).find((a) => a.slug === slug);
+    return artifact === undefined ? undefined : { kind: 'artifact', groupId: filed.group, artifact };
   }
 
   /**
@@ -503,6 +592,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         kind: 'group',
         group,
         sessions: this.ordered(byGroup.get(group.id) ?? [], group.id),
+        artifacts: this.folderArtifacts(group.id),
       }));
       if (unfiled.length > 0) {
         nodes.push({ kind: 'group', group: undefined, sessions: this.ordered(unfiled, undefined) });
@@ -530,6 +620,14 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
           broken = true;
         }
         rows.push({ kind: 'session', session });
+      }
+      // The artifacts after the conversations, past a blank row: they are not
+      // conversations, and should not read as the tail of the list.
+      const groupId = node.group?.id;
+      const artifacts = this.folderArtifacts(groupId);
+      if (groupId !== undefined && artifacts.length > 0) {
+        if (rows.length > 0) rows.push({ kind: 'spacer', after: `artifacts:${groupId}` });
+        for (const artifact of artifacts) rows.push({ kind: 'artifact', groupId, artifact });
       }
       return rows;
     }
@@ -577,6 +675,12 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
         node.sessions.length > 1
           ? vscode.l10n.t('{0} sessions', node.sessions.length)
           : vscode.l10n.t('{0} session', node.sessions.length);
+      const artifactCount = this.folderArtifacts(node.group?.id).length;
+      if (artifactCount > 0) {
+        item.description += ` · ${
+          artifactCount > 1 ? vscode.l10n.t('{0} artifacts', artifactCount) : vscode.l10n.t('{0} artifact', artifactCount)
+        }`;
+      }
       // « Unfiled » is not a folder: it does not take a colour, for lack of
       // being able to carry a user's choice.
       const theme = themeColorOf(shownColor(node.group, this.preview));
@@ -589,6 +693,20 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       // « Unfiled » is not a folder of the user's own: no id, no renaming or
       // deleting possible, hence not this contextValue.
       item.contextValue = node.group === undefined ? 'unfiled' : 'group';
+      return item;
+    }
+    if (node.kind === 'artifact') {
+      const label = node.artifact.title.length > 0 ? node.artifact.title : vscode.l10n.t('Untitled');
+      const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+      item.id = nodeId(node);
+      // A book, not a status dot: what tells a page apart from a conversation
+      // at a glance.
+      item.iconPath = new vscode.ThemeIcon('book');
+      item.description = vscode.l10n.t('artifact');
+      item.tooltip = vscode.l10n.t('Artifact on claude.ai — click to open it');
+      item.contextValue = 'folderArtifact';
+      item.accessibilityInformation = { label: `${label}, ${vscode.l10n.t('artifact')}` };
+      item.command = { command: 'kohVibe.openArtifact', title: vscode.l10n.t('Open on claude.ai'), arguments: [node] };
       return item;
     }
     if (node.kind === 'process') {
@@ -660,6 +778,8 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
       .map((node) => node.group?.id)
       .filter((id): id is string => id !== undefined);
     if (groupIds.length > 0) data.set(SessionsTree.GROUP_MIME, new vscode.DataTransferItem(groupIds));
+    const slugs = source.flatMap((node) => (node.kind === 'artifact' ? [node.artifact.slug] : []));
+    if (slugs.length > 0) data.set(ARTIFACTS_MIME, new vscode.DataTransferItem(slugs));
   }
 
   // Targeting does not go through contextValue: `target` is the VSCode node
@@ -672,24 +792,43 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // end) or a session (it is placed in front of it, in ITS folder). The
     // empty view, a separator or the empty-state node change nothing.
     if (target === undefined) return;
-    if (target.kind !== 'group' && target.kind !== 'session') return;
+    if (target.kind !== 'group' && target.kind !== 'session' && target.kind !== 'artifact') return;
+    // Artifacts go to the folder they were dropped in — or onto a row of it.
+    // Dropped on « Temporary sessions », they leave their folder: an artifact
+    // has nothing to do there.
+    const slugs = (await idsOf(data.get(ARTIFACTS_MIME))).filter(isSlug);
+    if (slugs.length > 0) {
+      const into =
+        target.kind === 'group'
+          ? target.group?.id
+          : target.kind === 'artifact'
+            ? target.groupId
+            : this.groupOfSession(target.session.id);
+      // No return: a mixed drag carries conversations too, filed below.
+      await this.onArtifactsDropped(slugs, into);
+    }
     // Folders first: a drag that carries both kinds is resolved by what it was
     // dropped ON, and a folder dropped onto a folder can only mean a move.
     // Folders only claim the drop when it landed on a folder. Dropped on a
     // session, the gesture names no position among the folders — and refusing
     // the whole drop there would also swallow the sessions of a mixed drag,
     // which do have a meaning on that target.
-    const groupIds = idsOf(data.get(SessionsTree.GROUP_MIME));
+    const groupIds = await idsOf(data.get(SessionsTree.GROUP_MIME));
     if (groupIds.length > 0 && target.kind === 'group') {
       await this.onGroupsDropped(groupIds, target.group?.id);
       return;
     }
     const item = data.get(SessionsTree.MIME);
     if (item === undefined) return;
-    const sessionIds = idsOf(item);
+    const sessionIds = await idsOf(item);
     if (sessionIds.length === 0) return;
 
-    const groupId = target.kind === 'group' ? target.group?.id : this.groupOfSession(target.session.id);
+    const groupId =
+      target.kind === 'group'
+        ? target.group?.id
+        : target.kind === 'artifact'
+          ? target.groupId
+          : this.groupOfSession(target.session.id);
     const before = target.kind === 'session' ? target.session.id : undefined;
     // The order passed on is the folder's AFTER the drop, computed on what
     // is displayed right now. Freezing it entirely is the point: a session

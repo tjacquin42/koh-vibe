@@ -232,5 +232,17 @@
   "all": "tous",
   "Editor tabs: {0}": "Onglets de l'éditeur : {0}",
   "Which tabs the editor shows above its files and conversations. One: only the current one, as a title — the session list then does the switching.\nThis is the editor's own setting, workbench.editor.showTabs: changed here or in the editor's settings alike.": "Les onglets que l'éditeur affiche au-dessus de ses fichiers et conversations. Un seul : seulement l'onglet courant, en titre — on passe alors d'une conversation à l'autre depuis la liste.\nC'est le réglage de l'éditeur lui-même, workbench.editor.showTabs : le changer ici ou dans les réglages de l'éditeur revient au même.",
-  "Choose the editor tabs": "Choisir les onglets de l'éditeur"
+  "Choose the editor tabs": "Choisir les onglets de l'éditeur",
+  "New folder…": "Nouveau dossier…",
+  "Put in which Sessions folder?": "Dans quel dossier de Sessions ?",
+  "Search a conversation, a folder, a project…": "Rechercher une conversation, un dossier, un projet…",
+  "Conversations": "Conversations",
+  "Artifacts": "Artifacts",
+  "Artifact on claude.ai": "Artifact sur claude.ai",
+  "Recently closed": "Fermées récemment",
+  "closed": "fermée",
+  "{0} artifacts": "{0} artifacts",
+  "{0} artifact": "{0} artifact",
+  "artifact": "artifact",
+  "Artifact on claude.ai — click to open it": "Artifact sur claude.ai — cliquer pour l'ouvrir"
 }

@@ -44,17 +44,19 @@ import { showBusy } from './ui/busy';
 import { dropEndedWithoutTranscript, ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
-  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
+  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileArtifactsCommand, fileSessionCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
 import { addRulePrompt, ensureRulesFile } from './groups/rules';
 import { CHIME_EVENTS, isFiled, soundFor } from './groups/model';
+import { searchItems, type SearchItem } from './ui/search';
+import { artifactUrl } from './artifacts/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
 import { readTranscript, type TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
-import { SessionsTree, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
+import { SessionsTree, folderArtifactOfNode, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
 import { decorationColorOf } from './ui/decorations';
 import { StatusSummary } from './ui/statusbar';
 import { readBuildStamp, versionLabel } from './ui/version';
@@ -316,6 +318,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await render();
   }
 
+  /**
+   * Artifacts dropped on a folder of the Sessions view, or out of theirs
+   * (`groupId === undefined`). The titles come from the Artifacts view when it
+   * has read them; an unknown one keeps what the file already records.
+   */
+  async function onArtifactsDropped(slugs: readonly string[], groupId: string | undefined): Promise<void> {
+    await fileArtifacts(
+      slugs.map((slug) => ({ slug, title: cloud.artifactTitle(slug) ?? '' })),
+      groupId,
+    );
+  }
+
+  async function fileArtifacts(items: readonly { slug: string; title: string }[], groupId: string | undefined): Promise<void> {
+    await runGroupAction(
+      () => fileArtifactsCommand(groupsPath, items, groupId),
+      () => void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: could not file the artifacts.')),
+    );
+    await render();
+  }
+
+  /**
+   * Asks which folder of the Sessions view the pages go in — a new one
+   * included, so the gesture works on a view with no folder yet.
+   */
+  async function fileInSessionsFolder(items: { slug: string; title: string }[]): Promise<void> {
+    const state = await readGroups(groupsPath);
+    const create = vscode.l10n.t('New folder…');
+    const picked = await vscode.window.showQuickPick(
+      [
+        ...state.groups.map((g) => ({ label: `$(symbol-folder) ${g.name}`, id: g.id })),
+        { label: `$(new-folder) ${create}`, id: undefined },
+      ],
+      { placeHolder: vscode.l10n.t('Put in which Sessions folder?') },
+    );
+    if (picked === undefined) return;
+    let groupId = picked.id;
+    if (groupId === undefined) {
+      const label = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Folder name') });
+      if (label === undefined) return;
+      const id = randomUUID();
+      let made = false;
+      await runGroupAction(
+        async () => {
+          await createGroupCommand(groupsPath, label, () => id);
+          made = true;
+        },
+        (message) => void vscode.window.showErrorMessage(message),
+      );
+      if (!made) return;
+      groupId = id;
+    }
+    await fileArtifacts(items, groupId);
+  }
+
   async function onGroupsDropped(groupIds: readonly string[], beforeId: string | undefined): Promise<void> {
     await reorderGroupsCommand(groupsPath, groupIds, beforeId);
     await render();
@@ -435,7 +491,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return { sound: chosen === NONE_LABEL ? NO_SOUND : chosen };
   }
 
-  const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath);
+  const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath, onArtifactsDropped);
   const footer = new FooterTree();
   const usageView = new UsageView(() => void vscode.commands.executeCommand('kohVibe.refreshUsage'));
   const status = new StatusSummary();
@@ -470,7 +526,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Routines and artifacts live on claude.ai: their views, feeds and commands
   // are wired in their own module, which hands back the one call the render
   // loop makes (ui/cloud-views.ts).
-  const cloud = registerCloudViews(context, home, () => render());
+  const cloud = registerCloudViews(context, home, () => render(), fileInSessionsFolder);
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -757,6 +813,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         processesTree.setOrphans(lastOrphans);
         tree.setSessions(shown);
         tree.setGroups(groups);
+        // The live titles of the pages filed in folders, when the Artifacts
+        // view has read them — the recorded ones stand in otherwise.
+        tree.setArtifactTitles(
+          new Map(
+            Object.keys(groups.artifacts).flatMap((slug) => {
+              const title = cloud.artifactTitle(slug);
+              return title === undefined ? [] : [[slug, title] as const];
+            }),
+          ),
+        );
         // The status bar counts what runs: an ended or dormant row is a
         // conversation to come back to, not a session at work.
         status.update(openSessions(shown));
@@ -1243,6 +1309,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch {
         void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not open the rules of « {0} ».', group.name));
       }
+    }),
+    // A search over everything the Sessions view lists, its folders' artifacts,
+    // and the recently closed conversations. A tree view has no text field of
+    // its own: the quick pick is the search box VSCode offers.
+    vscode.commands.registerCommand('kohVibe.searchSessions', async () => {
+      const items = searchItems({
+        sessions: tree.listedSessions(),
+        folderOf: (id) => tree.folderOf(id),
+        artifacts: tree.filedArtifacts(),
+        closed: closedTree.shownEntries(),
+      });
+      const picked = await vscode.window.showQuickPick<SearchItem>(items, {
+        placeHolder: vscode.l10n.t('Search a conversation, a folder, a project…'),
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+      const target = picked?.target;
+      if (target === undefined) return;
+      if (target.kind === 'closed') {
+        await bringBack(target.entry);
+        return;
+      }
+      const node = target.kind === 'session' ? tree.nodeFor(target.session.id) : tree.artifactNodeFor(target.slug);
+      // The row is shown and selected first, so the eye lands where the
+      // result lives — then it opens, as a click on it would.
+      if (node !== undefined) await view.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => undefined);
+      if (target.kind === 'session') await vscode.commands.executeCommand('kohVibe.focusSession', target.session);
+      else void vscode.env.openExternal(vscode.Uri.parse(artifactUrl(target.slug)));
+    }),
+    vscode.commands.registerCommand('kohVibe.unfileFolderArtifact', async (node: unknown) => {
+      const filed = folderArtifactOfNode(node);
+      if (filed === undefined) return;
+      await fileArtifacts([{ slug: filed.slug, title: '' }], undefined);
     }),
     vscode.commands.registerCommand('kohVibe.newGroup', async () => {
       const label = await vscode.window.showInputBox({

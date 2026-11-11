@@ -142,8 +142,24 @@ describe('the manifest', () => {
     expect(icon('kohVibe.refreshArtifacts')).toBe('$(refresh)');
     expect(context('kohVibe.copyArtifactLink').map((m) => m.when)).toEqual([
       'view == kohVibe.artifacts && viewItem =~ /^artifact/',
+      // An artifact filed in a Sessions folder copies its link the same way.
+      'view == kohVibe.sessions && viewItem == folderArtifact',
     ]);
     for (const command of ['kohVibe.openArtifact', 'kohVibe.copyArtifactLink']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
+
+  it('searches the Sessions view from the very first button of its title', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.searchSessions');
+    expect(title).toMatchObject({ when: 'view == kohVibe.sessions', group: 'navigation@-1' });
+    expect(icon('kohVibe.searchSessions')).toBe('$(search)');
+  });
+
+  it('puts an artifact in a Sessions folder from its menu, and takes it out from the folder', () => {
+    expect(context('kohVibe.fileArtifactInFolder').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem =~ /^artifact/']);
+    expect(inline('kohVibe.unfileFolderArtifact').map((m) => m.when)).toEqual(['view == kohVibe.sessions && viewItem == folderArtifact']);
+    for (const command of ['kohVibe.fileArtifactInFolder', 'kohVibe.unfileFolderArtifact']) {
       expect(palette(command)?.when).toBe('false');
     }
   });

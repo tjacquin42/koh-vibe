@@ -1,5 +1,5 @@
 import { commitMerged, readRaw, withFileQueue } from '../lib/shared-file';
-import { emptyGroups, type Group, type GroupsState, parseGroups, serializeGroups } from './model';
+import { emptyGroups, type FiledArtifact, type Group, type GroupsState, parseGroups, serializeGroups } from './model';
 
 /** An unreadable or missing folder listing counts as "empty": the view has to display no matter what. */
 export async function readGroups(file: string): Promise<GroupsState> {
@@ -39,9 +39,10 @@ async function updateGroupsOnce(
 
 function merge(latestRaw: string | undefined, before: GroupsState, after: GroupsState): GroupsState {
   const latest = toState(latestRaw);
+  const groups = mergeGroups(latest.groups, before.groups, after.groups);
   return {
     ...after,
-    groups: mergeGroups(latest.groups, before.groups, after.groups),
+    groups,
     assignments: mergeAssignments(latest.assignments, before.assignments, after.assignments),
     sessionOrder: mergeSessionOrder(latest.sessionOrder, before.sessionOrder, after.sessionOrder),
     // Same rule, same reason as the assignments, and once per event: setting
@@ -52,7 +53,39 @@ function merge(latestRaw: string | undefined, before: GroupsState, after: Groups
       waiting: mergeAssignments(latest.sessionSounds.waiting, before.sessionSounds.waiting, after.sessionSounds.waiting),
       done: mergeAssignments(latest.sessionSounds.done, before.sessionSounds.done, after.sessionSounds.done),
     },
+    artifacts: mergeArtifacts(latest.artifacts, before.artifacts, after.artifacts, groups),
   };
+}
+
+/**
+ * Same three-way rule as the assignments, slug by slug: what our edit changed
+ * is ours, the rest comes from the freshest state. An artifact whose folder
+ * another window has just deleted is dropped rather than left pointing at
+ * nothing.
+ */
+function mergeArtifacts(
+  latest: GroupsState['artifacts'],
+  before: GroupsState['artifacts'],
+  after: GroupsState['artifacts'],
+  groups: readonly Group[],
+): Record<string, FiledArtifact> {
+  const out: Record<string, FiledArtifact> = { ...latest };
+  for (const [slug, filed] of Object.entries(after)) {
+    const was = before[slug];
+    if (was === undefined || was.group !== filed.group || was.title !== filed.title) {
+      // Deleted and set again, so a move lands at the end of its folder.
+      delete out[slug];
+      out[slug] = filed;
+    }
+  }
+  for (const slug of Object.keys(before)) {
+    if (after[slug] === undefined) delete out[slug];
+  }
+  const known = new Set(groups.map((g) => g.id));
+  for (const [slug, filed] of Object.entries(out)) {
+    if (!known.has(filed.group)) delete out[slug];
+  }
+  return out;
 }
 
 function toState(raw: string | undefined): GroupsState {

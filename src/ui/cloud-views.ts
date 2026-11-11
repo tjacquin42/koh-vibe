@@ -25,7 +25,12 @@ export interface CloudViews {
   render: () => Promise<void>;
   /** Files the artifacts a drain saw published under their session's project. */
   filePublished: (published: readonly PublishedArtifact[]) => Promise<void>;
+  /** The title the Artifacts view last read for a page, if it has one. */
+  artifactTitle: (slug: string) => string | undefined;
 }
+
+/** Files pages in a folder of the Sessions view — the folder is asked for by the caller. */
+export type FileInSessionsFolder = (items: { slug: string; title: string }[]) => Promise<void>;
 
 /**
  * The views of what lives on claude.ai rather than on this machine.
@@ -42,6 +47,7 @@ export function registerCloudViews(
   context: vscode.ExtensionContext,
   home: string,
   render: () => Promise<void>,
+  fileInSessionsFolder: FileInSessionsFolder,
 ): CloudViews {
   // Where a failed call says what failed. The endpoints are undocumented; the
   // day one changes, this channel is the only place that tells which call
@@ -238,6 +244,13 @@ export function registerCloudViews(
       });
       if (project !== undefined) await fileInto(slugs, project);
     }),
+    // Into a folder of the Sessions view, beside the conversations — not a
+    // project of this view: the two filings are independent.
+    vscode.commands.registerCommand('kohVibe.fileArtifactInFolder', async (node: unknown, nodes: unknown) => {
+      const slugs = selectedSlugs(node, nodes);
+      if (slugs.length === 0) return;
+      await fileInSessionsFolder(slugs.map((slug) => ({ slug, title: artifactsTree.artifact(slug)?.title ?? '' })));
+    }),
     vscode.commands.registerCommand('kohVibe.renameArtifactProject', async (node: unknown) => {
       const from = projectOfNode(node);
       if (from === undefined) return;
@@ -289,6 +302,10 @@ export function registerCloudViews(
 
   return {
     render: show,
+    artifactTitle: (slug) => {
+      const title = artifactsTree.artifact(slug)?.title;
+      return title === undefined || title.length === 0 ? undefined : title;
+    },
     // Filed whether or not the view is open: the publish happens once, and a
     // view opened later must find the page already in its project.
     filePublished: async (published) => {
