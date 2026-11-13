@@ -57,6 +57,14 @@ toucher**, et refuse d'écrire si son empreinte a changé entre-temps. Les hooks
 statusline que vous aviez déjà sont préservés : Koh-Vibe s'enchaîne au bout, il ne remplace
 rien. **Koh-Vibe: Désinstaller les hooks** défait exactement cela.
 
+Le même geste installe le **skill `koh-vibe`** dans `~/.claude/skills/` (ou
+`$CLAUDE_CONFIG_DIR/skills/`) : ce qu'une conversation Claude Code doit savoir pour agir sur le
+tableau de bord — dans quel dossier elle est, comment ranger une conversation, comment écrire les
+règles d'un dossier, quels fichiers elle peut toucher. Demandez à une conversation « range-toi
+dans le dossier VIDEO » : elle sait comment faire. Chaque nouvelle version de l'extension met le
+skill à jour d'elle-même ; une copie modifiée à la main n'est jamais écrasée sans vous le
+demander, et une copie supprimée n'est pas remise. Désinstaller les hooks le retire.
+
 ### Depuis les sources
 
 Depuis le terminal intégré de l'éditeur où vous la voulez :
@@ -174,7 +182,7 @@ message suivant — une nouvelle, une glissée dedans, une déjà là quand les 
 ne sont renvoyées que lorsqu'elles changent, et une conversation qui quitte le dossier apprend
 qu'elles ne s'appliquent plus. Clic droit sur un dossier → *Ajouter une règle…* ouvre une
 conversation rangée dedans, son prompt déjà commencé avec le dossier et le skill
-`koh-vibe-folder-rules`, qui demande quelle règle ajouter ; *Voir les règles* ouvre le fichier
+`koh-vibe`, qui demande quelle règle ajouter ; *Voir les règles* ouvre le fichier
 pour les écrire à la main. Il faut réinstaller les hooks une fois, pour que celui des règles
 soit ajouté.
 
@@ -245,7 +253,7 @@ Depuis la palette de commandes, sous **Koh-Vibe** :
 
 | Commande | Ce qu'elle fait |
 |---|---|
-| *Installer les hooks* / *Désinstaller les hooks* | ajoute les hooks de Koh-Vibe à `~/.claude/settings.json`, ou les retire |
+| *Installer les hooks* / *Désinstaller les hooks* | ajoute les hooks de Koh-Vibe à `~/.claude/settings.json` et son skill à `~/.claude/skills/`, ou les retire |
 | *Rafraîchir* | relit le registre de Claude Code et ramène toute conversation vivante que la liste a perdue |
 | *Nouvelle session* | ouvre un onglet Claude Code, rangé dans le dossier de la fenêtre |
 | *Nouveau dossier* | crée un dossier |

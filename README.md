@@ -51,6 +51,14 @@ it**, and refuses to write if its fingerprint changed in the meantime. Hooks and
 you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing.
 **Koh-Vibe: Uninstall hooks** undoes exactly that.
 
+The same gesture installs the **`koh-vibe` skill** in `~/.claude/skills/` (or
+`$CLAUDE_CONFIG_DIR/skills/`): what a Claude Code conversation needs to know to act on the
+dashboard — which folder it is in, how to file a conversation, how to write a folder's rules,
+which files it may touch. Ask a conversation « put this one in the VIDEO folder » and it knows
+how. Each new version of the extension updates the skill on its own; a copy you edited by hand
+is never overwritten without asking, and one you deleted is not put back. Uninstalling the hooks
+removes it.
+
 ### From source
 
 From the integrated terminal of the editor you want it in:
@@ -159,7 +167,7 @@ is added to the context of every conversation filed in the folder, at its next m
 one, one dragged in, one already there when the rules change. They are sent again only when
 they change, and a conversation that leaves the folder is told they no longer apply.
 Right-click a folder → *Add a rule…* opens a conversation filed in it, its prompt already
-started with the folder and the `koh-vibe-folder-rules` skill, asking which rule to add;
+started with the folder and the `koh-vibe` skill, asking which rule to add;
 *Open the rules* opens the file to write them by hand. This needs the hooks installed again
 once, for the rules hook to be added.
 
@@ -227,7 +235,7 @@ From the command palette, under **Koh-Vibe**:
 
 | Command | What it does |
 |---|---|
-| *Install hooks* / *Uninstall hooks* | adds Koh-Vibe's hooks to `~/.claude/settings.json`, or takes them back out |
+| *Install hooks* / *Uninstall hooks* | adds Koh-Vibe's hooks to `~/.claude/settings.json` and its skill to `~/.claude/skills/`, or takes them back out |
 | *Refresh* | re-reads Claude Code's registry and brings back every live conversation the list lost |
 | *New session* | opens a new Claude Code tab, filed in the current window's folder |
 | *New folder* | creates a folder |

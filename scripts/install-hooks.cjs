@@ -23,6 +23,7 @@ const {
   wrappedStatusLine,
 } = require('../out/hooks/installer.js');
 const { kohVibeHome, spoolDirs } = require('../out/paths.js');
+const { installSkill, skillPaths, uninstallSkill } = require('../out/skill/install.js');
 
 const SETTINGS = join(homedir(), '.claude', 'settings.json');
 const HOME = kohVibeHome();
@@ -164,6 +165,32 @@ writeFileSync(tmp, style.newline ? `${serialized}\n` : serialized, 'utf8');
 renameSync(tmp, SETTINGS);
 
 console.log(`Entrées koh-vibe : ${countKohEntries(before)} → ${countKohEntries(after)}`);
+
+// The koh-vibe skill: what a conversation needs to know to act on the
+// dashboard (src/skill/install.ts). Installed with the hooks — the one
+// gesture of the user's that says yes to writing under ~/.claude — and kept
+// up to date by the extension from then on. After settings.json, and never
+// fatal: a skill that could not be copied must not undo hooks already set.
+const skill = skillPaths(join(__dirname, '..'), HOME);
+try {
+  if (uninstall) {
+    const outcome = uninstallSkill(skill);
+    if (outcome === 'removed') console.log(`Skill retiré : ${skill.target}`);
+    else if (outcome === 'edited') console.log(`Skill modifié à la main, laissé en place : ${skill.target}`);
+  } else {
+    const outcome = installSkill(skill);
+    if (outcome === 'edited') {
+      console.log(
+        `Skill non installé : ${skill.target} existe et n'est pas la copie de Koh-Vibe (modifiée à la main ?).\n` +
+          `  Supprimez ce dossier puis relancez l'installation pour poser la version livrée.`,
+      );
+    } else {
+      console.log(`Skill ${outcome === 'unchanged' ? 'déjà à jour' : 'installé'} : ${skill.target}`);
+    }
+  }
+} catch (err) {
+  console.error(`Skill : échec (${err.message}). Les hooks, eux, sont en place.`);
+}
 
 // Say what happened to the statusline: it is the only setting shared with
 // other tools, and the only one restored on uninstall.

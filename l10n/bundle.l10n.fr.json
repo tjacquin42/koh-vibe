@@ -244,5 +244,9 @@
   "{0} artifacts": "{0} artifacts",
   "{0} artifact": "{0} artifact",
   "artifact": "artifact",
-  "Artifact on claude.ai — click to open it": "Artifact sur claude.ai — cliquer pour l'ouvrir"
+  "Artifact on claude.ai — click to open it": "Artifact sur claude.ai — cliquer pour l'ouvrir",
+  "Replace it": "La remplacer",
+  "Keep mine": "Garder la mienne",
+  "Koh-Vibe: a new version of the koh-vibe skill is available, but the copy in {0} was edited by hand. Replace it? Your copy is kept in the backups.": "Koh-Vibe : une nouvelle version du skill koh-vibe est disponible, mais la copie dans {0} a été modifiée à la main. La remplacer ? Votre copie est gardée dans les sauvegardes.",
+  "Koh-Vibe: the koh-vibe skill could not be updated.": "Koh-Vibe : le skill koh-vibe n'a pas pu être mis à jour."
 }

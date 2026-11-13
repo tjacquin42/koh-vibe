@@ -2,9 +2,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import * as vscode from 'vscode';
 import { folderRulesFile } from '../paths';
+import { SKILL_NAME } from '../skill/install';
 
 /** The skill that knows where a folder's rules live and how to change them. */
-export const RULES_SKILL = 'koh-vibe-folder-rules';
+export const RULES_SKILL = SKILL_NAME;
 
 /**
  * A folder's rules file, created on first use with its folder named in the

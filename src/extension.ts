@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
+import { declineSkill, refreshSkill, replaceSkill, skillPaths } from './skill/install';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
@@ -87,11 +88,47 @@ const RESCAN_LATE_MS = 20_000;
  */
 const RESCAN_AFTER_VANISH_MS = 5_000;
 
+/**
+ * Brings the installed skill to this version — silently, the usual case. Asks
+ * only when the copy there was edited by hand: replacing it keeps the edited
+ * one in the backups, keeping it is remembered until the next version.
+ */
+async function offerSkillUpdate(paths: ReturnType<typeof skillPaths>): Promise<void> {
+  let outcome;
+  try {
+    outcome = refreshSkill(paths);
+  } catch {
+    return;
+  }
+  if (outcome !== 'edited') return;
+  const replace = vscode.l10n.t('Replace it');
+  const keep = vscode.l10n.t('Keep mine');
+  const answer = await vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      'Koh-Vibe: a new version of the koh-vibe skill is available, but the copy in {0} was edited by hand. Replace it? Your copy is kept in the backups.',
+      paths.target,
+    ),
+    replace,
+    keep,
+  );
+  try {
+    if (answer === replace) replaceSkill(paths);
+    else if (answer === keep) declineSkill(paths);
+  } catch {
+    void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: the koh-vibe skill could not be updated.'));
+  }
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
   // Before everything else: ensureDirs would create the new root and make the
   // recovery impossible — it only runs while that root does not exist yet.
   const migrated = await migrateLegacyHome(legacyHome(), home);
+  // The koh-vibe skill follows this version wherever it was installed
+  // (src/skill/install.ts). Never awaited by anything, never fatal: a skill
+  // left one version behind costs nothing, a dashboard that fails to start
+  // costs everything.
+  void offerSkillUpdate(skillPaths(context.extensionPath, home));
   const dirs = spoolDirs(home);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
