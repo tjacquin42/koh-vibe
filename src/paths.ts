@@ -73,6 +73,15 @@ export function settingsFile(home: string): string {
   return join(home, 'settings.json');
 }
 
+/**
+ * A folder's rules: what bin/koh-vibe-rules adds to the context of the
+ * conversations filed in it. Under the folder's id, not its name — a rename
+ * keeps them.
+ */
+export function folderRulesFile(home: string, groupId: string): string {
+  return join(home, 'rules', `${groupId}.md`);
+}
+
 /** Shared file for the classification into folders, at the root of koh-vibe's state. */
 export function groupsFile(home: string): string {
   return join(home, 'groups.json');
@@ -105,4 +114,38 @@ export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
  */
 export function claudeSessionsDir(home: string): string {
   return join(home, 'sessions');
+}
+
+/**
+ * The routines last read from claude.ai, cached — shared between windows like
+ * the usage reading, for the same reason.
+ */
+export function routinesFile(home: string): string {
+  return join(home, 'routines.json');
+}
+
+/** The artifacts last read from claude.ai, cached — same reason. */
+export function artifactsFile(home: string): string {
+  return join(home, 'artifacts.json');
+}
+
+/**
+ * Claude Code's global configuration — the account it is signed in with,
+ * among much else. Beside the configuration root by default (`~/.claude.json`,
+ * not inside `~/.claude/`), inside the root once CLAUDE_CONFIG_DIR relocates
+ * it: that is where Claude Code itself writes it then.
+ */
+export function claudeConfigFile(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env['CLAUDE_CONFIG_DIR'];
+  if (override !== undefined && override.length > 0) return join(override, '.claude.json');
+  return join(env['HOME'] ?? '', '.claude.json');
+}
+
+/**
+ * Which project each artifact is filed under. claude.ai has no folders for
+ * artifacts, so the filing lives here — shared between windows like the
+ * session folders, and for the same reason.
+ */
+export function artifactProjectsFile(home: string): string {
+  return join(home, 'artifact-projects.json');
 }

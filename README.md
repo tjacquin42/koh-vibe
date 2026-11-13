@@ -51,6 +51,14 @@ it**, and refuses to write if its fingerprint changed in the meantime. Hooks and
 you already had are preserved: Koh-Vibe chains onto the end, it replaces nothing.
 **Koh-Vibe: Uninstall hooks** undoes exactly that.
 
+The same gesture installs the **`koh-vibe` skill** in `~/.claude/skills/` (or
+`$CLAUDE_CONFIG_DIR/skills/`): what a Claude Code conversation needs to know to act on the
+dashboard — which folder it is in, how to file a conversation, how to write a folder's rules,
+which files it may touch. Ask a conversation « put this one in the VIDEO folder » and it knows
+how. Each new version of the extension updates the skill on its own; a copy you edited by hand
+is never overwritten without asking, and one you deleted is not put back. Uninstalling the hooks
+removes it.
+
 ### From source
 
 From the integrated terminal of the editor you want it in:
@@ -77,7 +85,8 @@ reinstalling under the same number leaves the editor serving what it already had
   one Claude generated, else the last prompt.
 - **Ended conversations** stay in the list, greyed out and in their folder, for as long as
   *Persistent sessions* is on in the settings (it is by default). Turn it off and closing a
-  tab takes the row away instead. *Recently closed*, a view of its own, keeps the ten
+  tab takes the row away instead — except in a folder: a conversation filed in one never
+  leaves the list on its own. *Recently closed*, a view of its own, keeps the ten
   conversations that ended most recently either way.
 - **Temporary sessions** is where a conversation lands until you drag it into a folder. Left
   there for 24 hours without activity, it leaves the list and its tab closes — a setting turns
@@ -117,6 +126,26 @@ reinstalling under the same number leaves the editor serving what it already had
   Note that a clean exit leaves nothing here: Claude Code takes its children with it, so
   reloading a window is not what produces these. A crash, a `kill -9` or a machine put to sleep
   is.
+- **Routines**, a view of its own: the agents you scheduled on claude.ai, filed by when they
+  run next — *Today*, *Tomorrow*, *This week*, *Later* — with the paused ones and the one-shots
+  that already ran folded away under *Paused*. A click opens the routine on claude.ai. Hover a
+  row to **run it now** — after a confirmation, since a run acts for real — or to **pause** it;
+  a paused one offers **resume** instead. Right-click copies its link.
+- **Artifacts**, a view of its own: the pages you published on claude.ai, **filed by
+  project** — one folder each, *Other* last — pinned ones first, then the most recently
+  updated. Above the projects, *Pinned* and *Recent* (the ten last updated) gather those pages
+  again, each staying in its project too. A page published from a session goes on its own into the folder of that session's
+  repository; one never filed shows under the project its title names, if any. Drag pages
+  between folders, or right-click → *Move to project…*, several at once; right-click a folder
+  to rename it. A click opens a page; hover to **pin** or **unpin** it, right-click to
+  **rename** it or copy its link.
+
+  The filing stays on this machine: claude.ai has no folders for artifacts, so nothing of it
+  is sent there.
+
+  Both views ask claude.ai only while they are open, at most every five minutes, and share
+  what they read across windows. A call that fails is noted in the *Koh-Vibe* output channel —
+  see [what leaves the machine](#your-data-and-what-leaves-the-machine).
 - **Your usage** over five hours and seven days — and per model, when your plan counts one
   apart — with the time until it resets.
 - **One click** opens or resumes a session's window, wherever it lives — a closed one included.
@@ -132,6 +161,15 @@ another to put it in front, or onto *Temporary sessions* to send it to the end.
 conversation in the window's folder. Hover a folder: the same **+** appears at the right of
 its row (right-click offers it too, as *New session here*) and files the conversation in that
 folder as soon as it shows up, so it is not a temporary one.
+
+**Folder rules.** A folder can carry rules, like a skill tied to it: whatever is written there
+is added to the context of every conversation filed in the folder, at its next message — a new
+one, one dragged in, one already there when the rules change. They are sent again only when
+they change, and a conversation that leaves the folder is told they no longer apply.
+Right-click a folder → *Add a rule…* opens a conversation filed in it, its prompt already
+started with the folder and the `koh-vibe` skill, asking which rule to add;
+*Open the rules* opens the file to write them by hand. This needs the hooks installed again
+once, for the rules hook to be added.
 
 **Chimes.** One when a session starts waiting for you, another when it finishes. Three levels,
 most specific first: a conversation's sound beats its folder's, which beats the global
@@ -156,9 +194,12 @@ runs in its own terminal, and a session still alive reappears on its next event.
 
 **Persistent sessions.** The first row of the settings, a checkbox, decides what closing a tab
 does to its row. Checked — the default — the conversation stays in the list, greyed out, in
-its folder, with a muted dot and the time it closed; the fifty most recent are kept, and
-*Remove from the list* takes one away for good. Unchecked, closing the tab removes the row
-instead; the rows already greyed stay either way. Hover the row for the same explanation.
+its folder, with a muted dot and the time it closed; the fifty most recent outside any folder
+are kept, and *Remove from the list* takes one away for good. Unchecked, closing the tab
+removes the row instead; the rows already greyed stay either way. A conversation filed in a
+folder stays whatever the setting, its age or the number of greyed rows — even once there is
+nothing left to resume: only *Remove from the list* or the trash takes it away. Hover the row
+for the same explanation.
 
 **Temporary sessions.** The second checkbox. A conversation filed in no folder is temporary:
 after 24 hours without activity it leaves the list, and its tab closes with it — *Recently
@@ -194,38 +235,49 @@ From the command palette, under **Koh-Vibe**:
 
 | Command | What it does |
 |---|---|
-| *Install hooks* / *Uninstall hooks* | adds Koh-Vibe's hooks to `~/.claude/settings.json`, or takes them back out |
+| *Install hooks* / *Uninstall hooks* | adds Koh-Vibe's hooks to `~/.claude/settings.json` and its skill to `~/.claude/skills/`, or takes them back out |
 | *Refresh* | re-reads Claude Code's registry and brings back every live conversation the list lost |
 | *New session* | opens a new Claude Code tab, filed in the current window's folder |
 | *New folder* | creates a folder |
 | *Sound for an event* · *Chime volume* | the global chimes |
 | *Install the sound library* / *Remove the sound library* | the hundred Kenney sounds |
 | *Refresh usage* | forces a usage reading, which is otherwise cached for five minutes |
+| *Refresh routines* · *Refresh artifacts* | reads the list again from claude.ai, which is otherwise cached for five minutes |
 
-The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds —
-is on the right-click menu of the row it applies to.
+The rest — reopening, closing, renaming, colouring, per-folder and per-conversation sounds,
+running or pausing a routine, renaming, pinning or filing an artifact — is on the right-click menu of
+the row it applies to.
 
 ## Your data, and what leaves the machine
 
-**Nothing is sent anywhere, and there is no telemetry.** The one network call Koh-Vibe makes
-is to Anthropic, for your usage figures, at most once every five minutes. The OAuth token it
-needs is read from the system keychain — never logged, never written to disk. No prompt, no
-transcript and no path ever leaves the machine.
+**Nothing is sent anywhere, and there is no telemetry.** Koh-Vibe talks to Anthropic and to
+nobody else: for your usage figures, at most once every five minutes; for your routines and
+artifacts, at most once every five minutes and only while their view is open; and for what you
+ask of those two views — run, pause, rename, pin — when you click. The OAuth token it needs is
+the one Claude Code keeps in the system keychain — never logged, never written to disk. No
+prompt, no transcript and no path ever leaves the machine. A call that fails is noted in the
+*Koh-Vibe* output channel with its method, its path, its status and the reason the API gives
+for a refusal — never a header, and nothing else of a body.
 
 Everything else sits under `~/.koh-vibe/`:
 
 | | |
 |---|---|
-| `bin/` | the bridge and the status-line wrapper, copied when the hooks are installed |
+| `bin/` | the bridge, the status-line wrapper and the folder rules hook, copied when the hooks are installed |
 | `events/` | the spool: one file per event, consumed then deleted |
 | `events/rejected/` | what could not be read, kept rather than dropped |
 | `sessions/` | the reduced state, one file per session |
 | `requests/` | focus, reopen and close requests, from one window to another |
 | `backups/` | copies of `settings.json` taken before each hook install |
 | `groups.json` | folders, their colours, the chosen order and the sounds |
+| `rules/` | each folder's rules, one file per folder |
+| `rules-seen/` | which version of its folder's rules each conversation was given |
 | `closed.json` | the ten most recently closed conversations |
 | `settings.json` | global sounds, volume, and the two list settings |
 | `usage.json` | the last usage reading, cached |
+| `routines.json` | the last list of routines read from claude.ai, cached |
+| `artifacts.json` | the last list of artifacts read from claude.ai, cached |
+| `artifact-projects.json` | which project each artifact is filed under |
 | `status.json` | the last status-line snapshot |
 | `sounds/` | the library, if you installed it |
 

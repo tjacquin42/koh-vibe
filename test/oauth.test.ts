@@ -85,8 +85,8 @@ describe('fetchUsage', () => {
   });
 
   it('sends the bearer token and the beta header, to the default usage URL', async () => {
-    requestMock.mockImplementation((url: string, options: unknown, onResponse: (res: IncomingMessage) => void) => {
-      expect(url).toBe('https://api.anthropic.com/api/oauth/usage');
+    requestMock.mockImplementation((url: URL, options: unknown, onResponse: (res: IncomingMessage) => void) => {
+      expect(String(url)).toBe('https://api.anthropic.com/api/oauth/usage');
       expect(options).toMatchObject({
         method: 'GET',
         headers: {
@@ -99,7 +99,7 @@ describe('fetchUsage', () => {
       const res = fakeIncomingMessage(200);
       queueMicrotask(() => {
         onResponse(res as unknown as IncomingMessage);
-        res.emit('data', '{"rate_limits":{}}');
+        res.emit('data', Buffer.from('{"rate_limits":{}}'));
         res.emit('end');
       });
       return req as unknown as ClientRequest;
@@ -113,8 +113,8 @@ describe('fetchUsage', () => {
       const res = fakeIncomingMessage(200);
       queueMicrotask(() => {
         onResponse(res as unknown as IncomingMessage);
-        res.emit('data', '{"rate_l');
-        res.emit('data', 'imits":{"five_hour":{}}}');
+        res.emit('data', Buffer.from('{"rate_l'));
+        res.emit('data', Buffer.from('imits":{"five_hour":{}}}'));
         res.emit('end');
       });
       return req as unknown as ClientRequest;
@@ -123,13 +123,13 @@ describe('fetchUsage', () => {
   });
 
   it('queries a custom URL when one is given, rather than the default', async () => {
-    requestMock.mockImplementation((url: string, _options: unknown, onResponse: (res: IncomingMessage) => void) => {
-      expect(url).toBe('https://example.test/usage');
+    requestMock.mockImplementation((url: URL, _options: unknown, onResponse: (res: IncomingMessage) => void) => {
+      expect(String(url)).toBe('https://example.test/usage');
       const req = fakeClientRequest();
       const res = fakeIncomingMessage(200);
       queueMicrotask(() => {
         onResponse(res as unknown as IncomingMessage);
-        res.emit('data', '{}');
+        res.emit('data', Buffer.from('{}'));
         res.emit('end');
       });
       return req as unknown as ClientRequest;
@@ -141,7 +141,11 @@ describe('fetchUsage', () => {
     requestMock.mockImplementation((_url: string, _options: unknown, onResponse: (res: IncomingMessage) => void) => {
       const req = fakeClientRequest();
       const res = fakeIncomingMessage(401);
-      queueMicrotask(() => onResponse(res as unknown as IncomingMessage));
+      queueMicrotask(() => {
+        onResponse(res as unknown as IncomingMessage);
+        res.emit('data', Buffer.from('{"error":"expired"}'));
+        res.emit('end');
+      });
       return req as unknown as ClientRequest;
     });
     await expect(fetchUsage('jeton-expire')).resolves.toBeUndefined();
@@ -153,7 +157,7 @@ describe('fetchUsage', () => {
       const res = fakeIncomingMessage(200);
       queueMicrotask(() => {
         onResponse(res as unknown as IncomingMessage);
-        res.emit('data', 'this is not JSON');
+        res.emit('data', Buffer.from('this is not JSON'));
         res.emit('end');
       });
       return req as unknown as ClientRequest;
@@ -188,7 +192,7 @@ describe('fetchUsage', () => {
       const res = fakeIncomingMessage(200);
       queueMicrotask(() => {
         onResponse(res as unknown as IncomingMessage);
-        res.emit('data', '{}');
+        res.emit('data', Buffer.from('{}'));
         res.emit('end');
       });
       return req as unknown as ClientRequest;

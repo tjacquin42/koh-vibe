@@ -18,6 +18,25 @@ export const KOH_MARKER = 'koh-vibe-bridge';
  */
 const KOH_LEGACY_MARKER = 'koh-claude-bridge';
 
+/**
+ * The folder rules hook (bin/koh-vibe-rules): the one command of ours that
+ * writes to stdout — what it prints, Claude Code adds to the conversation's
+ * context. Kept apart from the bridge for that reason: the bridge never
+ * writes anything, and that invariant is not bent for one event.
+ */
+export const KOH_RULES_MARKER = 'koh-vibe-rules';
+
+/** The one event it runs on: a prompt submitted, when the context can still take it. */
+const RULES_EVENT = 'UserPromptSubmit';
+
+// Its exact template, and only that one — same rule, same reason as
+// OUR_COMMAND_RE: the path captured once, found again by backreference.
+const OUR_RULES_RE = /^\/bin\/sh -c '\[ -x "([^"]+)" \] && "\1"; exit 0'$/;
+
+function rulesCommand(rulesPath: string): string {
+  return `/bin/sh -c '[ -x "${rulesPath}" ] && "${rulesPath}"; exit 0'`;
+}
+
 function isMarker(path: string, marker: string): boolean {
   return path === marker || path.endsWith(`/${marker}`);
 }
@@ -64,6 +83,8 @@ const OUR_COMMAND_RE = new RegExp(
  */
 function isOurs(h: unknown): boolean {
   if (!isRecord(h) || typeof h['command'] !== 'string') return false;
+  const rules = OUR_RULES_RE.exec(h['command'])?.[1];
+  if (rules !== undefined) return isMarker(rules, KOH_RULES_MARKER);
   const match = OUR_COMMAND_RE.exec(h['command']);
   if (!match) return false;
   const bridgePath = match[1];
@@ -93,7 +114,7 @@ function stripOurs(item: unknown): unknown[] {
  * it without overwriting data that is not ours, so we leave it as is and
  * install nothing for that specific event.
  */
-export function installHooks(settings: unknown, bridgePath: string): unknown {
+export function installHooks(settings: unknown, bridgePath: string, rulesPath?: string): unknown {
   const root = isRecord(settings) ? { ...settings } : {};
   const hooks = isRecord(root['hooks']) ? { ...root['hooks'] } : {};
 
@@ -103,7 +124,11 @@ export function installHooks(settings: unknown, bridgePath: string): unknown {
 
     const list = Array.isArray(value) ? value : [];
     const command = `/bin/sh -c '[ -x "${bridgePath}" ] && "${bridgePath}" ${event}; exit 0'`;
-    const ourEntry: HookMatcher = { matcher: '*', hooks: [{ type: 'command', command }] };
+    const ours: HookCommand[] = [{ type: 'command', command }];
+    // The folder rules ride in the same entry, after the bridge: one entry of
+    // ours per event, whatever it holds.
+    if (rulesPath !== undefined && event === RULES_EVENT) ours.push({ type: 'command', command: rulesCommand(rulesPath) });
+    const ourEntry: HookMatcher = { matcher: '*', hooks: ours };
     hooks[event] = [...list.flatMap(stripOurs), ourEntry];
   }
 

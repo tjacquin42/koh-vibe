@@ -28,7 +28,16 @@ vi.mock('../src/usage/oauth', () => ({
 
 import { activate } from '../src/extension';
 import { forgetAttempts } from '../src/usage/reader';
-import { registeredCommands, statusBarItems, treeViews, webviewViewProviders } from './stubs/vscode';
+import type { SessionsTree, TreeNode } from '../src/ui/tree';
+import {
+  DataTransfer as StubTransfer,
+  DataTransferItem as StubItem,
+  quickPick,
+  registeredCommands,
+  statusBarItems,
+  treeViews,
+  webviewViewProviders,
+} from './stubs/vscode';
 
 type Manifest = { contributes: { commands: Array<{ command: string }> } };
 const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as Manifest;
@@ -64,6 +73,7 @@ afterEach(() => {
   // against a now-deleted sandbox, while the next test's assertions run.
   for (const sub of subscriptions) sub.dispose?.();
   registeredCommands.length = 0;
+  quickPick.choose = () => undefined;
   treeViews.length = 0;
   webviewViewProviders.length = 0;
   statusBarItems.length = 0;
@@ -89,7 +99,14 @@ describe('activate', () => {
       expect(registered.size).toBe(declared.length);
 
       expect(treeViews.map((v) => v.viewId).sort()).toEqual(
-        ['kohVibe.sessions', 'kohVibe.processes', 'kohVibe.settings', 'kohVibe.closed'].sort(),
+        [
+          'kohVibe.sessions',
+          'kohVibe.processes',
+          'kohVibe.settings',
+          'kohVibe.closed',
+          'kohVibe.routines',
+          'kohVibe.artifacts',
+        ].sort(),
       );
       expect(webviewViewProviders.map((p) => p.viewId)).toEqual(['kohVibe.usage']);
 
@@ -156,6 +173,54 @@ describe('activate', () => {
       if (home === undefined) throw new Error('KOH_VIBE_HOME was not set');
       expect(existsSync(legacy)).toBe(false);
       expect(existsSync(join(home, 'sessions', 'old.json'))).toBe(true);
+    },
+    10_000,
+  );
+});
+
+describe('artifacts filed in a Sessions folder, through the activated extension', () => {
+  const command = (id: string): ((...args: unknown[]) => unknown) => {
+    const found = registeredCommands.find((c) => c.command === id);
+    if (found === undefined) throw new Error(`${id} was not registered`);
+    return found.callback;
+  };
+  const groupsFile = (): string => join(process.env['KOH_VIBE_HOME'] ?? '', 'groups.json');
+  const withFolder = (): void => {
+    mkdirSync(process.env['KOH_VIBE_HOME'] ?? '', { recursive: true });
+    writeFileSync(groupsFile(), JSON.stringify({ version: 1, groups: [{ id: 'g1', name: 'VIDEO', order: 0 }] }));
+  };
+  const filed = (): unknown => (JSON.parse(readFileSync(groupsFile(), 'utf8')) as { artifacts?: unknown }).artifacts;
+
+  it(
+    'puts a page in the folder picked from the Artifacts view’s menu',
+    async () => {
+      withFolder();
+      await activate(fakeContext());
+      // The first entry of the list: the folder, before « New folder… ».
+      quickPick.choose = (items) => items[0];
+      const row = { kind: 'artifact', artifact: { slug: 'a1', title: 'Carnet', pinned: false } };
+      await command('kohVibe.fileArtifactInFolder')(row, [row]);
+      expect(filed()).toEqual({ a1: { group: 'g1', title: '' } });
+    },
+    10_000,
+  );
+
+  it(
+    'files a page dropped on a folder, in the shape the editor delivers a drop from another view',
+    async () => {
+      withFolder();
+      await activate(fakeContext());
+      const sessions = treeViews.find((v) => v.viewId === 'kohVibe.sessions');
+      // The view's own controller, as the editor would call it on the drop.
+      const controller = sessions?.dragAndDropController as SessionsTree | undefined;
+      const data = new StubTransfer();
+      const mime = 'application/vnd.code.tree.kohvibe.artifacts';
+      data.append(mime, new StubItem(JSON.stringify({ id: 'kohVibe.artifacts', itemHandles: ['1/artifact:a1'] })));
+      data.append(mime, new StubItem(JSON.stringify(['a1'])));
+      const folder: TreeNode = { kind: 'group', group: { id: 'g1', name: 'VIDEO', order: 0 }, sessions: [] };
+      expect(controller).toBeDefined();
+      await controller?.handleDrop(folder, data as unknown as vscode.DataTransfer);
+      expect(filed()).toEqual({ a1: { group: 'g1', title: '' } });
     },
     10_000,
   );

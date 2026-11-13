@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 // the button is simply not there — which is why it is asserted here.
 type Command = { command: string; icon?: string | { light: string; dark: string } };
 type MenuEntry = { command: string; when?: string; group?: string };
-type Manifest = { contributes: { commands: Command[]; menus: Record<string, MenuEntry[]> } };
+type View = { id: string; visibility?: string };
+type Manifest = {
+  contributes: { commands: Command[]; menus: Record<string, MenuEntry[]>; views: Record<string, View[]> };
+};
 
 const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as Manifest;
 const inline = (command: string): MenuEntry[] =>
@@ -15,6 +18,9 @@ const inline = (command: string): MenuEntry[] =>
 const context = (command: string): MenuEntry[] =>
   manifest.contributes.menus['view/item/context']!.filter((m) => m.command === command);
 const icon = (command: string): Command['icon'] => manifest.contributes.commands.find((c) => c.command === command)?.icon;
+const palette = (command: string): MenuEntry | undefined =>
+  manifest.contributes.menus['commandPalette']!.find((m) => m.command === command);
+const viewIds = (): string[] => manifest.contributes.views['koh-vibe']!.map((v) => v.id);
 
 describe('the manifest', () => {
   it('puts a + at the right of every folder row, temporary sessions included, with the same icon as the view title', () => {
@@ -69,5 +75,130 @@ describe('the manifest', () => {
   it('keeps the moon out of the palette, which has no row to put to sleep', () => {
     const palette = manifest.contributes.menus['commandPalette']!.find((m) => m.command === 'kohVibe.sleepSession');
     expect(palette?.when).toBe('false');
+  });
+
+  it('lays the views out in the order settled on in use: the sessions and what they cost, the cloud, then the rest', () => {
+    expect(viewIds()).toEqual([
+      'kohVibe.sessions',
+      'kohVibe.usage',
+      'kohVibe.artifacts',
+      'kohVibe.routines',
+      'kohVibe.processes',
+      'kohVibe.closed',
+      'kohVibe.settings',
+    ]);
+  });
+
+  it('folds Routines until someone opens it', () => {
+    const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.routines');
+    expect(view?.visibility).toBe('collapsed');
+  });
+
+  it('refreshes the routines from the title of their view, and from the palette', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.refreshRoutines');
+    expect(title?.when).toBe('view == kohVibe.routines');
+    expect(icon('kohVibe.refreshRoutines')).toBe('$(refresh)');
+    expect(palette('kohVibe.refreshRoutines')).toBeUndefined();
+  });
+
+  it('copies the link of any routine row, and keeps the row commands out of the palette', () => {
+    expect(context('kohVibe.copyRoutineLink').map((m) => m.when)).toEqual([
+      'view == kohVibe.routines && viewItem =~ /^routine/',
+    ]);
+    for (const command of ['kohVibe.openRoutine', 'kohVibe.copyRoutineLink']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
+
+  it('puts Run now and Pause on an active routine, Resume on a paused one, nothing on a spent one-shot', () => {
+    expect(inline('kohVibe.runRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.enabled']);
+    expect(inline('kohVibe.pauseRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.enabled']);
+    expect(inline('kohVibe.resumeRoutine').map((m) => m.when)).toEqual(['view == kohVibe.routines && viewItem == routine.paused']);
+    expect(icon('kohVibe.runRoutine')).toBe('$(play)');
+    expect(icon('kohVibe.pauseRoutine')).toBe('$(debug-pause)');
+    expect(icon('kohVibe.resumeRoutine')).toBe('$(debug-start)');
+  });
+
+  it('puts the run first, in the order the row reads', () => {
+    expect(inline('kohVibe.runRoutine')[0]?.group).toBe('inline@1');
+    expect(inline('kohVibe.pauseRoutine')[0]?.group).toBe('inline@2');
+    expect(inline('kohVibe.resumeRoutine')[0]?.group).toBe('inline@2');
+  });
+
+  it('keeps the three routine actions out of the palette, which has no row to act on', () => {
+    for (const command of ['kohVibe.runRoutine', 'kohVibe.pauseRoutine', 'kohVibe.resumeRoutine']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
+
+  it('folds Artifacts until someone opens it', () => {
+    const view = manifest.contributes.views['koh-vibe']!.find((v) => v.id === 'kohVibe.artifacts');
+    expect(view?.visibility).toBe('collapsed');
+  });
+
+  it('refreshes the artifacts from the title of their view, and copies the link of any row', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.refreshArtifacts');
+    expect(title?.when).toBe('view == kohVibe.artifacts');
+    expect(icon('kohVibe.refreshArtifacts')).toBe('$(refresh)');
+    expect(context('kohVibe.copyArtifactLink').map((m) => m.when)).toEqual([
+      'view == kohVibe.artifacts && viewItem =~ /^artifact/',
+      // An artifact filed in a Sessions folder copies its link the same way.
+      'view == kohVibe.sessions && viewItem == folderArtifact',
+    ]);
+    for (const command of ['kohVibe.openArtifact', 'kohVibe.copyArtifactLink']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
+
+  it('searches the Sessions view from the very first button of its title', () => {
+    const title = manifest.contributes.menus['view/title']!.find((m) => m.command === 'kohVibe.searchSessions');
+    expect(title).toMatchObject({ when: 'view == kohVibe.sessions', group: 'navigation@-1' });
+    expect(icon('kohVibe.searchSessions')).toBe('$(search)');
+  });
+
+  it('puts an artifact in a Sessions folder from its menu, and takes it out from the folder', () => {
+    expect(context('kohVibe.fileArtifactInFolder').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem =~ /^artifact/']);
+    expect(inline('kohVibe.unfileFolderArtifact').map((m) => m.when)).toEqual(['view == kohVibe.sessions && viewItem == folderArtifact']);
+    for (const command of ['kohVibe.fileArtifactInFolder', 'kohVibe.unfileFolderArtifact']) {
+      expect(palette(command)?.when).toBe('false');
+    }
+  });
+
+  it('offers Rename on every artifact row, from the right-click menu only', () => {
+    expect(context('kohVibe.renameArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem =~ /^artifact/']);
+    expect(inline('kohVibe.renameArtifact')).toEqual([]);
+    expect(palette('kohVibe.renameArtifact')?.when).toBe('false');
+  });
+
+  it('puts a pin at the right of an unpinned artifact, and an unpin on a pinned one', () => {
+    expect(inline('kohVibe.pinArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem == artifact.unpinned']);
+    expect(inline('kohVibe.unpinArtifact').map((m) => m.when)).toEqual(['view == kohVibe.artifacts && viewItem == artifact.pinned']);
+    expect(icon('kohVibe.pinArtifact')).toBe('$(pin)');
+    expect(icon('kohVibe.unpinArtifact')).toBe('$(pinned)');
+    for (const command of ['kohVibe.pinArtifact', 'kohVibe.unpinArtifact']) expect(palette(command)?.when).toBe('false');
+  });
+
+  it('files any artifact row into a project from its right-click menu, and never a folder', () => {
+    const [entry, ...rest] = context('kohVibe.fileArtifact');
+    expect(rest).toEqual([]);
+    expect(entry?.when).toBe('view == kohVibe.artifacts && viewItem =~ /^artifact/');
+    expect(entry?.group?.startsWith('inline')).toBe(false);
+    expect(palette('kohVibe.fileArtifact')?.when).toBe('false');
+  });
+
+  it('renames a named project from its folder row — not Other, which is no project', () => {
+    const [entry, ...rest] = context('kohVibe.renameArtifactProject');
+    expect(rest).toEqual([]);
+    expect(entry?.when).toBe('view == kohVibe.artifacts && viewItem == project.named');
+    expect(palette('kohVibe.renameArtifactProject')?.when).toBe('false');
+  });
+
+  it('offers the folder rules on every named folder, from the right-click menu only', () => {
+    for (const command of ['kohVibe.addFolderRule', 'kohVibe.openFolderRules']) {
+      const [entry, ...rest] = context(command);
+      expect(rest).toEqual([]);
+      expect(entry?.when).toBe('view == kohVibe.sessions && viewItem == group');
+      expect(palette(command)?.when).toBe('false');
+    }
   });
 });

@@ -23,6 +23,7 @@ const {
   wrappedStatusLine,
 } = require('../out/hooks/installer.js');
 const { kohVibeHome, spoolDirs } = require('../out/paths.js');
+const { installSkill, skillPaths, uninstallSkill } = require('../out/skill/install.js');
 
 const SETTINGS = join(homedir(), '.claude', 'settings.json');
 const HOME = kohVibeHome();
@@ -52,6 +53,10 @@ const bridgeTarget = join(HOME, 'bin', 'koh-vibe-bridge');
 // limits are readable locally.
 const statusSource = join(__dirname, '..', 'bin', 'koh-vibe-statusline');
 const statusTarget = join(HOME, 'bin', 'koh-vibe-statusline');
+// Third, same rule: the folder rules hook, which adds a folder's rules to the
+// context of the conversations filed in it (bin/koh-vibe-rules).
+const rulesSource = join(__dirname, '..', 'bin', 'koh-vibe-rules');
+const rulesTarget = join(HOME, 'bin', 'koh-vibe-rules');
 
 function fail(message) {
   console.error(message);
@@ -91,7 +96,7 @@ if (!uninstall && !existsSync(bridgeSource)) {
 }
 
 const style = creating ? { indent: 2, newline: true } : detectStyle(raw);
-const afterHooks = uninstall ? uninstallHooks(before) : installHooks(before, bridgeTarget);
+const afterHooks = uninstall ? uninstallHooks(before) : installHooks(before, bridgeTarget, rulesTarget);
 const after = uninstall ? uninstallStatusLine(afterHooks) : installStatusLine(afterHooks, statusTarget);
 
 // Safety net: a count cannot prove preservation (two trees where a foreign
@@ -147,6 +152,9 @@ if (!uninstall) {
   copyFileSync(statusSource, statusTarget);
   chmodSync(statusTarget, 0o755);
   console.log(`Pont statusline copié : ${statusSource} → ${statusTarget}`);
+  copyFileSync(rulesSource, rulesTarget);
+  chmodSync(rulesTarget, 0o755);
+  console.log(`Hook des règles de dossier copié : ${rulesSource} → ${rulesTarget}`);
 }
 
 // Atomic write: a concurrent reader sees the old file or the new one, never a
@@ -157,6 +165,32 @@ writeFileSync(tmp, style.newline ? `${serialized}\n` : serialized, 'utf8');
 renameSync(tmp, SETTINGS);
 
 console.log(`Entrées koh-vibe : ${countKohEntries(before)} → ${countKohEntries(after)}`);
+
+// The koh-vibe skill: what a conversation needs to know to act on the
+// dashboard (src/skill/install.ts). Installed with the hooks — the one
+// gesture of the user's that says yes to writing under ~/.claude — and kept
+// up to date by the extension from then on. After settings.json, and never
+// fatal: a skill that could not be copied must not undo hooks already set.
+const skill = skillPaths(join(__dirname, '..'), HOME);
+try {
+  if (uninstall) {
+    const outcome = uninstallSkill(skill);
+    if (outcome === 'removed') console.log(`Skill retiré : ${skill.target}`);
+    else if (outcome === 'edited') console.log(`Skill modifié à la main, laissé en place : ${skill.target}`);
+  } else {
+    const outcome = installSkill(skill);
+    if (outcome === 'edited') {
+      console.log(
+        `Skill non installé : ${skill.target} existe et n'est pas la copie de Koh-Vibe (modifiée à la main ?).\n` +
+          `  Supprimez ce dossier puis relancez l'installation pour poser la version livrée.`,
+      );
+    } else {
+      console.log(`Skill ${outcome === 'unchanged' ? 'déjà à jour' : 'installé'} : ${skill.target}`);
+    }
+  }
+} catch (err) {
+  console.error(`Skill : échec (${err.message}). Les hooks, eux, sont en place.`);
+}
 
 // Say what happened to the statusline: it is the only setting shared with
 // other tools, and the only one restored on uninstall.

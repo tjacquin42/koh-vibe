@@ -270,3 +270,39 @@ describe('migration from the old name', () => {
     expect(JSON.stringify(uninstallHooks(before))).toContain('/opt/autre-bridge');
   });
 });
+
+describe('the folder rules hook', () => {
+  const RULES = '/Users/dev/koh-vibe/bin/koh-vibe-rules';
+  type Entry = { matcher: string; hooks: Array<{ command: string }> };
+  const entriesOf = (s: unknown, event: string): Entry[] => (s as { hooks: Record<string, Entry[]> }).hooks[event] ?? [];
+
+  it('runs beside the bridge on UserPromptSubmit only, in the same entry', () => {
+    const out = installHooks(existing, BRIDGE, RULES);
+    const [entry] = entriesOf(out, 'UserPromptSubmit');
+    expect(entry?.hooks.map((h) => h.command)).toEqual([
+      `/bin/sh -c '[ -x "${BRIDGE}" ] && "${BRIDGE}" UserPromptSubmit; exit 0'`,
+      `/bin/sh -c '[ -x "${RULES}" ] && "${RULES}"; exit 0'`,
+    ]);
+    expect(entriesOf(out, 'Stop').flatMap((e) => e.hooks)).toHaveLength(1);
+    expect(countKohEntries(out)).toBe(9);
+  });
+
+  it('is ours: reinstalled without doubling, uninstalled, invisible to the fingerprint', () => {
+    const once = installHooks(existing, BRIDGE, RULES);
+    expect(installHooks(once, BRIDGE, RULES)).toEqual(once);
+    expect(foreignFingerprint(once)).toEqual(foreignFingerprint(existing));
+    expect(uninstallHooks(once)).toEqual(existing);
+    // An install without it takes it back out, rather than leaving it orphaned.
+    expect(countKohEntries(installHooks(once, BRIDGE))).toBe(8);
+  });
+
+  it('never takes a foreign command that merely mentions it for ours', () => {
+    const foreign = {
+      hooks: {
+        UserPromptSubmit: [{ matcher: '*', hooks: [{ type: 'command', command: `/bin/sh -c 'other && "${RULES}"; exit 0'` }] }],
+      },
+    };
+    expect(countKohEntries(foreign)).toBe(0);
+    expect(uninstallHooks(foreign)).toEqual(foreign);
+  });
+});

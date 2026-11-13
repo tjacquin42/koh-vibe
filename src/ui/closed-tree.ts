@@ -92,6 +92,11 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
     return (this.entries ?? []).filter((e) => !this.live.has(e.id));
   }
 
+  /** The entries on screen — what the search lists. */
+  shownEntries(): readonly ClosedEntry[] {
+    return this.visible();
+  }
+
   /**
    * What the view REALLY shows, in comparable form — not the raw state. The
    * label goes in as well as the description: once a re-archive attaches a

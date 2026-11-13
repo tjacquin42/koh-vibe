@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
+import { declineSkill, refreshSkill, replaceSkill, skillPaths } from './skill/install';
 import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, legacyHome, settingsFile, spoolDirs } from './paths';
 import { readLiveSessions } from './claude/registry';
 import { rescanLiveSessions } from './claude/rescan';
@@ -26,6 +27,7 @@ import { VanishWatch } from './store/vanish';
 import { readClosed, rememberClosed } from './closed/store';
 import { toClosedEntry, type ClosedEntry } from './closed/model';
 import { reopenClosedSession } from './closed/reopen';
+import { closedSource } from './closed/source';
 import { readSettings, seedSettings, writeSettings } from './settings/store';
 import { defaultSettings, settingsFromEditor, settingsPatch, type AppSettings } from './settings/model';
 import { migrateLegacyHome } from './store/migrate';
@@ -37,21 +39,25 @@ import { parseTabsMode, TABS_MODES, tabsTarget, type TabsMode } from './settings
 import { UsageView } from './ui/usage-view';
 import { OpenedHere } from './claude/opened-here';
 import { ClosedTree, closedIdOfNode } from './ui/closed-tree';
+import { registerCloudViews } from './ui/cloud-views';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
-import { ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
+import { dropEndedWithoutTranscript, ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
 import { SpoolWatcher } from './spool/watcher';
 import {
-  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileSessionCommand,
+  applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileArtifactsCommand, fileSessionCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
 } from './groups/commands';
 import { colorChoice, GROUP_COLORS, NO_COLOR_LABEL } from './ui/colors';
 import { readGroups } from './groups/store';
-import { CHIME_EVENTS, groupIdOf, soundFor } from './groups/model';
+import { addRulePrompt, ensureRulesFile } from './groups/rules';
+import { CHIME_EVENTS, isFiled, soundFor } from './groups/model';
+import { searchItems, type SearchItem } from './ui/search';
+import { artifactUrl } from './artifacts/model';
 import { installedCount, installLibrary, LIBRARY, librarySoundsDir, removeLibrary } from './sound/library';
-import type { TranscriptStats } from './transcript/reader';
+import { readTranscript, type TranscriptStats } from './transcript/reader';
 import { withTokens } from './transcript/tokens';
-import { SessionsTree, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
+import { SessionsTree, folderArtifactOfNode, groupIdOfNode, processOfNode, sessionIdOfNode } from './ui/tree';
 import { decorationColorOf } from './ui/decorations';
 import { StatusSummary } from './ui/statusbar';
 import { readBuildStamp, versionLabel } from './ui/version';
@@ -82,11 +88,47 @@ const RESCAN_LATE_MS = 20_000;
  */
 const RESCAN_AFTER_VANISH_MS = 5_000;
 
+/**
+ * Brings the installed skill to this version — silently, the usual case. Asks
+ * only when the copy there was edited by hand: replacing it keeps the edited
+ * one in the backups, keeping it is remembered until the next version.
+ */
+async function offerSkillUpdate(paths: ReturnType<typeof skillPaths>): Promise<void> {
+  let outcome;
+  try {
+    outcome = refreshSkill(paths);
+  } catch {
+    return;
+  }
+  if (outcome !== 'edited') return;
+  const replace = vscode.l10n.t('Replace it');
+  const keep = vscode.l10n.t('Keep mine');
+  const answer = await vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      'Koh-Vibe: a new version of the koh-vibe skill is available, but the copy in {0} was edited by hand. Replace it? Your copy is kept in the backups.',
+      paths.target,
+    ),
+    replace,
+    keep,
+  );
+  try {
+    if (answer === replace) replaceSkill(paths);
+    else if (answer === keep) declineSkill(paths);
+  } catch {
+    void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: the koh-vibe skill could not be updated.'));
+  }
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const home = kohVibeHome();
   // Before everything else: ensureDirs would create the new root and make the
   // recovery impossible — it only runs while that root does not exist yet.
   const migrated = await migrateLegacyHome(legacyHome(), home);
+  // The koh-vibe skill follows this version wherever it was installed
+  // (src/skill/install.ts). Never awaited by anything, never fatal: a skill
+  // left one version behind costs nothing, a dashboard that fails to start
+  // costs everything.
+  void offerSkillUpdate(skillPaths(context.extensionPath, home));
   const dirs = spoolDirs(home);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
@@ -201,11 +243,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * there as soon as its first hook names it: left unfiled, it would be a
    * temporary one. The id is only known through the spool, hence the wait.
    */
-  const newSession = async (groupId: string | undefined): Promise<void> => {
+  const newSession = async (groupId: string | undefined, prompt?: string): Promise<void> => {
     const before = new Set((await readSessions(dirs)).keys());
     const since = Date.now();
     try {
-      await vscode.commands.executeCommand('claude-vscode.editor.open');
+      // No session id — a new conversation — and the start of a prompt when
+      // one is given: Claude Code puts it in the input, unsent.
+      if (prompt === undefined) await vscode.commands.executeCommand('claude-vscode.editor.open');
+      else await vscode.commands.executeCommand('claude-vscode.editor.open', undefined, prompt);
     } catch {
       void vscode.window.showWarningMessage(
         vscode.l10n.t('Koh-Vibe: the Claude Code extension does not expose a command to open a conversation in this version.'),
@@ -251,6 +296,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const hasTranscript = async (s: Session): Promise<boolean> =>
     (s.transcriptPath !== undefined && existsSync(s.transcriptPath)) || (await findTranscript(claudeRoot, s.id)) !== undefined;
   /**
+   * Whether a folder holds the conversation, re-read from the shared file
+   * every time: another window may have filed it a moment ago. A filed
+   * conversation is never taken off the list but by the user's own gesture.
+   */
+  const filedNow = async (id: string): Promise<boolean> => isFiled(await readGroups(groupsPath), id);
+  /**
    * Brings back the conversations whose process runs but whose state file is
    * gone (see claude/rescan.ts), then takes stock of the dormant tabs. Never
    * fails: the registry and the editor's memory are conveniences over the
@@ -261,10 +312,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const live = await readLiveSessions(registryDir);
       const added = await rescanLiveSessions(dirs, live, Date.now(), claudeRoot, dismissed);
       // An ended row with nothing to resume — a conversation that never got a
-      // message — has no business on screen (see the watcher's `hasTranscript`).
-      for (const s of (await readSessions(dirs)).values()) {
-        if (s.endedAt !== undefined && !(await hasTranscript(s))) await removeSession(dirs, s.id);
-      }
+      // message — has no business on screen (see the watcher's `hasTranscript`),
+      // unless the user filed it.
+      await dropEndedWithoutTranscript(dirs, hasTranscript, filedNow);
       await refreshDormant(live);
       return added;
     } catch {
@@ -303,6 +353,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): Promise<void> {
     await applyDrop(groupsPath, sessionIds, groupId, order);
     await render();
+  }
+
+  /**
+   * Artifacts dropped on a folder of the Sessions view, or out of theirs
+   * (`groupId === undefined`). The titles come from the Artifacts view when it
+   * has read them; an unknown one keeps what the file already records.
+   */
+  async function onArtifactsDropped(slugs: readonly string[], groupId: string | undefined): Promise<void> {
+    await fileArtifacts(
+      slugs.map((slug) => ({ slug, title: cloud.artifactTitle(slug) ?? '' })),
+      groupId,
+    );
+  }
+
+  async function fileArtifacts(items: readonly { slug: string; title: string }[], groupId: string | undefined): Promise<void> {
+    await runGroupAction(
+      () => fileArtifactsCommand(groupsPath, items, groupId),
+      () => void vscode.window.showWarningMessage(vscode.l10n.t('Koh-Vibe: could not file the artifacts.')),
+    );
+    await render();
+  }
+
+  /**
+   * Asks which folder of the Sessions view the pages go in — a new one
+   * included, so the gesture works on a view with no folder yet.
+   */
+  async function fileInSessionsFolder(items: { slug: string; title: string }[]): Promise<void> {
+    const state = await readGroups(groupsPath);
+    const create = vscode.l10n.t('New folder…');
+    const picked = await vscode.window.showQuickPick(
+      [
+        ...state.groups.map((g) => ({ label: `$(symbol-folder) ${g.name}`, id: g.id })),
+        { label: `$(new-folder) ${create}`, id: undefined },
+      ],
+      { placeHolder: vscode.l10n.t('Put in which Sessions folder?') },
+    );
+    if (picked === undefined) return;
+    let groupId = picked.id;
+    if (groupId === undefined) {
+      const label = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Folder name') });
+      if (label === undefined) return;
+      const id = randomUUID();
+      let made = false;
+      await runGroupAction(
+        async () => {
+          await createGroupCommand(groupsPath, label, () => id);
+          made = true;
+        },
+        (message) => void vscode.window.showErrorMessage(message),
+      );
+      if (!made) return;
+      groupId = id;
+    }
+    await fileArtifacts(items, groupId);
   }
 
   async function onGroupsDropped(groupIds: readonly string[], beforeId: string | undefined): Promise<void> {
@@ -424,7 +528,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return { sound: chosen === NONE_LABEL ? NO_SOUND : chosen };
   }
 
-  const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath);
+  const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath, onArtifactsDropped);
   const footer = new FooterTree();
   const usageView = new UsageView(() => void vscode.commands.executeCommand('kohVibe.refreshUsage'));
   const status = new StatusSummary();
@@ -456,6 +560,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // conversations and the usage.
   const processesTree = new ProcessesTree();
   const processesView = vscode.window.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
+  // Routines and artifacts live on claude.ai: their views, feeds and commands
+  // are wired in their own module, which hands back the one call the render
+  // loop makes (ui/cloud-views.ts).
+  const cloud = registerCloudViews(context, home, () => render(), fileInSessionsFolder);
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -634,6 +742,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // only reads the freshest of the two.
         void refreshFromApi(home, false);
         usageView.setUsage(await readUsage(home));
+        // The cloud views read their shared caches — and ask claude.ai, at
+        // their own pace, only while they are open.
+        await cloud.render();
         sound = await readSettings(settingsPath);
         footer.setSound(sound);
         footer.setToggles({
@@ -689,10 +800,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Read over `map`, hidden rows included: the ones the old rule hid
         // still have a tab to close.
         if (sound.expireTemporary) {
-          const filed = (id: string): boolean => {
-            const g = groupIdOf(groups, id);
-            return g !== undefined && g.length > 0;
-          };
+          const filed = (id: string): boolean => isFiled(groups, id);
           const expiry = temporaryToExpire(map.values(), filed, (id) => tabToCloseOf(id) !== undefined, Date.now());
           for (const s of expiry.remove) {
             await removeSession(dirs, s.id);
@@ -742,6 +850,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         processesTree.setOrphans(lastOrphans);
         tree.setSessions(shown);
         tree.setGroups(groups);
+        // The live titles of the pages filed in folders, when the Artifacts
+        // view has read them — the recorded ones stand in otherwise.
+        tree.setArtifactTitles(
+          new Map(
+            Object.keys(groups.artifacts).flatMap((slug) => {
+              const title = cloud.artifactTitle(slug);
+              return title === undefined ? [] : [[slug, title] as const];
+            }),
+          ),
+        );
         // The status bar counts what runs: an ended or dormant row is a
         // conversation to come back to, not a session at work.
         status.update(openSessions(shown));
@@ -785,9 +903,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * and `branch` for anything but a worktree path, are never written to
    * `sessions/<id>.json` — `withTokens` (transcript/tokens.ts) only ever
    * attaches them to the in-memory Map that `render()` holds here, in
-   * `transcripts`. Without this lookup, every archived conversation would
-   * carry neither, and five closed conversations of the same project would all
-   * show the bare project name.
+   * `transcripts`. That Map is still empty when the drain archives the
+   * `SessionEnd`s of the reload that started this window, so `closedSource`
+   * reads the transcript itself, on from where the Map stopped.
    *
    * Shared by the drain (a natural `SessionEnd`) and, from the next task on, by
    * the trash: two divergent archiving paths would silently lose the title on
@@ -796,8 +914,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const archive = async (s: Session): Promise<void> => {
     // A conversation that never got a message has nothing to come back to.
     if (!(await hasTranscript(s))) return;
-    const stats = transcripts.get(s.id);
-    const source = { ...s, title: s.title ?? stats?.title, branch: s.branch ?? stats?.branch };
+    const source = await closedSource(s, transcripts.get(s.id), readTranscript);
     return rememberClosed(closedPath, toClosedEntry(source, Date.now())).then(() => undefined);
   };
 
@@ -898,6 +1015,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // are already unlinked, and this is the only place the agent behind a
       // command is ever visible (process/agents.ts).
       for (const call of result.toolCalls) agents.note(call);
+      // Same reason: a publish is only ever seen here, once.
+      if (result.published.length > 0) void cloud.filePublished(result.published).then(() => render());
       void render();
     },
     () => {
@@ -914,6 +1033,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // What `SessionEnd` does to the row, per the setting as last read.
     () => (sound.persistent ? 'keep' : 'remove'),
     hasTranscript,
+    filedNow,
   );
   watcher.start();
   broker.start();
@@ -1082,11 +1202,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const endedAt = s.endedAt;
         void hasTranscript(s).then((has) => {
           if (has) return bringBack(toClosedEntry(s, endedAt));
-          // Nothing to resume: the row should not even be here (rescan drops such rows).
+          // Nothing to resume: the row should not even be here (rescan drops such rows)
+          // — unless a folder holds it, and then it stays where it was put.
           void vscode.window.showInformationMessage(
             vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
           );
-          return remove(s.id);
+          return filedNow(s.id).then((filed) => (filed ? undefined : remove(s.id)));
         });
         return;
       }
@@ -1208,6 +1329,57 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // reject — into a displayed message, never into an unhandled stack trace.
     vscode.commands.registerCommand('kohVibe.newSession', () => newSession(undefined)),
     vscode.commands.registerCommand('kohVibe.newSessionInGroup', (node: unknown) => newSession(groupIdOfNode(node))),
+    // A folder's rules (groups/rules.ts): added by a conversation opened for
+    // it — filed in the folder, the skill named — or written by hand.
+    vscode.commands.registerCommand('kohVibe.addFolderRule', async (node: unknown) => {
+      const id = groupIdOfNode(node);
+      const group = id === undefined ? undefined : (await readGroups(groupsPath)).groups.find((g) => g.id === id);
+      if (group !== undefined) await newSession(group.id, addRulePrompt(group.name, group.id));
+    }),
+    vscode.commands.registerCommand('kohVibe.openFolderRules', async (node: unknown) => {
+      const id = groupIdOfNode(node);
+      const group = id === undefined ? undefined : (await readGroups(groupsPath)).groups.find((g) => g.id === id);
+      if (group === undefined) return;
+      try {
+        const path = await ensureRulesFile(home, group.id, group.name);
+        await vscode.window.showTextDocument(vscode.Uri.file(path));
+      } catch {
+        void vscode.window.showErrorMessage(vscode.l10n.t('Koh-Vibe: could not open the rules of « {0} ».', group.name));
+      }
+    }),
+    // A search over everything the Sessions view lists, its folders' artifacts,
+    // and the recently closed conversations. A tree view has no text field of
+    // its own: the quick pick is the search box VSCode offers.
+    vscode.commands.registerCommand('kohVibe.searchSessions', async () => {
+      const items = searchItems({
+        sessions: tree.listedSessions(),
+        folderOf: (id) => tree.folderOf(id),
+        artifacts: tree.filedArtifacts(),
+        closed: closedTree.shownEntries(),
+      });
+      const picked = await vscode.window.showQuickPick<SearchItem>(items, {
+        placeHolder: vscode.l10n.t('Search a conversation, a folder, a project…'),
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+      const target = picked?.target;
+      if (target === undefined) return;
+      if (target.kind === 'closed') {
+        await bringBack(target.entry);
+        return;
+      }
+      const node = target.kind === 'session' ? tree.nodeFor(target.session.id) : tree.artifactNodeFor(target.slug);
+      // The row is shown and selected first, so the eye lands where the
+      // result lives — then it opens, as a click on it would.
+      if (node !== undefined) await view.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => undefined);
+      if (target.kind === 'session') await vscode.commands.executeCommand('kohVibe.focusSession', target.session);
+      else void vscode.env.openExternal(vscode.Uri.parse(artifactUrl(target.slug)));
+    }),
+    vscode.commands.registerCommand('kohVibe.unfileFolderArtifact', async (node: unknown) => {
+      const filed = folderArtifactOfNode(node);
+      if (filed === undefined) return;
+      await fileArtifacts([{ slug: filed.slug, title: '' }], undefined);
+    }),
     vscode.commands.registerCommand('kohVibe.newGroup', async () => {
       const label = await vscode.window.showInputBox({
         prompt: vscode.l10n.t('Folder name'),

@@ -25,6 +25,7 @@ const groups = (state: Partial<GroupsState>): GroupsState => ({
   assignments: {},
   sessionOrder: {},
   sessionSounds: { waiting: {}, done: {} },
+  artifacts: {},
   unknown: {},
   ...state,
 });

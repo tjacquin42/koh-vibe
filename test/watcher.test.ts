@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { spoolDirs, type SpoolDirs } from '../src/paths';
 import { ensureDirs, readSessions, writeSession } from '../src/spool/persist';
 import { appendLocalEvent, drain, MAX_EVENT_AGE_MS, SpoolWatcher } from '../src/spool/watcher';
+import { MAX_ENDED } from '../src/store/open';
 import type { Session } from '../src/events/types';
 
 // `node:fs/promises` is a native module: its exports cannot be redefined via
@@ -332,7 +333,7 @@ describe('drain — permanent failure (N3)', () => {
 
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => createdAt + MAX_EVENT_AGE_MS + 1, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     await internal.tick();
@@ -569,6 +570,19 @@ describe('drain — the tool calls it hands to the process view', () => {
   });
 });
 
+describe('drain — the artifacts it hands to the filing by project', () => {
+  it('collects the artifacts published by the calls it applied, with the directory each ran in', async () => {
+    const published = { artifact_id: '5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70', title: 'Plans', updated: false };
+    await dropEvent('1-1-PostToolUse.json', hook('PostToolUse', 1, { tool_name: 'Artifact', tool_response: published }));
+    // A refusal publishes nothing, and an artifact is not a process.
+    await dropEvent('2-1-PostToolUse.json', hook('PostToolUse', 2, { tool_name: 'Artifact', tool_response: 'Error: refused' }));
+    const res = await drain(dirs, NOW);
+    expect(res.applied).toBe(2);
+    expect(res.published).toEqual([{ slug: '5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70', cwd: '/Users/dev/projet' }]);
+    expect(res.toolCalls).toEqual([]);
+  });
+});
+
 describe('SpoolWatcher', () => {
   it('start() tolerates a missing events folder, without throwing, and still arms the periodic safety net', () => {
     // Verified only structurally, never through the actual firing of start()'s
@@ -581,7 +595,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as { watcher?: unknown; timer?: NodeJS.Timeout };
 
     expect(() => watcher.start()).not.toThrow();
@@ -595,7 +609,7 @@ describe('SpoolWatcher', () => {
     const missingDirs = spoolDirs(join(home, 'pas-encore-cree'));
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(missingDirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as { tick: () => Promise<void> };
 
     // The events folder does not exist yet when this SpoolWatcher is
@@ -622,7 +636,7 @@ describe('SpoolWatcher', () => {
   it('stop() closes the FSWatcher and clears the safety-net timer; the trigger is driven by tick(), never by fs.watch or a delay', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as {
       watcher?: { close: () => void };
       timer?: NodeJS.Timeout;
@@ -661,7 +675,7 @@ describe('SpoolWatcher', () => {
   it('the non-reentrancy guard loses no file: an event dropped during a drain ends up consumed', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     // Simulates a drain already in progress.
@@ -687,7 +701,7 @@ describe('SpoolWatcher', () => {
       throw new Error('bug dans onChange');
     });
     const onError = vi.fn();
-    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true);
+    const watcher = new SpoolWatcher(dirs, onChange, onError, () => NOW, async () => undefined, () => 'keep', async () => true, async () => false);
     const internal = watcher as unknown as { guard: { running: boolean }; tick: () => Promise<void> };
 
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
@@ -777,7 +791,7 @@ describe("drain — the end policy (the 'persistent sessions' setting)", () => {
 
   it('the watcher hands the policy to every pass, as read at that moment', async () => {
     let policy: 'keep' | 'remove' = 'remove';
-    const watcher = new SpoolWatcher(dirs, () => undefined, () => undefined, () => NOW, async () => undefined, () => policy, async () => true);
+    const watcher = new SpoolWatcher(dirs, () => undefined, () => undefined, () => NOW, async () => undefined, () => policy, async () => true, async () => false);
     const internal = watcher as unknown as { tick: () => Promise<void> };
     await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
     await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
@@ -789,6 +803,51 @@ describe("drain — the end policy (the 'persistent sessions' setting)", () => {
     await dropEvent('4-1-SessionEnd.json', hook('SessionEnd', 4));
     await internal.tick();
     expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(4);
+  });
+});
+
+describe('drain — a filed conversation never leaves its folder', () => {
+  const filedS1 = async (id: string): Promise<boolean> => id === 's1';
+
+  it("'remove' leaves it in the list, ended, like 'keep' does", async () => {
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await drain(dirs, NOW);
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await drain(dirs, NOW, undefined, undefined, 'remove', async () => true, filedS1);
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(2);
+  });
+
+  it('still drops one that never got a message: there never was a conversation to keep', async () => {
+    for (const policy of ['keep', 'remove'] as const) {
+      await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+      await drain(dirs, NOW);
+      const seen: string[] = [];
+      await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+      await drain(dirs, NOW, undefined, async (s) => void seen.push(s.id), policy, async () => false, filedS1);
+      expect(seen, policy).toEqual([]);
+      expect((await readSessions(dirs)).has('s1'), policy).toBe(false);
+    }
+  });
+
+  it('spares it when the pass caps the ended conversations', async () => {
+    await writeSession(dirs, { ...session('filed-old', 0), endedAt: 0 });
+    for (let i = 1; i <= MAX_ENDED; i += 1) await writeSession(dirs, { ...session(`e${i}`, i), endedAt: i });
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 100));
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 101));
+    await drain(dirs, NOW, undefined, undefined, 'keep', async () => true, async (id) => id === 'filed-old');
+    const left = await readSessions(dirs);
+    expect(left.has('filed-old')).toBe(true);
+    expect(left.has('e1')).toBe(false);
+    expect(left.get('s1')?.endedAt).toBe(101);
+  });
+
+  it('the watcher asks which conversations are filed at every pass', async () => {
+    const watcher = new SpoolWatcher(dirs, () => undefined, () => undefined, () => NOW, async () => undefined, () => 'remove', async () => true, filedS1);
+    const internal = watcher as unknown as { tick: () => Promise<void> };
+    await dropEvent('1-1-SessionStart.json', hook('SessionStart', 1));
+    await dropEvent('2-1-SessionEnd.json', hook('SessionEnd', 2));
+    await internal.tick();
+    expect((await readSessions(dirs)).get('s1')?.endedAt).toBe(2);
   });
 });
 

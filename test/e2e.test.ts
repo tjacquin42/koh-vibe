@@ -88,7 +88,7 @@ afterEach(() => {
 });
 
 describe('end to end: install → bridge → reduce → uninstall', () => {
-  it('installs a stable, executable copy of the bridge, referenced by the 8 hooks', () => {
+  it('installs stable, executable copies of the bridge and the rules hook, referenced by the 9 hooks', () => {
     runInstaller();
 
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
@@ -99,12 +99,18 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
     const after = JSON.parse(readFileSync(settingsPath, 'utf8')) as typeof bidonSettings & {
       hooks: Record<string, Array<{ matcher: string; hooks: Array<{ command: string }> }>>;
     };
-    expect(countKohEntries(after)).toBe(8);
+    // One bridge per event, plus the folder rules on UserPromptSubmit.
+    expect(countKohEntries(after)).toBe(9);
 
     for (const event of HOOK_EVENTS) {
       const commands = after.hooks[event]?.flatMap((m) => m.hooks.map((h) => h.command)) ?? [];
       expect(commands).toContain(`/bin/sh -c '[ -x "${bridgeTarget}" ] && "${bridgeTarget}" ${event}; exit 0'`);
     }
+    const rulesTarget = join(kohHome, 'bin', 'koh-vibe-rules');
+    expect(statSync(rulesTarget).mode & 0o111).not.toBe(0);
+    expect(after.hooks.UserPromptSubmit?.flatMap((m) => m.hooks.map((h) => h.command))).toContain(
+      `/bin/sh -c '[ -x "${rulesTarget}" ] && "${rulesTarget}"; exit 0'`,
+    );
 
     // The pre-existing foreign entry has not moved.
     expect(after.hooks.PermissionRequest.flatMap((m) => m.hooks.map((h) => h.command))).toContain(
@@ -127,7 +133,7 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
     expect(stat.isFile()).toBe(true);
     expect(stat.mode & 0o111).not.toBe(0);
     expect(stat.mtimeMs).toBeGreaterThanOrEqual(firstRun);
-    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
+    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(9);
   });
 
   it('fills the spool through the real bridge, then reduces a consistent status, project and current action', async () => {
@@ -163,7 +169,7 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
 
   it('uninstalls and returns the dummy configuration strictly identical to its starting state', () => {
     runInstaller();
-    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(8);
+    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(9);
 
     runInstaller('--uninstall');
 

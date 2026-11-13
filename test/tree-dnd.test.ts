@@ -13,6 +13,8 @@ const MIME = 'application/vnd.code.tree.kohvibe.sessions';
 // The folders' own type, for the same reason: the exact value is part of the
 // view's public contract, so it is written out here rather than imported.
 const GROUP_MIME = 'application/vnd.code.tree.kohvibe.groups';
+// The Artifacts view's type: pages dropped from it are filed in a folder.
+const ARTIFACTS_MIME = 'application/vnd.code.tree.kohvibe.artifacts';
 
 // The extension root, from which the view draws its status dots. A fake path
 // is enough here: what is checked is the SHAPE of the iconPath, not the
@@ -146,6 +148,7 @@ describe('SessionsTree — handleDrop (the decision, not the VSCode mechanics)',
       assignments: { s1: 'g1', s2: 'g1', s3: 'g1' },
       sessionOrder: { g1: ['s1', 's2', 's3'] },
       sessionSounds: { waiting: {}, done: {} },
+      artifacts: {},
       unknown: {},
     });
 
@@ -166,6 +169,7 @@ describe('SessionsTree — handleDrop (the decision, not the VSCode mechanics)',
       assignments: { s1: 'g1', s2: 'g1' },
       sessionOrder: { g1: ['s1', 's2'] },
       sessionSounds: { waiting: {}, done: {} },
+      artifacts: {},
       unknown: {},
     });
 
@@ -229,11 +233,11 @@ describe('SessionsTree — handleDrag (what goes into the transfer)', () => {
 });
 
 describe('SessionsTree — advertised MIME types', () => {
-  it("advertises only its own MIME type, both dragging and dropping", () => {
+  it("advertises its own MIME types and the Artifacts view's, both dragging and dropping", () => {
     const tree = new SessionsTree(() => Promise.resolve(true), noopOnDrop, noopOnGroupsDropped, EXT);
 
-    expect(tree.dropMimeTypes).toEqual([MIME, GROUP_MIME]);
-    expect(tree.dragMimeTypes).toEqual([MIME, GROUP_MIME]);
+    expect(tree.dropMimeTypes).toEqual([MIME, GROUP_MIME, ARTIFACTS_MIME]);
+    expect(tree.dragMimeTypes).toEqual([MIME, GROUP_MIME, ARTIFACTS_MIME]);
   });
 });
 

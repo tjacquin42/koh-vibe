@@ -254,6 +254,16 @@ export const registeredCommands: StubCommand[] = [];
 
 export const ProgressLocation = { SourceControl: 1, Window: 10, Notification: 15 };
 
+/**
+ * What a quick pick answers. Escape (`undefined`) by default, so a test that
+ * does not care never picks anything by accident; a test that does sets
+ * `choose`, and puts it back afterwards.
+ */
+export const quickPick: { choose: (items: readonly unknown[]) => unknown } = { choose: () => undefined };
+
+/** What an output channel was told, line by line, by channel name. */
+export const outputLines = new Map<string, string[]>();
+
 export const window = {
   createStatusBarItem: (_alignment?: StatusBarAlignment, _priority?: number): StubStatusBarItem => {
     const item: StubStatusBarItem = {
@@ -274,6 +284,18 @@ export const window = {
   showErrorMessage: async (..._args: unknown[]): Promise<string | undefined> => undefined,
   setStatusBarMessage: (..._args: unknown[]): { dispose: () => void } => ({ dispose: () => undefined }),
   showInputBox: async (..._args: unknown[]): Promise<string | undefined> => undefined,
+  showQuickPick: async (items: readonly unknown[] | Promise<readonly unknown[]>, _options?: unknown): Promise<unknown> =>
+    quickPick.choose(await items),
+  createOutputChannel: (name: string) => ({
+    name,
+    appendLine: (line: string): void => {
+      outputLines.set(name, [...(outputLines.get(name) ?? []), line]);
+    },
+    append: (): void => undefined,
+    show: (): void => undefined,
+    clear: (): void => undefined,
+    dispose: (): void => undefined,
+  }),
   createTreeView: <T>(viewId: string, options: { treeDataProvider?: unknown; dragAndDropController?: unknown }): StubTreeView<T> => {
     const view = new StubTreeView<T>(viewId, options.treeDataProvider, options.dragAndDropController);
     treeViews.push(view as StubTreeView<unknown>);
@@ -334,22 +356,55 @@ export const commands = {
   },
 };
 
-// Covers exactly what SessionsTree.handleDrag/handleDrop need: setting a
-// value under a MIME type, reading it back under that same type. `value` is
-// typed `unknown` (the real API declares it `any`) so that the code reading
-// it is forced to validate it before use, never to cast it.
+// `value` is typed `unknown` (the real API declares it `any`) so that the code
+// reading it is forced to validate it before use, never to cast it.
 export class DataTransferItem {
   constructor(public readonly value: unknown) {}
+
+  // The real API's: a string as is, anything else as JSON.
+  async asString(): Promise<string> {
+    return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+  }
 }
 
+export enum QuickPickItemKind {
+  Separator = -1,
+  Default = 0,
+}
+
+/**
+ * The extension host's own DataTransfer, rule for rule: SEVERAL items may
+ * share one MIME type, `get` returns only the FIRST of them, `set` replaces
+ * them all, and iterating yields every one.
+ *
+ * The several-items case is not hypothetical. A drop coming from ANOTHER view
+ * reaches `handleDrop` with two items under the dragged view's type — first
+ * the editor's own description of the drag, then what that view's
+ * `handleDrag` set — and only a drop within one view gets its value put back
+ * in place. A stub that held one item per type hid exactly that.
+ */
 export class DataTransfer {
-  private readonly items = new Map<string, DataTransferItem>();
+  private readonly items = new Map<string, DataTransferItem[]>();
 
   get(mimeType: string): DataTransferItem | undefined {
-    return this.items.get(mimeType);
+    return this.items.get(mimeType.toLowerCase())?.[0];
   }
 
   set(mimeType: string, item: DataTransferItem): void {
-    this.items.set(mimeType, item);
+    this.items.set(mimeType.toLowerCase(), [item]);
+  }
+
+  /** Test-only: what the editor does when it builds a drop's transfer. */
+  append(mimeType: string, item: DataTransferItem): void {
+    const key = mimeType.toLowerCase();
+    this.items.set(key, [...(this.items.get(key) ?? []), item]);
+  }
+
+  forEach(callback: (item: DataTransferItem, mimeType: string, transfer: DataTransfer) => void): void {
+    for (const [mimeType, items] of this.items) for (const item of items) callback(item, mimeType, this);
+  }
+
+  *[Symbol.iterator](): IterableIterator<[string, DataTransferItem]> {
+    for (const [mimeType, items] of this.items) for (const item of items) yield [mimeType, item];
   }
 }
