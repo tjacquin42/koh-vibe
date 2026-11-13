@@ -572,13 +572,13 @@ describe('drain — the tool calls it hands to the process view', () => {
 
 describe('drain — the artifacts it hands to the filing by project', () => {
   it('collects the artifacts published by the calls it applied, with the directory each ran in', async () => {
-    const published = { artifact_id: '332a4531-0d6b-435e-a7bb-d7a886f07715', title: 'Plans', updated: false };
+    const published = { artifact_id: '5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70', title: 'Plans', updated: false };
     await dropEvent('1-1-PostToolUse.json', hook('PostToolUse', 1, { tool_name: 'Artifact', tool_response: published }));
     // A refusal publishes nothing, and an artifact is not a process.
     await dropEvent('2-1-PostToolUse.json', hook('PostToolUse', 2, { tool_name: 'Artifact', tool_response: 'Error: refused' }));
     const res = await drain(dirs, NOW);
     expect(res.applied).toBe(2);
-    expect(res.published).toEqual([{ slug: '332a4531-0d6b-435e-a7bb-d7a886f07715', cwd: '/Users/dev/projet' }]);
+    expect(res.published).toEqual([{ slug: '5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70', cwd: '/Users/dev/projet' }]);
     expect(res.toolCalls).toEqual([]);
   });
 });

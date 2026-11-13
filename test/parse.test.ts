@@ -34,10 +34,10 @@ describe('parseSpoolFile', () => {
     // The tool's structured result as Claude Code hands it to PostToolUse:
     // `artifact_id` is the slug the artifacts listing uses (the URL carries a
     // short id the listing does not).
-    const result = '{"url":"https://claude.ai/artifact/7KT3aWqsrmFuKH7YT1MHCx","artifact_id":"332a4531-0d6b-435e-a7bb-d7a886f07715","title":"Plans","updated":false}';
+    const result = '{"url":"https://claude.ai/artifact/Xy7Qa2Lm9PbR4sTv8WdN3k","artifact_id":"5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70","title":"Plans","updated":false}';
     const call = (event: string, tool: string, response: string): ReturnType<typeof parseSpoolFile> =>
       parseSpoolFile(`{"event":"${event}","at":1,"payload":{"session_id":"s","cwd":"/x","tool_name":"${tool}","tool_response":${response}}}`);
-    expect(call('PostToolUse', 'Artifact', result)?.artifactId).toBe('332a4531-0d6b-435e-a7bb-d7a886f07715');
+    expect(call('PostToolUse', 'Artifact', result)?.artifactId).toBe('5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70');
     // Not before the call has run, not from another tool, not from a refusal.
     expect(call('PreToolUse', 'Artifact', result)?.artifactId).toBeUndefined();
     expect(call('PostToolUse', 'Write', result)?.artifactId).toBeUndefined();
@@ -46,8 +46,8 @@ describe('parseSpoolFile', () => {
     // nothing of where it was made.
     const withInput = (input: string): ReturnType<typeof parseSpoolFile> =>
       parseSpoolFile(`{"event":"PostToolUse","at":1,"payload":{"session_id":"s","cwd":"/x","tool_name":"Artifact","tool_input":${input},"tool_response":${result}}}`);
-    expect(withInput('{"action":"publish","file_path":"/x/p.html"}')?.artifactId).toBe('332a4531-0d6b-435e-a7bb-d7a886f07715');
-    expect(withInput('{"type_url":"https://claude.ai/artifact/T","title":"Deck"}')?.artifactId).toBe('332a4531-0d6b-435e-a7bb-d7a886f07715');
+    expect(withInput('{"action":"publish","file_path":"/x/p.html"}')?.artifactId).toBe('5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70');
+    expect(withInput('{"type_url":"https://claude.ai/artifact/T","title":"Deck"}')?.artifactId).toBe('5f0c2b9e-7d41-4a8e-9c3b-1e6a0d2f4b70');
     for (const input of ['{"action":"read","url":"u"}', '{"action":"pin","url":"u"}', '{"url":"u","file_path":"/x/i.png","asset":true}']) {
       expect(withInput(input)?.artifactId).toBeUndefined();
     }
