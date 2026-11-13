@@ -22,26 +22,34 @@ const s: Session = {
 };
 
 describe('labels', () => {
-  it('nomme les cinq statuts', () => {
+  it('names the five statuses', () => {
     expect(statusLabel('running')).toBe('running');
     expect(statusLabel('waiting')).toBe('waiting for you');
     expect(statusLabel('done_unseen')).toBe('done');
     expect(statusLabel('idle')).toBe('idle');
   });
 
-  it('formate les durées court', () => {
+  it('formats short durations', () => {
     expect(formatAge(5_000)).toBe('5 s');
     expect(formatAge(90_000)).toBe('1 min');
     expect(formatAge(3 * 3_600_000)).toBe('3 h');
   });
 
-  it('formate les tokens', () => {
+  it('counts in days past the first one, as the usage view already does', () => {
+    // The closed history is capped by count, not by age: an entry ten days
+    // old is ordinary, and "closed 240 h" is not how anyone says it.
+    expect(formatAge(47 * 3_600_000)).toBe('1 d');
+    expect(formatAge(10 * 86_400_000)).toBe('10 d');
+    expect(formatAgeCoarse(2 * 86_400_000)).toBe('2 d');
+  });
+
+  it('formats tokens', () => {
     expect(formatTokens(950)).toBe('950');
     expect(formatTokens(128_000)).toBe('128k');
     expect(formatTokens(1_500_000)).toBe('1.5M');
   });
 
-  it('ne produit jamais « 1000k » aux frontières', () => {
+  it('never produces « 1000k » at the boundaries', () => {
     expect(formatTokens(999)).toBe('999');
     expect(formatTokens(1_000)).toBe('1k');
     expect(formatTokens(999_499)).toBe('999k');
@@ -49,67 +57,67 @@ describe('labels', () => {
     expect(formatTokens(1_000_000)).toBe('1.0M');
   });
 
-  it('étiquette la session avec projet et branche en l absence de titre', () => {
+  it('labels the session with project and branch in the absence of a title', () => {
     expect(sessionLabel(s)).toBe('projet · feat-seo');
     expect(sessionLabel({ ...s, branch: undefined })).toBe('projet');
   });
 
-  it('affiche le titre de la conversation quand il existe', () => {
+  it('shows the conversation title when it exists', () => {
     expect(sessionLabel({ ...s, title: '#Koh-Vibe' })).toBe('#Koh-Vibe');
   });
 
-  it('retombe sur projet · branche sans titre', () => {
+  it('falls back to project · branch without a title', () => {
     expect(sessionLabel({ ...s, title: undefined })).toBe('projet · feat-seo');
   });
 
-  it('le projet reste lisible dans la description quand un titre occupe le libellé', () => {
+  it('keeps the project readable in the description when a title occupies the label', () => {
     const d = sessionDescription({ ...s, title: '#Koh-Vibe', currentAction: undefined }, s.lastEventAt);
     expect(d).toContain('projet');
   });
 
-  it('décrit l action en cours par le nom de fichier seul', () => {
+  it('describes the current action by the file name alone', () => {
     expect(sessionDescription(s, 0)).toBe('Edit nuxt.config.ts');
   });
 
-  it('décrit la permission attendue en priorité', () => {
+  it('describes the expected permission first', () => {
     const waiting: Session = {
       ...s, status: 'waiting', pendingPermission: { tool: 'Bash', summary: 'rm -rf dist' },
     };
     expect(sessionDescription(waiting, 0)).toBe('permission: rm -rf dist');
   });
 
-  it('retombe sur l âge seul quand rien ne se passe — la pastille dit le statut', () => {
+  it('falls back to the age alone when nothing is happening — the badge says the status', () => {
     expect(sessionDescription({ ...s, status: 'idle', currentAction: undefined }, 60_000)).toBe('1 min');
   });
 
-  it('n écrit jamais le statut en toutes lettres dans la description', () => {
-    // Le mot ferait doublon avec la pastille ; il reste dans l infobulle.
+  it('never spells out the status in full in the description', () => {
+    // The word would duplicate the badge; it stays in the tooltip.
     for (const status of ['running', 'waiting', 'done_unseen', 'idle'] as const) {
       const d = sessionDescription({ ...s, status, currentAction: undefined }, 0);
       expect(d).not.toContain(statusLabel(status));
     }
   });
 
-  it('garde le statut en toutes lettres dans l infobulle', () => {
+  it('keeps the status spelled out in full in the tooltip', () => {
     expect(sessionTooltip({ ...s, status: 'waiting' }, 0)).toContain(statusLabel('waiting'));
   });
 });
 
 describe('formatAgeCoarse', () => {
-  it('reste stable pendant toute la première minute', () => {
-    // C est cette stabilité qui permet à la vue de ne PAS se reconstruire toutes
-    // les deux secondes, et donc à une infobulle de rester ouverte.
+  it('stays stable through the whole first minute', () => {
+    // It is this stability that lets the view NOT rebuild every two
+    // seconds, and therefore lets a tooltip stay open.
     for (const ms of [0, 1_000, 30_000, 59_999]) {
       expect(formatAgeCoarse(ms)).toBe('just now');
     }
   });
 
-  it('rejoint la précision à la minute au-delà', () => {
+  it('joins minute-level precision beyond that', () => {
     expect(formatAgeCoarse(60_000)).toBe('1 min');
     expect(formatAgeCoarse(3_600_000)).toBe('1 h');
   });
 
-  it('laisse l infobulle garder la précision à la seconde', () => {
+  it('lets the tooltip keep second-level precision', () => {
     expect(formatAge(30_000)).toBe('30 s');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { showBusy } from '../src/ui/busy';
+import { MIN_BUSY_MS, showBusy } from '../src/ui/busy';
 
 /**
  * Records what the indicator does around a task: the flag it raises and
@@ -65,7 +65,7 @@ describe('showBusy — minimum duration', () => {
     const waited: number[] = [];
     const p = showBusy(async () => 'fast', {
       ...deps,
-      minMs: 600,
+      minMs: MIN_BUSY_MS,
       // Frozen: with the real clock, a single millisecond passing between the
       // start and the finally makes the floor 599 and the test fail on a
       // loaded runner. The instant task is the point, not the wall clock.

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Pose le prochain numéro de version dans package.json.
+# Sets the next version number in package.json.
 #   scripts/set-version.sh <major|minor|patch>
 #
-# À lancer sur la branche de promotion, AVANT d'ouvrir la PR vers main — c'est
-# la seule fenêtre où le numéro peut encore atteindre le dépôt. `main` est
-# protégée et le jeton d'Actions n'a pas de dérogation : la livraison ne peut
-# rien y pousser, l'entrée de CHANGELOG en fait déjà les frais. Un bump posé
-# après le merge n'arriverait donc jamais dans le fichier.
+# Run this on the promotion branch, BEFORE opening the PR to main — that is
+# the only window in which the number can still reach the repository. `main`
+# is protected and the Actions token has no bypass: the delivery cannot push
+# anything there, the CHANGELOG entry already pays that price. A bump set
+# after the merge would therefore never make it into the file.
 #
-# Le numéro se déduit de package.json lui-même, jamais des tags : c'est
-# `package.json` qui fait foi (CLAUDE.md), et lui seul suit la branche courante.
+# The number is derived from package.json itself, never from tags: it is
+# `package.json` that is the source of truth (CLAUDE.md), and it alone
+# follows the current branch.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,8 +23,8 @@ case "$LEVEL" in
 esac
 
 CURRENT=$(node -p "require('$MANIFEST').version")
-# Un numéro qu'on ne sait pas lire n'est pas incrémenté au jugé : le suivant
-# serait faux, et un numéro faux est pire qu'un numéro absent.
+# A number we cannot read is not incremented by guesswork: the next one would
+# be wrong, and a wrong number is worse than a missing one.
 [[ "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
   || { echo "Version « $CURRENT » illisible dans package.json — attendu X.Y.Z." >&2; exit 1; }
 
@@ -35,9 +36,9 @@ case "$LEVEL" in
 esac
 NEXT="$MA.$MI.$PA"
 
-# Substitution TEXTUELLE, jamais JSON.parse + stringify : le manifeste tient ses
-# tableaux de menus sur une ligne chacun, et un reformatage complet noierait le
-# bump dans un diff de deux cents lignes.
+# TEXTUAL substitution, never JSON.parse + stringify: the manifest keeps its
+# menu arrays each on a single line, and a full reformat would drown the bump
+# in a two-hundred-line diff.
 node - "$MANIFEST" "$NEXT" <<'NODE'
 const { readFileSync, writeFileSync } = require('node:fs');
 const [file, next] = process.argv.slice(2);

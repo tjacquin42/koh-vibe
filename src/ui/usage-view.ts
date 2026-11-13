@@ -3,21 +3,22 @@ import type { UsageReading, UsageSource } from '../usage/reader';
 import type { Usage, UsageWindow } from '../usage/model';
 
 /**
- * La consommation, en vue web plutôt qu'en arbre.
+ * Usage, as a webview rather than a tree.
  *
- * Une ligne d'arbre ne se colore que d'un bloc : VSCode n'offre ni segment ni
- * style dans un libellé. Or ce qu'on veut dire tient précisément dans le
- * contraste — le nom de la fenêtre en clair, le pourcentage coloré selon ce
- * qu'il vaut, l'échéance en retrait. Une vue web est le seul endroit où cette
- * distinction existe.
+ * A tree row can only be colored as one block: VSCode offers neither
+ * segments nor styling within a label. But what we want to say lies
+ * precisely in the contrast — the window's name in plain text, the
+ * percentage colored by what it's worth, the deadline set back a step. A
+ * webview is the only place where this distinction exists.
  *
- * Toutes les couleurs sortent des variables de thème de l'éditeur, jamais d'un
- * code en dur : la vue doit suivre le thème clair comme le sombre.
+ * Every color comes from the editor's theme variables, never from a
+ * hardcoded one: the view has to follow the light theme as well as the dark
+ * one.
  */
 const GREEN_UNTIL = 50;
 const ORANGE_UNTIL = 80;
 
-/** Vert jusqu'à 50 %, orange jusqu'à 80 %, rouge au-delà. */
+/** Green up to 50%, orange up to 80%, red beyond. */
 export function percentColor(percent: number): string {
   if (percent <= GREEN_UNTIL) return 'var(--vscode-charts-green)';
   if (percent <= ORANGE_UNTIL) return 'var(--vscode-charts-orange)';
@@ -25,9 +26,9 @@ export function percentColor(percent: number): string {
 }
 
 /**
- * « dans 2 h », « dans 6 j » — le délai avant remise à zéro, arrondi vers le
- * bas comme partout ailleurs : une échéance se lit vers le bas, jamais vers le
- * haut, sinon on croit avoir plus de temps qu'on en a.
+ * « in 2 h », « in 6 d » — the delay before reset, rounded down like
+ * everywhere else: a deadline reads downward, never upward, or you'd think
+ * you have more time than you actually do.
  */
 export function resetText(w: UsageWindow | undefined, now: number): string {
   if (w?.resetsAt === undefined) return '';
@@ -39,24 +40,25 @@ export function resetText(w: UsageWindow | undefined, now: number): string {
   return vscode.l10n.t('in {0} d', Math.floor(hours / 24));
 }
 
-/** L'heure pour une fenêtre de 5 h, le jour pour une fenêtre de 7 j. */
+/** The time for a 5 h window, the day for a 7 d window. */
 export type ResetPrecision = 'time' | 'date';
 
 /**
- * L'échéance en clair, à côté du délai.
+ * The deadline spelled out, next to the delay.
  *
- * « dans 6 j » dit combien il reste, et c'est ce qu'on veut savoir d'abord —
- * mais ça ne se pose pas dans un agenda. Les deux ensemble répondent aux deux
- * questions : combien de temps, et quand exactement.
+ * « in 6 d » says how much is left, and that's what you want to know first
+ * — but it doesn't fit on a calendar. The two together answer both
+ * questions: how much time, and exactly when.
  *
- * La précision suit la fenêtre plutôt que le délai restant : une fenêtre de
- * 5 h se rouvre dans la journée, donc une heure suffit et une date serait du
- * bruit ; une fenêtre de 7 j se rouvre un autre jour, donc l'heure ne dit rien
- * sans le jour. Le nom du jour accompagne le quantième : dans une semaine,
- * « mar. » se lit plus vite que « 9 ».
+ * Precision follows the window rather than the remaining delay: a 5 h
+ * window reopens within the day, so an hour is enough and a date would be
+ * noise; a 7 d window reopens on another day, so the hour says nothing
+ * without the day. The day's name goes along with the date: within a week,
+ * « Tue » reads faster than « 9 ».
  *
- * Rien à dire une fois l'échéance passée : `resetText` affiche alors « reset »,
- * et l'heure d'une remise à zéro déjà faite n'apprend plus rien.
+ * Nothing to say once the deadline has passed: `resetText` then shows
+ * « reset », and the hour of an already-done reset no longer teaches
+ * anything.
  */
 export function resetExact(
   w: UsageWindow | undefined,
@@ -100,13 +102,13 @@ export function escape(text: string): string {
 function row(label: string, w: UsageWindow | undefined, now: number, exact: string): string {
   if (w === undefined) return '';
   const percent = Math.round(w.percent);
-  // Une seule chaîne échappée, pas deux : les parenthèses sont de la ponctuation
-  // et n'ont pas à traverser `escape`, mais tout ce qui vient d'un format ou
-  // d'un bundle doit y passer — d'où l'assemblage AVANT l'échappement.
+  // One escaped string, not two: the parentheses are punctuation and have no
+  // business going through `escape`, but everything coming from a format or
+  // a bundle must — hence the assembly BEFORE the escaping.
   const relative = resetText(w, now);
-  // L'italique met le moment exact un cran en retrait du délai : il répond à
-  // une question qu'on ne se pose qu'ensuite. Chaque morceau est échappé
-  // séparément — la balise, elle, est à nous, pas au format ni au bundle.
+  // The italics set the exact moment one step back from the delay: it
+  // answers a question that only comes up afterwards. Each piece is escaped
+  // separately — the tag itself is ours, not the format's or the bundle's.
   const reset =
     relative === '' || exact === ''
       ? escape(relative)
@@ -115,12 +117,13 @@ function row(label: string, w: UsageWindow | undefined, now: number, exact: stri
 `;
 }
 
-/** Le corps de la vue, séparé du webview pour être éprouvable sans éditeur. */
+/** The body of the view, kept apart from the webview so it can be tested without an editor. */
 export function usageHtml(
   reading: UsageReading | undefined,
   now: number,
-  // La langue d'AFFICHAGE de l'éditeur, pas celle du système : la vue est déjà
-  // traduite par `l10n`, et un « 9 sept. » sous une interface anglaise jurerait.
+  // The editor's DISPLAY language, not the system's: the view is already
+  // translated via `l10n`, and a « 9 sept. » under an English interface
+  // would look out of place.
   locale: string = vscode.env.language,
 ): string {
   const body =
@@ -198,7 +201,7 @@ export class UsageView implements vscode.WebviewViewProvider {
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
-    // Forcer le rendu : la vue vient d'apparaître, elle n'a encore rien affiché.
+    // Force the render: the view has just appeared, it hasn't shown anything yet.
     this.rendered = undefined;
     this.paint();
   }
@@ -206,8 +209,8 @@ export class UsageView implements vscode.WebviewViewProvider {
   private paint(): void {
     if (this.view === undefined) return;
     const html = usageHtml(this.reading, Date.now());
-    // Même règle que les arbres : ne rien réécrire quand rien n'a changé. Un
-    // webview réécrit perd sa sélection et son survol.
+    // Same rule as for trees: rewrite nothing when nothing has changed. A
+    // rewritten webview loses its selection and its hover.
     if (html === this.rendered) return;
     this.rendered = html;
     this.view.webview.html = html;

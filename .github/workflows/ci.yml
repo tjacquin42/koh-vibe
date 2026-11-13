@@ -11,8 +11,14 @@ on:
     branches: [main, dev]
 
 # A new push to the same branch makes the previous run pointless.
+#
+# Keyed on the pull request number when there is one, not on `github.ref` alone:
+# the run for a merged pull request's `closed` event gets the BASE branch as its
+# ref (`refs/heads/dev`), so it landed in the same group as the push that the
+# merge itself makes to `dev`, and cancelled it a second after it started. The
+# promotion pull request then showed that cancelled run as its only check.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:

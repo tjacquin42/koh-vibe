@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 /**
- * Fabrique les deux icônes de l'extension à partir d'un contour d'île.
+ * Builds the extension's two icons from an island outline.
  *
- * Le contour est relevé À LA MAIN — d'où la table de points ci-dessous, qui est
- * la SOURCE et non un sous-produit. Un SVG dessiné directement se retoucherait
- * au jugé ; ici, corriger la côte veut dire corriger un point, et les deux
- * icônes suivent ensemble.
+ * The outline was traced BY HAND — hence the point table below, which is the
+ * SOURCE and not a by-product. An SVG drawn directly would get retouched by
+ * eye; here, fixing the coastline means fixing a point, and both icons follow
+ * along together.
  *
- * Deux icônes, parce qu'elles ne sont pas regardées de la même façon :
- * - la barre d'activité affiche 24 px et recolore la forme : silhouette pleine,
- *   monochrome, simplifiée jusqu'à ce que la côte reste lisible à cette taille ;
- * - la place de marché affiche 256 px : le trait de côte y garde ses détours.
+ * Two icons, because they are not looked at the same way:
+ * - the activity bar shows it at 24 px and recolors the shape: a solid,
+ *   monochrome silhouette, simplified until the coastline stays legible at
+ *   that size;
+ * - the marketplace shows it at 256 px: the coastline keeps its detours there.
  *
- * Usage : node scripts/make-icons.cjs
+ * Usage: node scripts/make-icons.cjs
  */
 const { writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 
-/** Le tour de l'île, dans le sens des aiguilles depuis la pointe nord (pixels de la source). */
+/** The island's outline, clockwise from the northern tip (pixels of the source). */
 const OUTLINE = [
   [540, 25], [600, 60], [650, 140], [710, 168], [730, 100], [790, 140],
   [770, 232], [792, 300], [775, 420], [800, 470], [790, 560], [830, 610],
@@ -30,7 +31,7 @@ const OUTLINE = [
   [166, 182], [200, 128], [300, 130], [400, 155], [470, 132],
 ];
 
-/** Distance d'un point au segment ab — le critère de Ramer-Douglas-Peucker. */
+/** Distance from a point to segment ab — the Ramer-Douglas-Peucker criterion. */
 function distanceToSegment(p, a, b) {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
@@ -41,11 +42,11 @@ function distanceToSegment(p, a, b) {
 }
 
 /**
- * Retire les points qui ne changent pas la silhouette de plus de `epsilon`.
+ * Removes points that do not change the silhouette by more than `epsilon`.
  *
- * Réduire à 24 px un tracé de cinquante points ne donne pas une île plus fidèle :
- * les criques tombent sous le pixel et se mélangent en une bouillie grise. Mieux
- * vaut décider CE QU'ON GARDE que laisser le rendu trancher au hasard.
+ * Shrinking a fifty-point trace down to 24 px does not give a more faithful
+ * island: the inlets fall below a pixel and blur into grey mush. Better to
+ * decide WHAT WE KEEP than let the renderer settle it at random.
  */
 function simplify(points, epsilon) {
   if (points.length < 3) return [...points];
@@ -65,13 +66,13 @@ function simplify(points, epsilon) {
 }
 
 /**
- * Retire les pointes trop aiguës pour la taille visée.
+ * Removes spikes too sharp for the target size.
  *
- * L'île a une crique étroite au nord. Réduite à 24 px, elle mesure moins d'un
- * pixel de large et se rend en cheveu — une aiguille noire plantée dans la
- * silhouette, qu'on lit comme un défaut de tracé et non comme une côte. La
- * simplification seule ne l'enlève pas : la crique est PROFONDE, donc RDP la
- * juge essentielle ; c'est son angle, pas son écart, qui la condamne.
+ * The island has a narrow inlet in the north. Shrunk to 24 px, it measures
+ * less than a pixel wide and renders as a hair — a black needle stuck into
+ * the silhouette, read as a drawing defect rather than a coastline.
+ * Simplification alone does not remove it: the inlet is DEEP, so RDP judges
+ * it essential; it is its angle, not its deviation, that condemns it.
  */
 function dropSpikes(points, minAngleDeg) {
   const limit = (minAngleDeg * Math.PI) / 180;
@@ -92,7 +93,7 @@ function dropSpikes(points, minAngleDeg) {
   return kept;
 }
 
-/** Ramène le contour dans un carré de `size`, centré, en gardant ses proportions. */
+/** Fits the outline into a `size` square, centered, keeping its proportions. */
 function fit(points, size, padding) {
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
@@ -106,11 +107,11 @@ function fit(points, size, padding) {
 }
 
 /**
- * Un chemin fermé et lissé (Catmull-Rom converti en cubiques).
+ * A closed, smoothed path (Catmull-Rom converted to cubics).
  *
- * Une côte n'est pas une ligne brisée : reliée au segment, la silhouette prend
- * un air de polygone de jeu vidéo. `tension` à 0 rendrait les segments droits,
- * à 1 la courbe passe par tous les points en s'arrondissant.
+ * A coastline is not a polyline: joined by straight segments, the silhouette
+ * looks like a video-game polygon. `tension` at 0 would render straight
+ * segments; at 1 the curve passes through every point while rounding it off.
  */
 function smoothClosedPath(points, tension) {
   const n = points.length;
@@ -130,12 +131,12 @@ function smoothClosedPath(points, tension) {
 
 const resources = join(__dirname, '..', 'resources');
 
-// --- Barre d'activité : 24 px, monochrome, recolorée par VSCode ---
-// Renommer ce fichier est le SEUL moyen sûr de faire prendre un nouveau dessin :
-// l'icône est servie au rendu par une URL de fichier, que l'éditeur met en
-// cache, et le paquet garde toujours la même version et le même chemin. Sans
-// changement de nom, réinstaller ne change pas l'URL et l'ancien dessin reste
-// affiché, y compris après un rechargement de fenêtre.
+// --- Activity bar: 24 px, monochrome, recolored by VSCode ---
+// Renaming this file is the ONLY safe way to get a new drawing picked up: the
+// icon is served to the renderer by a file URL, which the editor caches, and
+// the package always keeps the same version and the same path. Without a
+// name change, reinstalling does not change the URL and the old drawing keeps
+// showing, even after a window reload.
 const small = smoothClosedPath(fit(dropSpikes(simplify(OUTLINE, 55), 42), 24, 1.2), 0.5);
 writeFileSync(
   join(resources, 'logo-mono.svg'),
@@ -146,10 +147,10 @@ writeFileSync(
   'utf8',
 );
 
-// --- Place de marché : 256 px, en couleur ---
-// Le haut-fond est le MÊME chemin, tracé au trait : l'agrandir séparément
-// donnait un anneau épais d'un côté et absent de l'autre, puisqu'une mise à
-// l'échelle ne s'éloigne pas de la côte, elle s'éloigne du centre.
+// --- Marketplace: 256 px, in color ---
+// The shoal is the SAME path, stroked as an outline: scaling it up separately
+// gave a ring thick on one side and absent on the other, since scaling does
+// not move away from the coastline, it moves away from the center.
 const big = smoothClosedPath(fit(OUTLINE, 256, 34), 0.7);
 writeFileSync(
   join(resources, 'logo.svg'),

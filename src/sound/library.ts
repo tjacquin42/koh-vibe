@@ -4,24 +4,24 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 
 /**
- * Une bibliothèque proposée, jamais imposée, et pratiquement jamais embarquée.
+ * A library that is offered, never imposed, and practically never bundled.
  *
- * Embarquer cent fichiers audio dans le paquet aurait deux coûts : le poids, et
- * la licence de chacun d'eux dans un dépôt public. On les récupère donc à la
- * demande, une seule fois, si l'utilisateur le veut. Deux d'entre eux font
- * exception et voyagent dans le paquet — ceux du réglage par défaut, sans quoi
- * une installation neuve serait muette ; voir `bundled.ts`.
+ * Bundling a hundred audio files into the package would have two costs: the
+ * weight, and the license of each one in a public repository. So they are
+ * fetched on demand, once, if the user wants them. Two of them are the
+ * exception and do travel in the package — the ones for the default
+ * setting, without which a fresh install would be silent; see `bundled.ts`.
  *
- * Le choix s'est porté sur les sons d'interface de Kenney : cent sons courts
- * (aucun ne dépasse trois dixièmes de seconde), pensés pour une interface et
- * non pour une sonnerie de téléphone, et placés en CC0 — donc utilisables et
- * redistribuables sans condition, ce qui n'était vrai d'aucune tonalité du
- * système.
+ * The choice fell on Kenney's interface sounds: a hundred short sounds (none
+ * longer than three tenths of a second), designed for an interface rather
+ * than a phone ringtone, and released under CC0 — so usable and
+ * redistributable with no condition, which was true of none of the system's
+ * tones.
  *
- * L'archive est épinglée sur un COMMIT, jamais sur une branche : un dépôt tiers
- * peut changer d'avis, et « la bibliothèque a changé sous nos pieds » est un
- * défaut qu'on ne verrait qu'au moment où un son se met à ne plus ressembler à
- * ce que l'utilisateur avait choisi.
+ * The archive is pinned to a COMMIT, never a branch: a third-party
+ * repository can change its mind, and "the library changed under our feet"
+ * is a defect that would only show up the moment a sound stops resembling
+ * what the user had chosen.
  */
 export interface LibraryInfo {
   name: string;
@@ -29,7 +29,7 @@ export interface LibraryInfo {
   license: string;
   homepage: string;
   url: string;
-  /** Ce que l'archive doit contenir : sert à annoncer un chiffre avant de télécharger. */
+  /** What the archive is expected to contain: used to announce a number before downloading. */
   count: number;
 }
 
@@ -45,23 +45,23 @@ export const LIBRARY: LibraryInfo = {
 };
 
 /**
- * Où atterrit la bibliothèque : chez nous, pas dans `~/Library/Sounds`.
+ * Where the library lands: in our own place, not in `~/Library/Sounds`.
  *
- * `~/Library/Sounds` est lu par le panneau Son de macOS : y déverser cent
- * fichiers rendrait la liste des sons d'alerte du système inutilisable, pour un
- * réglage qui ne concerne que cette extension. Un dossier à nous se désinstalle
- * aussi d'un seul geste, sans avoir à deviner lesquels des fichiers présents
- * venaient de nous.
+ * `~/Library/Sounds` is read by macOS's Sound panel: dumping a hundred files
+ * there would make the system's alert sound list unusable, for a setting
+ * that only concerns this extension. A folder of our own also uninstalls in
+ * one gesture, without having to guess which of the files present came from
+ * us.
  */
 export function librarySoundsDir(home: string): string {
   return join(home, 'sounds');
 }
 
 /**
- * Les familles de l'archive, et leur nom en clair.
+ * The families in the archive, and their plain-text name.
  *
- * Une famille absente de cette table n'est pas installée : mieux vaut une
- * bibliothèque un peu plus courte qu'une liste où figurent des `bong_001`.
+ * A family missing from this table is not installed: better a slightly
+ * shorter library than a list showing `bong_001`.
  */
 const FAMILIES: Readonly<Record<string, string>> = {
   back: 'Retour',
@@ -87,12 +87,13 @@ const FAMILIES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Le nom sous lequel un fichier de l'archive entre dans la bibliothèque.
+ * The name under which a file from the archive enters the library.
  *
- * `select_003.wav` devient « Sélection 3 » : c'est ce nom qui s'affiche dans la
- * liste de choix ET qui est écrit dans les réglages, donc il doit être stable
- * d'une installation à l'autre — d'où une table figée plutôt qu'une jolie
- * transformation du nom d'origine, qui bougerait au premier renommage en amont.
+ * `select_003.wav` becomes « Sélection 3 »: this is the name that shows up
+ * in the picker list AND that gets written into settings, so it has to stay
+ * stable from one install to the next — hence a fixed table rather than a
+ * neat transformation of the original name, which would shift on the first
+ * upstream rename.
  */
 export function libraryLabel(file: string): string | undefined {
   const stem = basename(file, extname(file));
@@ -106,9 +107,9 @@ export function libraryLabel(file: string): string | undefined {
 }
 
 export interface LibraryDeps {
-  /** Retourne le contenu de l'archive, ou `undefined` si elle est hors d'atteinte. */
+  /** Returns the archive's content, or `undefined` if it is out of reach. */
   download: (url: string) => Promise<Uint8Array | undefined>;
-  /** Déballe l'archive dans un dossier. */
+  /** Unpacks the archive into a folder. */
   extract: (archive: string, into: string) => Promise<void>;
 }
 
@@ -123,8 +124,8 @@ async function download(url: string): Promise<Uint8Array | undefined> {
 }
 
 /**
- * `execFile` et non `exec` : les chemins sont construits ici, mais une archive
- * ne doit jamais approcher un shell, quelle qu'en soit la provenance.
+ * `execFile`, not `exec`: the paths are built here, but an archive must
+ * never come near a shell, whatever its origin.
  */
 function extract(archive: string, into: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -134,7 +135,7 @@ function extract(archive: string, into: string): Promise<void> {
   });
 }
 
-export const defaultLibraryDeps: LibraryDeps = { download, extract };
+const defaultLibraryDeps: LibraryDeps = { download, extract };
 
 async function wavFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -152,7 +153,7 @@ async function wavFiles(dir: string): Promise<string[]> {
   return out.sort();
 }
 
-/** Combien de sons de la bibliothèque sont déjà posés. */
+/** How many library sounds are already in place. */
 export async function installedCount(target: string): Promise<number> {
   try {
     return (await readdir(target)).filter((f) => extname(f).toLowerCase() === '.wav').length;
@@ -162,14 +163,15 @@ export async function installedCount(target: string): Promise<number> {
 }
 
 /**
- * Récupère la bibliothèque et la pose. Retourne le nombre de sons installés.
+ * Fetches the library and installs it. Returns the number of sounds
+ * installed.
  *
- * Ne lève jamais : réseau coupé, `tar` absent, disque plein — tout retombe sur
- * zéro. Une bibliothèque manquante n'empêche pas le tableau de bord de servir,
- * et un carillon raté ne vaut pas une fenêtre d'erreur.
+ * Never throws: network down, `tar` missing, disk full — it all falls back
+ * to zero. A missing library does not keep the dashboard from serving, and
+ * a failed chime is not worth an error window.
  *
- * Le dossier temporaire est nettoyé quoi qu'il arrive : l'archive fait près de
- * deux mégaoctets, et un échec ne doit pas les laisser derrière lui.
+ * The temporary folder is cleaned up no matter what happens: the archive is
+ * close to two megabytes, and a failure must not leave them behind.
  */
 export async function installLibrary(
   target: string,
@@ -189,8 +191,8 @@ export async function installLibrary(
       const label = libraryLabel(file);
       if (label === undefined) continue;
       try {
-        // Copie plutôt que déplacement : le temporaire et la cible peuvent
-        // vivre sur deux volumes, où `rename` échouerait.
+        // Copy rather than move: the temp folder and the target can live on
+        // two different volumes, where `rename` would fail.
         await writeFile(join(target, `${label}.wav`), await readFile(file));
         added += 1;
       } catch {
@@ -205,9 +207,16 @@ export async function installLibrary(
   }
 }
 
-/** Retire la bibliothèque. Retourne le nombre de fichiers effacés. */
+/**
+ * Removes the library and says how many sounds actually went.
+ *
+ * Counted again after the removal rather than assumed from before it: a
+ * removal that fails — a folder nobody may write to — used to be announced as
+ * "N sounds removed" over N files still on disk. Zero is the honest answer
+ * then, and the caller says so.
+ */
 export async function removeLibrary(target: string): Promise<number> {
-  const count = await installedCount(target);
+  const before = await installedCount(target);
   await rm(target, { recursive: true, force: true }).catch(() => undefined);
-  return count;
+  return before - (await installedCount(target));
 }

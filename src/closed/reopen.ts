@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ClosedEntry } from './model';
 import { sessionLabel } from '../ui/labels';
+import { isEditorOrigin } from '../events/origin';
 
 export type ReopenPlan =
   | { kind: 'command'; command: string; args: readonly string[] }
@@ -23,7 +24,7 @@ export type ReopenPlan =
  */
 export function reopenPlan(origin: unknown, sessionId: string, cwd: string, label: string, listed: boolean): ReopenPlan {
   const terminal: ReopenPlan = { kind: 'terminal', cwd, name: label, command: `claude --resume ${sessionId}` };
-  if (origin === 'vscode' || origin === 'desktop') {
+  if (isEditorOrigin(origin)) {
     // `listed`: whether Claude Code's session list, in the window that runs
     // the command, holds this id (claude/listed.ts). When it does not, the
     // command starts a BLANK conversation — observed — and a terminal is the
@@ -38,6 +39,22 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
     message: vscode.l10n.t('Koh-Vibe: « {0} » ran outside the editor and the terminal{1} — nothing to reopen here.', label, suffix),
   };
 }
+
+/**
+ * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
+ * one is gone, and koh-vibe does not know which one it was.
+ */
+export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
+  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
+  terminal.sendText(plan.command);
+  terminal.show();
+}
+
+/**
+ * What a reopen did: whether anything is now on its way. `explain` and
+ * `failed` mean nothing is — the caller shows no wait for them.
+ */
+export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
 
 /**
  * Executes what a click on a closed conversation's row asks for. Extracted
@@ -60,22 +77,6 @@ export function reopenPlan(origin: unknown, sessionId: string, cwd: string, labe
  * `FocusBroker.requestReopen` deliberately does nothing for it — the caller
  * opens the terminal locally, before `requestReopen` is even invoked.
  */
-/**
- * A fresh terminal on the conversation's folder, resuming it. Fresh: the old
- * one is gone, and koh-vibe does not know which one it was.
- */
-export function openResumeTerminal(plan: { cwd: string; name: string; command: string }): void {
-  const terminal = vscode.window.createTerminal({ cwd: plan.cwd, name: plan.name });
-  terminal.sendText(plan.command);
-  terminal.show();
-}
-
-/**
- * What a reopen did: whether anything is now on its way. `explain` and
- * `failed` mean nothing is — the caller shows no wait for them.
- */
-export type ReopenOutcome = 'terminal' | 'editor' | 'explain' | 'failed';
-
 export async function reopenClosedSession(
   entry: ClosedEntry,
   requestReopen: (e: ClosedEntry) => Promise<void>,

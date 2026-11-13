@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, spoolDirs } from '../src/paths';
+import { artifactsFile, claudeConfigFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, routinesFile, spoolDirs, statusFile, usageFile } from '../src/paths';
 
 describe('paths', () => {
-  it('utilise KOH_VIBE_HOME quand il est posé', () => {
+  it('uses KOH_VIBE_HOME when it is set', () => {
     expect(kohVibeHome({ KOH_VIBE_HOME: '/tmp/koh' })).toBe('/tmp/koh');
   });
 
-  it('retombe sur ~/.koh-vibe', () => {
+  it('falls back to ~/.koh-vibe', () => {
     expect(kohVibeHome({ HOME: '/Users/x' })).toBe('/Users/x/.koh-vibe');
   });
 
-  it('dérive les cinq sous-dossiers', () => {
+  it('derives the five subfolders', () => {
     expect(spoolDirs('/tmp/koh').events).toBe('/tmp/koh/events');
     expect(spoolDirs('/tmp/koh').sessions).toBe('/tmp/koh/sessions');
     expect(spoolDirs('/tmp/koh').requests).toBe('/tmp/koh/requests');
@@ -18,12 +18,17 @@ describe('paths', () => {
     expect(spoolDirs('/tmp/koh').backups).toBe('/tmp/koh/backups');
   });
 
-  it('place le classement en dossiers à la racine de l état', () => {
+  it('puts the folder classification file at the root of the state', () => {
     expect(groupsFile('/tmp/koh')).toBe('/tmp/koh/groups.json');
   });
 
   it('puts the closed list at the root of the koh-vibe home', () => {
     expect(closedFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/closed.json');
+  });
+
+  it('puts the statusline snapshot and the usage cache at the root too', () => {
+    expect(statusFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/status.json');
+    expect(usageFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/usage.json');
   });
 });
 
@@ -39,5 +44,18 @@ describe('claude paths', () => {
 
   it('finds the session registry under it', () => {
     expect(claudeSessionsDir('/Users/x/.claude')).toBe('/Users/x/.claude/sessions');
+  });
+});
+
+describe('cloud paths', () => {
+  it('puts the two cloud caches at the root of the state, beside the usage reading', () => {
+    expect(routinesFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/routines.json');
+    expect(artifactsFile('/home/x/.koh-vibe')).toBe('/home/x/.koh-vibe/artifacts.json');
+  });
+
+  it('finds Claude Code global configuration beside ~/.claude, or inside CLAUDE_CONFIG_DIR', () => {
+    expect(claudeConfigFile({ HOME: '/Users/x' })).toBe('/Users/x/.claude.json');
+    expect(claudeConfigFile({ HOME: '/Users/x', CLAUDE_CONFIG_DIR: '/tmp/claude' })).toBe('/tmp/claude/.claude.json');
+    expect(claudeConfigFile({ HOME: '/Users/x', CLAUDE_CONFIG_DIR: '' })).toBe('/Users/x/.claude.json');
   });
 });

@@ -1,14 +1,14 @@
 import { isRecord } from '../lib/json';
 /**
- * Ce que Claude Code passe à la statusline, et que le pont dépose tel quel.
+ * What Claude Code passes to the statusline, and that the bridge deposits as is.
  *
- * La forme observée :
+ * The observed shape:
  *   {"rate_limits":{"five_hour":{"used_percentage":78,"resets_at":1786297800},
  *                   "seven_day":{"used_percentage":32,"resets_at":1786712400}}}
  *
- * `resets_at` est en SECONDES depuis l'époque, pas en millisecondes : c'est la
- * convention d'Unix, pas celle de JavaScript, et les confondre placerait la
- * réinitialisation en 1970.
+ * `resets_at` is in SECONDS since the epoch, not milliseconds: that is
+ * Unix's convention, not JavaScript's, and confusing the two would place the
+ * reset in 1970.
  */
 export interface UsageWindow {
   percent: number;
@@ -32,15 +32,15 @@ export interface Usage {
 }
 
 /**
- * Un pourcentage doit être un nombre fini entre 0 et 100. Hors de ces bornes,
- * la fenêtre est ignorée plutôt qu'affichée : mieux vaut ne rien montrer qu'une
- * jauge à -3 % ou à 4000 %, qui ferait douter de tout le reste.
+ * A percentage must be a finite number between 0 and 100. Outside these
+ * bounds, the window is ignored rather than shown: better to show nothing
+ * than a gauge at -3% or 4000%, which would cast doubt on everything else.
  */
 /**
- * L'échéance arrive sous deux formes selon la source : un entier de secondes
- * Unix (statusline) ou une date ISO 8601 (API). Les deux sont ramenées à des
- * SECONDES, jamais à des millisecondes — c'est l'unité que porte `UsageWindow`,
- * et les confondre placerait la réinitialisation en 1970.
+ * The deadline arrives in two forms depending on the source: a Unix
+ * seconds integer (statusline) or an ISO 8601 date (API). Both are brought
+ * back to SECONDS, never milliseconds — that is the unit `UsageWindow`
+ * carries, and confusing the two would place the reset in 1970.
  */
 function resetsAtOf(v: unknown): number | undefined {
   if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : undefined;
@@ -51,12 +51,12 @@ function resetsAtOf(v: unknown): number | undefined {
 
 function windowOf(v: unknown): UsageWindow | undefined {
   if (!isRecord(v)) return undefined;
-  // `used_percentage` (statusline) et `utilization` (API) désignent la même
-  // chose sous deux noms. Un seul lecteur pour les deux, plutôt que deux
-  // lecteurs qui divergeraient.
+  // `used_percentage` (statusline) and `utilization` (API) name the same
+  // thing under two names. One reader for both, rather than two readers
+  // that would drift apart.
   const raw = v['used_percentage'] ?? v['utilization'];
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0 || raw > 100) return undefined;
-  // Une échéance absente n'invalide pas le pourcentage : on affiche ce qu'on a.
+  // A missing deadline does not invalidate the percentage: we show what we have.
   return { percent: raw, resetsAt: resetsAtOf(v['resets_at']) };
 }
 
@@ -100,16 +100,16 @@ function modelsOf(raw: Record<string, unknown>): ScopedWindow[] {
 }
 
 /**
- * `undefined` quand l'instantané ne porte aucune fenêtre exploitable — la vue
- * n'affiche alors rien du tout, plutôt qu'une ligne vide qui laisserait croire
- * à une consommation nulle.
+ * `undefined` when the snapshot carries no usable window at all — the view
+ * then shows nothing at all, rather than an empty row that would suggest
+ * zero consumption.
  */
 export function parseUsage(raw: unknown): Usage | undefined {
   if (!isRecord(raw)) return undefined;
-  // Deux sources, deux emboîtements : la statusline enveloppe ses fenêtres dans
-  // `rate_limits`, le cache de Vibe Island les porte à la racine. Les champs
-  // eux-mêmes sont identiques, donc une seule lecture suffit — dès lors qu'on
-  // regarde au bon niveau.
+  // Two sources, two nestings: the statusline wraps its windows in
+  // `rate_limits`, Vibe Island's cache carries them at the root. The fields
+  // themselves are identical, so a single reader suffices — as long as we
+  // look at the right level.
   const nested = raw['rate_limits'];
   const limits = isRecord(nested) ? nested : raw;
   const fiveHour = windowOf(limits['five_hour']);

@@ -8,24 +8,27 @@ export interface SpoolDirs {
   backups: string;
 }
 
-/** Racine de l'état de koh-vibe. `KOH_VIBE_HOME` permet de l'isoler en test. */
-export function kohVibeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['KOH_VIBE_HOME'];
+/** The variable when it is set and not empty, else `<HOME>/<suffix>` — the one rule of the three roots below. */
+function rootOf(env: NodeJS.ProcessEnv, variable: string, suffix: string): string {
+  const override = env[variable];
   if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.koh-vibe');
+  return join(env['HOME'] ?? '', suffix);
+}
+
+/** Root of koh-vibe's state. `KOH_VIBE_HOME` allows isolating it in tests. */
+export function kohVibeHome(env: NodeJS.ProcessEnv = process.env): string {
+  return rootOf(env, 'KOH_VIBE_HOME', '.koh-vibe');
 }
 
 /**
- * L'ancien emplacement de l'état, avant que l'extension ne devienne Koh-Vibe.
+ * The old location of the state, before the extension became Koh-Vibe.
  *
- * Suit le MÊME réglage d'isolation que `kohVibeHome` : sans ça, un test qui
- * redirige la racine verrait quand même le vrai `~/.koh-claude` de la machine,
- * et la migration s'exercerait sur les sessions réelles de l'utilisateur.
+ * Follows the SAME isolation setting as `kohVibeHome`: without this, a test
+ * that redirects the root would still see the machine's real `~/.koh-claude`,
+ * and the migration would run against the user's real sessions.
  */
 export function legacyHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['KOH_VIBE_LEGACY_HOME'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.koh-claude');
+  return rootOf(env, 'KOH_VIBE_LEGACY_HOME', '.koh-claude');
 }
 
 export function spoolDirs(home: string): SpoolDirs {
@@ -40,37 +43,46 @@ export function spoolDirs(home: string): SpoolDirs {
 }
 
 /**
- * Dernier instantané de la statusline, déposé par le pont. Un seul fichier
- * réécrit, jamais un spool : contrairement aux événements de hooks, seule la
- * valeur la plus récente a un sens — un historique de pourcentages périmés
- * n'apprendrait rien et grossirait sans fin.
+ * Latest snapshot of the statusline, dropped by the bridge. A single file
+ * overwritten in place, never a spool: unlike hook events, only the most
+ * recent value makes sense — a history of stale percentages would teach
+ * nothing and would grow without end.
  */
 export function statusFile(home: string): string {
   return join(home, 'status.json');
 }
 
 /**
- * Le dernier relevé obtenu auprès d'Anthropic, mis en cache.
+ * The latest reading obtained from Anthropic, cached.
  *
- * Partagé entre fenêtres et éditeurs, comme le classement : sans lui, chaque
- * fenêtre interrogerait l'API de son côté toutes les quelques minutes, pour
- * afficher exactement la même chose.
+ * Shared between windows and editors, like the classification into folders:
+ * without this, every window would query the API on its own every few
+ * minutes, to display exactly the same thing.
  */
 export function usageFile(home: string): string {
   return join(home, 'usage.json');
 }
 
 /**
- * Réglages du son, partagés entre éditeurs.
+ * Sound settings, shared between editors.
  *
- * Même raison que le classement : la même machine ne doit pas annoncer deux
- * carillons différents selon la fenêtre d'où on la regarde.
+ * Same reason as the classification into folders: the same machine must not
+ * announce two different chimes depending on which window is looking at it.
  */
 export function settingsFile(home: string): string {
   return join(home, 'settings.json');
 }
 
-/** Fichier partagé du classement en dossiers, à la racine de l'état de koh-vibe. */
+/**
+ * A folder's rules: what bin/koh-vibe-rules adds to the context of the
+ * conversations filed in it. Under the folder's id, not its name — a rename
+ * keeps them.
+ */
+export function folderRulesFile(home: string, groupId: string): string {
+  return join(home, 'rules', `${groupId}.md`);
+}
+
+/** Shared file for the classification into folders, at the root of koh-vibe's state. */
 export function groupsFile(home: string): string {
   return join(home, 'groups.json');
 }
@@ -92,9 +104,7 @@ export function closedFile(home: string): string {
  * relocated configuration is read where Claude Code writes it.
  */
 export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['CLAUDE_CONFIG_DIR'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(env['HOME'] ?? '', '.claude');
+  return rootOf(env, 'CLAUDE_CONFIG_DIR', '.claude');
 }
 
 /**
@@ -104,4 +114,38 @@ export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
  */
 export function claudeSessionsDir(home: string): string {
   return join(home, 'sessions');
+}
+
+/**
+ * The routines last read from claude.ai, cached — shared between windows like
+ * the usage reading, for the same reason.
+ */
+export function routinesFile(home: string): string {
+  return join(home, 'routines.json');
+}
+
+/** The artifacts last read from claude.ai, cached — same reason. */
+export function artifactsFile(home: string): string {
+  return join(home, 'artifacts.json');
+}
+
+/**
+ * Claude Code's global configuration — the account it is signed in with,
+ * among much else. Beside the configuration root by default (`~/.claude.json`,
+ * not inside `~/.claude/`), inside the root once CLAUDE_CONFIG_DIR relocates
+ * it: that is where Claude Code itself writes it then.
+ */
+export function claudeConfigFile(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env['CLAUDE_CONFIG_DIR'];
+  if (override !== undefined && override.length > 0) return join(override, '.claude.json');
+  return join(env['HOME'] ?? '', '.claude.json');
+}
+
+/**
+ * Which project each artifact is filed under. claude.ai has no folders for
+ * artifacts, so the filing lives here — shared between windows like the
+ * session folders, and for the same reason.
+ */
+export function artifactProjectsFile(home: string): string {
+  return join(home, 'artifact-projects.json');
 }

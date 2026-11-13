@@ -1,31 +1,32 @@
 import { join } from 'node:path';
 import type { Status } from '../events/types';
 
-/** Sous-dossier de `resources/` où scripts/make-status-icons.cjs dépose les pastilles. */
+/** Subfolder of `resources/` where scripts/make-status-icons.cjs drops the dots. */
 export const STATUS_ICON_DIR = 'status';
 
 /**
- * Le chemin des deux pastilles d'un statut — une par famille de thème.
+ * The path to a status's two dots — one per theme family.
  *
- * Pourquoi une IMAGE, alors qu'un `ThemeIcon` coloré s'adapterait à tous les
- * thèmes, y compris tiers ? Parce que VSCode l'éteint dès que la ligne est
- * sélectionnée. La règle vit dans son propre CSS :
+ * Why an IMAGE, when a coloured `ThemeIcon` would adapt to every theme,
+ * third-party ones included? Because VSCode turns it off the moment the row
+ * is selected. The rule lives in its own CSS:
  *
  *   .customview-tree … .monaco-list-row.selected … .custom-view-tree-node-item-icon.codicon
  *     { color: currentColor !important }
  *
- * Le `!important` écrase la `ThemeColor` posée par l'extension : la pastille
- * prend la couleur du texte de la ligne, grise quand la vue n'a pas le focus —
- * et cliquer une session donne justement le focus à l'éditeur. Le statut
- * disparaissait donc exactement sur la ligne qu'on venait de choisir. Aucune
- * API ne permet de passer outre : le sélecteur ne vise que `.codicon`, et une
- * icône-image n'en est pas une.
+ * The `!important` overrides the `ThemeColor` set by the extension: the dot
+ * takes on the row's text colour, grey when the view does not have focus —
+ * and clicking a session is precisely what gives focus to the editor. The
+ * status was therefore disappearing on exactly the row just chosen. No API
+ * lets this be bypassed: the selector only targets `.codicon`, and an
+ * image icon is not one.
  *
- * Le prix est assumé : les couleurs sont figées, en clair et en sombre, au lieu
- * de suivre un thème tiers. Une pastille lisible mais d'un bleu un peu différent
- * vaut mieux qu'une pastille au bon bleu qu'on ne voit plus quand on en a besoin.
- * Les valeurs vivent dans scripts/make-status-icons.cjs, qui dit d'où vient
- * chacune — et pourquoi `waiting` est le seul à ne pas venir de VSCode.
+ * The price is accepted: the colours are fixed, in light and in dark,
+ * instead of following a third-party theme. A dot that reads clearly but in
+ * a slightly different blue beats a dot in the right blue that becomes
+ * invisible exactly when it's needed. The values live in
+ * scripts/make-status-icons.cjs, which says where each one comes from — and
+ * why `waiting` is the only one that does not come from VSCode.
  */
 /**
  * The muted dot: an ended conversation, or a tab nobody has woken. Not a

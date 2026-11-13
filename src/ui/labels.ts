@@ -29,7 +29,12 @@ export function formatAge(ms: number): string {
   if (seconds < 60) return vscode.l10n.t('{0} s', seconds);
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return vscode.l10n.t('{0} min', minutes);
-  return vscode.l10n.t('{0} h', Math.floor(minutes / 60));
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return vscode.l10n.t('{0} h', hours);
+  // Days past the first one, as the usage view already counts: the closed
+  // history is capped by count, not by age, and "closed 240 h" is not how
+  // anyone says ten days.
+  return vscode.l10n.t('{0} d', Math.floor(hours / 24));
 }
 
 /**

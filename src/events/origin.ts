@@ -19,6 +19,16 @@ export function originOf(entrypoint: string, termProgram: string): Origin {
   }
 }
 
+/**
+ * Whether a conversation lives in an editor panel — the only origins a tab
+ * can be revealed, closed or put to sleep for. `unknown` rather than `Origin`
+ * because two of the three callers read it off a request file another window
+ * wrote, not off a `Session`.
+ */
+export function isEditorOrigin(origin: unknown): origin is 'vscode' | 'desktop' {
+  return origin === 'vscode' || origin === 'desktop';
+}
+
 function segments(cwd: string): string[] {
   return cwd.split('/').filter((p) => p.length > 0);
 }
@@ -27,7 +37,7 @@ function worktreeIndex(parts: string[]): number {
   return parts.findIndex((p) => WORKTREE_MARKERS.includes(p));
 }
 
-/** Nom du projet : le dossier racine, en remontant au-dessus d'un worktree. */
+/** The project's name: the root folder, going back up above a worktree. */
 export function projectOf(cwd: string): string {
   const parts = segments(cwd);
   const wt = worktreeIndex(parts);
@@ -35,7 +45,7 @@ export function projectOf(cwd: string): string {
   return parts[idx] ?? cwd;
 }
 
-/** Nom du worktree, qui sert de nom de branche. `undefined` sur le dépôt principal. */
+/** The worktree's name, which doubles as the branch name. `undefined` on the main repository. */
 export function branchOf(cwd: string): string | undefined {
   const parts = segments(cwd);
   const wt = worktreeIndex(parts);

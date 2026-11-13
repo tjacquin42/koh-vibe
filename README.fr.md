@@ -57,6 +57,14 @@ toucher**, et refuse d'écrire si son empreinte a changé entre-temps. Les hooks
 statusline que vous aviez déjà sont préservés : Koh-Vibe s'enchaîne au bout, il ne remplace
 rien. **Koh-Vibe: Désinstaller les hooks** défait exactement cela.
 
+Le même geste installe le **skill `koh-vibe`** dans `~/.claude/skills/` (ou
+`$CLAUDE_CONFIG_DIR/skills/`) : ce qu'une conversation Claude Code doit savoir pour agir sur le
+tableau de bord — dans quel dossier elle est, comment ranger une conversation, comment écrire les
+règles d'un dossier, quels fichiers elle peut toucher. Demandez à une conversation « range-toi
+dans le dossier VIDEO » : elle sait comment faire. Chaque nouvelle version de l'extension met le
+skill à jour d'elle-même ; une copie modifiée à la main n'est jamais écrasée sans vous le
+demander, et une copie supprimée n'est pas remise. Désinstaller les hooks le retire.
+
 ### Depuis les sources
 
 Depuis le terminal intégré de l'éditeur où vous la voulez :
@@ -83,11 +91,12 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   vous lui avez donné, sinon celui que Claude a engendré, sinon le dernier prompt.
 - **Les conversations terminées** restent dans la liste, grisées et dans leur dossier, tant
   que *Sessions persistantes* est coché dans les réglages (il l'est par défaut). Décoché,
-  fermer un onglet retire la ligne. *Fermé récemment*, une vue à part, retient dans les deux
-  cas les dix conversations terminées le plus récemment.
+  fermer un onglet retire la ligne — sauf dans un dossier : une conversation qui y est rangée
+  ne quitte jamais la liste d'elle-même. *Fermé récemment*, une vue à part, retient dans les
+  deux cas les dix conversations terminées le plus récemment.
 - **Sessions temporaires** est le dossier où une conversation atterrit tant qu'on ne l'a pas
-  glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste — un
-  réglage désactive ce comportement.
+  glissée dans un dossier. Laissée là 24 heures sans activité, elle quitte la liste et son
+  onglet se ferme — un réglage désactive ce comportement.
 - **Fermer une conversation** avec l'icône corbeille qui apparaît au survol d'une ligne
   vivante. Elle ferme son onglet Claude Code et retire la ligne — la conversation passe dans
   *Fermé récemment* — en un clic, quoi que dise *Sessions persistantes* : ce réglage concerne
@@ -97,6 +106,57 @@ et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait d�
   est simplement retirée de la liste. Sur une ligne grisée, l'icône la retire pour de bon. Une
   conversation qui se termine avant son premier message — Claude Code en démarre une pour chaque
   panneau qu'il ouvre — ne laisse ni ligne ni historique : il n'y a rien où revenir.
+- **Ce que chaque session fait tourner**, en direct. Dépliez une ligne vivante et vous voyez les
+  processus qu'elle a lancés : chaque commande en cours de l'outil Bash, et ce que ces commandes
+  ont laissé derrière elles — un `pnpm dev` encore debout une heure après le retour de la
+  commande qui l'a lancé, par exemple. Clic droit sur un processus pour *copier la commande*,
+  entière là où la ligne a dû la couper, *copier le pid*, ou *terminer le processus* avec tout ce
+  qu'il a lancé, après une confirmation qui nomme la commande. Une commande lancée par un
+  *sous-agent* porte sa propre icône, et l'infobulle nomme l'agent. Rien dans la table des
+  processus ne permettrait de le savoir : les sous-agents tournent dans le processus même de la
+  conversation, donc leurs commandes y sont indiscernables des siennes. C'est Claude Code qui le
+  dit, dans ses hooks, et c'est de là que l'information vient. Un processus qu'une session a
+  lancé *détaché*, sortie redirigée vers un fichier, est lui aussi remis sous elle, alors même
+  que le système l'en a détaché.
+- **Processus**, une vue à part, pour ce qu'aucune conversation ne porte à elle seule. Les
+  *serveurs MCP* de toutes les sessions y vivent, plutôt que sous chaque conversation : Claude
+  Code démarre son propre jeu par conversation, donc répéter trois lignes identiques dans chaque
+  session noyait le travail qui, lui, diffère. En dessous, *Sans session* liste les processus que
+  plus rien ne porte — un serveur de développement dont la conversation a disparu, qui tient
+  encore son port. Ceux-là ne peuvent pas apparaître sous une session par construction : un
+  processus qui perd son parent est rattaché au processus 1, ce qui le sort de l'arbre de toutes
+  les sessions. Ce qui a été rattaché est souvent le shell dans lequel une commande tournait, avec
+  le serveur qui tient le port juste en dessous : chaque ligne se déplie donc sur ce qu'elle cache.
+  On les trouve en cherchant un moteur de développement n'importe où dans l'arbre d'un processus
+  rattaché, puis en gardant ceux qui travaillent dans un dossier ouvert par cette fenêtre ou dans
+  le répertoire d'une conversation. Un processus qui travaille ailleurs, ou qu'un terminal ouvert
+  tient encore, n'est volontairement pas listé.
+
+  Une sortie propre ne laisse rien ici : Claude Code emporte ses enfants avec lui, donc recharger
+  une fenêtre n'en produit pas. Un plantage, un `kill -9` ou une machine mise en veille, si.
+- **Routines**, une vue à part : les agents que vous avez planifiés sur claude.ai, rangés selon
+  leur prochaine exécution — *Aujourd'hui*, *Demain*, *Cette semaine*, *Plus tard* — avec, repliées
+  sous *En pause*, celles qui sont suspendues et les exécutions uniques déjà passées. Un clic ouvre
+  la routine sur claude.ai. Au survol d'une ligne, **lancez-la maintenant** — après confirmation,
+  puisqu'un run agit pour de vrai — ou **mettez-la en pause** ; une routine en pause propose
+  **réactiver** à la place. Le clic droit copie son lien.
+- **Artifacts**, une vue à part : les pages que vous avez publiées sur claude.ai, **rangées par
+  projet** — un dossier chacun, *Divers* en dernier — les épinglées d'abord, puis les plus
+  récemment mises à jour. Au-dessus des projets, *Épinglés* et *Récents* (les dix dernières mises
+  à jour) regroupent ces pages une seconde fois, chacune restant aussi dans son projet. Une page publiée depuis une session va d'elle-même dans le dossier du
+  dépôt de cette session ; une page jamais rangée s'affiche sous le projet que nomme son titre,
+  s'il y en a un. Glissez des pages d'un dossier à l'autre, ou clic droit → *Ranger dans un
+  projet…*, plusieurs à la fois ; clic droit sur un dossier pour le renommer. Un clic ouvre une
+  page ; au survol, épinglez-la ou désépinglez-la ; le clic droit permet de la **renommer** ou de
+  copier son lien.
+
+  Le rangement reste sur cette machine : claude.ai n'a pas de dossiers pour les artifacts, rien
+  n'en est donc envoyé là-bas.
+
+  Les deux vues n'interrogent claude.ai que lorsqu'elles sont ouvertes, au plus une fois toutes
+  les cinq minutes, et partagent ce qu'elles lisent entre les fenêtres. Un appel qui échoue est
+  noté dans le canal de sortie *Koh-Vibe* — voir
+  [ce qui quitte la machine](#vos-données-et-ce-qui-quitte-la-machine).
 - **Votre consommation** sur cinq heures et sept jours — et par modèle, quand votre offre en
   compte un à part — avec l'échéance de remise à zéro.
 - **Un clic** sur une session ouvre ou reprend sa fenêtre, où qu'elle soit — y compris une
@@ -115,6 +175,16 @@ une conversation neuve dans le dossier de la fenêtre. Survolez un dossier : le 
 apparaît à droite de sa ligne (le clic droit le propose aussi, *Nouvelle session ici*) et
 range la conversation dans ce dossier dès qu'elle apparaît, pour qu'elle ne soit pas
 temporaire.
+
+**Règles de dossier.** Un dossier peut porter des règles, comme un skill qui lui serait attaché :
+ce qui y est écrit s'ajoute au contexte de chaque conversation rangée dans le dossier, à son
+message suivant — une nouvelle, une glissée dedans, une déjà là quand les règles changent. Elles
+ne sont renvoyées que lorsqu'elles changent, et une conversation qui quitte le dossier apprend
+qu'elles ne s'appliquent plus. Clic droit sur un dossier → *Ajouter une règle…* ouvre une
+conversation rangée dedans, son prompt déjà commencé avec le dossier et le skill
+`koh-vibe`, qui demande quelle règle ajouter ; *Voir les règles* ouvre le fichier
+pour les écrire à la main. Il faut réinstaller les hooks une fois, pour que celui des règles
+soit ajouté.
 
 **Sonner.** Un carillon quand une session se met à vous attendre, un autre quand elle vient
 de finir. Trois niveaux, du plus précis au plus général : le son d'une conversation l'emporte
@@ -141,14 +211,24 @@ Code tourne dans son terminal, et une session encore vivante réapparaîtra à s
 **Sessions persistantes.** La première ligne des réglages, une case à cocher, décide de ce que
 fermer un onglet fait à sa ligne. Cochée — le défaut — la conversation reste dans la liste,
 grisée, dans son dossier, avec une pastille éteinte et l'heure de sa fermeture ; les cinquante
-plus récentes sont gardées, et *Retirer de la liste* en enlève une pour de bon. Décochée,
-fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux cas. Le survol
-de la ligne donne la même explication.
+plus récentes hors de tout dossier sont gardées, et *Retirer de la liste* en enlève une pour de
+bon. Décochée, fermer l'onglet retire la ligne ; les lignes déjà grisées restent dans les deux
+cas. Une conversation rangée dans un dossier reste quels que soient le réglage, son âge ou le
+nombre de lignes grisées — même quand il n'y a plus rien à reprendre : seuls *Retirer de la
+liste* ou la corbeille l'enlèvent. Le survol de la ligne donne la même explication.
 
 **Sessions temporaires.** La seconde case. Une conversation rangée dans aucun dossier est
-temporaire : après 24 heures sans activité, elle quitte la liste — masquée, pas oubliée : toute
-activité la ramène, et la ranger dans un dossier la garde pour de bon. Décochée, les
-conversations temporaires restent jusqu'à ce que vous les retiriez.
+temporaire : après 24 heures sans activité, elle quitte la liste, et son onglet se ferme avec
+elle — *Fermé récemment* peut la ramener. Un onglet que Koh-Vibe ne peut pas distinguer d'un
+autre (deux onglets du même titre) n'est jamais fermé dans votre dos : la ligne reste dans la
+liste, à vous de la fermer. Ranger une conversation dans un dossier la garde pour de bon.
+Décochée, les conversations temporaires restent jusqu'à ce que vous les retiriez.
+
+**Onglets de l'éditeur.** La ligne sous les cases choisit la barre d'onglets de l'éditeur : tous
+les onglets, un seul, ou aucun. Avec *un seul*, seule la conversation courante s'affiche, en
+titre, et c'est la liste des sessions qui permet de passer de l'une à l'autre. C'est le réglage
+de l'éditeur lui-même, `workbench.editor.showTabs` : le changer ici ou dans les réglages de
+l'éditeur revient au même.
 
 **Rouvrir.** Un clic sur une conversation terminée — ligne grisée, ou entrée de *Fermé
 récemment* — la ramène : dans l'onglet d'éditeur où elle tournait, ou dans un terminal neuf
@@ -173,39 +253,50 @@ Depuis la palette de commandes, sous **Koh-Vibe** :
 
 | Commande | Ce qu'elle fait |
 |---|---|
-| *Installer les hooks* / *Désinstaller les hooks* | ajoute les hooks de Koh-Vibe à `~/.claude/settings.json`, ou les retire |
+| *Installer les hooks* / *Désinstaller les hooks* | ajoute les hooks de Koh-Vibe à `~/.claude/settings.json` et son skill à `~/.claude/skills/`, ou les retire |
 | *Rafraîchir* | relit le registre de Claude Code et ramène toute conversation vivante que la liste a perdue |
 | *Nouvelle session* | ouvre un onglet Claude Code, rangé dans le dossier de la fenêtre |
 | *Nouveau dossier* | crée un dossier |
 | *Son d'un événement* · *Volume des carillons* | les carillons globaux |
 | *Installer la bibliothèque de sons* / *Retirer la bibliothèque de sons* | les cent sons Kenney |
 | *Rafraîchir la consommation* | force un relevé, sinon mis en cache cinq minutes |
+| *Rafraîchir les routines* · *Rafraîchir les artifacts* | relit la liste sur claude.ai, sinon mise en cache cinq minutes |
 
-Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation — est sur
-le clic droit de la ligne concernée.
+Le reste — rouvrir, fermer, renommer, colorer, sons par dossier et par conversation, lancer ou
+mettre en pause une routine, renommer, épingler ou ranger un artifact — est sur le clic droit de la ligne
+concernée.
 
 ## Vos données, et ce qui quitte la machine
 
-**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Le seul appel réseau que fait
-Koh-Vibe va chez Anthropic, pour vos chiffres de consommation, au plus une fois toutes les
-cinq minutes. Le jeton OAuth dont il a besoin est lu dans le trousseau du système — jamais
-journalisé, jamais écrit sur le disque. Aucun prompt, aucun transcript, aucun chemin ne quitte
-la machine.
+**Rien n'est envoyé nulle part, et il n'y a aucune télémétrie.** Koh-Vibe ne parle qu'à
+Anthropic : pour vos chiffres de consommation, au plus une fois toutes les cinq minutes ; pour vos
+routines et vos artifacts, au plus une fois toutes les cinq minutes et seulement tant que leur vue
+est ouverte ; et pour ce que vous demandez à ces deux vues — lancer, mettre en pause, renommer,
+épingler — au moment où vous cliquez. Le jeton OAuth dont il a besoin est celui que Claude Code
+garde dans le trousseau du système — jamais journalisé, jamais écrit sur le disque. Aucun prompt,
+aucun transcript, aucun chemin ne quitte la machine. Un appel qui échoue est noté dans le canal de
+sortie *Koh-Vibe* avec sa méthode, son chemin, son statut et le motif que l'API donne d'un refus —
+jamais un en-tête, et rien d'autre d'un corps.
 
 Tout le reste tient dans `~/.koh-vibe/` :
 
 | | |
 |---|---|
-| `bin/` | le pont et l'enrobage de statusline, copiés à l'installation des hooks |
+| `bin/` | le pont, l'enrobage de statusline et le hook des règles de dossier, copiés à l'installation des hooks |
 | `events/` | le spool : un fichier par événement, consommé puis effacé |
 | `events/rejected/` | ce qui n'a pas pu être lu, gardé plutôt que jeté |
 | `sessions/` | l'état réduit, un fichier par session |
 | `requests/` | les demandes de mise au premier plan, de réouverture et de fermeture, d'une fenêtre à l'autre |
 | `backups/` | les copies de `settings.json` prises avant chaque pose de hooks |
 | `groups.json` | les dossiers, leurs couleurs, l'ordre choisi et les sons |
+| `rules/` | les règles de chaque dossier, un fichier par dossier |
+| `rules-seen/` | la version des règles de son dossier que chaque conversation a reçue |
 | `closed.json` | les dix conversations fermées le plus récemment |
 | `settings.json` | les sons globaux, le volume, et les deux réglages de la liste |
 | `usage.json` | le dernier relevé de consommation, mis en cache |
+| `routines.json` | la dernière liste de routines lue sur claude.ai, en cache |
+| `artifacts.json` | la dernière liste d'artifacts lue sur claude.ai, en cache |
+| `artifact-projects.json` | le projet sous lequel chaque artifact est rangé |
 | `status.json` | le dernier instantané de la statusline |
 | `sounds/` | la bibliothèque, si vous l'avez installée |
 
@@ -240,13 +331,28 @@ derrière les autres tant qu'ils ne sont pas affichés : un clic ramène l'ongle
 Claude Code le reprend. *Retirer de la liste* masque une conversation jusqu'à sa prochaine
 activité.
 
+C'est ce même registre qui rend la liste des processus possible : c'est le seul endroit qui
+relie une conversation à un pid, et tout ce qu'une session lance reste dans la descendance de
+ce pid. La liste est donc une lecture de la table des processus du système, prise tant que le
+panneau est ouvert et parcourue une fois par session — sans hook, et sans rien à installer.
+
 ## Nouveautés
 
-La **1.2.0** garde toutes les conversations : les terminées restent grisées dans leur dossier,
-en rouvrir une ramène cette conversation-là et non une vierge, celles rangées nulle part sont
-*temporaires* jusqu'à ce que vous les rangiez, la corbeille ferme l'onglet et la ligne d'un
-clic, et un **+** démarre une session depuis le tableau de bord. Plus rien n'est oublié pour
-s'être tu.
+La **1.5.0** met le côté cloud à côté de vos sessions et dit ce que chacune est en train de
+faire :
+
+- Des vues **Routines** et **Artifacts** : vos routines cloud programmées, et vos artifacts
+  claude.ai rangés par projet, avec *Épinglés* et *Récents* en tête.
+- Des **règles de dossier** : un dossier porte des règles que reçoit chaque conversation qui y
+  est rangée.
+- Une **recherche** parmi les conversations, les artifacts rangés et les fermées récemment.
+- Une vue **Processus** : ce que chaque session exécute, en direct, sous-agents et processus
+  détachés compris.
+- La **barre d'onglets** de l'éditeur réglée depuis la vue Réglages, et un **skill**
+  `koh-vibe` pour qu'une conversation connaisse son dossier et ses règles.
+
+Après la mise à jour, lancez une fois *Koh-Vibe: Installer les hooks* : les règles de dossier
+ont besoin d'un nouveau hook.
 
 Chaque version, et ce qu'elle a changé, est dans le [changelog](CHANGELOG.md).
 

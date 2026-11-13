@@ -10,3 +10,35 @@
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
+
+/** A string with something in it, or nothing: an empty field reads as absent at every boundary. */
+export function nonEmptyString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+/**
+ * A date as the APIs send it — ISO 8601, nanoseconds included — in epoch
+ * milliseconds, or nothing for anything that does not read as one.
+ */
+export function isoTimeOf(v: unknown): number | undefined {
+  if (typeof v !== 'string' || v.length === 0) return undefined;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? t : undefined;
+}
+
+/**
+ * A label as a tree row can show it: whitespace — newlines included — folded
+ * to single spaces, the ends trimmed. Anything but a string reads as empty.
+ */
+export function foldedText(v: unknown): string {
+  return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+}
+
+/**
+ * A time a `Date` can hold, in epoch milliseconds: finite, and within the
+ * ±8.64e15 the ECMAScript date range allows. Anything else makes an Invalid
+ * Date, which `Intl.DateTimeFormat` refuses with a RangeError.
+ */
+export function isEpochMs(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 8.64e15;
+}

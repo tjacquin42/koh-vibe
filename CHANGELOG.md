@@ -15,6 +15,86 @@ entry can reach the repository from. `scripts/bump-version.sh` steps in only whe
 missing — it inserts a bare heading and says so — and an entry that stands as a bare link is a
 version whose promotion forgot to describe it.
 
+## [1.5.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.5.0) — 2026-10-04
+
+`minor` · [#34](https://github.com/tjacquin42/koh-vibe/pull/34) — Koh-Vibe 1.5.0 — Routines, Artifacts, folder rules, and what runs under every session
+
+Carries [#32](https://github.com/tjacquin42/koh-vibe/pull/32),
+[#33](https://github.com/tjacquin42/koh-vibe/pull/33),
+[#35](https://github.com/tjacquin42/koh-vibe/pull/35) and
+[#36](https://github.com/tjacquin42/koh-vibe/pull/36).
+
+The dashboard said a session was working. It did not say at what, and it knew nothing of what
+lives on claude.ai. A Processes view now accounts for what runs under each conversation;
+Routines and Artifacts views bring the cloud side next to the sessions; a folder can carry
+rules that every conversation filed in it receives; and a search finds any of it.
+
+**After updating, run *Koh-Vibe: Install hooks* once**: the folder rules need a new hook, and
+the command also installs the `koh-vibe` skill.
+
+### Added
+
+- **A Routines view**: your scheduled cloud routines, sorted by next run. Run, pause or resume
+  one from its row, open it or copy it.
+- **An Artifacts view**: your claude.ai artifacts, filed by project — on their own, from the
+  repository they were published from or from their title, or by hand with drag and drop or
+  *File in a project…* — under *Pinned* and *Recent* folders. Rename, pin and unpin from a row.
+- **Folder rules.** A Sessions folder can carry rules, added to the context of every
+  conversation filed in it at its next message. *Add a rule…* opens a conversation filed in
+  the folder with its prompt started; *Open the rules* opens the file.
+- **Search**: the search icon on the Sessions title finds a conversation, a filed artifact or a
+  recently closed entry, by title, folder or project.
+- **Artifacts in a Sessions folder**, next to its conversations: drag one from the Artifacts
+  view, or *Put in a Sessions folder…*.
+- **A `koh-vibe` skill for agents**, installed with the hooks and brought up to date at each
+  start: a conversation can tell which folder it is in, file itself, or read a folder's rules.
+  A copy edited by hand is never overwritten without asking; a copy deleted by hand is never
+  put back.
+- **Editor tabs, from the settings view**: a row sets the editor's tab bar to all, one or none.
+  With *one*, only the current conversation shows, and the session list does the switching.
+- **A Processes view for what runs under each session.** Commands appear as they run, a
+  command a subagent started carries an icon of its own, a detached process is put back under
+  the session that started it instead of floating, and what no conversation accounts for gets
+  its own view instead of disappearing — judged by its subtree, so `launchd` adopting a child
+  does not make that child an orphan. The pid or the command line of any row copies with a
+  click, and the octal escapes `ps` puts into an accented path (`caf\303\251`) are decoded.
+- **Unit test coverage is now a CI gate.** `pnpm test:coverage` measures the whole source tree
+  and fails under 80% of lines — a ratchet, not today's 87.2%, so a future regression is
+  caught without pinning an ever-climbing exact number.
+
+### Changed
+
+- **An expired temporary conversation leaves with its tab**: an open, unfiled conversation
+  quiet for 24 hours used to be hidden while its tab stayed open, out of reach of the
+  dashboard. Its tab is now closed and it goes to *Recently closed* — or, when the tab cannot
+  be told apart safely, the row simply stays.
+- **The views follow the order settled on in daily use**: Sessions, Usage, Artifacts,
+  Routines, Processes, Recently closed, Settings.
+- **The repository's comments and test titles are in English**, as `CLAUDE.md` has always
+  required. French display labels quoted inside tests (`« Aucune »`, `« Sans dossier »`) are
+  left alone — they are what the interface shows, not prose.
+- **Structure and performance**: one home for what three files each defined separately, one
+  builder for a process row shared by both views that draw one, a registry that reads its
+  entries together instead of one after the other, and a process table indexed once per
+  snapshot instead of once per walk.
+
+### Fixed
+
+- **A conversation filed in a folder never leaves the list on its own** — not when Claude Code
+  cleans up an old transcript, not when the cap on ended conversations is reached. Only your
+  own gesture removes it.
+- **Calls to Anthropic** go through one client that sends the headers Claude Code's own client
+  sends, so the usage, routines and artifacts requests stop answering 400 or 404; the feed is
+  cached and paced, and shared between windows.
+- **Sounds**: the installer said how many sounds there were, not how many actually went —
+  those numbers differ exactly when something failed.
+- **Labels**: a duration past a day is now said in days rather than hours.
+- **Settings**: the animation checkbox gets an icon of its own, and the shared settings file
+  is written through the same queue as every other shared file — two windows saving at once
+  could otherwise lose one of the two.
+- **Spool**: the abandon signal is read again just before an end is written, so an aborted run
+  stops without recording an end that never happened.
+
 ## [1.4.0](https://github.com/tjacquin42/koh-vibe/releases/tag/v1.4.0) — 2026-09-09
 
 `minor` · [#31](https://github.com/tjacquin42/koh-vibe/pull/31) — Koh-Vibe 1.4.0 — every version reaches Open VSX on its own
