@@ -70,7 +70,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   return (
     <div className={`srow tone-${tone}${info ? ' open' : ''}`}>
       <div className="srow-line">
-        <button type="button" className="srow-main" onClick={() => ctx.bridge.post({ type: 'openCockpit', sessionId: s.id })}>
+        <button type="button" className="srow-main" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
           <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />
           <span className="txt">
             <span className="l1">

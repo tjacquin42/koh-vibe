@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import { claudeHome, claudeSessionsDir, kohVibeHome } from '../../../src/paths';
+import { claudeHome, claudeSessionsDir, kohVibeHome, spoolDirs } from '../../../src/paths';
+import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
+import { openSession } from './open-session';
 import { scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
 import { buildSnapshot } from './snapshot';
 import { createStatusBar } from './status-bar';
@@ -63,7 +65,7 @@ function connect(
   surface: Surface,
   context: vscode.ExtensionContext,
   hub: Hub,
-  actions: { openCockpit(sessionId?: string): void; showTab(tab: SidebarTab | undefined): void },
+  actions: { openCockpit(sessionId?: string): void; openSession(sessionId: string): void; showTab(tab: SidebarTab | undefined): void },
 ): Disposable {
   webview.options = webviewOptions(context);
   webview.html = renderHtml(webview, context);
@@ -91,6 +93,9 @@ function connect(
         return;
       case 'tab':
         actions.showTab(msg.tab);
+        return;
+      case 'openSession':
+        actions.openSession(msg.sessionId);
         return;
       case 'openArtifact':
         void vscode.env.openExternal(vscode.Uri.parse(`https://claude.ai/artifact/${msg.slug}`));
@@ -130,10 +135,20 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(output, hub, statusBar, hub.subscribe((snap) => statusBar.update(snap)));
 
   /** One tab tracker per view; a switch to Processes rebuilds at once rather than at the next poll. */
-  const tabTracker = (): { openCockpit(): void; showTab(tab: SidebarTab | undefined): void } => {
+  const focus = (sessionId: string): void => {
+    void openSession(sessionId, {
+      read: async (id) => (await readSessions(spoolDirs(home))).get(id),
+      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
+      fallback: () => openCockpit(),
+    });
+  };
+
+  const tabTracker = (): { openCockpit(): void; openSession(sessionId: string): void; showTab(tab: SidebarTab | undefined): void } => {
     const key = {};
     return {
       openCockpit: () => openCockpit(),
+      openSession: focus,
       showTab(tab) {
         const before = wantOrphans();
         if (tab === undefined) tabs.delete(key);

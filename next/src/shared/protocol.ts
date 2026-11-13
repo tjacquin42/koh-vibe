@@ -182,6 +182,11 @@ export type ViewMessage =
   | { type: 'reload' }
   /** The tab the view now shows: the host scans for orphan processes only behind the Processes one. */
   | { type: 'tab'; tab: SidebarTab }
+  /**
+   * Brings a conversation to the front. While V1 is installed the host hands
+   * the click to V1's own command, which owns the acknowledgement it writes.
+   */
+  | { type: 'openSession'; sessionId: string }
   /** Opens the artifact's page on claude.ai in the browser — a link, nothing written. */
   | { type: 'openArtifact'; slug: string };
 
@@ -204,6 +209,10 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       return { type: 'ready' };
     case 'reload':
       return { type: 'reload' };
+    case 'openSession': {
+      const id = raw['sessionId'];
+      return typeof id === 'string' && id.length > 0 ? { type: 'openSession', sessionId: id } : undefined;
+    }
     case 'openArtifact': {
       const slug = raw['slug'];
       return typeof slug === 'string' && SLUG.test(slug) ? { type: 'openArtifact', slug } : undefined;

@@ -154,6 +154,13 @@ export const commands = {
     recorded.commands.set(id, run);
     return { dispose: () => recorded.commands.delete(id) };
   },
+  getCommands(_filterInternal?: boolean): Promise<string[]> {
+    return Promise.resolve([...recorded.commands.keys()]);
+  },
+  executeCommand(id: string, ...args: unknown[]): Promise<unknown> {
+    const run = recorded.commands.get(id);
+    return run === undefined ? Promise.reject(new Error(`command '${id}' not found`)) : Promise.resolve(run(...args));
+  },
 };
 
 export const env = {

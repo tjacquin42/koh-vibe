@@ -192,4 +192,24 @@ describe('activate', () => {
     expect(item?.text).toBe('$(question) 1 · $(circle-filled) 1');
     expect(item?.command).toBe(`${SIDEBAR_VIEW}.focus`);
   });
+
+  it('hands a click on a conversation to V1, which owns what the click writes', async () => {
+    start(ExtensionMode.Production);
+    const got: unknown[] = [];
+    recorded.commands.set('kohVibe.focusSession', (s: unknown) => got.push(s));
+    const view = sidebar();
+    const before = await fingerprint(home);
+    await view.webview.receive({ type: 'openSession', sessionId: 'b' });
+    await vi.waitFor(() => expect(got).toHaveLength(1), { timeout: 1_000, interval: 10 });
+    expect(got[0]).toMatchObject({ id: 'b', cwd: '/work/b', status: 'waiting' });
+    expect(recorded.panels).toHaveLength(0);
+    expect(await fingerprint(home)).toBe(before);
+  });
+
+  it('opens the cockpit instead when V1 is not there', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'openSession', sessionId: 'b' });
+    await vi.waitFor(() => expect(recorded.panels).toHaveLength(1), { timeout: 1_000, interval: 10 });
+  });
 });
