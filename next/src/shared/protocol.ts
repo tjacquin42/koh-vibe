@@ -26,6 +26,11 @@ export interface SessionView {
   currentAction?: { tool: string; target?: string };
   pendingPermission?: { tool: string; summary: string };
   tokens?: { input: number; output: number };
+  /**
+   * When a temporary conversation — filed nowhere — leaves the list on its
+   * own, if the setting is on. Absent for a filed or ended one.
+   */
+  expiresAt?: number;
 }
 
 export interface FolderView {
@@ -40,7 +45,13 @@ export interface FolderView {
 export interface UsageWindowView {
   /** 0–100. */
   percent: number;
+  /** Epoch MILLISECONDS — the host converts V1's seconds. */
   resetsAt?: number;
+}
+
+export interface ModelWindowView extends UsageWindowView {
+  /** The model the weekly window counts, e.g. "Opus". */
+  name: string;
 }
 
 export interface UsageView {
@@ -48,6 +59,8 @@ export interface UsageView {
   source: 'api' | 'statusline';
   fiveHour?: UsageWindowView;
   weekly?: UsageWindowView;
+  /** Weekly windows scoped to one model, in the order the source lists them. */
+  models: ModelWindowView[];
 }
 
 export interface ArtifactView {
@@ -55,13 +68,66 @@ export interface ArtifactView {
   title: string;
   updatedAt?: number;
   pinned: boolean;
+  /** The project it is filed under (or its title points to); absent for « Other ». */
+  project?: string;
 }
+
+export type RoutineGroup = 'today' | 'tomorrow' | 'week' | 'later' | 'paused';
 
 export interface RoutineView {
   id: string;
   name: string;
   enabled: boolean;
   nextRunAt?: number;
+  /** Where it sits in the list, computed by the host against the snapshot's time. */
+  group: RoutineGroup;
+  /** Recurring schedule, a cron expression read in UTC. Absent for a one-shot. */
+  cron?: string;
+  /** `owner/name` of each repository it works in. */
+  repos: string[];
+}
+
+export type ProcessKind = 'mcp' | 'shell' | 'work';
+
+export interface ProcessView {
+  pid: number;
+  /** The command line made readable (V1's `displayCommand`). */
+  label: string;
+  kind: ProcessKind;
+  /** Seconds since it started. */
+  elapsed: number;
+  /** Resident memory, kilobytes. */
+  rss: number;
+  /** How deep under the session it sits; 0 = started by the session itself. */
+  depth: number;
+}
+
+export interface OrphanView {
+  /** The adopted process and everything under it, root first. */
+  tree: ProcessView[];
+  cwd: string;
+}
+
+export interface ProcessesView {
+  at: number;
+  /** What each live conversation is running, keyed by session id. Absent = nothing. */
+  bySession: Record<string, ProcessView[]>;
+  /**
+   * Development servers no conversation carries any more. Only looked for
+   * while a view shows the Processes tab — it costs an `lsof`.
+   */
+  orphans?: OrphanView[];
+}
+
+/** The shared settings (`settings.json`), as far as the view shows them. */
+export interface SettingsView {
+  animate: boolean;
+  persistent: boolean;
+  expireTemporary: boolean;
+  /** 0–100. */
+  volume: number;
+  waiting: string;
+  done: string;
 }
 
 export interface ClosedView {
@@ -82,6 +148,15 @@ export interface Snapshot {
   artifacts: { at: number; items: ArtifactView[] } | undefined;
   routines: { at: number; items: RoutineView[] } | undefined;
   closed: ClosedView[];
+  settings: SettingsView;
+  processes?: ProcessesView;
+}
+
+export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;
+export type SidebarTab = (typeof SIDEBAR_TABS)[number];
+
+export function isSidebarTab(v: unknown): v is SidebarTab {
+  return typeof v === 'string' && (SIDEBAR_TABS as readonly string[]).includes(v);
 }
 
 /** Which surface the view is rendering in. */
@@ -104,7 +179,14 @@ export type HostMessage =
 export type ViewMessage =
   | { type: 'ready' }
   | { type: 'openCockpit'; sessionId?: string }
-  | { type: 'reload' };
+  | { type: 'reload' }
+  /** The tab the view now shows: the host scans for orphan processes only behind the Processes one. */
+  | { type: 'tab'; tab: SidebarTab }
+  /** Opens the artifact's page on claude.ai in the browser — a link, nothing written. */
+  | { type: 'openArtifact'; slug: string };
+
+/** claude.ai's slugs, as V1 accepts them (artifacts/model.ts): they end up in a URL. */
+const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -122,6 +204,12 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       return { type: 'ready' };
     case 'reload':
       return { type: 'reload' };
+    case 'openArtifact': {
+      const slug = raw['slug'];
+      return typeof slug === 'string' && SLUG.test(slug) ? { type: 'openArtifact', slug } : undefined;
+    }
+    case 'tab':
+      return isSidebarTab(raw['tab']) ? { type: 'tab', tab: raw['tab'] } : undefined;
     case 'openCockpit': {
       const id = raw['sessionId'];
       if (id === undefined) return { type: 'openCockpit' };

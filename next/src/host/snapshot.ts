@@ -13,13 +13,30 @@ import type { Session, Status } from '../../../src/events/types';
 import { readClosed } from '../../../src/closed/store';
 import { readGroups } from '../../../src/groups/store';
 import { groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
-import { artifactsFile, closedFile, groupsFile, routinesFile, spoolDirs } from '../../../src/paths';
+import { artifactProjectsFile, artifactsFile, closedFile, groupsFile, routinesFile, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
 import { visibleSessions } from '../../../src/store/visible';
 import { readUsage, type UsageReading } from '../../../src/usage/reader';
+import type { UsageWindow } from '../../../src/usage/model';
 import { isRoutine, type Routine } from '../../../src/routines/model';
-import { isArtifact, type Artifact } from '../../../src/artifacts/model';
-import type { ArtifactView, FolderView, RoutineView, SessionView, Snapshot, UsageView } from '../shared/protocol';
+import { groupOf } from '../../../src/routines/schedule';
+import { isArtifact, sortArtifacts, type Artifact } from '../../../src/artifacts/model';
+import { projectOfArtifact, type ArtifactProjects } from '../../../src/artifacts/projects';
+import { readArtifactProjects } from '../../../src/artifacts/projects-store';
+import { readSettings } from '../../../src/settings/store';
+import type { AppSettings } from '../../../src/settings/model';
+import { TEMPORARY_TTL_MS } from '../../../src/store/temporary';
+import type {
+  ArtifactView,
+  FolderView,
+  ProcessesView,
+  RoutineView,
+  SessionView,
+  SettingsView,
+  Snapshot,
+  UsageView,
+  UsageWindowView,
+} from '../shared/protocol';
 
 const STATUS_ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
 
@@ -100,13 +117,31 @@ export function foldersOf(groups: GroupsState, sessions: readonly SessionView[])
   return { folders, unfiled: ordered(loose, sessionOrderOf(groups, undefined), byId) };
 }
 
+/**
+ * V1 carries a reset deadline in SECONDS since the epoch (Unix's unit, the
+ * statusline's); the view counts in milliseconds like everything else in it.
+ */
+function windowView(w: UsageWindow): UsageWindowView {
+  return w.resetsAt === undefined ? { percent: w.percent } : { percent: w.percent, resetsAt: w.resetsAt * 1000 };
+}
+
 export function toUsageView(r: UsageReading): UsageView {
-  const v: UsageView = { at: r.at, source: r.source };
-  const five = r.usage.fiveHour;
-  const week = r.usage.sevenDay;
-  if (five !== undefined) v.fiveHour = five.resetsAt === undefined ? { percent: five.percent } : { percent: five.percent, resetsAt: five.resetsAt };
-  if (week !== undefined) v.weekly = week.resetsAt === undefined ? { percent: week.percent } : { percent: week.percent, resetsAt: week.resetsAt };
+  const v: UsageView = { at: r.at, source: r.source, models: r.usage.models.map((m) => ({ name: m.name, ...windowView(m) })) };
+  if (r.usage.fiveHour !== undefined) v.fiveHour = windowView(r.usage.fiveHour);
+  if (r.usage.sevenDay !== undefined) v.weekly = windowView(r.usage.sevenDay);
   return v;
+}
+
+export function toSettingsView(s: AppSettings): SettingsView {
+  return {
+    animate: s.animate,
+    persistent: s.persistent,
+    expireTemporary: s.expireTemporary,
+    // V1 keeps the volume as afplay takes it, 0–1; the view shows a percentage.
+    volume: Math.round(s.volume * 100),
+    waiting: s.waiting,
+    done: s.done,
+  };
 }
 
 /** Same reading as V1's `Feed.cached`, without the refresh that writes the file. */
@@ -126,41 +161,68 @@ export async function readCache<T>(file: string, isItem: (v: unknown) => v is T)
   return { at, items: list.filter(isItem) };
 }
 
-function toArtifactView(a: Artifact): ArtifactView {
-  const v: ArtifactView = { slug: a.slug, title: a.title, pinned: a.pinned };
-  if (a.updatedAt !== undefined) v.updatedAt = a.updatedAt;
-  return v;
+export function toArtifactViews(list: readonly Artifact[], filing: ArtifactProjects): ArtifactView[] {
+  return sortArtifacts(list).map((a) => {
+    const v: ArtifactView = { slug: a.slug, title: a.title, pinned: a.pinned };
+    if (a.updatedAt !== undefined) v.updatedAt = a.updatedAt;
+    const project = projectOfArtifact(a, filing);
+    if (project !== undefined) v.project = project;
+    return v;
+  });
 }
 
-function toRoutineView(r: Routine): RoutineView {
-  const v: RoutineView = { id: r.id, name: r.name, enabled: r.enabled };
+export function toRoutineView(r: Routine, now: number): RoutineView {
+  const v: RoutineView = { id: r.id, name: r.name, enabled: r.enabled, group: groupOf(r, now), repos: [...r.repos] };
   if (r.nextRunAt !== undefined) v.nextRunAt = r.nextRunAt;
+  if (r.cron !== undefined) v.cron = r.cron;
   return v;
 }
 
-export async function buildSnapshot(home: string, now: number): Promise<Snapshot> {
-  const [all, groups, closed, usage, artifacts, routines] = await Promise.all([
+/**
+ * A temporary conversation — in no folder — leaves the list a day after its
+ * last activity when the setting says so (V1's store/temporary.ts). The view
+ * shows when, so the departure is never a surprise.
+ */
+export function withExpiry(sessions: readonly SessionView[], unfiled: readonly string[], settings: AppSettings): SessionView[] {
+  if (!settings.expireTemporary) return [...sessions];
+  const loose = new Set(unfiled);
+  return sessions.map((s) => (loose.has(s.id) && s.endedAt === undefined ? { ...s, expiresAt: s.lastEventAt + TEMPORARY_TTL_MS } : s));
+}
+
+export interface SnapshotExtras {
+  /** What the live conversations are running. Left out by tests: it reads the process table. */
+  processes?: (cwds: readonly string[]) => Promise<ProcessesView>;
+}
+
+export async function buildSnapshot(home: string, now: number, extras: SnapshotExtras = {}): Promise<Snapshot> {
+  const [all, groups, closed, usage, artifacts, filing, routines, settings] = await Promise.all([
     readSessions(spoolDirs(home)),
     readGroups(groupsFile(home)),
     readClosed(closedFile(home)),
     readUsage(home),
     readCache(artifactsFile(home), isArtifact),
+    readArtifactProjects(artifactProjectsFile(home)),
     readCache(routinesFile(home), isRoutine),
+    readSettings(settingsFile(home)),
   ]);
-  const sessions = [...visibleSessions(all).values()].map(toSessionView).sort(compareSessions);
-  const { folders, unfiled } = foldersOf(groups, sessions);
+  const shown = [...visibleSessions(all).values()];
+  const visible = shown.map(toSessionView).sort(compareSessions);
+  const { folders, unfiled } = foldersOf(groups, visible);
+  const sessions = withExpiry(visible, unfiled, settings);
   const snap: Snapshot = {
     at: now,
     sessions,
     folders,
     unfiled,
-    artifacts: artifacts === undefined ? undefined : { at: artifacts.at, items: artifacts.items.map(toArtifactView) },
-    routines: routines === undefined ? undefined : { at: routines.at, items: routines.items.map(toRoutineView) },
+    artifacts: artifacts === undefined ? undefined : { at: artifacts.at, items: toArtifactViews(artifacts.items, filing) },
+    routines: routines === undefined ? undefined : { at: routines.at, items: routines.items.map((r) => toRoutineView(r, now)) },
     closed: closed.closed.map((e) => {
       const c = { sessionId: e.id, project: e.project, closedAt: e.closedAt };
       return e.title === undefined ? c : { ...c, title: e.title };
     }),
+    settings: toSettingsView(settings),
   };
   if (usage !== undefined) snap.usage = toUsageView(usage);
+  if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
   return snap;
 }

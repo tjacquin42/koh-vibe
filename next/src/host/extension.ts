@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
-import { kohVibeHome } from '../../../src/paths';
-import { parseViewMessage, type Surface, type ViewContext } from '../shared/protocol';
+import { claudeHome, claudeSessionsDir, kohVibeHome } from '../../../src/paths';
+import { parseViewMessage, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { Hub } from './hub';
+import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
+import { scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
 import { buildSnapshot } from './snapshot';
+import { createStatusBar } from './status-bar';
 import { watchHome, type Disposable } from './watch';
 import { builtHtml, devHtml, makeNonce } from './webview-html';
 
-export const SIDEBAR_VIEW = 'kohVibeNext.sidebar';
-export const COCKPIT_PANEL = 'kohVibeNext.cockpit';
+export { COCKPIT_PANEL, SIDEBAR_VIEW };
 export const DEFAULT_DEV_URL = 'http://localhost:5199';
 
 /**
@@ -61,7 +63,7 @@ function connect(
   surface: Surface,
   context: vscode.ExtensionContext,
   hub: Hub,
-  actions: { openCockpit(sessionId?: string): void },
+  actions: { openCockpit(sessionId?: string): void; showTab(tab: SidebarTab | undefined): void },
 ): Disposable {
   webview.options = webviewOptions(context);
   webview.html = renderHtml(webview, context);
@@ -87,30 +89,64 @@ function connect(
       case 'openCockpit':
         actions.openCockpit(msg.sessionId);
         return;
+      case 'tab':
+        actions.showTab(msg.tab);
+        return;
+      case 'openArtifact':
+        void vscode.env.openExternal(vscode.Uri.parse(`https://claude.ai/artifact/${msg.slug}`));
+        return;
     }
   });
   return {
     dispose(): void {
+      actions.showTab(undefined);
       client?.dispose();
       sub.dispose();
     },
   };
 }
 
+/** Overridable by tests, which must not read the machine's process table. */
+export const processDeps: { current: ProcessDeps | undefined } = { current: undefined };
+
 export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
+  const procs = processDeps.current ?? systemProcessDeps(claudeSessionsDir(claudeHome()));
+  // The tab each open view shows. Orphans cost an `lsof` over every adopted
+  // dev server: looked for only while some view has the Processes tab open.
+  const tabs = new Map<object, SidebarTab>();
+  const wantOrphans = (): boolean => [...tabs.values()].includes('processes');
+  const workspaceRoots = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   const hub = new Hub({
-    build: () => buildSnapshot(home, Date.now()),
+    build: () =>
+      buildSnapshot(home, Date.now(), {
+        processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
+      }),
     watch: (onChange) => watchHome(home, onChange),
     log: (m) => output.appendLine(m),
   });
-  context.subscriptions.push(output, hub);
+  const statusBar = createStatusBar();
+  context.subscriptions.push(output, hub, statusBar, hub.subscribe((snap) => statusBar.update(snap)));
+
+  /** One tab tracker per view; a switch to Processes rebuilds at once rather than at the next poll. */
+  const tabTracker = (): { openCockpit(): void; showTab(tab: SidebarTab | undefined): void } => {
+    const key = {};
+    return {
+      openCockpit: () => openCockpit(),
+      showTab(tab) {
+        const before = wantOrphans();
+        if (tab === undefined) tabs.delete(key);
+        else tabs.set(key, tab);
+        if (wantOrphans() && !before) void hub.refresh();
+      },
+    };
+  };
 
   const views: { webview: vscode.Webview; reload(): void }[] = [];
   let cockpit: vscode.WebviewPanel | undefined;
 
-  const openCockpit = (): void => {
+  function openCockpit(): void {
     if (cockpit !== undefined) {
       cockpit.reveal();
       return;
@@ -120,7 +156,7 @@ export function activate(context: vscode.ExtensionContext): void {
       retainContextWhenHidden: true,
     });
     panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'logo-mono.svg');
-    const link = connect(panel.webview, 'cockpit', context, hub, { openCockpit });
+    const link = connect(panel.webview, 'cockpit', context, hub, tabTracker());
     const entry = { webview: panel.webview, reload: () => (panel.webview.html = renderHtml(panel.webview, context)) };
     views.push(entry);
     cockpit = panel;
@@ -129,12 +165,12 @@ export function activate(context: vscode.ExtensionContext): void {
       views.splice(views.indexOf(entry), 1);
       cockpit = undefined;
     });
-  };
+  }
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SIDEBAR_VIEW, {
       resolveWebviewView(view: vscode.WebviewView): void {
-        const link = connect(view.webview, 'sidebar', context, hub, { openCockpit });
+        const link = connect(view.webview, 'sidebar', context, hub, tabTracker());
         const entry = { webview: view.webview, reload: () => (view.webview.html = renderHtml(view.webview, context)) };
         views.push(entry);
         view.onDidDispose(() => {

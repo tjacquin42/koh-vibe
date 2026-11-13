@@ -7,7 +7,9 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, COCKPIT_PANEL, SIDEBAR_VIEW } from '../src/host/extension';
+import { activate, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW } from '../src/host/extension';
+import type { ProcessDeps } from '../src/host/processes';
+import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
 import { ExtensionMode, FakeWebviewView, recorded, Uri } from './stubs/vscode';
 import { fingerprint, makeHome, session } from './home';
@@ -39,14 +41,29 @@ function sidebar(): FakeWebviewView {
   return view;
 }
 
+/** Never the machine's own `ps`: a fixed table, and a count of the `lsof` calls. */
+const fakeProcs = { orphanScans: 0, roots: [] as readonly string[] };
+const deps: ProcessDeps = {
+  table: async () => tableOf([{ pid: 100, ppid: 1, elapsed: 60, rss: 2048, command: 'claude' }, { pid: 101, ppid: 100, elapsed: 50, rss: 4096, command: 'node mcp.js' }]),
+  live: async () => new Map([['a', { pid: 100, sessionId: 'a', cwd: '/work/a', entrypoint: 'cli' }]]),
+  orphans: async (_table, roots) => {
+    fakeProcs.orphanScans++;
+    fakeProcs.roots = roots;
+    return [];
+  },
+};
+
 beforeEach(async () => {
   recorded.reset();
+  fakeProcs.orphanScans = 0;
+  processDeps.current = deps;
   home = await makeHome();
   process.env['KOH_VIBE_HOME'] = home;
 });
 
 afterEach(async () => {
   for (const s of subscriptions) s.dispose();
+  processDeps.current = undefined;
   if (savedHome === undefined) delete process.env['KOH_VIBE_HOME'];
   else process.env['KOH_VIBE_HOME'] = savedHome;
   await rm(home, { recursive: true, force: true });
@@ -137,5 +154,42 @@ describe('activate', () => {
     await view.webview.receive({ type: 'reload' });
     expect(reload).toBeDefined();
     expect(messages(view).map((m) => m.type)).toEqual(['init', 'init', 'snapshot']);
+  });
+
+  it('shows what each conversation runs, and looks for orphans only behind the Processes tab', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const init = messages(view)[0];
+    expect(init?.type === 'init' && init.snapshot.processes?.bySession['a']?.map((p) => p.label)).toEqual(['node mcp.js']);
+    expect(init?.type === 'init' && init.snapshot.processes?.orphans).toBeUndefined();
+    expect(fakeProcs.orphanScans).toBe(0);
+    await view.webview.receive({ type: 'tab', tab: 'processes' });
+    await vi.waitFor(() => expect(fakeProcs.orphanScans).toBeGreaterThan(0), { timeout: 2_000, interval: 20 });
+    expect(fakeProcs.roots).toContain('/work/open-folder');
+    expect(fakeProcs.roots).toContain('/work/a');
+    const scans = fakeProcs.orphanScans;
+    await view.webview.receive({ type: 'tab', tab: 'sessions' });
+    await view.webview.receive({ type: 'reload' });
+    expect(fakeProcs.orphanScans).toBe(scans);
+  });
+
+  it('opens an artifact on claude.ai, and nothing for a slug that is not one', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'openArtifact', slug: 'abc-123' });
+    await view.webview.receive({ type: 'openArtifact', slug: '../evil' });
+    expect(recorded.opened).toEqual(['https://claude.ai/artifact/abc-123']);
+  });
+
+  it('counts open conversations in the status bar', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const item = recorded.statusItems[0];
+    expect(item?.visible).toBe(true);
+    // a running, b waiting, c idle; e is ended and does not count.
+    expect(item?.text).toBe('$(question) 1 · $(circle-filled) 1');
+    expect(item?.command).toBe(`${SIDEBAR_VIEW}.focus`);
   });
 });

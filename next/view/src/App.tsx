@@ -1,30 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { FolderView, SessionView, Snapshot, ViewContext } from '../../src/shared/protocol';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SIDEBAR_TABS, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
 import { sampleSnapshot } from './fixture';
-import { countsOf, formatAge, formatTokens, sessionDetail, sessionTitle, toneOf } from './format';
+import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
-
-/** V1's neutral folder colors, drawn from the Koh palette. Unknown ids show no color. */
-const FOLDER_COLORS: Record<string, string> = {
-  blue: '#5CC8F0',
-  indigo: '#8A9BFF',
-  cyan: '#6FE3E0',
-  green: '#7EE0A8',
-  lime: '#C3EB7A',
-  yellow: '#F5D06B',
-  orange: '#FF9E5E',
-  red: '#FF7A7A',
-  pink: '#F59AC8',
-  purple: '#B9A6FF',
-};
+import { isEmpty, search } from './search';
+import { Icon } from './ui/icons';
+import { Section } from './ui/Section';
+import { parseUiState, toggleFold, type UiState } from './ui-state';
+import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
+import type { ViewCtx } from './views/context';
+import { ProcessesTab } from './views/Processes';
+import { RoutinesTab } from './views/Routines';
+import { ClosedRow, SessionRow, SessionsTab } from './views/Sessions';
+import { UsageStrip, UsageTab } from './views/Usage';
 
 interface State {
   context: ViewContext;
   snapshot: Snapshot;
 }
 
-/** Ticks once a minute so ages stay right between snapshots. */
+/** Ticks twice a minute so ages stay right between snapshots. */
 function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -40,6 +36,8 @@ export function App({ bridge }: { bridge: Bridge }) {
       ? undefined
       : { context: { surface: 'sidebar', language: navigator.language, version: 'preview' }, snapshot: sampleSnapshot(Date.now()) },
   );
+  const [ui, setUi] = useState<UiState>(() => parseUiState(bridge.load()));
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     const off = bridge.listen((m) => {
@@ -50,6 +48,22 @@ export function App({ bridge }: { bridge: Bridge }) {
     return off;
   }, [bridge]);
 
+  // The host scans for orphan processes only behind the Processes tab.
+  useEffect(() => {
+    bridge.post({ type: 'tab', tab: ui.tab });
+  }, [bridge, ui.tab]);
+
+  const updateUi = useCallback(
+    (next: (prev: UiState) => UiState) => {
+      setUi((prev) => {
+        const value = next(prev);
+        bridge.save(value);
+        return value;
+      });
+    },
+    [bridge],
+  );
+
   const t = useMemo(() => translator(state?.context.language ?? navigator.language), [state?.context.language]);
   const now = useNow();
 
@@ -57,21 +71,49 @@ export function App({ bridge }: { bridge: Bridge }) {
     return <div className="boot">{t('live.wait')}</div>;
   }
   const { context, snapshot } = state;
+  const ctx: ViewCtx = {
+    t,
+    language: context.language,
+    now,
+    snapshot,
+    bridge,
+    animate: snapshot.settings.animate,
+    isFolded: (key) => ui.folded.includes(key),
+    toggle: (key) => updateUi((prev) => toggleFold(prev, key)),
+  };
+  const results = search(snapshot, query);
   return (
     <div className={`app surface-${context.surface}`}>
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
       <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => bridge.post({ type: 'openCockpit' })} />
       {context.surface === 'cockpit' && <p className="soon">{t('cockpit.soon')}</p>}
-      <main className="body">
-        <SessionList t={t} snapshot={snapshot} now={now} onOpen={(id) => bridge.post({ type: 'openCockpit', sessionId: id })} />
+      <SearchBox t={t} query={query} onChange={setQuery} />
+      {results === undefined && <Tabs t={t} tab={ui.tab} onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))} />}
+      <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
+        {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
       </main>
-      <Usage t={t} snapshot={snapshot} now={now} />
+      {ui.tab !== 'usage' && <UsageStrip ctx={ctx} />}
       <footer className="foot">
         <span>{t('footer.readonly')}</span>
         {/^\d/.test(context.version) && <span className="mono">v{context.version}</span>}
       </footer>
     </div>
   );
+}
+
+function TabBody({ ctx, tab }: { ctx: ViewCtx; tab: SidebarTab }) {
+  switch (tab) {
+    case 'sessions':
+      return <SessionsTab ctx={ctx} />;
+    case 'artifacts':
+      return <ArtifactsTab ctx={ctx} />;
+    case 'routines':
+      return <RoutinesTab ctx={ctx} />;
+    case 'processes':
+      return <ProcessesTab ctx={ctx} />;
+    case 'usage':
+      return <UsageTab ctx={ctx} />;
+  }
 }
 
 function Header({ t, snapshot, surface, onCockpit }: { t: Translate; snapshot: Snapshot; surface: string; onCockpit(): void }) {
@@ -81,16 +123,13 @@ function Header({ t, snapshot, surface, onCockpit }: { t: Translate; snapshot: S
       <div className="title">
         <h1>{surface === 'cockpit' ? t('cockpit.title') : t('app.name')}</h1>
         <span className="tag">{t('app.next')}</span>
-        <span className="live" title={t('live.on')}>
+        <span className="live">
           <span className="pulse" aria-hidden="true" />
           {t('live.on')}
         </span>
         {surface === 'sidebar' && (
-          <button className="ibtn" type="button" onClick={onCockpit} title={t('action.cockpit')} aria-label={t('action.cockpit')}>
-            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <rect x="2" y="3" width="12" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M6 3v10" stroke="currentColor" strokeWidth="1.4" />
-            </svg>
+          <button className="ibtn" type="button" onClick={onCockpit} aria-label={t('action.cockpit')}>
+            <Icon name="panel" size={16} />
           </button>
         )}
       </div>
@@ -112,92 +151,67 @@ function Count({ n, label, tone }: { n: number; label: string; tone: string }) {
   );
 }
 
-function SessionList({ t, snapshot, now, onOpen }: { t: Translate; snapshot: Snapshot; now: number; onOpen(id: string): void }) {
-  const byId = useMemo(() => new Map(snapshot.sessions.map((s) => [s.id, s])), [snapshot.sessions]);
-  if (snapshot.sessions.length === 0) {
-    return (
-      <div className="empty">
-        <h2>{t('empty.title')}</h2>
-        <p>{t('empty.body')}</p>
-      </div>
-    );
-  }
-  const unfiled: FolderView = { id: '', name: t('folder.unfiled'), sessionIds: snapshot.unfiled };
+function SearchBox({ t, query, onChange }: { t: Translate; query: string; onChange(q: string): void }) {
+  return (
+    <div className="search">
+      <Icon name="search" />
+      <input
+        type="search"
+        value={query}
+        placeholder={t('search.placeholder')}
+        aria-label={t('search.label')}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onChange('');
+        }}
+      />
+      {query.length > 0 && (
+        <button type="button" className="tbtn" aria-label={t('search.clear')} onClick={() => onChange('')}>
+          <Icon name="close" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Tabs({ t, tab, onTab }: { t: Translate; tab: SidebarTab; onTab(tab: SidebarTab): void }) {
+  return (
+    <nav className="tabs" role="tablist" aria-label={t('tabs.label')}>
+      {SIDEBAR_TABS.map((id) => (
+        <button key={id} type="button" role="tab" aria-selected={tab === id} aria-controls="panel" onClick={() => onTab(id)}>
+          {t(`tab.${id}`)}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function Results({ ctx, results, query }: { ctx: ViewCtx; results: NonNullable<ReturnType<typeof search>>; query: string }) {
+  const { t } = ctx;
+  if (isEmpty(results)) return <p className="hint pad">{t('search.none', { q: query.trim() })}</p>;
   return (
     <>
-      {[...snapshot.folders, unfiled]
-        .filter((f) => f.sessionIds.length > 0)
-        .map((f) => (
-          <section key={f.id || 'unfiled'} className="folder">
-            <h2 className="sec">
-              <span className="fold" style={{ background: (f.color !== undefined ? FOLDER_COLORS[f.color] : undefined) ?? 'var(--line)' }} />
-              {f.name}
-              <span className="n">{f.sessionIds.length}</span>
-            </h2>
-            {f.sessionIds
-              .map((id) => byId.get(id))
-              .filter((s): s is SessionView => s !== undefined)
-              .map((s) => (
-                <SessionRow key={s.id} t={t} s={s} now={now} onOpen={() => onOpen(s.id)} />
-              ))}
-          </section>
-        ))}
-    </>
-  );
-}
-
-function SessionRow({ t, s, now, onOpen }: { t: Translate; s: SessionView; now: number; onOpen(): void }) {
-  const tone = toneOf(s);
-  const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
-  const tokens = s.tokens === undefined ? undefined : formatTokens(s.tokens.input + s.tokens.output);
-  return (
-    <div className={`srow tone-${tone}`}>
-      <button type="button" className="srow-main" onClick={onOpen}>
-        <span className={`dot tone-${tone}`} role="img" aria-label={t(statusKey)} title={t(statusKey)} />
-        <span className="txt">
-          <span className="l1">
-            <span className="ttl">{sessionTitle(s, t)}</span>
-            <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
-          </span>
-          <span className="l2">
-            {sessionDetail(s)}
-            {tokens !== undefined && <span className="tok"> · {tokens}</span>}
-          </span>
-        </span>
-      </button>
-    </div>
-  );
-}
-
-function Usage({ t, snapshot, now }: { t: Translate; snapshot: Snapshot; now: number }) {
-  const u = snapshot.usage;
-  return (
-    <section className="usage" aria-label={t('usage.title')}>
-      {u === undefined ? (
-        <span className="muted">{t('usage.none')}</span>
-      ) : (
-        <>
-          {u.fiveHour !== undefined && <Gauge label={t('usage.fiveHour')} percent={u.fiveHour.percent} resets={u.fiveHour.resetsAt} t={t} now={now} />}
-          {u.weekly !== undefined && <Gauge label={t('usage.weekly')} percent={u.weekly.percent} resets={u.weekly.resetsAt} t={t} now={now} />}
-        </>
+      {results.sessions.length > 0 && (
+        <Section title={t('search.sessions')} count={results.sessions.length}>
+          {results.sessions.map((s) => (
+            <SessionRow key={s.id} ctx={ctx} s={s} />
+          ))}
+        </Section>
       )}
-    </section>
-  );
-}
-
-function Gauge({ label, percent, resets, t, now }: { label: string; percent: number; resets: number | undefined; t: Translate; now: number }) {
-  const p = Math.max(0, Math.min(100, Math.round(percent)));
-  const tone = p >= 85 ? 'wait' : 'run';
-  return (
-    <div className="gauge">
-      <div className="g-l1">
-        <span>{label}</span>
-        <span className="mono">{p} %</span>
-      </div>
-      <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={label}>
-        <span className={`fill tone-${tone}`} style={{ width: `${p}%` }} />
-      </div>
-      {resets !== undefined && resets > now && <span className="g-l2">{t('usage.resets', { d: formatAge(resets - now, t) })}</span>}
-    </div>
+      {results.closed.length > 0 && (
+        <Section title={t('search.closed')} count={results.closed.length}>
+          {results.closed.map((c) => (
+            <ClosedRow key={c.sessionId} ctx={ctx} c={c} />
+          ))}
+        </Section>
+      )}
+      {results.artifacts.length > 0 && (
+        <Section title={t('search.artifacts')} count={results.artifacts.length}>
+          {results.artifacts.map((a) => (
+            <ArtifactRow key={a.slug} ctx={ctx} a={a} />
+          ))}
+        </Section>
+      )}
+    </>
   );
 }

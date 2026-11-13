@@ -23,8 +23,40 @@ export class Uri {
   static joinPath(base: Uri, ...parts: string[]): Uri {
     return new Uri([base.fsPath, ...parts].join('/'));
   }
+  static parse(value: string): Uri {
+    return new Uri(value);
+  }
   toString(): string {
-    return `file://${this.fsPath}`;
+    return this.fsPath.includes('://') ? this.fsPath : `file://${this.fsPath}`;
+  }
+}
+
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
+}
+
+export class ThemeColor {
+  constructor(readonly id: string) {}
+}
+
+export class FakeStatusBarItem {
+  text = '';
+  tooltip: string | undefined;
+  command: string | undefined;
+  name: string | undefined;
+  backgroundColor: ThemeColor | undefined;
+  visible = false;
+  disposed = false;
+  constructor(readonly alignment: StatusBarAlignment, readonly priority: number) {}
+  show(): void {
+    this.visible = true;
+  }
+  hide(): void {
+    this.visible = false;
+  }
+  dispose(): void {
+    this.disposed = true;
   }
 }
 
@@ -85,11 +117,15 @@ export const recorded = {
   commands: new Map<string, (...args: unknown[]) => unknown>(),
   panels: [] as FakePanel[],
   output: [] as string[],
+  statusItems: [] as FakeStatusBarItem[],
+  opened: [] as string[],
   reset(): void {
     this.providers.clear();
     this.commands.clear();
     this.panels.length = 0;
     this.output.length = 0;
+    this.statusItems.length = 0;
+    this.opened.length = 0;
   },
 };
 
@@ -100,6 +136,11 @@ export const window = {
   registerWebviewViewProvider(id: string, provider: ViewProvider) {
     recorded.providers.set(id, provider);
     return { dispose: () => recorded.providers.delete(id) };
+  },
+  createStatusBarItem(alignment: StatusBarAlignment, priority: number) {
+    const item = new FakeStatusBarItem(alignment, priority);
+    recorded.statusItems.push(item);
+    return item;
   },
   createWebviewPanel(viewType: string, title: string) {
     const panel = new FakePanel(viewType, title);
@@ -115,7 +156,15 @@ export const commands = {
   },
 };
 
-export const env = { language: 'fr' };
+export const env = {
+  language: 'fr',
+  openExternal(uri: Uri): Promise<boolean> {
+    recorded.opened.push(uri.toString());
+    return Promise.resolve(true);
+  },
+};
+
+export const workspace = { workspaceFolders: [{ uri: Uri.file('/work/open-folder') }] };
 
 export const l10n = {
   t(message: string, ...args: unknown[]): string {

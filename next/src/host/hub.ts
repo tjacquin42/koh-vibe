@@ -25,6 +25,7 @@ export interface HubDeps {
 export class Hub implements Disposable {
   /** Each client, and whether it has had its `init` yet. */
   private readonly clients = new Map<Client, boolean>();
+  private readonly listeners = new Set<(snap: Snapshot) => void>();
   private latest: Snapshot | undefined;
   private running: Promise<void> | undefined;
   private again = false;
@@ -50,6 +51,13 @@ export class Hub implements Disposable {
     if (this.latest === undefined) await this.refresh();
     else this.send(client, this.latest);
     return { dispose: () => this.clients.delete(client) };
+  }
+
+  /** Called after every successful build — the status bar listens here. */
+  subscribe(listener: (snap: Snapshot) => void): Disposable {
+    this.listeners.add(listener);
+    if (this.latest !== undefined) listener(this.latest);
+    return { dispose: () => this.listeners.delete(listener) };
   }
 
   refresh(): Promise<void> {
@@ -81,6 +89,7 @@ export class Hub implements Disposable {
         if (this.disposed) return;
         this.latest = snap;
         for (const c of [...this.clients.keys()]) this.send(c, snap);
+        for (const l of [...this.listeners]) l(snap);
       } catch (err) {
         this.deps.log(`snapshot failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -91,5 +100,6 @@ export class Hub implements Disposable {
     this.disposed = true;
     this.watcher.dispose();
     this.clients.clear();
+    this.listeners.clear();
   }
 }

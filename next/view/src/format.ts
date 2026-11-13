@@ -40,6 +40,33 @@ export function sessionDetail(s: SessionView): string {
   return s.branch !== undefined ? `${s.project} · ${s.branch}` : s.project;
 }
 
+/**
+ * An exact moment, as a reset deadline or a routine's next run reads best:
+ * "14:30" today, "Thu 14:30" within the week, "14 Nov 14:30" beyond.
+ */
+export function formatWhen(at: number, now: number, language: string): string {
+  const time = new Intl.DateTimeFormat(language, { hour: '2-digit', minute: '2-digit' }).format(at);
+  const startOfDay = (ms: number): number => {
+    const d = new Date(ms);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const days = Math.round((startOfDay(at) - startOfDay(now)) / DAY);
+  if (days === 0) return time;
+  if (days > 0 && days < 7) return `${new Intl.DateTimeFormat(language, { weekday: 'short' }).format(at)} ${time}`;
+  return `${new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short' }).format(at)} ${time}`;
+}
+
+/** Resident memory in whole megabytes; under one, one. */
+export function megabytes(kb: number): number {
+  return Math.max(1, Math.round(kb / 1024));
+}
+
+/** Folded for search: case and accents ignored, so « depense » finds « Dépense ». */
+export function fold(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
 export type Tone = 'wait' | 'run' | 'done' | 'idle' | 'ended';
 
 export function toneOf(s: SessionView): Tone {

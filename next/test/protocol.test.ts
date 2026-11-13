@@ -9,10 +9,12 @@ describe('parseViewMessage', () => {
     expect(parseViewMessage({ type: 'reload' })).toEqual({ type: 'reload' });
     expect(parseViewMessage({ type: 'openCockpit' })).toEqual({ type: 'openCockpit' });
     expect(parseViewMessage({ type: 'openCockpit', sessionId: 'abc' })).toEqual({ type: 'openCockpit', sessionId: 'abc' });
+    expect(parseViewMessage({ type: 'tab', tab: 'processes' })).toEqual({ type: 'tab', tab: 'processes' });
+    expect(parseViewMessage({ type: 'openArtifact', slug: 'a_b-9' })).toEqual({ type: 'openArtifact', slug: 'a_b-9' });
   });
 
   it('drops anything malformed', () => {
-    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }]) {
+    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }, { type: 'tab', tab: 'settings' }, { type: 'openArtifact', slug: 'a/b' }, { type: 'openArtifact', slug: '' }, { type: 'openArtifact' }]) {
       expect(parseViewMessage(bad)).toBeUndefined();
     }
   });

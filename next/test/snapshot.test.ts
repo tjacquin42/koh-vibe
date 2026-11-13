@@ -1,4 +1,5 @@
-import { rm } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildSnapshot, compareSessions, ordered } from '../src/host/snapshot';
 import type { SessionView } from '../src/shared/protocol';
@@ -39,15 +40,60 @@ describe('buildSnapshot', () => {
     const snap = await buildSnapshot(home, NOW);
     expect(snap.usage?.fiveHour?.percent).toBe(42);
     expect(snap.usage?.weekly?.percent).toBe(7);
-    expect(snap.artifacts?.items).toEqual([{ slug: 'x', title: 'Plan', updatedAt: NOW - 2_000, pinned: true }]);
-    expect(snap.routines?.items.map((r) => r.name)).toEqual(['Daily']);
+    expect(snap.usage?.models).toEqual([{ name: 'Opus', percent: 61, resetsAt: Date.parse('2027-01-20T08:00:00+00:00') }]);
+    expect(snap.artifacts?.items).toEqual([
+      { slug: 'x', title: 'Plan', updatedAt: NOW - 2_000, pinned: true },
+      { slug: 'y', title: 'Notes', updatedAt: NOW - 1_500, pinned: false, project: 'koh' },
+    ]);
+    expect(snap.routines?.items).toEqual([
+      { id: 'r', name: 'Daily', enabled: true, group: 'today', cron: '0 7 * * *', repos: ['me/daily'], nextRunAt: NOW + 60 * 60_000 },
+      { id: 'q', name: 'Paused one', enabled: false, group: 'paused', repos: [] },
+    ]);
     expect(snap.closed.map((c) => c.project)).toEqual(['old']);
+  });
+
+  it('gives reset deadlines in milliseconds, not V1 seconds', async () => {
+    const snap = await buildSnapshot(home, NOW);
+    expect(snap.usage?.fiveHour?.resetsAt).toBe(Date.parse('2027-01-15T08:00:00+00:00'));
+  });
+
+  it('reads the shared settings', async () => {
+    const snap = await buildSnapshot(home, NOW);
+    expect(snap.settings).toEqual({ animate: false, persistent: true, expireTemporary: true, volume: 30, waiting: 'Glass', done: 'Pop' });
+  });
+
+  it('dates the departure of temporary conversations, and only theirs', async () => {
+    const snap = await buildSnapshot(home, NOW);
+    const by = new Map(snap.sessions.map((s) => [s.id, s]));
+    // c is filed nowhere; a and b are in a folder; e is ended.
+    expect(by.get('c')?.expiresAt).toBe(NOW - 60_000 + 24 * 3_600_000);
+    expect(by.get('a')?.expiresAt).toBeUndefined();
+    expect(by.get('e')?.expiresAt).toBeUndefined();
+  });
+
+  it('dates nothing when temporary conversations are kept', async () => {
+    await writeFile(join(home, 'settings.json'), JSON.stringify({ version: 1, expireTemporary: false }));
+    const snap = await buildSnapshot(home, NOW);
+    expect(snap.sessions.some((s) => s.expiresAt !== undefined)).toBe(false);
+  });
+
+  it('asks for the processes with every listed conversation directory', async () => {
+    let asked: readonly string[] = [];
+    const snap = await buildSnapshot(home, NOW, {
+      processes: async (cwds) => {
+        asked = cwds;
+        return { at: NOW, bySession: {} };
+      },
+    });
+    expect([...asked].sort()).toEqual(['/work/a', '/work/b', '/work/c', '/work/e']);
+    expect(snap.processes).toEqual({ at: NOW, bySession: {} });
   });
 
   it('renders an empty snapshot from a directory that does not exist', async () => {
     const snap = await buildSnapshot(`${home}/missing`, NOW);
     expect(snap).toMatchObject({ sessions: [], folders: [], unfiled: [], artifacts: undefined, routines: undefined, closed: [] });
     expect(snap.usage).toBeUndefined();
+    expect(snap.settings.animate).toBe(true);
   });
 });
 

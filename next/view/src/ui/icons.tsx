@@ -1,0 +1,91 @@
+import type { Tone } from '../format';
+
+/**
+ * The status dot. Same shapes moving or still: turning animation off — the
+ * setting, or the system's reduced-motion preference (CSS) — stops the ring
+ * at its starting angle and never swaps the drawing, as in V1.
+ */
+export function Dot({ tone, animate, size = 16, label }: { tone: Tone; animate: boolean; size?: number; label?: string }) {
+  const ring = tone === 'wait' || tone === 'run' || tone === 'done' || tone === 'ended';
+  const a11y = label === undefined ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': label };
+  return (
+    <svg className={`dot tone-${tone}`} width={size} height={size} viewBox="0 0 16 16" {...a11y}>
+      {label !== undefined && <title>{label}</title>}
+      {ring && (
+        <circle
+          className={tone === 'run' && animate ? 'spin' : undefined}
+          cx="8"
+          cy="8"
+          r="6.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeDasharray={tone === 'run' ? '9 4' : tone === 'ended' ? '2 2.4' : undefined}
+        />
+      )}
+      {tone !== 'ended' && <circle cx="8" cy="8" r="3" fill="currentColor" />}
+    </svg>
+  );
+}
+
+const PATHS = {
+  info: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 7.2v4" />
+      <circle cx="8" cy="4.9" r=".55" fill="currentColor" stroke="none" />
+    </>
+  ),
+  chev: <path d="M5 6.5l3 3 3-3" />,
+  chevR: <path d="M6.5 5l3 3-3 3" />,
+  pin: <path d="M6 2.5h4l-.5 4 2 2H4.5l2-2zM8 8.5V14" />,
+  doc: (
+    <>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M5 6h6M5 8.5h6M5 11h3.5" />
+    </>
+  ),
+  term: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <path d="M4.5 6.5l2 1.5-2 1.5M8 10h3" />
+    </>
+  ),
+  plug: <path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3" />,
+  gear: (
+    <>
+      <circle cx="8" cy="8" r="2.2" />
+      <path d="M8 2.5v1.6M8 11.9v1.6M2.5 8h1.6M11.9 8h1.6M4.1 4.1l1.1 1.1M10.8 10.8l1.1 1.1M4.1 11.9l1.1-1.1M10.8 5.2l1.1-1.1" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="7" cy="7" r="4.2" />
+      <path d="M10.2 10.2L13.5 13.5" />
+    </>
+  ),
+  close: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
+  panel: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="2" />
+      <path d="M6 3v10" />
+    </>
+  ),
+  external: <path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5" />,
+  clock: (
+    <>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M8 4.8V8l2.2 1.4" />
+    </>
+  ),
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 14 }: { name: IconName; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="icon">
+      {PATHS[name]}
+    </svg>
+  );
+}

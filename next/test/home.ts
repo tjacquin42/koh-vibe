@@ -34,9 +34,27 @@ export async function makeHome(): Promise<string> {
   await write('usage.json', {
     five_hour: { utilization: 42, resets_at: '2027-01-15T08:00:00+00:00' },
     seven_day: { utilization: 7, resets_at: '2027-01-20T08:00:00+00:00' },
+    seven_day_opus: { utilization: 61, resets_at: '2027-01-20T08:00:00+00:00' },
   });
-  await write('artifacts.json', { version: 1, at: NOW - 1_000, items: [{ slug: 'x', title: 'Plan', updatedAt: NOW - 2_000, pinned: true }, { nope: 1 }] });
-  await write('routines.json', { version: 1, at: NOW - 1_000, items: [{ id: 'r', name: 'Daily', enabled: true, fired: false, repos: [] }] });
+  await write('artifacts.json', {
+    version: 1,
+    at: NOW - 1_000,
+    items: [
+      { slug: 'x', title: 'Plan', updatedAt: NOW - 2_000, pinned: true },
+      { slug: 'y', title: 'Notes', updatedAt: NOW - 1_500, pinned: false },
+      { nope: 1 },
+    ],
+  });
+  await write('artifact-projects.json', { version: 1, filed: { y: 'koh' }, aliases: {} });
+  await write('routines.json', {
+    version: 1,
+    at: NOW - 1_000,
+    items: [
+      { id: 'r', name: 'Daily', enabled: true, fired: false, repos: ['me/daily'], cron: '0 7 * * *', nextRunAt: NOW + 60 * 60_000 },
+      { id: 'q', name: 'Paused one', enabled: false, fired: false, repos: [] },
+    ],
+  });
+  await write('settings.json', { version: 1, waiting: 'Glass', done: 'Pop', volume: 0.3, persistent: true, expireTemporary: true, animate: false });
   await write('closed.json', { version: 1, closed: [{ id: '11111111-1111-4111-8111-111111111111', cwd: '/w', project: 'old', origin: 'vscode', closedAt: NOW - 9_000 }] });
   return home;
 }
