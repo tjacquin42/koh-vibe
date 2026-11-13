@@ -5,6 +5,7 @@ import { sampleSnapshot } from './fixture';
 import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
 import { isEmpty, search } from './search';
+import { CockpitBody } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { Section } from './ui/Section';
 import { parseUiState, toggleFold, type UiState } from './ui-state';
@@ -34,7 +35,11 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<State | undefined>(() =>
     bridge.inEditor
       ? undefined
-      : { context: { surface: 'sidebar', language: navigator.language, version: 'preview' }, snapshot: sampleSnapshot(Date.now()) },
+      : {
+          // ?surface=cockpit previews the cockpit tab in the browser.
+          context: { surface: new URLSearchParams(location.search).get('surface') === 'cockpit' ? 'cockpit' : 'sidebar', language: navigator.language, version: 'preview' },
+          snapshot: sampleSnapshot(Date.now()),
+        },
   );
   const [ui, setUi] = useState<UiState>(() => parseUiState(bridge.load()));
   const [query, setQuery] = useState('');
@@ -81,12 +86,20 @@ export function App({ bridge }: { bridge: Bridge }) {
     isFolded: (key) => ui.folded.includes(key),
     toggle: (key) => updateUi((prev) => toggleFold(prev, key)),
   };
+  if (context.surface === 'cockpit') {
+    return (
+      <div className="app surface-cockpit">
+        {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
+        <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => undefined} />
+        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} />
+      </div>
+    );
+  }
   const results = search(snapshot, query);
   return (
     <div className={`app surface-${context.surface}`}>
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
       <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => bridge.post({ type: 'openCockpit' })} />
-      {context.surface === 'cockpit' && <p className="soon">{t('cockpit.soon')}</p>}
       <SearchBox t={t} query={query} onChange={setQuery} />
       {results === undefined && <Tabs t={t} tab={ui.tab} onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))} />}
       <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>

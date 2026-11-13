@@ -78,6 +78,36 @@ const PATHS = {
       <path d="M8 4.8V8l2.2 1.4" />
     </>
   ),
+  columns: (
+    <>
+      <rect x="2" y="3" width="3.5" height="10" rx="1" />
+      <rect x="6.25" y="3" width="3.5" height="7" rx="1" />
+      <rect x="10.5" y="3" width="3.5" height="4.5" rx="1" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
+    </>
+  ),
+  list: <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" />,
+  bars: <path d="M3 13V8M6.5 13V4M10 13V6.5M13.5 13V10" />,
+  user: (
+    <>
+      <circle cx="8" cy="5.5" r="2.6" />
+      <path d="M3 13.5c.8-2.6 2.7-3.8 5-3.8s4.2 1.2 5 3.8" />
+    </>
+  ),
+  chat: <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v5a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5V11h.5" />,
+  bot: (
+    <>
+      <rect x="3.5" y="5.5" width="9" height="7" rx="2" />
+      <path d="M8 3v2.5M6.3 9h.01M9.7 9h.01" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -119,6 +119,60 @@ export interface ProcessesView {
   orphans?: OrphanView[];
 }
 
+/** Tokens as the API counts them. `cacheRead` is most of the volume; V1 never saw it. */
+export interface TokenCount {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+export type ActivityKind = 'prompt' | 'text' | 'tool';
+
+export interface ActivityItemView {
+  at: number;
+  sessionId: string;
+  kind: ActivityKind;
+  /** The prompt or reply's first line, or the tool's target. */
+  text: string;
+  /** For a tool call: its name. */
+  tool?: string;
+  /** Made by a subagent of the conversation rather than the conversation itself. */
+  subagent: boolean;
+}
+
+export interface ActivitySessionView {
+  id: string;
+  title?: string;
+  project: string;
+  /** The conversation's own turns, within the window. */
+  tokens: TokenCount;
+  /** Its subagents' turns, within the window — counted apart, shown together. */
+  subagentTokens: TokenCount;
+  /** Subagent transcripts active within the window. */
+  subagents: number;
+  /** Stretches of activity, [start, end] epoch ms, oldest first. */
+  busy: [number, number][];
+  /** Its latest lines, oldest first — the wall's tile. */
+  tail: ActivityItemView[];
+  lastAt: number;
+}
+
+/**
+ * What the transcripts say about the last hours (host/activity). Built only
+ * while the cockpit is open: reading transcripts is the costliest thing the
+ * V2 does.
+ */
+export interface ActivityView {
+  at: number;
+  /** Start of the window. */
+  since: number;
+  /** Most recently active first. */
+  sessions: ActivitySessionView[];
+  /** Newest first, across every conversation. */
+  feed: ActivityItemView[];
+}
+
 /** The shared settings (`settings.json`), as far as the view shows them. */
 export interface SettingsView {
   animate: boolean;
@@ -150,6 +204,7 @@ export interface Snapshot {
   closed: ClosedView[];
   settings: SettingsView;
   processes?: ProcessesView;
+  activity?: ActivityView;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;

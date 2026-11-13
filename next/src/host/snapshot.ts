@@ -26,7 +26,9 @@ import { readArtifactProjects } from '../../../src/artifacts/projects-store';
 import { readSettings } from '../../../src/settings/store';
 import type { AppSettings } from '../../../src/settings/model';
 import { TEMPORARY_TTL_MS } from '../../../src/store/temporary';
+import type { KnownSession } from './activity/view';
 import type {
+  ActivityView,
   ArtifactView,
   FolderView,
   ProcessesView,
@@ -192,6 +194,8 @@ export function withExpiry(sessions: readonly SessionView[], unfiled: readonly s
 export interface SnapshotExtras {
   /** What the live conversations are running. Left out by tests: it reads the process table. */
   processes?: (cwds: readonly string[]) => Promise<ProcessesView>;
+  /** What the transcripts say; `undefined` while no cockpit is open to show it. */
+  activity?: (known: ReadonlyMap<string, KnownSession>) => Promise<ActivityView | undefined>;
 }
 
 export async function buildSnapshot(home: string, now: number, extras: SnapshotExtras = {}): Promise<Snapshot> {
@@ -224,5 +228,10 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   };
   if (usage !== undefined) snap.usage = toUsageView(usage);
   if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
+  if (extras.activity !== undefined) {
+    const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));
+    const activity = await extras.activity(known);
+    if (activity !== undefined) snap.activity = activity;
+  }
   return snap;
 }

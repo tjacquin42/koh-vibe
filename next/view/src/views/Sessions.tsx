@@ -3,21 +3,10 @@ import type { ClosedView, FolderView, SessionView } from '../../../src/shared/pr
 import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
+import { Inbox } from '../cockpit/Cockpit';
+import { FOLDER_COLORS } from '../ui/colors';
 import type { ViewCtx } from './context';
 
-/** V1's neutral folder colors, drawn from the Koh palette. Unknown ids show no color. */
-export const FOLDER_COLORS: Record<string, string> = {
-  blue: '#5CC8F0',
-  indigo: '#8A9BFF',
-  cyan: '#6FE3E0',
-  green: '#7EE0A8',
-  lime: '#C3EB7A',
-  yellow: '#F5D06B',
-  orange: '#FF9E5E',
-  red: '#FF7A7A',
-  pink: '#F59AC8',
-  purple: '#B9A6FF',
-};
 
 export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
@@ -34,6 +23,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const unfiled: FolderView = { id: 'unfiled', name: t('folder.temporary'), sessionIds: snapshot.unfiled };
   return (
     <>
+      <Inbox ctx={ctx} compact />
       {[...snapshot.folders, unfiled]
         .filter((f) => f.sessionIds.length > 0)
         .map((f) => (

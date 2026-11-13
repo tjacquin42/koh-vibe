@@ -5,7 +5,19 @@ import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { DEFAULT_UI, parseUiState, toggleFold } from '../view/src/ui-state';
-import { artifactSections, RECENT_COUNT, routineSections, usageLines } from '../view/src/sections';
+import {
+  artifactSections,
+  boardColumns,
+  COUNT_MODES,
+  countTokens,
+  hourTicks,
+  inbox,
+  projectTotals,
+  RECENT_COUNT,
+  routineSections,
+  timelineLanes,
+  usageLines,
+} from '../view/src/sections';
 
 describe('search', () => {
   const snap = sampleSnapshot(0);
@@ -43,7 +55,9 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'] });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit });
+    expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', count: 'all', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', count: 'all', spanH: 24 });
+    expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
 
   it('toggles a fold', () => {
@@ -112,5 +126,64 @@ describe('formatWhen and megabytes', () => {
   it('rounds memory to whole megabytes, never zero', () => {
     expect(megabytes(10)).toBe(1);
     expect(megabytes(150_000)).toBe(146);
+  });
+});
+
+describe('cockpit sections', () => {
+  const snap = sampleSnapshot(0);
+
+  it('A: sorts conversations into status columns, ended with the idle ones, and filters by folder', () => {
+    const all = boardColumns(snap, undefined);
+    expect([all.wait, all.run, all.done, all.rest].map((c) => c.map((s) => s.id))).toEqual([['s1'], ['s2'], ['s3'], ['s4', 's5']]);
+    const backend = boardColumns(snap, 'f2');
+    expect([backend.wait, backend.run, backend.rest].map((c) => c.map((s) => s.id))).toEqual([[], ['s2'], ['s5']]);
+    expect(boardColumns(snap, 'unfiled').rest.map((s) => s.id)).toEqual(['s4']);
+  });
+
+  it('C: longest waiting first, then what finished unread', () => {
+    const two = { ...snap, sessions: [...snap.sessions, { ...snap.sessions[0]!, id: 'older', lastEventAt: -1e9 }] };
+    const box = inbox(two);
+    expect(box.waiting.map((s) => s.id)).toEqual(['older', 's1']);
+    expect(box.toRead.map((s) => s.id)).toEqual(['s3']);
+  });
+
+  it('H: counts three ways and totals per project, subagents included', () => {
+    const t = { input: 10, output: 20, cacheWrite: 70, cacheRead: 1000 };
+    expect(COUNT_MODES.map((m) => countTokens(t, m))).toEqual([100, 1100, 200]);
+    const z = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+    const act = {
+      at: 0,
+      since: 0,
+      feed: [],
+      sessions: [
+        { id: 'a', project: 'api', tokens: t, subagentTokens: t, subagents: 1, busy: [], tail: [], lastAt: 0 },
+        { id: 'b', project: 'web', tokens: { ...z, output: 5 }, subagentTokens: z, subagents: 0, busy: [], tail: [], lastAt: 0 },
+        { id: 'c', project: 'api', tokens: z, subagentTokens: z, subagents: 0, busy: [], tail: [], lastAt: 0 },
+      ],
+    };
+    expect(projectTotals(act, 'fresh')).toEqual([
+      { project: 'api', own: 100, subagents: 100, total: 200, sessions: 2 },
+      { project: 'web', own: 5, subagents: 0, total: 5, sessions: 1 },
+    ]);
+  });
+
+  it('G: clips stretches to the span and drops lanes with nothing inside', () => {
+    const H = 3_600_000;
+    const now = 10 * H;
+    const lane = (id: string, busy: [number, number][]) => ({ id, project: 'p', tokens: { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 }, subagentTokens: { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 }, subagents: 0, busy, tail: [], lastAt: 0 });
+    const lanes = timelineLanes({ at: now, since: 0, feed: [], sessions: [lane('in', [[5 * H, 7 * H], [9 * H, 11 * H]]), lane('out', [[0, H]])] }, now, 4 * H);
+    expect(lanes.map((l) => l.session.id)).toEqual(['in']);
+    // The span is 6 h → 10 h: the first stretch (5 h → 7 h) is cut to its last hour.
+    expect(lanes[0]?.bars).toEqual([
+      [0, 0.25],
+      [0.75, 0.25],
+    ]);
+  });
+
+  it('G: puts ticks on whole hours inside the span', () => {
+    const now = new Date(2026, 10, 14, 15, 30).getTime();
+    const ticks = hourTicks(now, 4 * 3_600_000, 1);
+    expect(ticks.map(([, t]) => new Date(t).getHours())).toEqual([12, 13, 14, 15]);
+    expect(ticks[0]?.[0]).toBeCloseTo(0.125);
   });
 });

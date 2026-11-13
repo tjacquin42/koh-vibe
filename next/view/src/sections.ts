@@ -2,7 +2,18 @@
  * How each tab cuts its list into sections — pure, so it is tested without
  * rendering anything.
  */
-import type { ArtifactView, RoutineGroup, RoutineView, UsageView, UsageWindowView } from '../../src/shared/protocol';
+import type {
+  ActivitySessionView,
+  ActivityView,
+  ArtifactView,
+  RoutineGroup,
+  RoutineView,
+  SessionView,
+  Snapshot,
+  TokenCount,
+  UsageView,
+  UsageWindowView,
+} from '../../src/shared/protocol';
 import type { Translate } from './i18n';
 
 /** How many unpinned artifacts « Recent » shows; the rest are under their project. */
@@ -58,3 +69,124 @@ export function usageLines(u: UsageView, t: Translate): Line[] {
   return lines;
 }
 
+
+/* ---------- cockpit ---------- */
+
+/** Every listed conversation's folder id; « unfiled » for the temporary ones. */
+export function folderIndex(snap: Snapshot): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const f of snap.folders) for (const id of f.sessionIds) out.set(id, f.id);
+  for (const id of snap.unfiled) out.set(id, 'unfiled');
+  return out;
+}
+
+export interface BoardColumns {
+  wait: SessionView[];
+  run: SessionView[];
+  done: SessionView[];
+  /** Idle, and ended last. */
+  rest: SessionView[];
+}
+
+/** A: one column per status, filtered to a folder when one is chosen. */
+export function boardColumns(snap: Snapshot, folder: string | undefined): BoardColumns {
+  const where = folderIndex(snap);
+  const cols: BoardColumns = { wait: [], run: [], done: [], rest: [] };
+  for (const s of snap.sessions) {
+    if (folder !== undefined && where.get(s.id) !== folder) continue;
+    if (s.endedAt !== undefined || s.status === 'idle') cols.rest.push(s);
+    else if (s.status === 'waiting') cols.wait.push(s);
+    else if (s.status === 'running') cols.run.push(s);
+    else cols.done.push(s);
+  }
+  return cols;
+}
+
+/**
+ * C: what is waiting for you — the longest-waiting first, since it has
+ * waited longest — then what finished and was not read yet.
+ */
+export function inbox(snap: Snapshot): { waiting: SessionView[]; toRead: SessionView[] } {
+  const open = snap.sessions.filter((s) => s.endedAt === undefined);
+  return {
+    waiting: open.filter((s) => s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt),
+    toRead: open.filter((s) => s.status === 'done_unseen').sort((a, b) => b.lastEventAt - a.lastEventAt),
+  };
+}
+
+export type CountMode = 'fresh' | 'all' | 'weighted';
+export const COUNT_MODES: readonly CountMode[] = ['fresh', 'all', 'weighted'];
+
+/**
+ * H's three ways of counting, decided in the triage:
+ *  - fresh: what the model processed for the first time — input, output and
+ *    what was written to the cache (new input, billed as such);
+ *  - all: fresh plus what was read back from the cache — the real volume;
+ *  - weighted: fresh plus a tenth of the cache reads, about what they cost.
+ */
+export function countTokens(t: TokenCount, mode: CountMode): number {
+  const fresh = t.input + t.output + t.cacheWrite;
+  if (mode === 'fresh') return fresh;
+  return fresh + (mode === 'all' ? t.cacheRead : t.cacheRead * 0.1);
+}
+
+export interface ProjectTotal {
+  project: string;
+  own: number;
+  subagents: number;
+  total: number;
+  sessions: number;
+}
+
+/** H: per project, subagents included, biggest first. */
+export function projectTotals(activity: ActivityView, mode: CountMode): ProjectTotal[] {
+  const by = new Map<string, ProjectTotal>();
+  for (const s of activity.sessions) {
+    const p = by.get(s.project) ?? { project: s.project, own: 0, subagents: 0, total: 0, sessions: 0 };
+    p.own += countTokens(s.tokens, mode);
+    p.subagents += countTokens(s.subagentTokens, mode);
+    p.total = p.own + p.subagents;
+    p.sessions++;
+    by.set(s.project, p);
+  }
+  return [...by.values()].filter((p) => p.total > 0).sort((a, b) => b.total - a.total);
+}
+
+export const SPANS_H: readonly number[] = [4, 8, 24];
+
+export interface Lane {
+  session: ActivitySessionView;
+  /** Stretches as fractions of the span, [left, width], 0–1. */
+  bars: [number, number][];
+}
+
+/** G: one lane per conversation active within the span, most recent first. */
+export function timelineLanes(activity: ActivityView, now: number, spanMs: number): Lane[] {
+  const from = now - spanMs;
+  const lanes: Lane[] = [];
+  for (const s of activity.sessions) {
+    const bars: [number, number][] = [];
+    for (const [a, b] of s.busy) {
+      const start = Math.max(a, from);
+      const end = Math.min(b, now);
+      if (end <= start) continue;
+      bars.push([(start - from) / spanMs, Math.max((end - start) / spanMs, 0.002)]);
+    }
+    if (bars.length > 0) lanes.push({ session: s, bars });
+  }
+  return lanes;
+}
+
+/** Whole hours inside the span, as [fraction, epoch ms] — the timeline's ticks. */
+export function hourTicks(now: number, spanMs: number, everyH: number): [number, number][] {
+  const from = now - spanMs;
+  const first = new Date(from);
+  first.setMinutes(0, 0, 0);
+  let t = first.getTime() + 3_600_000;
+  const out: [number, number][] = [];
+  for (; t < now; t += 3_600_000) {
+    if (new Date(t).getHours() % everyH !== 0) continue;
+    out.push([(t - from) / spanMs, t]);
+  }
+  return out;
+}

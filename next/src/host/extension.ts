@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import { claudeHome, claudeSessionsDir, kohVibeHome, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
+import { join } from 'node:path';
+import { ActivityIndex, WINDOW_MS } from './activity/index';
+import { toActivityView } from './activity/view';
 import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
 import { openSession } from './open-session';
@@ -113,6 +116,8 @@ function connect(
 
 /** Overridable by tests, which must not read the machine's process table. */
 export const processDeps: { current: ProcessDeps | undefined } = { current: undefined };
+/** Overridable by tests, which must not read the machine's transcripts. */
+export const transcriptsRoot: { current: string | undefined } = { current: undefined };
 
 export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
@@ -123,10 +128,24 @@ export function activate(context: vscode.ExtensionContext): void {
   const tabs = new Map<object, SidebarTab>();
   const wantOrphans = (): boolean => [...tabs.values()].includes('processes');
   const workspaceRoots = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  // Transcripts are read only while a cockpit is open to show them, and the
+  // index is dropped with the last cockpit: reopened, it reads its window again.
+  let activity: ActivityIndex | undefined;
+  const transcripts = transcriptsRoot.current ?? join(claudeHome(), 'projects');
   const hub = new Hub({
     build: () =>
       buildSnapshot(home, Date.now(), {
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
+        activity: async (known) => {
+          if (cockpit === undefined) {
+            activity = undefined;
+            return undefined;
+          }
+          activity ??= new ActivityIndex(transcripts);
+          const now = Date.now();
+          await activity.refresh(now);
+          return toActivityView(activity.states, now, now - WINDOW_MS, known);
+        },
       }),
     watch: (onChange) => watchHome(home, onChange),
     log: (m) => output.appendLine(m),
@@ -175,6 +194,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const entry = { webview: panel.webview, reload: () => (panel.webview.html = renderHtml(panel.webview, context)) };
     views.push(entry);
     cockpit = panel;
+    // The cockpit needs the activity the sidebar never asks for: build it now.
+    void hub.refresh();
     panel.onDidDispose(() => {
       link.dispose();
       views.splice(views.indexOf(entry), 1);

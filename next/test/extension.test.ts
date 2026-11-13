@@ -7,7 +7,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW } from '../src/host/extension';
+import { activate, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
 import type { ProcessDeps } from '../src/host/processes';
 import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
@@ -58,12 +58,15 @@ beforeEach(async () => {
   fakeProcs.orphanScans = 0;
   processDeps.current = deps;
   home = await makeHome();
+  // Never the machine's own transcripts: an empty projects directory inside the fake home.
+  transcriptsRoot.current = join(home, 'no-transcripts');
   process.env['KOH_VIBE_HOME'] = home;
 });
 
 afterEach(async () => {
   for (const s of subscriptions) s.dispose();
   processDeps.current = undefined;
+  transcriptsRoot.current = undefined;
   if (savedHome === undefined) delete process.env['KOH_VIBE_HOME'];
   else process.env['KOH_VIBE_HOME'] = savedHome;
   await rm(home, { recursive: true, force: true });
@@ -211,5 +214,21 @@ describe('activate', () => {
     const view = sidebar();
     await view.webview.receive({ type: 'openSession', sessionId: 'b' });
     await vi.waitFor(() => expect(recorded.panels).toHaveLength(1), { timeout: 1_000, interval: 10 });
+  });
+
+  it('reads the transcripts only while a cockpit is open', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const init = messages(view)[0];
+    expect(init?.type === 'init' && init.snapshot.activity).toBeUndefined();
+    await view.webview.receive({ type: 'openCockpit' });
+    await vi.waitFor(
+      () => {
+        const last = messages(view).at(-1);
+        expect(last?.type === 'snapshot' && last.snapshot.activity?.sessions).toEqual([]);
+      },
+      { timeout: 2_000, interval: 20 },
+    );
   });
 });
