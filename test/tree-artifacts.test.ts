@@ -3,10 +3,22 @@ import { DataTransfer, DataTransferItem, ThemeIcon } from 'vscode';
 import { createGroup, emptyGroups, fileArtifactsInGroup, assign, type GroupsState } from '../src/groups/model';
 import { SessionsTree, folderArtifactOfNode, type TreeNode } from '../src/ui/tree';
 import type { Session } from '../src/events/types';
+import { DataTransfer as StubTransfer, DataTransferItem as StubItem } from './stubs/vscode';
 
 // The Artifacts view's own type, written out: it is the contract between the two views.
 const ARTIFACTS_MIME = 'application/vnd.code.tree.kohvibe.artifacts';
 const noop = async (): Promise<void> => undefined;
+
+/**
+ * A transfer built the way the editor builds a drop's: several items may
+ * share one type, in order. Only the stub can append — the real type has no
+ * such method — hence the one cast, to the type `handleDrop` takes.
+ */
+function transfer(entries: readonly (readonly [string, string])[]): DataTransfer {
+  const stub = new StubTransfer();
+  for (const [mime, value] of entries) stub.append(mime, new StubItem(value));
+  return stub as unknown as DataTransfer;
+}
 
 const session = (id: string): Session => ({
   id,
@@ -83,13 +95,48 @@ describe('artifacts in a Sessions folder', () => {
     expect(onArtifacts).toHaveBeenCalledWith(['b1'], 'g2');
   });
 
-  it('reads a value that arrives serialised from another view', async () => {
+  // What the editor really hands over when a page is dragged from the
+  // Artifacts view: under that view's type, ITS description of the drag
+  // first, then the slugs the Artifacts view's handleDrag set, as text.
+  // Read in the editor's own code (the tree view's `drop`, and the extension
+  // host's `DataTransfer`, whose `get` returns the first item only).
+  const fromArtifactsView = (slugs: string[]): DataTransfer =>
+    transfer([
+      [ARTIFACTS_MIME, JSON.stringify({ id: 'kohVibe.artifacts', itemHandles: slugs.map((s) => `1/artifact:${s}`) })],
+      [ARTIFACTS_MIME, JSON.stringify(slugs)],
+    ]);
+
+  it('files a page dragged from the Artifacts view, as the editor really delivers it', async () => {
     const onArtifacts = vi.fn(noop);
     const t = tree(onArtifacts);
-    const data = new DataTransfer();
-    data.set(ARTIFACTS_MIME, new DataTransferItem(JSON.stringify(['b1'])));
-    await t.handleDrop({ kind: 'session', session: session('s1') }, data);
+    await t.handleDrop(await folder(t, 'g2'), fromArtifactsView(['b1', 'b2']));
+    expect(onArtifacts).toHaveBeenCalledWith(['b1', 'b2'], 'g2');
+  });
+
+  it('files it in the folder of the conversation it is dropped on', async () => {
+    const onArtifacts = vi.fn(noop);
+    const t = tree(onArtifacts);
+    await t.handleDrop({ kind: 'session', session: session('s1') }, fromArtifactsView(['b1']));
     expect(onArtifacts).toHaveBeenCalledWith(['b1'], 'g1');
+  });
+
+  it('skips the empty placeholder the editor sets for a declared type', async () => {
+    const onArtifacts = vi.fn(noop);
+    const t = tree(onArtifacts);
+    const data = transfer([
+      [ARTIFACTS_MIME, ''],
+      [ARTIFACTS_MIME, JSON.stringify(['b1'])],
+    ]);
+    await t.handleDrop(await folder(t, 'g2'), data);
+    expect(onArtifacts).toHaveBeenCalledWith(['b1'], 'g2');
+  });
+
+  it('files nothing when no item under the type is a list of pages', async () => {
+    const onArtifacts = vi.fn(noop);
+    const t = tree(onArtifacts);
+    const data = transfer([[ARTIFACTS_MIME, JSON.stringify({ id: 'kohVibe.artifacts', itemHandles: [] })]]);
+    await t.handleDrop(await folder(t, 'g2'), data);
+    expect(onArtifacts).not.toHaveBeenCalled();
   });
 
   it('takes a page out of its folder when dropped on « Temporary sessions »', async () => {

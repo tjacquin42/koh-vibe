@@ -224,6 +224,29 @@ async function idsOf(item: vscode.DataTransferItem | undefined): Promise<string[
   return value.filter((id): id is string => typeof id === 'string');
 }
 
+/**
+ * The first readable id list among EVERY item carried under `mime`.
+ *
+ * Not `data.get(mime)`, which returns the first item only. A drop from
+ * ANOTHER view carries two under the dragged view's type: first the editor's
+ * own description of the drag (`{"id": <view>, "itemHandles": [...]}`), then,
+ * as text, what that view's `handleDrag` set. Only a drop within one view
+ * gets its value put back in place — which is why `get` was enough for the
+ * sessions and the folders, and silently read nothing for a page dragged in
+ * from the Artifacts view.
+ */
+async function idsUnder(data: vscode.DataTransfer, mime: string): Promise<string[]> {
+  const items: vscode.DataTransferItem[] = [];
+  data.forEach((item, type) => {
+    if (type.toLowerCase() === mime) items.push(item);
+  });
+  for (const item of items) {
+    const ids = await idsOf(item);
+    if (ids.length > 0) return ids;
+  }
+  return [];
+}
+
 /** The slug and the folder an artifact row of this view stands for. */
 export function folderArtifactOfNode(node: unknown): { slug: string; groupId: string } | undefined {
   if (typeof node !== 'object' || node === null) return undefined;
@@ -796,7 +819,7 @@ export class SessionsTree implements vscode.TreeDataProvider<TreeNode>, vscode.T
     // Artifacts go to the folder they were dropped in — or onto a row of it.
     // Dropped on « Temporary sessions », they leave their folder: an artifact
     // has nothing to do there.
-    const slugs = (await idsOf(data.get(ARTIFACTS_MIME))).filter(isSlug);
+    const slugs = (await idsUnder(data, ARTIFACTS_MIME)).filter(isSlug);
     if (slugs.length > 0) {
       const into =
         target.kind === 'group'
