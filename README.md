@@ -315,10 +315,18 @@ walked once per session — no hook, and nothing to install.
 
 ## What's new
 
-**1.5.0** adds a Processes view: each session shows what it's running, live, a command started
-by a subagent carries an icon of its own, a detached process is put back under the session that
-started it, and what no conversation accounts for gets a view of its own, down to copying any
-row's pid or command line. Nothing a session runs stays invisible any more.
+**1.5.0** brings the cloud side next to your sessions and says what each one is doing:
+
+- **Routines** and **Artifacts** views: your scheduled cloud routines, and your claude.ai
+  artifacts filed by project, with *Pinned* and *Recent* on top.
+- **Folder rules**: a folder carries rules that every conversation filed in it receives.
+- **Search** across conversations, filed artifacts and recently closed ones.
+- A **Processes** view: what each session runs, live, subagents and detached processes
+  included.
+- The editor's **tab bar** set from the settings view, and a `koh-vibe` **skill** so a
+  conversation knows its folder and its rules.
+
+After updating, run *Koh-Vibe: Install hooks* once: the folder rules need a new hook.
 
 Every version, and what it changed, is in the [changelog](CHANGELOG.md).
 

@@ -338,11 +338,21 @@ panneau est ouvert et parcourue une fois par session — sans hook, et sans rien
 
 ## Nouveautés
 
-La **1.5.0** ajoute une vue Processus : chaque session montre ce qu'elle exécute, en direct,
-une commande lancée par un sous-agent porte sa propre icône, un processus détaché retrouve la
-session qui l'a lancé, et ce qui n'appartient à aucune conversation obtient sa propre vue,
-jusqu'à copier le pid ou la commande de n'importe quelle ligne. Plus rien de ce qu'une session
-exécute ne reste invisible.
+La **1.5.0** met le côté cloud à côté de vos sessions et dit ce que chacune est en train de
+faire :
+
+- Des vues **Routines** et **Artifacts** : vos routines cloud programmées, et vos artifacts
+  claude.ai rangés par projet, avec *Épinglés* et *Récents* en tête.
+- Des **règles de dossier** : un dossier porte des règles que reçoit chaque conversation qui y
+  est rangée.
+- Une **recherche** parmi les conversations, les artifacts rangés et les fermées récemment.
+- Une vue **Processus** : ce que chaque session exécute, en direct, sous-agents et processus
+  détachés compris.
+- La **barre d'onglets** de l'éditeur réglée depuis la vue Réglages, et un **skill**
+  `koh-vibe` pour qu'une conversation connaisse son dossier et ses règles.
+
+Après la mise à jour, lancez une fois *Koh-Vibe: Installer les hooks* : les règles de dossier
+ont besoin d'un nouveau hook.
 
 Chaque version, et ce qu'elle a changé, est dans le [changelog](CHANGELOG.md).
 
