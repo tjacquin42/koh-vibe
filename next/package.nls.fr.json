@@ -1,5 +1,5 @@
 {
-  "extension.description": "Le prochain Koh-Vibe : une seule vue web pour toutes les sessions Claude Code. Version de développement, en lecture seule.",
+  "extension.description": "Le prochain Koh-Vibe : une seule vue web pour toutes les sessions Claude Code. Version de développement.",
   "view.kohVibeNext.sidebar.name": "Sessions",
   "command.kohVibeNext.openCockpit.title": "Ouvrir le cockpit",
   "command.kohVibeNext.reload.title": "Recharger la vue",

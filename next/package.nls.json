@@ -1,5 +1,5 @@
 {
-  "extension.description": "The next Koh-Vibe, one web view for every Claude Code session. Development build, read-only.",
+  "extension.description": "The next Koh-Vibe, one web view for every Claude Code session. Development build.",
   "view.kohVibeNext.sidebar.name": "Sessions",
   "command.kohVibeNext.openCockpit.title": "Open the cockpit",
   "command.kohVibeNext.reload.title": "Reload the view",
