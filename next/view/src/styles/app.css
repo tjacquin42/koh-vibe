@@ -81,7 +81,6 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .srow-main:hover { background: var(--surface); }
 .srow.tone-wait .srow-main { background: var(--wait-bg); outline: 1px solid var(--wait-line); }
 .srow.tone-ended { opacity: 0.55; }
-.exp { color: var(--wait); }
 .tbtn { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; }
 .tbtn:hover { background: var(--raised); color: var(--text); }
 .tbtn[aria-pressed="true"] { color: var(--accent); }

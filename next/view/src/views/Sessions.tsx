@@ -7,7 +7,7 @@ import { SessionName } from '../ui/SessionName';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, sessionActivity, toneOf } from '../format';
+import { formatAge, formatTokens, formatWhen, toneOf } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
@@ -333,10 +333,8 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const [info, setInfo] = useState(false);
   const tone = toneOf(s);
   const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
-  const expiring = s.expiresAt !== undefined && s.expiresAt - now < 6 * 3_600_000;
   const busy = ctx.isBusy(s.id);
-  // A second line only when it says something: a permission, the tool running, a departure soon.
-  const doing = s.endedAt === undefined ? sessionActivity(s) : undefined;
+  // One line only (14/11): what it does and when it leaves are behind the (i).
   return (
     <div
       className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}`}
@@ -361,17 +359,6 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
               </span>
               <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
             </span>
-            {(doing !== undefined || expiring) && (
-              <span className="l2">
-                {doing}
-                {expiring && s.expiresAt !== undefined && (
-                  <span className="exp">
-                    {doing !== undefined ? ' · ' : ''}
-                    {t('session.expires', { d: formatAge(Math.max(0, s.expiresAt - now), t) })}
-                  </span>
-                )}
-              </span>
-            )}
           </span>
         </button>
         <span className="tools">
