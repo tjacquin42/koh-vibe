@@ -7,7 +7,10 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, cloudDeps, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
+import { activate, cloudDeps, COCKPIT_PANEL, engineDeps, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
+import { realEngine } from '../src/host/engine';
+
+const engineRuns: string[] = [];
 import type { ProcessDeps } from '../src/host/processes';
 import { MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
@@ -73,6 +76,9 @@ beforeEach(async () => {
   transcriptsRoot.current = join(home, 'no-transcripts');
   // Signed out, and a network that throws: no test reads the keychain or reaches claude.ai.
   cloudDeps.current = { credentials: async () => undefined, send: () => Promise.reject(new Error('no network in tests')) };
+  // V1 « installed »: no test runs V1's whole engine in the stubbed editor.
+  engineRuns.length = 0;
+  engineDeps.current = { installed: () => true, run: async () => void engineRuns.push('run') };
   process.env['KOH_VIBE_HOME'] = home;
 });
 
@@ -81,6 +87,7 @@ afterEach(async () => {
   processDeps.current = undefined;
   transcriptsRoot.current = undefined;
   cloudDeps.current = undefined;
+  engineDeps.current = realEngine;
   if (savedHome === undefined) delete process.env['KOH_VIBE_HOME'];
   else process.env['KOH_VIBE_HOME'] = savedHome;
   await rm(home, { recursive: true, force: true });

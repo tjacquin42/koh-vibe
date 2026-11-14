@@ -5,10 +5,12 @@
 // is listening.
 import { context } from 'esbuild';
 import { createServer } from 'vite';
+import { buildEngineAssets } from './engine-assets.mjs';
 import { hostOptions } from './host-options.mjs';
 
 console.log('koh-vibe-next: starting');
 
+await buildEngineAssets();
 const host = await context(hostOptions);
 await host.rebuild();
 await host.watch();

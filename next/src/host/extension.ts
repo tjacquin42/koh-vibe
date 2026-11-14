@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { realEngine, startEngine, type EngineDeps } from './engine';
 import { ActiveTab } from './active-tab';
 import { adapted, asCustomizations, type IdeBackup } from './ide-theme';
 import { DEFAULT_THEME, parseTheme } from '../shared/theme';
@@ -228,6 +229,8 @@ function connect(
 export const processDeps: { current: ProcessDeps | undefined } = { current: undefined };
 /** Overridable by tests, which must neither read the keychain nor call claude.ai. */
 export const cloudDeps: { current: CloudDeps | undefined } = { current: undefined };
+/** Overridable by tests, which must not run V1's engine in a stubbed editor. */
+export const engineDeps: { current: EngineDeps } = { current: realEngine };
 /** Overridable by tests, which must not read the machine's transcripts. */
 export const transcriptsRoot: { current: string | undefined } = { current: undefined };
 
@@ -240,6 +243,8 @@ function watchActiveTab(changed: () => void): vscode.Disposable[] {
 export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
+  // The switch-over: V1's engine runs here once V1 itself is gone (engine.ts).
+  void startEngine(context, engineDeps.current, (line) => output.appendLine(`${new Date().toISOString()} ${line}`));
   const procs = processDeps.current ?? systemProcessDeps(claudeSessionsDir(claudeHome()));
   const rulesFile = tidyRulesFile(home);
   const oldRules: unknown = context.globalState.get(OLD_TIDY_RULES_KEY);
