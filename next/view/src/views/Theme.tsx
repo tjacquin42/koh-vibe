@@ -30,9 +30,13 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
   const save = (next: ThemeState): void => {
     live.current = next.current;
     setDraft(next.current);
-    void ctx.act({ kind: 'theme.set', theme: next }).finally(() => {
+    // Shown at once, not when the host answers: a click must show its effect.
+    previewTheme(next.current);
+    // The preview stays until the stored tuning catches up (ui/theme.ts),
+    // or goes back at once when the write failed.
+    void ctx.act({ kind: 'theme.set', theme: next }).then((r) => {
       moving.current = false;
-      previewTheme(undefined);
+      if (!r.ok) previewTheme(undefined);
     });
   };
   const move = (change: Partial<ThemeTune>): void => {

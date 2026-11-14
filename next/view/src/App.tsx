@@ -138,7 +138,7 @@ export function App({ bridge }: { bridge: Bridge }) {
 
   // The colours chosen in the settings (ui/theme.ts), in every view.
   const tune = snapshotNow?.theme?.current;
-  useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain]);
+  useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain, tune?.textures.join()]);
 
   const reopen = useCallback(
     (sessionId: string) => {

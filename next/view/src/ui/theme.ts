@@ -25,6 +25,8 @@ function paint(): void {
 
 export function showStoredTheme(t: ThemeTune | undefined): void {
   stored = t ?? DEFAULT_TUNE;
+  // The preview of a change just saved ends when the saved one arrives.
+  if (preview !== undefined && sameTune(preview, stored)) preview = undefined;
   paint();
 }
 
