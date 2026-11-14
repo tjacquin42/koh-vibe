@@ -490,3 +490,21 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .new-name.moving { animation: rainbow 4s linear infinite; }
 @keyframes rainbow { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .new-name.moving { animation: none; } }
+
+/* A folder's « ⋯ » menu floats under its button, over the conversations,
+   and shows whether the folder is folded or not (14/11). */
+.sec { position: relative; }
+.popover {
+  position: absolute; right: 2px; top: calc(100% + 4px); z-index: 30;
+  width: min(250px, calc(100vw - 28px));
+  font-family: var(--font-body); font-weight: 400; font-size: 12.5px; color: var(--text);
+  filter: drop-shadow(0 10px 22px rgb(0 0 0 / 0.45));
+}
+.popover .fmenu, .popover .confirm { margin: 0; }
+.popover .fmenu { background: var(--raised); }
+.popover .confirm { background: color-mix(in srgb, var(--danger) 14%, var(--raised)); }
+.popover .swatches { padding: 6px 8px 8px; }
+@media (prefers-reduced-motion: no-preference) {
+  .popover { animation: pop-in 0.12s ease-out; transform-origin: top right; }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+}

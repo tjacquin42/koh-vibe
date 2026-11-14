@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { useCallback, useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { Popover } from '../ui/Popover';
 import { useFlip } from '../ui/flip';
 import { useDragScroll } from '../ui/drag-scroll';
 import { SessionName } from '../ui/SessionName';
@@ -82,6 +83,10 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const closeMenu = useCallback((): void => {
+    setMenu(false);
+    setConfirming(false);
+  }, []);
   const [over, setOver] = useState<string | undefined>();
   const { drag, setDrag } = dnd;
   const sessions = f.sessionIds.map((id) => byId.get(id)).filter((s): s is SessionView => s !== undefined);
@@ -203,62 +208,66 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
             <Icon name="plus" />
           </button>
           {real && (
-            <button type="button" className="tbtn" aria-label={t('folder.menu', { name: f.name })} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+            <button type="button" className="tbtn" aria-label={t('folder.menu', { name: f.name })} aria-expanded={menu || confirming} onClick={() => (menu || confirming ? closeMenu() : setMenu(true))}>
               <Icon name="more" />
             </button>
+          )}
+          {real && (menu || confirming) && (
+            // Floats under the button, over the conversations; shown folded or not (14/11).
+            <Popover label={t('folder.menu', { name: f.name })} onClose={closeMenu}>
+              {confirming ? (
+              <Confirm
+                danger
+                yes={t('folder.delete')}
+                no={t('action.cancel')}
+                onYes={() => {
+                  setConfirming(false);
+                  setMenu(false);
+                  void ctx.act({ kind: 'folder.delete', id: f.id });
+                }}
+                onNo={() => setConfirming(false)}
+              >
+                {t('folder.deleteConfirm', { name: f.name, n: f.sessionIds.length })}
+              </Confirm>
+              ) : (
+              <div className="fmenu" role="group" aria-label={t('folder.menu', { name: f.name })}>
+                <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'session.new', folder: f.id }); }}>
+                  <Icon name="plus" /> {t('folder.newSession')}
+                </button>
+                <button type="button" className="fm-btn" onClick={() => { setMenu(false); setRenaming(true); }}>
+                  <Icon name="edit" /> {t('folder.rename')}
+                </button>
+                <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'add' }); }}>
+                  <Icon name="chat" /> {t('folder.addRule')}
+                </button>
+                <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'open' }); }}>
+                  <Icon name="doc" /> {t('folder.openRules')}
+                </button>
+                <div className="swatches" role="radiogroup" aria-label={t('folder.color')}>
+                  <button type="button" role="radio" aria-checked={f.color === undefined} aria-label={t('folder.noColor')} className="sw none" onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: null })} />
+                  {FOLDER_COLOR_IDS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={f.color === c}
+                      aria-label={c}
+                      className="sw"
+                      style={{ background: FOLDER_COLORS[c] }}
+                      onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: c })}
+                    />
+                  ))}
+                </div>
+                <button type="button" className="fm-btn danger" onClick={() => setConfirming(true)}>
+                  <Icon name="trash" /> {t('folder.delete')}
+                </button>
+              </div>
+              )}
+            </Popover>
           )}
         </>
       }
     >
-      {menu && real && !confirming && (
-        <div className="fmenu" role="group" aria-label={t('folder.menu', { name: f.name })}>
-          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'session.new', folder: f.id }); }}>
-            <Icon name="plus" /> {t('folder.newSession')}
-          </button>
-          <button type="button" className="fm-btn" onClick={() => { setMenu(false); setRenaming(true); }}>
-            <Icon name="edit" /> {t('folder.rename')}
-          </button>
-          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'add' }); }}>
-            <Icon name="chat" /> {t('folder.addRule')}
-          </button>
-          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'open' }); }}>
-            <Icon name="doc" /> {t('folder.openRules')}
-          </button>
-          <div className="swatches" role="radiogroup" aria-label={t('folder.color')}>
-            <button type="button" role="radio" aria-checked={f.color === undefined} aria-label={t('folder.noColor')} className="sw none" onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: null })} />
-            {FOLDER_COLOR_IDS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                role="radio"
-                aria-checked={f.color === c}
-                aria-label={c}
-                className="sw"
-                style={{ background: FOLDER_COLORS[c] }}
-                onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: c })}
-              />
-            ))}
-          </div>
-          <button type="button" className="fm-btn danger" onClick={() => setConfirming(true)}>
-            <Icon name="trash" /> {t('folder.delete')}
-          </button>
-        </div>
-      )}
-      {confirming && (
-        <Confirm
-          danger
-          yes={t('folder.delete')}
-          no={t('action.cancel')}
-          onYes={() => {
-            setConfirming(false);
-            setMenu(false);
-            void ctx.act({ kind: 'folder.delete', id: f.id });
-          }}
-          onNo={() => setConfirming(false)}
-        >
-          {t('folder.deleteConfirm', { name: f.name, n: f.sessionIds.length })}
-        </Confirm>
-      )}
       {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
       {live.map(row(f.id))}
       {ended.length > 0 && (
