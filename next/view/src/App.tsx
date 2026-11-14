@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
-import { SIDEBAR_TABS, type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
+import { type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
 import { sampleSheet, sampleSnapshot } from './fixture';
 import { countsOf } from './format';
@@ -8,8 +8,10 @@ import { translator, type Translate } from './i18n';
 import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
-import { CockpitBody, CockpitTabs } from './cockpit/Cockpit';
+import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
+import { useFlip } from './ui/flip';
+import { useReorder } from './ui/reorder';
 import { Section } from './ui/Section';
 import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
@@ -221,9 +223,12 @@ export function App({ bridge }: { bridge: Bridge }) {
       <div className="app surface-cockpit">
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
+        <CockpitTop ctx={ctx} folder={ui.cockpit.folder} onFolder={(folder) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, folder } }))} />
         <CockpitTabs
           ctx={ctx}
           view={ui.cockpit.view}
+          order={ui.viewOrder}
+          onOrder={(viewOrder) => updateUi((prev) => ({ ...prev, viewOrder }))}
           sheet={sheet}
           onView={(view) => {
             setSheet(undefined);
@@ -262,7 +267,16 @@ export function App({ bridge }: { bridge: Bridge }) {
       ) : (
         <>
           <SearchBox t={t} query={query} onChange={setQuery} />
-          {results === undefined && <Tabs t={t} tab={ui.tab} onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))} />}
+          {results === undefined && (
+            <Tabs
+              t={t}
+              tab={ui.tab}
+              order={ui.tabOrder}
+              animate={ctx.animate}
+              onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))}
+              onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}
+            />
+          )}
           <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
             {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
           </main>
@@ -328,12 +342,9 @@ function Header({
         <h1>
           <BrandName text={surface === 'cockpit' ? t('cockpit.title') : t('app.name')} />
         </h1>
-        {/^\d/.test(version) && <span className="ver mono">v{version}</span>}
-        <span className="tag">{t('app.next')}</span>
-        <span className="live">
-          <span className="pulse" aria-hidden="true" />
-          {t('live.on')}
-        </span>
+        {/* The cockpit keeps its title alone (14/11). */}
+        {surface === 'sidebar' && /^\d/.test(version) && <span className="ver mono">v{version}</span>}
+        {surface === 'sidebar' && <span className="tag">{t('app.next')}</span>}
         {surface === 'sidebar' && (
           <span className="head-tools">
             {onNew !== undefined && (
@@ -352,11 +363,14 @@ function Header({
           </span>
         )}
       </div>
-      <div className="counts">
-        <Count n={c.waiting} label={t('count.waiting')} tone="wait" />
-        <Count n={c.running} label={t('count.running')} tone="run" />
-        <Count n={c.done} label={t('count.done')} tone="done" />
-      </div>
+      {/* The cockpit counts its chosen folder, under its folders (Cockpit.tsx CockpitTop). */}
+      {surface === 'sidebar' && (
+        <div className="counts">
+          <Count n={c.waiting} label={t('count.waiting')} tone="wait" />
+          <Count n={c.running} label={t('count.running')} tone="run" />
+          <Count n={c.done} label={t('count.done')} tone="done" />
+        </div>
+      )}
     </header>
   );
 }
@@ -425,11 +439,29 @@ function SearchBox({ t, query, onChange }: { t: Translate; query: string; onChan
   );
 }
 
-function Tabs({ t, tab, onTab }: { t: Translate; tab: SidebarTab; onTab(tab: SidebarTab): void }) {
+/** The sidebar's tabs, in the order the user dragged them to (ui/reorder.ts). */
+function Tabs({
+  t,
+  tab,
+  order,
+  animate,
+  onTab,
+  onOrder,
+}: {
+  t: Translate;
+  tab: SidebarTab;
+  order: readonly SidebarTab[];
+  animate: boolean;
+  onTab(tab: SidebarTab): void;
+  onOrder(order: SidebarTab[]): void;
+}) {
+  const nav = useRef<HTMLElement>(null);
+  useFlip(nav, animate);
+  const { shown, itemProps, barProps } = useReorder(order, onOrder);
   return (
-    <nav className="tabs" role="tablist" aria-label={t('tabs.label')}>
-      {SIDEBAR_TABS.map((id) => (
-        <button key={id} type="button" role="tab" aria-selected={tab === id} aria-controls="panel" onClick={() => onTab(id)}>
+    <nav ref={nav} className="tabs" role="tablist" aria-label={t('tabs.label')} {...barProps}>
+      {shown.map((id) => (
+        <button key={id} type="button" role="tab" data-flip={`tab:${id}`} aria-selected={tab === id} aria-controls="panel" onClick={() => onTab(id)} {...itemProps(id)}>
           {t(`tab.${id}`)}
         </button>
       ))}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ArtifactView, RoutineView } from '../src/shared/protocol';
+import { SIDEBAR_TABS, type ArtifactView, type RoutineView } from '../src/shared/protocol';
+import { moveBefore, normalizeOrder } from '../view/src/order';
 import { sampleSnapshot } from '../view/src/fixture';
 import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
@@ -9,13 +10,11 @@ import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/bus
 import {
   artifactSections,
   boardColumns,
-  COUNT_MODES,
   countTokens,
   dropOrder,
   sortSessions,
   hourTicks,
   inbox,
-  projectTotals,
   RECENT_COUNT,
   routineSections,
   timelineLanes,
@@ -58,8 +57,8 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'manual' });
-    expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', count: 'all', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', count: 'all', spanH: 24 });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'manual', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
+    expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
 
@@ -151,24 +150,9 @@ describe('cockpit sections', () => {
     expect(box.toRead.map((s) => s.id)).toEqual(['s3']);
   });
 
-  it('H: counts three ways and totals per project, subagents included', () => {
+  it('counts tokens three ways', () => {
     const t = { input: 10, output: 20, cacheWrite: 70, cacheRead: 1000 };
-    expect(COUNT_MODES.map((m) => countTokens(t, m))).toEqual([100, 1100, 200]);
-    const z = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
-    const act = {
-      at: 0,
-      since: 0,
-      feed: [],
-      sessions: [
-        { id: 'a', project: 'api', tokens: t, subagentTokens: t, subagents: 1, busy: [], tail: [], lastAt: 0 },
-        { id: 'b', project: 'web', tokens: { ...z, output: 5 }, subagentTokens: z, subagents: 0, busy: [], tail: [], lastAt: 0 },
-        { id: 'c', project: 'api', tokens: z, subagentTokens: z, subagents: 0, busy: [], tail: [], lastAt: 0 },
-      ],
-    };
-    expect(projectTotals(act, 'fresh')).toEqual([
-      { project: 'api', own: 100, subagents: 100, total: 200, sessions: 2 },
-      { project: 'web', own: 5, subagents: 0, total: 5, sessions: 1 },
-    ]);
+    expect((['fresh', 'all', 'weighted'] as const).map((m) => countTokens(t, m))).toEqual([100, 1100, 200]);
   });
 
   it('G: clips stretches to the span and drops lanes with nothing inside', () => {
@@ -252,5 +236,20 @@ describe('sortSessions', () => {
     expect(sortSessions(list, 'recent').map((x) => x.id)).toEqual(['d', 'a', 'c', 'b']);
     expect(sortSessions(list, 'status').map((x) => x.id)).toEqual(['d', 'b', 'c', 'a']);
     expect(list.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('tab and view order', () => {
+  it('reads a saved order against the full list: unknown dropped, doubles once, missing at the end', () => {
+    expect(normalizeOrder(['usage', 'nope', 'usage', 'sessions'], SIDEBAR_TABS)).toEqual(['usage', 'sessions', 'artifacts', 'routines', 'processes']);
+    expect(normalizeOrder('broken', SIDEBAR_TABS)).toEqual([...SIDEBAR_TABS]);
+    expect(parseUiState({ tabOrder: ['artifacts'] }).tabOrder[0]).toBe('artifacts');
+    expect(parseUiState({ viewOrder: ['usage', 'feed'] }).viewOrder).toEqual(['feed', 'board', 'wall', 'timeline']);
+  });
+
+  it('moves an item in front of another, or to the end', () => {
+    expect(moveBefore(['a', 'b', 'c', 'd'], 'd', 'b')).toEqual(['a', 'd', 'b', 'c']);
+    expect(moveBefore(['a', 'b', 'c', 'd'], 'a', 'd')).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveBefore(['a', 'b', 'c', 'd'], 'b', undefined)).toEqual(['a', 'c', 'd', 'b']);
   });
 });

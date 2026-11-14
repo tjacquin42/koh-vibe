@@ -1,41 +1,31 @@
-import type { ActivityItemView, ActivitySessionView, SessionView, Snapshot } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf, type Tone } from '../format';
+import type { ActivityItemView, ActivitySessionView, SessionView } from '../../../src/shared/protocol';
+import { formatAge, formatWhen, sessionDetail, sessionTitle, toneOf, type Tone } from '../format';
 import type { Translate } from '../i18n';
-import {
-  boardColumns,
-  COUNT_MODES,
-  hourTicks,
-  inbox,
-  projectTotals,
-  SPANS_H,
-  timelineLanes,
-  usageLines,
-  type BoardColumns,
-} from '../sections';
+import { boardColumns, folderIndex, hourTicks, inbox, SPANS_H, timelineLanes, type BoardColumns } from '../sections';
 import { Dot, Icon, type IconName } from '../ui/icons';
-import { COCKPIT_VIEWS, type CockpitView, type UiState } from '../ui-state';
+import type { CockpitView, UiState } from '../ui-state';
 import type { ViewCtx } from '../views/context';
 import { FOLDER_COLORS } from '../ui/colors';
 import { SessionSheet } from './Sheet';
 import { menuContext } from '../ui/menu-context';
 import { SessionName } from '../ui/SessionName';
 import { Splitter } from '../ui/Splitter';
-import { useRef, type CSSProperties } from 'react';
+import { useFlip } from '../ui/flip';
+import { useReorder } from '../ui/reorder';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 
 type Cockpit = UiState['cockpit'];
 
 /** Each remembered separator size, and the CSS variable that applies it (app.css). */
 const SIZE_VARS = new Map<string, string>([
-  ['ck.nav.w', '--nav-w'],
-  ['ck.nav.h', '--nav-h'],
   ['ck.side.w', '--side-w'],
   ['ck.side.h', '--side-h'],
 ]);
 
 /**
- * W2: the cockpit in an editor tab, on three columns — the views and the
- * folders on the left, the chosen view in the middle, what waits for you on
- * the right. Below a laptop's half-screen it folds into one column.
+ * W2: the cockpit in an editor tab (14/11): the folders, the counters and the
+ * views across the top (CockpitTop, CockpitTabs), then the chosen view, and
+ * what waits for you on the right — under it on a narrow screen.
  */
 export function CockpitBody({
   ctx,
@@ -56,9 +46,8 @@ export function CockpitBody({
   sizes: Readonly<Record<string, number>>;
   onSize(key: string, px: number | undefined): void;
 }) {
-  const { t, snapshot } = ctx;
+  const { t } = ctx;
   const box = useRef<HTMLDivElement>(null);
-  const nav = useRef<HTMLElement>(null);
   const side = useRef<HTMLElement>(null);
   // Which handles show depends on the width (app.css): side by side they size
   // widths, stacked they size heights — each remembered on its own.
@@ -67,7 +56,7 @@ export function CockpitBody({
     const px = sizes[key];
     if (px !== undefined) vars[cssVar] = `${px}px`;
   }
-  const split = (key: string, axis: 'x' | 'y', target: typeof nav, invert: boolean) => (
+  const split = (key: string, axis: 'x' | 'y', target: typeof side, invert: boolean) => (
     <Splitter
       axis={axis}
       target={target}
@@ -83,12 +72,6 @@ export function CockpitBody({
   );
   return (
     <div className="cockpit" ref={box} style={vars as CSSProperties}>
-      <nav className="ck-nav" ref={nav} aria-label={t('cockpit.folders')}>
-        <h2 className="sec sec-label">{t('cockpit.folders')}</h2>
-        <FolderFilter ctx={ctx} value={ui.folder} onChange={(folder) => setUi({ folder })} />
-      </nav>
-      {split('ck.nav.w', 'x', nav, false)}
-      {split('ck.nav.h', 'y', nav, false)}
       <main className="ck-main">
         {sheet !== undefined ? (
           <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
@@ -102,38 +85,49 @@ export function CockpitBody({
       {split('ck.side.h', 'y', side, true)}
       <aside className="ck-side" ref={side}>
         <Inbox ctx={ctx} />
-        <h2 className="sec">{t('usage.title')}</h2>
-        <div className="meters">
-          {snapshot.usage === undefined ? (
-            <p className="hint">{t('usage.none')}</p>
-          ) : (
-            usageLines(snapshot.usage, t).map((l) => <MiniGauge key={l.key} label={l.label} percent={l.w.percent} />)
-          )}
-        </div>
       </aside>
     </div>
   );
 }
 
 /**
- * The views, as icons fixed under the counters (14/11) — what each one is
- * slides out on hover. A sheet open under them closes on a click.
+ * The views, across the whole width under the counters (14/11), named in
+ * English in every language — Board, Wall, Feed, Timeline. A sheet open under
+ * them closes on a click.
  */
-export function CockpitTabs({ ctx, view, sheet, onView }: { ctx: ViewCtx; view: CockpitView; sheet: string | undefined; onView(v: CockpitView): void }) {
+export function CockpitTabs({
+  ctx,
+  view,
+  order,
+  sheet,
+  onView,
+  onOrder,
+}: {
+  ctx: ViewCtx;
+  view: CockpitView;
+  order: readonly CockpitView[];
+  sheet: string | undefined;
+  onView(v: CockpitView): void;
+  onOrder(order: CockpitView[]): void;
+}) {
   const { t } = ctx;
+  const nav = useRef<HTMLElement>(null);
+  useFlip(nav, ctx.animate);
+  // Dragged into the order wanted, as the sidebar's tabs (ui/reorder.ts).
+  const { shown, itemProps, barProps } = useReorder(order, onOrder);
   return (
-    <nav className="ck-tabs" role="tablist" aria-label={t('cockpit.views')}>
-      {COCKPIT_VIEWS.map((v) => (
-        <button key={v} type="button" role="tab" aria-selected={view === v && sheet === undefined} aria-label={t(`cockpit.view.${v}`)} onClick={() => onView(v)}>
+    <nav ref={nav} className="ck-tabs" role="tablist" aria-label={t('cockpit.views')} {...barProps}>
+      {shown.map((v) => (
+        <button key={v} type="button" role="tab" data-flip={`view:${v}`} aria-selected={view === v && sheet === undefined} onClick={() => onView(v)} {...itemProps(v)}>
           <Icon name={VIEW_ICON[v]} size={16} />
-          <span aria-hidden="true">{t(`cockpit.view.${v}`)}</span>
+          <span>{t(`cockpit.view.${v}`)}</span>
         </button>
       ))}
     </nav>
   );
 }
 
-const VIEW_ICON: Record<CockpitView, IconName> = { board: 'columns', wall: 'grid', feed: 'list', timeline: 'clock', usage: 'bars' };
+const VIEW_ICON: Record<CockpitView, IconName> = { board: 'columns', wall: 'grid', feed: 'list', timeline: 'clock' };
 
 function ViewBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; setUi(next: Partial<Cockpit>): void }) {
   switch (ui.view) {
@@ -145,26 +139,63 @@ function ViewBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; setUi(next: P
       return <Feed ctx={ctx} folder={ui.folder} />;
     case 'timeline':
       return <Timeline ctx={ctx} folder={ui.folder} spanH={ui.spanH} onSpan={(spanH) => setUi({ spanH })} />;
-    case 'usage':
-      return <UsageDetail ctx={ctx} count={ui.count} onCount={(count) => setUi({ count })} />;
   }
 }
 
-function FolderFilter({ ctx, value, onChange }: { ctx: ViewCtx; value: string | null; onChange(v: string | null): void }) {
+/**
+ * The top of the cockpit (14/11): the folders side by side — ∞ for every
+ * conversation — and the counters of the one chosen, named in English.
+ */
+export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: string | null; onFolder(v: string | null): void }) {
   const { t, snapshot } = ctx;
-  const options: { id: string | null; name: string; color?: string }[] = [
-    { id: null, name: t('cockpit.allFolders') },
-    ...snapshot.folders.map((f) => (f.color === undefined ? { id: f.id, name: f.name } : { id: f.id, name: f.name, color: f.color })),
-    { id: 'unfiled', name: t('folder.temporary') },
-  ];
+  const where = folderIndex(snapshot);
+  const counts = { waiting: 0, running: 0, done: 0 };
+  for (const s of snapshot.sessions) {
+    if (s.endedAt !== undefined || (folder !== null && where.get(s.id) !== folder)) continue;
+    if (s.status === 'waiting') counts.waiting++;
+    else if (s.status === 'running') counts.running++;
+    else if (s.status === 'done_unseen') counts.done++;
+  }
+  const chip = (id: string | null, body: ReactNode, label?: string) => (
+    <button key={id ?? 'all'} type="button" role="radio" aria-checked={folder === id} aria-label={label} className="fchip" onClick={() => onFolder(id)}>
+      {body}
+    </button>
+  );
   return (
-    <div className="chips" role="radiogroup" aria-label={t('cockpit.folders')}>
-      {options.map((o) => (
-        <button key={o.id ?? 'all'} type="button" role="radio" aria-checked={value === o.id} className="chip" onClick={() => onChange(o.id)}>
-          {o.id !== null && <span className="fold" style={{ background: (o.color !== undefined ? FOLDER_COLORS[o.color] : undefined) ?? 'var(--line)' }} />}
-          {o.name}
-        </button>
-      ))}
+    <div className="ck-top">
+      <div className="fchips" role="radiogroup" aria-label={t('cockpit.folders')}>
+        {chip(null, <Icon name="infinity" size={16} />, t('cockpit.allFolders'))}
+        {snapshot.folders.map((f) =>
+          chip(
+            f.id,
+            <>
+              <span className="fold" style={{ background: (f.color !== undefined ? FOLDER_COLORS[f.color] : undefined) ?? 'var(--line)' }} />
+              {f.name}
+            </>,
+          ),
+        )}
+        {chip(
+          'unfiled',
+          <>
+            <Icon name="hourglass" />
+            {t('folder.temporary')}
+          </>,
+        )}
+      </div>
+      <div className="counts">
+        <CountBox n={counts.waiting} label={t('cockpit.count.waiting')} tone="wait" />
+        <CountBox n={counts.running} label={t('cockpit.count.running')} tone="run" />
+        <CountBox n={counts.done} label={t('cockpit.count.done')} tone="done" />
+      </div>
+    </div>
+  );
+}
+
+function CountBox({ n, label, tone }: { n: number; label: string; tone: string }) {
+  return (
+    <div className={`count tone-${tone}`}>
+      <b>{n}</b>
+      <span>{label}</span>
     </div>
   );
 }
@@ -429,57 +460,6 @@ function Timeline({ ctx, folder, spanH, onSpan }: { ctx: ViewCtx; folder: string
   );
 }
 
-/* H. Detailed usage */
-function UsageDetail({ ctx, count, onCount }: { ctx: ViewCtx; count: Cockpit['count']; onCount(c: Cockpit['count']): void }) {
-  const { t } = ctx;
-  const activity = ctx.snapshot.activity;
-  return (
-    <>
-      <h2 className="sec">{t('detail.byProject')}</h2>
-      <Segmented label={t('detail.count')} options={COUNT_MODES.map((m) => ({ value: m, label: t(`detail.count.${m}`) }))} value={count} onChange={onCount} />
-      <p className="hint">{t(`detail.hint.${count}`)}</p>
-      {activity === undefined ? (
-        <Loading t={t} />
-      ) : (
-        <ProjectBars t={t} snapshot={ctx.snapshot} count={count} />
-      )}
-      <p className="hint">{t('cockpit.window')}</p>
-    </>
-  );
-}
-
-function ProjectBars({ t, snapshot, count }: { t: Translate; snapshot: Snapshot; count: Cockpit['count'] }) {
-  const activity = snapshot.activity;
-  if (activity === undefined) return null;
-  const rows = projectTotals(activity, count);
-  if (rows.length === 0) return <p className="hint pad">{t('detail.none')}</p>;
-  const max = rows[0]?.total ?? 1;
-  const total = rows.reduce((n, r) => n + r.total, 0);
-  return (
-    <div className="bars">
-      <div className="bars-total">
-        {t('detail.total')} <b>{formatTokens(total)}</b>
-        <span className="legend">
-          <i className="sw own" /> {t('detail.own')} <i className="sw sub" /> {t('detail.sub')}
-        </span>
-      </div>
-      {rows.map((r) => (
-        <div key={r.project} className="b">
-          <span className="b-name">
-            {r.project}
-            <span className="muted"> · {t('detail.sessions', { n: r.sessions })}</span>
-          </span>
-          <span className="b-track">
-            <i className="own" style={{ width: `${(r.own / max) * 100}%` }} />
-            <i className="sub" style={{ width: `${(r.subagents / max) * 100}%` }} />
-          </span>
-          <em>{formatTokens(r.total)}</em>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ---------- small parts ---------- */
 
 export function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange(v: T): void }) {
@@ -490,21 +470,6 @@ export function Segmented<T extends string | number>({ label, options, value, on
           {o.label}
         </button>
       ))}
-    </div>
-  );
-}
-
-function MiniGauge({ label, percent }: { label: string; percent: number }) {
-  const p = Math.max(0, Math.min(100, Math.round(percent)));
-  return (
-    <div className="gauge">
-      <div className="g-l1">
-        <span>{label}</span>
-        <span className="mono">{p} %</span>
-      </div>
-      <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={label}>
-        <span className={`fill tone-${p >= 85 ? 'wait' : 'run'}`} style={{ width: `${p}%` }} />
-      </div>
     </div>
   );
 }

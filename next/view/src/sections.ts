@@ -115,10 +115,9 @@ export function inbox(snap: Snapshot): { waiting: SessionView[]; toRead: Session
 }
 
 export type CountMode = 'fresh' | 'all' | 'weighted';
-export const COUNT_MODES: readonly CountMode[] = ['fresh', 'all', 'weighted'];
 
 /**
- * H's three ways of counting, decided in the triage:
+ * Three ways of counting tokens, decided in the triage (the sheet uses two):
  *  - fresh: what the model processed for the first time — input, output and
  *    what was written to the cache (new input, billed as such);
  *  - all: fresh plus what was read back from the cache — the real volume;
@@ -128,28 +127,6 @@ export function countTokens(t: TokenCount, mode: CountMode): number {
   const fresh = t.input + t.output + t.cacheWrite;
   if (mode === 'fresh') return fresh;
   return fresh + (mode === 'all' ? t.cacheRead : t.cacheRead * 0.1);
-}
-
-export interface ProjectTotal {
-  project: string;
-  own: number;
-  subagents: number;
-  total: number;
-  sessions: number;
-}
-
-/** H: per project, subagents included, biggest first. */
-export function projectTotals(activity: ActivityView, mode: CountMode): ProjectTotal[] {
-  const by = new Map<string, ProjectTotal>();
-  for (const s of activity.sessions) {
-    const p = by.get(s.project) ?? { project: s.project, own: 0, subagents: 0, total: 0, sessions: 0 };
-    p.own += countTokens(s.tokens, mode);
-    p.subagents += countTokens(s.subagentTokens, mode);
-    p.total = p.own + p.subagents;
-    p.sessions++;
-    by.set(s.project, p);
-  }
-  return [...by.values()].filter((p) => p.total > 0).sort((a, b) => b.total - a.total);
 }
 
 export const SPANS_H: readonly number[] = [4, 8, 24];

@@ -1,7 +1,9 @@
-import { isSidebarTab, type SidebarTab } from '../../src/shared/protocol';
-import { COUNT_MODES, SESSION_SORTS, SPANS_H, type CountMode, type SessionSort } from './sections';
+import { isSidebarTab, SIDEBAR_TABS, type SidebarTab } from '../../src/shared/protocol';
+import { SESSION_SORTS, SPANS_H, type SessionSort } from './sections';
+import { normalizeOrder } from './order';
 
-export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline', 'usage'] as const;
+/** The usage left the cockpit (14/11): the sidebar shows it. */
+export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline'] as const;
 export type CockpitView = (typeof COCKPIT_VIEWS)[number];
 
 /**
@@ -17,7 +19,6 @@ export interface UiState {
     view: CockpitView;
     /** A folder id, « unfiled », or null for every conversation. */
     folder: string | null;
-    count: CountMode;
     /** The timeline's span, in hours. */
     spanH: number;
   };
@@ -38,6 +39,9 @@ export interface UiState {
   dismissed: Record<string, number>;
   /** How a folder's conversations are ordered (sections.ts sortSessions). */
   sort: SessionSort;
+  /** The sidebar's tabs and the cockpit's views, in the order dragged (ui/reorder.ts). */
+  tabOrder: SidebarTab[];
+  viewOrder: CockpitView[];
 }
 
 /** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
@@ -47,11 +51,13 @@ const SIZE_MAX = 4000;
 export const DEFAULT_UI: UiState = {
   tab: 'sessions',
   folded: ['closed'],
-  cockpit: { view: 'board', folder: null, count: 'weighted', spanH: 8 },
+  cockpit: { view: 'board', folder: null, spanH: 8 },
   sizes: {},
   showUsage: true,
   dismissed: {},
   sort: 'manual',
+  tabOrder: [...SIDEBAR_TABS],
+  viewOrder: [...COCKPIT_VIEWS],
 };
 
 function parseSizes(raw: unknown): Record<string, number> {
@@ -76,9 +82,8 @@ function parseCockpit(raw: unknown): UiState['cockpit'] {
   const r = raw as Record<string, unknown>;
   const view = (COCKPIT_VIEWS as readonly unknown[]).includes(r['view']) ? (r['view'] as CockpitView) : d.view;
   const folder = typeof r['folder'] === 'string' ? r['folder'] : null;
-  const count = (COUNT_MODES as readonly unknown[]).includes(r['count']) ? (r['count'] as CountMode) : d.count;
   const spanH = typeof r['spanH'] === 'number' && SPANS_H.includes(r['spanH']) ? r['spanH'] : d.spanH;
-  return { view, folder, count, spanH };
+  return { view, folder, spanH };
 }
 
 export function parseUiState(raw: unknown): UiState {
@@ -94,7 +99,17 @@ export function parseUiState(raw: unknown): UiState {
     for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
   }
   const sort = SESSION_SORTS.find((x) => x === rec['sort']) ?? DEFAULT_UI.sort;
-  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage, dismissed, sort };
+  const out: UiState = {
+    tab,
+    folded,
+    cockpit: parseCockpit(rec['cockpit']),
+    sizes: parseSizes(rec['sizes']),
+    showUsage,
+    dismissed,
+    sort,
+    tabOrder: normalizeOrder(rec['tabOrder'], SIDEBAR_TABS),
+    viewOrder: normalizeOrder(rec['viewOrder'], COCKPIT_VIEWS),
+  };
   if (typeof rec['launch'] === 'string') out.launch = rec['launch'];
   return out;
 }
