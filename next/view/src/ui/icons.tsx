@@ -121,7 +121,8 @@ const PATHS = {
       <path d="M3 13.5c.8-2.6 2.7-3.8 5-3.8s4.2 1.2 5 3.8" />
     </>
   ),
-  chat: <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v5a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5V11h.5" />,
+  // A closed bubble with its tail at the bottom left — the first drawing left its left side open.
+  chat: <path d="M4.5 3h7A1.5 1.5 0 0 1 13 4.5v5A1.5 1.5 0 0 1 11.5 11H7.5l-3 2.5V11A1.5 1.5 0 0 1 3 9.5v-5A1.5 1.5 0 0 1 4.5 3z" />,
   bot: (
     <>
       <rect x="3.5" y="5.5" width="9" height="7" rx="2" />
