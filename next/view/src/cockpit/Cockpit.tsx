@@ -16,6 +16,7 @@ import { Dot, Icon, type IconName } from '../ui/icons';
 import { COCKPIT_VIEWS, type CockpitView, type UiState } from '../ui-state';
 import type { ViewCtx } from '../views/context';
 import { FOLDER_COLORS } from '../ui/colors';
+import { SessionSheet } from './Sheet';
 
 type Cockpit = UiState['cockpit'];
 
@@ -24,14 +25,36 @@ type Cockpit = UiState['cockpit'];
  * folders on the left, the chosen view in the middle, what waits for you on
  * the right. Below a laptop's half-screen it folds into one column.
  */
-export function CockpitBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; setUi(next: Partial<Cockpit>): void }) {
+export function CockpitBody({
+  ctx,
+  ui,
+  setUi,
+  sheet,
+  onSheet,
+}: {
+  ctx: ViewCtx;
+  ui: Cockpit;
+  setUi(next: Partial<Cockpit>): void;
+  /** The conversation whose sheet takes the middle column, if any. */
+  sheet: string | undefined;
+  onSheet(id: string | undefined): void;
+}) {
   const { t, snapshot } = ctx;
   return (
     <div className="cockpit">
       <nav className="ck-nav" aria-label={t('cockpit.views')}>
         <h2 className="sec sec-label">{t('cockpit.views')}</h2>
         {COCKPIT_VIEWS.map((v) => (
-          <button key={v} type="button" className="nav-btn" aria-current={ui.view === v ? 'page' : undefined} onClick={() => setUi({ view: v })}>
+          <button
+            key={v}
+            type="button"
+            className="nav-btn"
+            aria-current={ui.view === v && sheet === undefined ? 'page' : undefined}
+            onClick={() => {
+              onSheet(undefined);
+              setUi({ view: v });
+            }}
+          >
             <Icon name={VIEW_ICON[v]} />
             {t(`cockpit.view.${v}`)}
           </button>
@@ -40,8 +63,14 @@ export function CockpitBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; set
         <FolderFilter ctx={ctx} value={ui.folder} onChange={(folder) => setUi({ folder })} />
       </nav>
       <main className="ck-main">
-        <h1 className="ck-title">{t(`cockpit.view.${ui.view}`)}</h1>
-        <ViewBody ctx={ctx} ui={ui} setUi={setUi} />
+        {sheet !== undefined ? (
+          <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
+        ) : (
+          <>
+            <h1 className="ck-title">{t(`cockpit.view.${ui.view}`)}</h1>
+            <ViewBody ctx={ctx} ui={ui} setUi={setUi} />
+          </>
+        )}
       </main>
       <aside className="ck-side">
         <Inbox ctx={ctx} />
@@ -126,7 +155,7 @@ function Board({ ctx, cols }: { ctx: ViewCtx; cols: BoardColumns }) {
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
   return (
-    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
+    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)}>
       <span className="l1">
         <span className="ttl">{sessionTitle(s, t)}</span>
         <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
@@ -238,7 +267,7 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
       {a.sessions.map((s) => {
         const listed = a.listed.get(s.id);
         return (
-          <button key={s.id} type="button" className="tile" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
+          <button key={s.id} type="button" className="tile" onClick={() => ctx.show(s.id)}>
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
               <span className="ttl">{listed !== undefined ? sessionTitle(listed, t) : (s.title ?? s.project)}</span>
@@ -275,7 +304,7 @@ function Feed({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
     <ol className="feed">
       {items.map((i, k) => (
         <li key={`${i.at}-${k}`}>
-          <button type="button" className="feed-row" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: i.sessionId })}>
+          <button type="button" className="feed-row" onClick={() => ctx.show(i.sessionId)}>
             <Dot tone={toneFor(i.sessionId, a.listed)} animate={false} size={12} />
             <span className="who">{titles.get(i.sessionId) ?? i.sessionId}</span>
             <ItemLine ctx={ctx} i={i} withTime />
@@ -320,7 +349,7 @@ function Timeline({ ctx, folder, spanH, onSpan }: { ctx: ViewCtx; folder: string
             const listed = a.listed.get(l.session.id);
             const tone = toneFor(l.session.id, a.listed);
             return (
-              <button key={l.session.id} type="button" className="tl-lane" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: l.session.id })}>
+              <button key={l.session.id} type="button" className="tl-lane" onClick={() => ctx.show(l.session.id)}>
                 <span className="tl-name">{listed !== undefined ? sessionTitle(listed, t) : (l.session.title ?? l.session.project)}</span>
                 <span className="tl-track">
                   {ticks.map(([x, at]) => (

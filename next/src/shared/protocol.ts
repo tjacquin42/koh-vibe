@@ -180,6 +180,59 @@ export interface ActivityView {
   feed: ActivityItemView[];
 }
 
+/** One tool call on the session sheet. */
+export interface SheetToolView {
+  at: number;
+  tool: string;
+  target?: string;
+  /** The subagent that made it (its id on the sheet), absent for the conversation itself. */
+  agent?: string;
+}
+
+/** A subagent of the conversation, from its transcript and its `.meta.json`. */
+export interface SheetAgentView {
+  id: string;
+  /** What it was asked: the description it was started with, or the first line of its prompt. */
+  label: string;
+  /** `general-purpose`, `Explore`…, when known. */
+  type?: string;
+  model?: string;
+  tokens: TokenCount;
+  tools: number;
+  firstAt: number;
+  lastAt: number;
+  /** From its meta file; absent when Claude Code did not say. */
+  finished?: boolean;
+}
+
+/** A file the conversation (or one of its subagents) wrote to. */
+export interface SheetFileView {
+  /** Relative to the conversation's directory, or with `~` for the home — never the full home path. */
+  path: string;
+  /** Edit, Write… calls on it. */
+  writes: number;
+  lastAt: number;
+}
+
+/**
+ * Everything about ONE conversation over the window: what it ran, its
+ * subagents, the files it changed. Built only for the conversation the
+ * cockpit shows; its processes come from `Snapshot.processes`.
+ */
+export interface SessionSheetView {
+  id: string;
+  since: number;
+  /** Newest first, capped. */
+  tools: SheetToolView[];
+  toolCount: number;
+  agents: SheetAgentView[];
+  files: SheetFileView[];
+  tokens: TokenCount;
+  subagentTokens: TokenCount;
+  /** The last thing the person asked, when it is in the window. */
+  lastPrompt?: { at: number; text: string };
+}
+
 /** The shared settings (`settings.json`), as far as the view shows them. */
 export interface SettingsView {
   animate: boolean;
@@ -218,6 +271,8 @@ export interface Snapshot {
   settings: SettingsView;
   processes?: ProcessesView;
   activity?: ActivityView;
+  /** The sheet of the conversation the cockpit shows, when it shows one. */
+  sheet?: SessionSheetView;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;
@@ -252,7 +307,9 @@ export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'reopen'; sessionId: string; outcome: ReopenOutcome }
   /** The answer to the view's `act` of the same `req`. */
-  | { type: 'acted'; req: number; result: ActionResult };
+  | { type: 'acted'; req: number; result: ActionResult }
+  /** Opens a conversation's sheet in the cockpit (the sidebar's « sheet » button, or a click without V1). */
+  | { type: 'showSheet'; sessionId: string };
 
 /** View → host. */
 export type ViewMessage =
@@ -270,6 +327,8 @@ export type ViewMessage =
   | { type: 'reopenClosed'; sessionId: string }
   /** Opens the artifact's page on claude.ai in the browser — a link, nothing written. */
   | { type: 'openArtifact'; slug: string }
+  /** Which conversation's sheet the cockpit shows — `null` when none. The host builds only that one. */
+  | { type: 'sheet'; sessionId: string | null }
   /** A change (actions.ts). `req` numbers it, so the answer finds its way back. */
   | { type: 'act'; req: number; action: Action };
 
@@ -304,6 +363,11 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       const slug = raw['slug'];
       return typeof slug === 'string' && SLUG.test(slug) ? { type: 'openArtifact', slug } : undefined;
     }
+    case 'sheet': {
+      const id = raw['sessionId'];
+      if (id === null) return { type: 'sheet', sessionId: null };
+      return typeof id === 'string' && id.length > 0 && id.length <= 128 ? { type: 'sheet', sessionId: id } : undefined;
+    }
     case 'act': {
       const req = raw['req'];
       const action = parseAction(raw['action']);
@@ -327,6 +391,7 @@ export function isHostMessage(raw: unknown): raw is HostMessage {
   const t = raw['type'];
   if (t === 'snapshot') return isRecord(raw['snapshot']);
   if (t === 'init') return isRecord(raw['snapshot']) && isRecord(raw['context']);
+  if (t === 'showSheet') return typeof raw['sessionId'] === 'string';
   if (t === 'acted') return typeof raw['req'] === 'number' && isActionResult(raw['result']);
   if (t === 'reopen') return typeof raw['sessionId'] === 'string' && REOPEN_OUTCOMES.some((o) => o === raw['outcome']);
   return false;

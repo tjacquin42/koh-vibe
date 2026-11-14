@@ -13,10 +13,12 @@ describe('parseViewMessage', () => {
     expect(parseViewMessage({ type: 'openSession', sessionId: 'a' })).toEqual({ type: 'openSession', sessionId: 'a' });
     expect(parseViewMessage({ type: 'openArtifact', slug: 'a_b-9' })).toEqual({ type: 'openArtifact', slug: 'a_b-9' });
     expect(parseViewMessage({ type: 'reopenClosed', sessionId: 'c' })).toEqual({ type: 'reopenClosed', sessionId: 'c' });
+    expect(parseViewMessage({ type: 'sheet', sessionId: 'c' })).toEqual({ type: 'sheet', sessionId: 'c' });
+    expect(parseViewMessage({ type: 'sheet', sessionId: null })).toEqual({ type: 'sheet', sessionId: null });
   });
 
   it('drops anything malformed', () => {
-    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }, { type: 'tab', tab: 'settings' }, { type: 'openArtifact', slug: 'a/b' }, { type: 'openArtifact', slug: '' }, { type: 'openArtifact' }, { type: 'openSession' }, { type: 'openSession', sessionId: 7 }, { type: 'reopenClosed' }, { type: 'reopenClosed', sessionId: '' }]) {
+    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }, { type: 'tab', tab: 'settings' }, { type: 'openArtifact', slug: 'a/b' }, { type: 'openArtifact', slug: '' }, { type: 'openArtifact' }, { type: 'openSession' }, { type: 'openSession', sessionId: 7 }, { type: 'reopenClosed' }, { type: 'reopenClosed', sessionId: '' }, { type: 'sheet' }, { type: 'sheet', sessionId: '' }]) {
       expect(parseViewMessage(bad)).toBeUndefined();
     }
   });
@@ -29,6 +31,7 @@ describe('isHostMessage', () => {
     expect(isHostMessage({ type: 'init', snapshot: {} })).toBe(false);
     expect(isHostMessage({ type: 'reopen', sessionId: 'c', outcome: 'v1' })).toBe(true);
     expect(isHostMessage({ type: 'reopen', sessionId: 'c', outcome: 'maybe' })).toBe(false);
+    expect(isHostMessage({ type: 'showSheet', sessionId: 'c' })).toBe(true);
     expect(isHostMessage({ type: 'other' })).toBe(false);
   });
 });

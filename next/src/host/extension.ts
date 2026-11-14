@@ -14,6 +14,8 @@ import { send } from '../../../src/cloud/request';
 import { killAll } from '../../../src/process/kill';
 import { ActivityIndex, WINDOW_MS } from './activity/index';
 import { toActivityView } from './activity/view';
+import { buildSheet, readAgentMetas } from './activity/sheet';
+import { homedir } from 'node:os';
 import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
 import { openSession, reopenClosed } from './open-session';
@@ -86,6 +88,10 @@ interface ViewActions {
   openCockpit(sessionId?: string): void;
   openSession(sessionId: string): void;
   reopenClosed(sessionId: string): Promise<ReopenOutcome>;
+  /** The cockpit's sheet: which conversation it shows, `null` for none. */
+  sheet(sessionId: string | null): void;
+  /** Once the view has its first message: the cockpit is told which sheet to open, if one waits. */
+  ready(post: (m: HostMessage) => void): void;
   act(action: Action): Promise<ActionResult>;
   showTab(tab: SidebarTab | undefined): void;
 }
@@ -119,6 +125,10 @@ function connect(
         // ready again: replace its client rather than stacking a second.
         client?.dispose();
         client = await hub.attach({ context: viewContext(), post: (m) => void webview.postMessage(m) });
+        actions.ready((m) => void webview.postMessage(m));
+        return;
+      case 'sheet':
+        actions.sheet(msg.sessionId);
         return;
       case 'reload':
         await hub.refresh();
@@ -200,6 +210,13 @@ export function activate(context: vscode.ExtensionContext): void {
           await activity.refresh(now);
           return toActivityView(activity.states, now, now - WINDOW_MS, known);
         },
+        sheet: async () => {
+          if (cockpit === undefined || activity === undefined || sheetFor === undefined) return undefined;
+          const id = sheetFor;
+          const states = activity.states.filter((s) => s.sessionId === id);
+          const now = Date.now();
+          return buildSheet(states, id, now - WINDOW_MS, await readAgentMetas(states), homedir());
+        },
       });
     },
     watch: (onChange) => watchHome(home, onChange),
@@ -214,7 +231,7 @@ export function activate(context: vscode.ExtensionContext): void {
       read: async (id) => (await readSessions(spoolDirs(home))).get(id),
       hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
-      fallback: () => openCockpit(),
+      fallback: (id) => openCockpit(id),
     });
   };
 
@@ -254,11 +271,25 @@ export function activate(context: vscode.ExtensionContext): void {
     return result;
   };
 
-  const tabTracker = (): ViewActions => {
+  // The conversation whose sheet the cockpit shows, and one asked for before
+  // the cockpit was ready to hear it.
+  let sheetFor: string | undefined;
+  let pendingSheet: string | undefined;
+
+  const tabTracker = (surface: Surface): ViewActions => {
     const key = {};
     return {
       act,
-      openCockpit: () => openCockpit(),
+      openCockpit: (sessionId) => openCockpit(sessionId),
+      sheet(sessionId) {
+        sheetFor = sessionId ?? undefined;
+        void hub.refresh();
+      },
+      ready(post) {
+        if (surface !== 'cockpit' || pendingSheet === undefined) return;
+        post({ type: 'showSheet', sessionId: pendingSheet });
+        pendingSheet = undefined;
+      },
       openSession: focus,
       reopenClosed: reopen,
       showTab(tab) {
@@ -276,17 +307,20 @@ export function activate(context: vscode.ExtensionContext): void {
   const views: { webview: vscode.Webview; reload(): void }[] = [];
   let cockpit: vscode.WebviewPanel | undefined;
 
-  function openCockpit(): void {
+  /** Opens the cockpit — on a conversation's sheet when `sessionId` says which. */
+  function openCockpit(sessionId?: string): void {
     if (cockpit !== undefined) {
       cockpit.reveal();
+      if (sessionId !== undefined) void cockpit.webview.postMessage({ type: 'showSheet', sessionId } satisfies HostMessage);
       return;
     }
+    pendingSheet = sessionId;
     const panel = vscode.window.createWebviewPanel(COCKPIT_PANEL, 'Koh-Vibe', vscode.ViewColumn.Active, {
       ...webviewOptions(context),
       retainContextWhenHidden: true,
     });
     panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'logo-mono.svg');
-    const link = connect(panel.webview, 'cockpit', context, hub, tabTracker());
+    const link = connect(panel.webview, 'cockpit', context, hub, tabTracker('cockpit'));
     const entry = { webview: panel.webview, reload: () => (panel.webview.html = renderHtml(panel.webview, context)) };
     views.push(entry);
     cockpit = panel;
@@ -296,13 +330,15 @@ export function activate(context: vscode.ExtensionContext): void {
       link.dispose();
       views.splice(views.indexOf(entry), 1);
       cockpit = undefined;
+      sheetFor = undefined;
+      pendingSheet = undefined;
     });
   }
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SIDEBAR_VIEW, {
       resolveWebviewView(view: vscode.WebviewView): void {
-        const link = connect(view.webview, 'sidebar', context, hub, tabTracker());
+        const link = connect(view.webview, 'sidebar', context, hub, tabTracker('sidebar'));
         const entry = { webview: view.webview, reload: () => (view.webview.html = renderHtml(view.webview, context)) };
         views.push(entry);
         view.onDidDispose(() => {
@@ -311,7 +347,8 @@ export function activate(context: vscode.ExtensionContext): void {
         });
       },
     }),
-    vscode.commands.registerCommand('kohVibeNext.openCockpit', openCockpit),
+    // Wrapped: a command handler receives whatever its caller passes, and only a string names a sheet.
+    vscode.commands.registerCommand('kohVibeNext.openCockpit', () => openCockpit()),
     vscode.commands.registerCommand('kohVibeNext.reload', () => {
       for (const v of views) v.reload();
     }),

@@ -37,6 +37,7 @@ import type {
   FolderView,
   ProcessesView,
   RoutineView,
+  SessionSheetView,
   SessionView,
   SettingsView,
   Snapshot,
@@ -200,6 +201,8 @@ export interface SnapshotExtras {
   processes?: (cwds: readonly string[]) => Promise<ProcessesView>;
   /** What the transcripts say; `undefined` while no cockpit is open to show it. */
   activity?: (known: ReadonlyMap<string, KnownSession>) => Promise<ActivityView | undefined>;
+  /** The sheet of the conversation the cockpit shows, built after the activity it reads from. */
+  sheet?: () => Promise<SessionSheetView | undefined>;
 }
 
 export async function buildSnapshot(home: string, now: number, extras: SnapshotExtras = {}): Promise<Snapshot> {
@@ -236,6 +239,10 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
     const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));
     const activity = await extras.activity(known);
     if (activity !== undefined) snap.activity = activity;
+  }
+  if (extras.sheet !== undefined) {
+    const sheet = await extras.sheet();
+    if (sheet !== undefined) snap.sheet = sheet;
   }
   return snap;
 }

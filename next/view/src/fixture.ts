@@ -1,4 +1,4 @@
-import type { Snapshot } from '../../src/shared/protocol';
+import type { SessionSheetView, Snapshot } from '../../src/shared/protocol';
 
 /**
  * Sample data for the browser preview (the page opened straight from Vite,
@@ -140,5 +140,37 @@ export function sampleSnapshot(now: number): Snapshot {
       },
       orphans: [{ cwd: '/work/shop-front', tree: [{ pid: 3001, label: 'vite --port 5173', kind: 'work', elapsed: 7200, rss: 150_000, depth: 0 }] }],
     },
+  };
+}
+
+/** A made-up sheet for the browser preview, where no host builds one. */
+export function sampleSheet(id: string, now: number): SessionSheetView {
+  const ago = (min: number): number => now - min * 60_000;
+  const tok = (input: number, output: number, cacheRead: number) => ({ input, output, cacheWrite: Math.round(input / 4), cacheRead });
+  return {
+    id,
+    since: now - 24 * 60 * 60_000,
+    toolCount: 9,
+    tools: [
+      { at: ago(0.5), tool: 'Bash', target: 'pnpm test src/dates.test.ts' },
+      { at: ago(1), tool: 'Edit', target: 'dates.ts' },
+      { at: ago(2), tool: 'Read', target: 'dates.test.ts', agent: 'a1' },
+      { at: ago(3), tool: 'Grep', target: 'toISOString', agent: 'a1' },
+      { at: ago(4), tool: 'Agent', target: 'Find every date parsed in UTC' },
+      { at: ago(6), tool: 'Edit', target: 'format.ts' },
+      { at: ago(7), tool: 'Read', target: 'format.ts' },
+      { at: ago(9), tool: 'Bash', target: 'git log --oneline -5' },
+      { at: ago(11), tool: 'Read', target: 'dates.ts' },
+    ],
+    agents: [
+      { id: 'a1', label: 'Find every date parsed in UTC', type: 'Explore', model: 'haiku', tokens: tok(4_200, 900, 61_000), tools: 2, firstAt: ago(4), lastAt: ago(2), finished: true },
+    ],
+    files: [
+      { path: 'src/dates.ts', writes: 2, lastAt: ago(1) },
+      { path: 'src/format.ts', writes: 1, lastAt: ago(6) },
+    ],
+    tokens: tok(18_000, 6_400, 410_000),
+    subagentTokens: tok(4_200, 900, 61_000),
+    lastPrompt: { at: ago(12), text: 'The date test fails on CI only — find out why and fix it' },
   };
 }

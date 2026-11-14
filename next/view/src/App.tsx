@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
 import { SIDEBAR_TABS, type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
-import { sampleSnapshot } from './fixture';
+import { sampleSheet, sampleSnapshot } from './fixture';
 import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
@@ -49,6 +49,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [reopening, setReopening] = useState<Reopening>(() => new Map());
   const [notices, setNotices] = useState<ReadonlyMap<string, Exclude<ReopenOutcome, 'v1'>>>(() => new Map());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The cockpit's sheet: which conversation it shows (Sheet.tsx).
+  const [sheet, setSheet] = useState<string | undefined>();
   // Actions waiting for the host's answer, by request number.
   const pending = useRef(new Map<number, (r: ActionResult) => void>());
   const nextReq = useRef(1);
@@ -59,6 +61,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     const off = bridge.listen((m) => {
       if (m.type === 'init') setState({ context: m.context, snapshot: m.snapshot });
       else if (m.type === 'snapshot') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
+      else if (m.type === 'showSheet') setSheet(m.sessionId);
       else if (m.type === 'acted') {
         pending.current.get(m.req)?.(m.result);
         pending.current.delete(m.req);
@@ -77,6 +80,11 @@ export function App({ bridge }: { bridge: Bridge }) {
     bridge.post({ type: 'ready' });
     return off;
   }, [bridge]);
+
+  // The host builds the sheet of the conversation shown, and of no other.
+  useEffect(() => {
+    if (state?.context.surface === 'cockpit') bridge.post({ type: 'sheet', sessionId: sheet ?? null });
+  }, [bridge, sheet, state?.context.surface]);
 
   // The host scans for orphan processes only behind the Processes tab.
   useEffect(() => {
@@ -148,7 +156,9 @@ export function App({ bridge }: { bridge: Bridge }) {
   if (state === undefined) {
     return <div className="boot">{t('live.wait')}</div>;
   }
-  const { context, snapshot } = state;
+  const { context } = state;
+  // Outside the editor no host builds the sheet: the preview makes one up.
+  const snapshot = !bridge.inEditor && sheet !== undefined ? { ...state.snapshot, sheet: sampleSheet(sheet, now) } : state.snapshot;
   const ctx: ViewCtx = {
     t,
     language: context.language,
@@ -163,13 +173,14 @@ export function App({ bridge }: { bridge: Bridge }) {
     reopen,
     act,
     notify: showToast,
+    show: (id) => (context.surface === 'cockpit' ? setSheet(id) : bridge.post({ type: 'openSession', sessionId: id })),
   };
   if (context.surface === 'cockpit') {
     return (
       <div className="app surface-cockpit">
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => undefined} />
-        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} />
+        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} />
       </div>
     );
   }

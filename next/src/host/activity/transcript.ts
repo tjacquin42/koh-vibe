@@ -25,7 +25,12 @@ export type Entry =
   | { kind: 'usage'; at: number; messageId: string; model?: string; usage: Usage }
   | { kind: 'prompt'; at: number; text: string }
   | { kind: 'text'; at: number; text: string }
-  | { kind: 'tool'; at: number; tool: string; target?: string }
+  /**
+   * `path`: the full file path of a file tool, kept on the host side only —
+   * the session sheet turns it into a path relative to the conversation's
+   * directory before anything reaches the view.
+   */
+  | { kind: 'tool'; at: number; tool: string; target?: string; path?: string }
   | { kind: 'title'; title: string; source: 'custom' | 'ai' }
   | { kind: 'cwd'; cwd: string };
 
@@ -64,6 +69,16 @@ export function toolTarget(input: unknown): string | undefined {
   if (file !== undefined) return basename(file);
   const text = str('description') ?? str('command') ?? str('pattern') ?? str('query') ?? str('url') ?? str('skill') ?? str('prompt') ?? str('action');
   return text === undefined ? undefined : firstLine(text, 80);
+}
+
+/** The file a tool works on, in full, when it names one. */
+export function filePath(input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined;
+  for (const k of ['file_path', 'notebook_path']) {
+    const v = input[k];
+    if (typeof v === 'string' && v.startsWith('/')) return v;
+  }
+  return undefined;
 }
 
 function timeOf(entry: Record<string, unknown>): number | undefined {
@@ -151,7 +166,11 @@ export function parseLine(line: string): Entry[] {
       if (!isRecord(block)) continue;
       if (block['type'] === 'tool_use' && typeof block['name'] === 'string') {
         const target = toolTarget(block['input']);
-        out.push(target === undefined ? { kind: 'tool', at, tool: block['name'] } : { kind: 'tool', at, tool: block['name'], target });
+        const e: Entry = { kind: 'tool', at, tool: block['name'] };
+        if (target !== undefined) e.target = target;
+        const path = filePath(block['input']);
+        if (path !== undefined) e.path = path;
+        out.push(e);
       } else if (block['type'] === 'text' && typeof block['text'] === 'string') {
         const text = firstLine(block['text']);
         if (text !== undefined) out.push({ kind: 'text', at, text });

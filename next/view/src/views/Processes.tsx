@@ -51,7 +51,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
   );
 }
 
-function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
+export function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
   const { t } = ctx;
   return (
     <div className="proc" style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>

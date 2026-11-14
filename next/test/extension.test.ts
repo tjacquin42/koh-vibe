@@ -3,7 +3,7 @@
  * a sidebar that says it is ready, a file changing under it, the cockpit
  * opening. Only `vscode` is faked (test/stubs/vscode.ts).
  */
-import { rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -290,6 +290,50 @@ describe('activate', () => {
         expect(last?.type === 'snapshot' && last.snapshot.activity?.sessions).toEqual([]);
       },
       { timeout: 2_000, interval: 20 },
+    );
+  });
+
+  it('opens the cockpit on a conversation\'s sheet, once the cockpit can hear it', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'openCockpit', sessionId: 'b' });
+    const panel = recorded.panels[0];
+    if (panel === undefined) throw new Error('no cockpit');
+    await panel.webview.receive({ type: 'ready' });
+    expect(panel.webview.posted).toContainEqual({ type: 'showSheet', sessionId: 'b' });
+    // Already open: told at once.
+    await view.webview.receive({ type: 'openCockpit', sessionId: 'a' });
+    expect(panel.webview.posted).toContainEqual({ type: 'showSheet', sessionId: 'a' });
+  });
+
+  it('builds the sheet of the conversation the cockpit shows, from its transcript', async () => {
+    const dir = join(home, 'no-transcripts', 'proj');
+    await mkdir(join(dir, 'b', 'subagents'), { recursive: true });
+    const at = new Date().toISOString();
+    const line = (o: unknown) => `${JSON.stringify(o)}\n`;
+    await writeFile(
+      join(dir, 'b.jsonl'),
+      line({ type: 'user', timestamp: at, cwd: '/work/b', message: { content: 'Fix it' } }) +
+        line({ type: 'assistant', timestamp: at, message: { id: 'm1', usage: { input_tokens: 5, output_tokens: 1 }, content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/work/b/src/x.ts' } }] } }),
+    );
+    await writeFile(join(dir, 'b', 'subagents', 'agent-q1.jsonl'), line({ type: 'user', timestamp: at, message: { content: 'Look around' } }));
+    await writeFile(join(dir, 'b', 'subagents', 'agent-q1.meta.json'), JSON.stringify({ description: 'Survey', agentType: 'Explore' }));
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'openCockpit' });
+    const panel = recorded.panels[0];
+    if (panel === undefined) throw new Error('no cockpit');
+    await panel.webview.receive({ type: 'ready' });
+    await panel.webview.receive({ type: 'sheet', sessionId: 'b' });
+    await vi.waitFor(
+      () => {
+        const last = (panel.webview.posted as HostMessage[]).filter((m) => m.type === 'snapshot').at(-1);
+        const sheet = last?.type === 'snapshot' ? last.snapshot.sheet : undefined;
+        expect(sheet?.files).toEqual([{ path: 'src/x.ts', writes: 1, lastAt: Date.parse(at) }]);
+        expect(sheet?.agents.map((a) => [a.label, a.type])).toEqual([['Survey', 'Explore']]);
+        expect(sheet?.lastPrompt?.text).toBe('Fix it');
+      },
+      { timeout: 3_000, interval: 30 },
     );
   });
 });

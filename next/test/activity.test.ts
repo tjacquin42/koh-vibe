@@ -22,7 +22,7 @@ describe('parseLine', () => {
       { kind: 'cwd', cwd: '/work/shop' },
       { kind: 'usage', at: T0, messageId: 'm1', model: 'claude-x', usage: { input: 2, output: 10, cacheWrite: 100, cacheRead: 1000 } },
       { kind: 'text', at: T0, text: 'Done.' },
-      { kind: 'tool', at: T0, tool: 'Edit', target: 'a.ts' },
+      { kind: 'tool', at: T0, tool: 'Edit', target: 'a.ts', path: '/home/me/src/a.ts' },
     ]);
   });
 

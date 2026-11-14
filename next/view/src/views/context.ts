@@ -23,4 +23,9 @@ export interface ViewCtx {
   act(action: Action): Promise<ActionResult>;
   /** A short line at the bottom that goes away — for what worked and is worth saying. */
   notify(text: string): void;
+  /**
+   * What a click on a conversation does where it sits: in the cockpit, its
+   * sheet; in the sidebar, its tab.
+   */
+  show(sessionId: string): void;
 }
