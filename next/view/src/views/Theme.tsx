@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { DEFAULT_THEME, DEFAULT_TUNE, sameTune, THEME_RANGE, type ThemeState, type ThemeTune } from '../../../src/shared/theme';
+import { DEFAULT_THEME, DEFAULT_TUNE, sameTune, TEXTURES, THEME_RANGE, type ThemeState, type ThemeTune } from '../../../src/shared/theme';
 import { Hint } from '../ui/Hint';
 import { previewTheme, relativeFilter } from '../ui/theme';
+import { TEXTURE, textureLayers } from '../ui/textures';
 import type { ViewCtx } from './context';
 
 /**
@@ -73,16 +74,42 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
         onCommit={commit}
         onReset={() => save({ ...theme, current: { ...live.current, brightness: DEFAULT_TUNE.brightness } })}
       />
-      <Slider
-        label={t('theme.grain')}
-        value={draft.grain}
-        shown={draft.grain === 0 ? t('theme.grain.none') : `${draft.grain} %`}
-        range={THEME_RANGE.grain}
-        track="trange-grain"
-        onMove={(grain) => move({ grain })}
-        onCommit={commit}
-        onReset={() => save({ ...theme, current: { ...live.current, grain: DEFAULT_TUNE.grain } })}
-      />
+      <div className="set-row set-choice">
+        <div className="set-l">
+          <b>{t('theme.grain')}</b>
+        </div>
+        {/* Several at once; the first one picked starts at half strength. */}
+        <div className="ttex" role="group" aria-label={t('theme.grain')}>
+          {TEXTURES.map((id) => {
+            const on = draft.textures.includes(id);
+            // Read at the click, not at the render: two quick clicks must both count.
+            const pick = (): void => {
+              const now = live.current;
+              const was = now.textures.includes(id);
+              const textures = was ? now.textures.filter((x) => x !== id) : TEXTURES.filter((x) => x === id || now.textures.includes(x));
+              save({ ...theme, current: { ...now, textures, grain: !was && now.grain === 0 ? 50 : now.grain } });
+            };
+            return (
+              <button key={id} type="button" aria-pressed={on} onClick={pick}>
+                <i style={{ backgroundImage: TEXTURE[id].image, backgroundSize: TEXTURE[id].size }} />
+                {t(`theme.texture.${id}`)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {draft.textures.length > 0 && (
+        <Slider
+          label={t('theme.grain.strength')}
+          value={draft.grain}
+          shown={`${draft.grain} %`}
+          range={THEME_RANGE.grain}
+          track="trange-grain"
+          onMove={(grain) => move({ grain })}
+          onCommit={commit}
+          onReset={() => save({ ...theme, current: { ...live.current, grain: 50 } })}
+        />
+      )}
       <div className="set-row set-choice">
         <div className="set-l">
           <b>{t('theme.slots')}</b>
@@ -95,11 +122,11 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
               <div key={i} className="tslot">
                 <button
                   type="button"
-                  className={`tswatch${slot === null ? ' empty' : ''}${slot !== null && slot.grain > 0 ? ' grainy' : ''}`}
+                  className={`tswatch${slot === null ? ' empty' : ''}`}
                   aria-pressed={on}
                   aria-label={slot === null ? t('theme.emptySlot', { n }) : t('theme.apply', { n })}
                   disabled={slot === null}
-                  style={slot === null ? undefined : { filter: relativeFilter(slot, draft) }}
+                  style={slot === null ? undefined : { filter: relativeFilter(slot, draft), ...swatchTexture(slot) }}
                   onClick={() => slot !== null && save({ ...theme, current: slot })}
                 >
                   {slot === null ? (
@@ -156,12 +183,16 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
   );
 }
 
-/** The accent's own hue (#ff9e5e): the pad's middle, where the colours are untouched. */
-const BASE_HUE = 24;
-const HUES = [-180, -120, -60, 0, 60, 120, 180].map((d) => `hsl(${BASE_HUE + d}deg 88% 62%)`).join(', ');
+/**
+ * The theme's own violet (--link #b9a6ff, the hue of every ground): the
+ * pad's middle, where the colours are untouched — the colour one sees in the
+ * theme, not its coral accents (14/11).
+ */
+const BASE_HUE = 252;
+const HUES = [-180, -120, -60, 0, 60, 120, 180].map((d) => `hsl(${BASE_HUE + d}deg 80% 68%)`).join(', ');
 
 /**
- * The colour, picked on a pad: across, the hue turned from Koh's own coral
+ * The colour, picked on a pad: across, the hue turned from Koh's own violet
  * (the middle); up and down, how intense it is — untouched halfway, grey at
  * the bottom. Drag the knob, or use the arrows; a double-click puts it back.
  *
@@ -279,4 +310,11 @@ function Slider({
       />
     </label>
   );
+}
+
+/** A kept theme's textures on its swatch, at its strength. */
+function swatchTexture(slot: ThemeTune): { backgroundImage?: string; backgroundSize?: string } {
+  if (slot.textures.length === 0 || slot.grain === 0) return {};
+  const layers = textureLayers(slot.textures);
+  return { backgroundImage: layers.image, backgroundSize: layers.size };
 }

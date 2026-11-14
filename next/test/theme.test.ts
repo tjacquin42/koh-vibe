@@ -9,8 +9,11 @@ describe('the theme', () => {
   it('reads a whole state or nothing, values clamped', () => {
     const slots = [null, { hue: 400, saturation: -5, brightness: 120.4 }, null, null];
     // A slot kept before the grain existed reads with none.
-    expect(parseTheme({ current: DEFAULT_TUNE, slots })).toEqual({ current: DEFAULT_TUNE, slots: [null, { hue: 180, saturation: 0, brightness: 120, grain: 0 }, null, null] });
+    expect(parseTheme({ current: DEFAULT_TUNE, slots })).toEqual({ current: DEFAULT_TUNE, slots: [null, { hue: 180, saturation: 0, brightness: 120, grain: 0, textures: [] }, null, null] });
     expect(parseTheme({ current: { ...DEFAULT_TUNE, grain: 140 }, slots: [null, null, null, null] })?.current.grain).toBe(100);
+    // A grain kept before textures could be picked reads as the grain texture; unknown ids drop.
+    expect(parseTheme({ current: { hue: 0, saturation: 100, brightness: 100, grain: 40 }, slots: [null, null, null, null] })?.current.textures).toEqual(['grain']);
+    expect(parseTheme({ current: { ...DEFAULT_TUNE, grain: 40, textures: ['grid', 'paper', 'lines'] }, slots: [null, null, null, null] })?.current.textures).toEqual(['lines', 'grid']);
     expect(parseTheme({ current: DEFAULT_TUNE, slots: [null] })).toBeUndefined();
     expect(parseTheme({ current: { hue: 0 }, slots: [null, null, null, null] })).toBeUndefined();
     expect(parseAction({ kind: 'theme.set', theme: 'red' })).toBeUndefined();
@@ -20,11 +23,11 @@ describe('the theme', () => {
 
   it('filters nothing untouched, and colours as the browser filter does', () => {
     expect(themeFilter(DEFAULT_TUNE)).toBe('none');
-    expect(themeFilter({ hue: 30, saturation: 80, brightness: 110, grain: 0 })).toBe('hue-rotate(30deg) saturate(80%) brightness(110%)');
+    expect(themeFilter({ hue: 30, saturation: 80, brightness: 110, grain: 0, textures: [] })).toBe('hue-rotate(30deg) saturate(80%) brightness(110%)');
     // The grain is no filter: a texture laid over the view (view/src/ui/theme.ts).
     expect(themeFilter({ ...DEFAULT_TUNE, grain: 40 })).toBe('none');
     expect(tuneHex('#ff9e5e', DEFAULT_TUNE)).toBe('#ff9e5e');
-    expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0 })).toBe('#404040');
+    expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0, textures: [] })).toBe('#404040');
   });
 
   it('keeps its palette in step with the view’s tokens', () => {

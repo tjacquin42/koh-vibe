@@ -10,9 +10,18 @@ export interface ThemeTune {
   saturation: number;
   /** Percent, 100 untouched. */
   brightness: number;
-  /** A grain over the view, 0 (none) to 100 — Koh-Vibe only: the editor has no texture to take. */
+  /**
+   * How strong the textures are, 0 (none) to 100 — Koh-Vibe only: the editor
+   * has no texture to take. (Named `grain` since the first texture was one.)
+   */
   grain: number;
+  /** The textures laid over the view, several at once (view/src/ui/textures.ts). */
+  textures: TextureId[];
 }
+
+/** Fine patterns on a transparent ground, light and dark strokes alike: they do not change the brightness. */
+export const TEXTURES = ['grain', 'lines', 'diagonal', 'dots', 'grid'] as const;
+export type TextureId = (typeof TEXTURES)[number];
 
 export interface ThemeState {
   current: ThemeTune;
@@ -28,10 +37,10 @@ export const THEME_RANGE = {
   grain: { min: 0, max: 100 },
 } as const;
 
-export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0 };
+export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0, textures: [] };
 export const DEFAULT_THEME: ThemeState = { current: DEFAULT_TUNE, slots: Array.from({ length: THEME_SLOTS }, () => null) };
 
-function num(v: unknown, key: keyof ThemeTune): number | undefined {
+function num(v: unknown, key: keyof typeof THEME_RANGE): number | undefined {
   if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
   const { min, max } = THEME_RANGE[key];
   return Math.round(Math.min(max, Math.max(min, v)));
@@ -46,7 +55,11 @@ export function parseTune(raw: unknown): ThemeTune | undefined {
   const brightness = num(r['brightness'], 'brightness');
   // Kept before the grain existed: none.
   const grain = r['grain'] === undefined ? 0 : num(r['grain'], 'grain');
-  return hue === undefined || saturation === undefined || brightness === undefined || grain === undefined ? undefined : { hue, saturation, brightness, grain };
+  if (hue === undefined || saturation === undefined || brightness === undefined || grain === undefined) return undefined;
+  // Kept before textures could be picked: the grain was the only one.
+  const picked = r['textures'];
+  const textures: TextureId[] = Array.isArray(picked) ? TEXTURES.filter((id) => picked.includes(id)) : grain > 0 ? ['grain'] : [];
+  return { hue, saturation, brightness, grain, textures };
 }
 
 /** The whole state, or undefined when it cannot be read — never half of it. */
@@ -62,7 +75,7 @@ export function parseTheme(raw: unknown): ThemeState | undefined {
 }
 
 export function sameTune(a: ThemeTune, b: ThemeTune): boolean {
-  return a.hue === b.hue && a.saturation === b.saturation && a.brightness === b.brightness && a.grain === b.grain;
+  return a.hue === b.hue && a.saturation === b.saturation && a.brightness === b.brightness && a.grain === b.grain && a.textures.join() === b.textures.join();
 }
 
 /** The CSS filter for a tuning; none when it changes nothing. */

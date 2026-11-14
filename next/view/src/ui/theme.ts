@@ -1,4 +1,5 @@
 import { DEFAULT_TUNE, sameTune, themeFilter, type ThemeTune } from '../../../src/shared/theme';
+import { textureLayers } from './textures';
 
 /**
  * The tuning laid over the whole page (shared/theme.ts). On the root element:
@@ -14,8 +15,12 @@ let stored: ThemeTune = DEFAULT_TUNE;
 function paint(): void {
   const t = preview ?? stored;
   document.documentElement.style.filter = themeFilter(t);
-  // The grain is no filter: a texture over the page (app.css body::after).
-  document.documentElement.style.setProperty('--grain', String(t.grain / 100));
+  // The textures are no filter: patterns over the page (app.css body::after, ui/textures.ts).
+  const layers = textureLayers(t.textures);
+  const root = document.documentElement.style;
+  root.setProperty('--texture', layers.image);
+  root.setProperty('--texture-size', layers.size);
+  root.setProperty('--grain', String(t.textures.length === 0 ? 0 : t.grain / 100));
 }
 
 export function showStoredTheme(t: ThemeTune | undefined): void {
