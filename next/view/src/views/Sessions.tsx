@@ -1,4 +1,5 @@
-import { useMemo, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { useFlip } from '../ui/flip';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
@@ -22,6 +23,9 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const byId = useMemo(() => new Map(snapshot.sessions.map((s) => [s.id, s])), [snapshot.sessions]);
   const closed = snapshot.closed.filter((c) => !byId.has(c.sessionId));
   const [drag, setDrag] = useState<Drag | undefined>();
+  // Rows slide to where they now belong (ui/flip.ts) — under the Animations setting.
+  const root = useRef<HTMLDivElement>(null);
+  useFlip(root, ctx.animate);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
     return (
       <div className="empty">
@@ -34,7 +38,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const unfiled: FolderView = { id: UNFILED, name: t('folder.temporary'), sessionIds: snapshot.unfiled };
   const dnd: Dnd = { drag, setDrag };
   return (
-    <>
+    <div ref={root} className="flip-root">
       <Inbox ctx={ctx} compact />
       {snapshot.folders.map((f) => (
         <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
@@ -44,7 +48,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
       <Section title={t('closed.title')} count={closed.length} marker={<Icon name="history" size={13} />} folded={ctx.isFolded('closed')} onToggle={() => ctx.toggle('closed')}>
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
-    </>
+    </div>
   );
 }
 
@@ -104,6 +108,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   const row = (s: SessionView) => (
     <div
       key={s.id}
+      data-flip={s.id}
       className={`drag-row${over === s.id && drag?.kind === 'session' ? ' drop-line' : ''}${drag?.kind === 'session' && drag.id === s.id ? ' dragging' : ''}`}
       draggable
       onDragStart={(e) => {
@@ -356,7 +361,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   if (!c.resumable) {
     // Started outside the editor and the terminal: V1 has nothing to resume it from.
     return (
-      <div className="row closed-row">
+      <div className="row closed-row" data-flip={c.sessionId}>
         <Dot tone="ended" animate={false} />
         <span className="txt">
           <span className="ttl">{title}</span>
@@ -369,7 +374,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   const waiting = ctx.reopening.has(c.sessionId);
   const notice = ctx.reopenNotice(c.sessionId);
   return (
-    <div className="closed-item">
+    <div className="closed-item" data-flip={c.sessionId}>
       <button
         type="button"
         className="row row-btn closed-row"

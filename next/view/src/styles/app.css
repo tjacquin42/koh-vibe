@@ -60,7 +60,7 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .count.tone-done b { color: var(--done); }
 
 
-.body { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 12px; }
+.body { position: relative; flex: 1; min-height: 0; overflow: auto; overflow-x: hidden; padding: 0 6px 12px; }
 .sec { margin: 14px 6px 6px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; }
 .sec .n { font-family: var(--font-body); font-weight: 400; color: var(--muted); }
 .sec-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 2px; margin: -2px -2px; border: 0; background: transparent; color: var(--text); font: inherit; font-family: var(--font-display); font-weight: 700; text-align: left; border-radius: 6px; }
@@ -451,3 +451,5 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 @media (prefers-reduced-motion: reduce) { .splitter::after { transition: none; } }
 /* Inside the open « New folder » box the box is the frame: the field draws none of its own (14/11). */
 .new-folder .name-input, .new-folder .name-input:focus, .new-folder .name-input:focus-visible { border: 0; outline: none; box-shadow: none; background: transparent; padding: 0; }
+/* The version, small, right after the name (14/11). */
+.title .ver { font-size: 10.5px; color: var(--muted); align-self: flex-end; margin: 0 0 3px -4px; }

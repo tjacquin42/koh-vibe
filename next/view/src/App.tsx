@@ -179,7 +179,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     return (
       <div className="app surface-cockpit">
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
-        <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => undefined} />
+        <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
         <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} sizes={ui.sizes} onSize={(key, px) => updateUi((prev) => setSize(prev, key, px))} />
       </div>
     );
@@ -192,6 +192,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         t={t}
         snapshot={snapshot}
         surface={context.surface}
+        version={context.version}
         onCockpit={() => bridge.post({ type: 'openCockpit' })}
         onNew={() => void act({ kind: 'session.new' })}
         settingsOpen={settingsOpen}
@@ -218,7 +219,6 @@ export function App({ bridge }: { bridge: Bridge }) {
       )}
       <footer className="foot">
         <span>{t('footer.readonly')}</span>
-        {/^\d/.test(context.version) && <span className="mono">v{context.version}</span>}
       </footer>
     </div>
   );
@@ -243,6 +243,7 @@ function Header({
   t,
   snapshot,
   surface,
+  version,
   onCockpit,
   onNew,
   settingsOpen,
@@ -251,6 +252,8 @@ function Header({
   t: Translate;
   snapshot: Snapshot;
   surface: string;
+  /** The extension's version: shown when it is one (not « preview »). */
+  version: string;
   onCockpit(): void;
   onNew?: () => void;
   settingsOpen?: boolean;
@@ -261,6 +264,7 @@ function Header({
     <header className="head">
       <div className="title">
         <h1>{surface === 'cockpit' ? t('cockpit.title') : t('app.name')}</h1>
+        {/^\d/.test(version) && <span className="ver mono">v{version}</span>}
         <span className="tag">{t('app.next')}</span>
         <span className="live">
           <span className="pulse" aria-hidden="true" />
