@@ -112,8 +112,13 @@ interface ViewProvider {
   resolveWebviewView(view: FakeWebviewView): void;
 }
 
+interface PanelSerializer {
+  deserializeWebviewPanel(panel: FakePanel, state: unknown): Promise<void>;
+}
+
 export const recorded = {
   providers: new Map<string, ViewProvider>(),
+  serializers: new Map<string, PanelSerializer>(),
   commands: new Map<string, (...args: unknown[]) => unknown>(),
   panels: [] as FakePanel[],
   output: [] as string[],
@@ -127,6 +132,7 @@ export const recorded = {
     this.clipboard.length = 0;
     this.statusMessages.length = 0;
     this.providers.clear();
+    this.serializers.clear();
     this.commands.clear();
     this.panels.length = 0;
     this.output.length = 0;
@@ -151,6 +157,10 @@ export const window = {
     const item = new FakeStatusBarItem(alignment, priority);
     recorded.statusItems.push(item);
     return item;
+  },
+  registerWebviewPanelSerializer(viewType: string, serializer: PanelSerializer) {
+    recorded.serializers.set(viewType, serializer);
+    return { dispose: () => recorded.serializers.delete(viewType) };
   },
   createWebviewPanel(viewType: string, title: string) {
     const panel = new FakePanel(viewType, title);

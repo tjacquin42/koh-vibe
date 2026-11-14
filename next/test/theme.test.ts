@@ -31,9 +31,13 @@ describe('the theme', () => {
   });
 
   it('lays its colours over the user’s own, which stay under', () => {
-    const out = adapted({ 'editor.background': '#000000', 'terminal.ansiRed': '#ff0000' }, DEFAULT_TUNE);
+    const mine = { 'editor.background': '#000000', 'terminal.ansiRed': '#ff0000', '[Monokai]': { 'editor.background': '#111111', 'badge.background': '#222222' } };
+    const out = adapted(mine, DEFAULT_TUNE, 'Monokai');
     expect(out['editor.background']).toBe(KV_PALETTE.bg);
     expect(out['terminal.ansiRed']).toBe('#ff0000');
+    // The active theme's own block wins over the general keys: ours go in it too, over its own.
+    expect(out['[Monokai]']).toEqual({ ...ideColors(DEFAULT_TUNE), 'badge.background': '#222222' });
+    expect(adapted(null, DEFAULT_TUNE, undefined)).toEqual(ideColors(DEFAULT_TUNE));
     expect(Object.values(ideColors(DEFAULT_TUNE)).every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
   });
 });

@@ -13,7 +13,7 @@ import { MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
 import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
-import { ExtensionMode, FakeWebviewView, recorded, Uri } from './stubs/vscode';
+import { ExtensionMode, FakePanel, FakeWebviewView, recorded, Uri } from './stubs/vscode';
 import { fingerprint, makeHome, session } from './home';
 
 let home: string;
@@ -157,6 +157,22 @@ describe('activate', () => {
     panel.dispose();
     await view.webview.receive({ type: 'openCockpit' });
     expect(recorded.panels).toHaveLength(2);
+  });
+
+  it('takes back the cockpit the editor restores after a reload, and reveals it rather than opening another', async () => {
+    start(ExtensionMode.Production);
+    const serializer = recorded.serializers.get(COCKPIT_PANEL);
+    expect(serializer).toBeDefined();
+    const restored = new FakePanel(COCKPIT_PANEL, 'Koh-Vibe');
+    await serializer?.deserializeWebviewPanel(restored, undefined);
+    expect(restored.webview.html).toContain('<');
+    await restored.webview.receive({ type: 'ready' });
+    const init = (restored.webview.posted as HostMessage[])[0];
+    expect(init?.type === 'init' && init.context.surface).toBe('cockpit');
+    const view = sidebar();
+    await view.webview.receive({ type: 'openCockpit' });
+    expect(recorded.panels).toHaveLength(0);
+    expect(restored.revealed).toBe(1);
   });
 
   it('ignores malformed messages from the page', async () => {
@@ -318,14 +334,16 @@ describe('activate', () => {
   });
 
   it('dresses the editor in Koh-Vibe colours, follows a new tuning, then gives the original back whole', async () => {
-    const mine = { 'editor.background': '#000000', 'statusBar.background': '#123456' };
+    const mine = { 'editor.background': '#000000', 'statusBar.background': '#123456', '[Monokai]': { 'editor.background': '#111111' } };
+    recorded.config.set('workbench.colorTheme', 'Monokai');
     recorded.config.set('workbench.colorCustomizations', mine);
     start(ExtensionMode.Production);
     const view = sidebar();
     await view.webview.receive({ type: 'ready' });
-    const colors = (): Record<string, string> => recorded.config.get('workbench.colorCustomizations') as Record<string, string>;
+    const colors = (): Record<string, unknown> => recorded.config.get('workbench.colorCustomizations') as Record<string, unknown>;
     await view.webview.receive({ type: 'act', req: 5, action: { kind: 'theme.ide', mode: 'adapt' } });
     await vi.waitFor(() => expect(colors()['editor.background']).toBe('#14121f'), { timeout: 1_000, interval: 10 });
+    expect(colors()['[Monokai]']).toMatchObject({ 'editor.background': '#14121f' });
     const theme = { current: { hue: 180, saturation: 100, brightness: 100 }, slots: [null, null, null, null] };
     await view.webview.receive({ type: 'act', req: 6, action: { kind: 'theme.set', theme } });
     await vi.waitFor(() => expect(colors()['button.background']).not.toBe('#ff9e5e'), { timeout: 1_000, interval: 10 });

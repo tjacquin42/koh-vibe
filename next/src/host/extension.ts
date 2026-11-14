@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { adapted, asColorMap, type IdeBackup } from './ide-theme';
+import { adapted, asCustomizations, type IdeBackup } from './ide-theme';
 import { DEFAULT_THEME, parseTheme } from '../shared/theme';
 import { readClosed } from '../../../src/closed/store';
 import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
@@ -318,6 +318,8 @@ export function activate(context: vscode.ExtensionContext): void {
     // The tab bar changed from the editor's own settings: the settings panel follows.
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
+      // Another theme: the colours go into its block too (ide-theme.ts).
+      if (e.affectsConfiguration('workbench.colorTheme') && context.globalState.get(IDE_BACKUP_KEY) !== undefined) void ideTheme('adapt');
     }),
   );
 
@@ -403,10 +405,10 @@ export function activate(context: vscode.ExtensionContext): void {
       await context.globalState.update(IDE_BACKUP_KEY, undefined);
       return;
     }
-    const original = backup !== undefined ? backup.value : asColorMap(workbench.inspect('colorCustomizations')?.globalValue);
+    const original = backup !== undefined ? backup.value : asCustomizations(workbench.inspect('colorCustomizations')?.globalValue);
     if (backup === undefined) await context.globalState.update(IDE_BACKUP_KEY, { value: original } satisfies IdeBackup);
     const tune = (parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME).current;
-    await workbench.update('colorCustomizations', adapted(original, tune), vscode.ConfigurationTarget.Global);
+    await workbench.update('colorCustomizations', adapted(original, tune, workbench.get<string>('colorTheme')), vscode.ConfigurationTarget.Global);
   };
 
   // The first writes of the V2: shared files through V1's own stores, the
@@ -449,7 +451,15 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       tidy: () => tidy(),
       setTidyAsk: (ask) => context.globalState.update(TIDY_ASK_KEY, ask),
-      ideTheme,
+      // Said once done: the editor repaints, but the click gave no other sign.
+      ideTheme: async (mode) => {
+        await ideTheme(mode);
+        void vscode.window.showInformationMessage(
+          mode === 'adapt'
+            ? vscode.l10n.t('Koh-Vibe: the editor now wears Koh-Vibe’s colours. « Back to default » puts yours back.')
+            : vscode.l10n.t('Koh-Vibe: the editor’s colours are back as they were.'),
+        );
+      },
       setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
       setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
       // An editor already in Koh-Vibe's colours follows a new tuning.
@@ -524,10 +534,21 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     pendingSheet = sessionId;
-    const panel = vscode.window.createWebviewPanel(COCKPIT_PANEL, 'Koh-Vibe', vscode.ViewColumn.Active, {
-      ...webviewOptions(context),
-      retainContextWhenHidden: true,
-    });
+    adoptCockpit(
+      vscode.window.createWebviewPanel(COCKPIT_PANEL, 'Koh-Vibe', vscode.ViewColumn.Active, {
+        ...webviewOptions(context),
+        retainContextWhenHidden: true,
+      }),
+    );
+  }
+
+  /**
+   * A cockpit tab, new or restored: VSCode reopens the one left open, in its
+   * place, when the editor reloads (the serializer below), and this wires it
+   * up exactly as a new one.
+   */
+  function adoptCockpit(panel: vscode.WebviewPanel): void {
+    cockpit?.dispose();
     panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'logo-mono.svg');
     const link = connect(panel.webview, 'cockpit', context, hub, tabTracker('cockpit'));
     const entry = { webview: panel.webview, reload: () => (panel.webview.html = renderHtml(panel.webview, context)) };
@@ -538,6 +559,8 @@ export function activate(context: vscode.ExtensionContext): void {
     panel.onDidDispose(() => {
       link.dispose();
       views.splice(views.indexOf(entry), 1);
+      // Only if it is still the one: a restored tab may have replaced it.
+      if (cockpit !== panel) return;
       cockpit = undefined;
       sheetFor = undefined;
       pendingSheet = undefined;
@@ -555,6 +578,10 @@ export function activate(context: vscode.ExtensionContext): void {
           views.splice(views.indexOf(entry), 1);
         });
       },
+    }),
+    // The cockpit left open is put back where it was when the editor reloads.
+    vscode.window.registerWebviewPanelSerializer(COCKPIT_PANEL, {
+      deserializeWebviewPanel: async (panel: vscode.WebviewPanel) => adoptCockpit(panel),
     }),
     // Wrapped: a command handler receives whatever its caller passes, and only a string names a sheet.
     vscode.commands.registerCommand('kohVibeNext.openCockpit', () => openCockpit()),

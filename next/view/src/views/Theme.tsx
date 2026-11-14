@@ -69,7 +69,6 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
       <div className="set-row set-choice">
         <div className="set-l">
           <b>{t('theme.slots')}</b>
-          <Hint text={t('theme.slots.hint')} />
         </div>
         <div className="tslots">
           {theme.slots.map((slot, i) => {

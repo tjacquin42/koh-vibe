@@ -335,8 +335,10 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .settings { padding: 4px 6px 10px; }
 .settings-head { display: flex; align-items: center; justify-content: space-between; margin: 8px 4px 4px; }
 .settings-head h2 { font-size: 15px; }
+/* Each section of the settings set apart by a line (14/11), its title a step louder. */
 .set-group { margin-top: 14px; }
-.set-group h3 { margin: 0 4px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.set-group + .set-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.set-group h3 { margin: 0 4px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--soft); font-weight: 700; }
 .set-row { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 9px; }
 .set-row:hover { background: var(--surface); }
 .set-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

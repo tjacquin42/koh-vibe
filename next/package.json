@@ -12,7 +12,7 @@
   "packageManager": "pnpm@10.25.0",
   "main": "./out/extension.js",
   "l10n": "./l10n",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": ["onStartupFinished", "onWebviewPanel:kohVibeNext.cockpit"],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
