@@ -92,5 +92,6 @@
   "command.kohVibe.switchInterface.title": "Switch between the new and the classic interface",
   "config.kohVibe.interface.new": "Koh-Vibe 2: one web view for the sidebar, the cockpit in an editor tab.",
   "config.kohVibe.interface.classic": "Koh-Vibe 1: the tree views, as before 2.0.",
-  "config.kohVibe.interface.description": "Which interface Koh-Vibe shows. The hooks, the sounds and your folders are the same under both. A change takes effect when the window reloads."
+  "config.kohVibe.interface.description": "Which interface Koh-Vibe shows. The hooks, the sounds and your folders are the same under both. A change takes effect when the window reloads.",
+  "command.kohVibe.focusSessionById.title": "Go to session"
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ClosedEntry } from '../../src/closed/model';
 import type { Session } from '../../src/events/types';
-import { openSession, reopenClosed, V1_FOCUS_COMMAND, V1_REOPEN_COMMAND, type OpenSessionDeps, type ReopenDeps } from '../src/host/open-session';
+import { openSession, reopenClosed, V1_FOCUS_BY_ID, V1_FOCUS_COMMAND, V1_REOPEN_COMMAND, type OpenSessionDeps, type ReopenDeps } from '../src/host/open-session';
 
 const session: Session = { id: 'a', cwd: '/w', project: 'p', origin: 'vscode', status: 'idle', toolCount: 0, lastEventAt: 0 };
 
@@ -12,6 +12,9 @@ function deps(over: Partial<OpenSessionDeps> = {}) {
     hasCommand: async (cmd) => cmd === V1_FOCUS_COMMAND,
     run: async (cmd, arg) => {
       log.push(`${cmd}:${arg.id}`);
+    },
+    runById: async (cmd, id) => {
+      log.push(`${cmd}:${id}`);
     },
     fallback: (id) => log.push(`cockpit:${id}`),
     ...over,
@@ -24,6 +27,12 @@ describe('openSession', () => {
     const { d, log } = deps();
     expect(await openSession('a', d)).toBe('v1');
     expect(log).toEqual(['kohVibe.focusSession:a']);
+  });
+
+  it('gives the engine the id alone when it takes it — it knows the tabs restored at reload', async () => {
+    const { d, log } = deps({ hasCommand: async (cmd) => cmd === V1_FOCUS_BY_ID || cmd === V1_FOCUS_COMMAND });
+    expect(await openSession('a', d)).toBe('v1');
+    expect(log).toEqual(['kohVibe.focusSessionById:a']);
   });
 
   it('falls back to the cockpit without V1, without the session, or when V1 throws', async () => {

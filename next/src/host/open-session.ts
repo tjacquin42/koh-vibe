@@ -4,12 +4,15 @@ import type { ReopenOutcome } from '../shared/protocol';
 
 /** V1's row click (extension.ts `kohVibe.focusSession`): acknowledge, then bring the tab forward. */
 export const V1_FOCUS_COMMAND = 'kohVibe.focusSession';
+/** The same click by id alone (V1 extension.ts, from 2.0): a restored tab is known to the engine's memory only. */
+export const V1_FOCUS_BY_ID = 'kohVibe.focusSessionById';
 
 export interface OpenSessionDeps {
   /** The session as V1 stored it — V1's command takes its own type, not the view's. */
   read(sessionId: string): Promise<Session | undefined>;
   hasCommand(command: string): Promise<boolean>;
   run(command: string, arg: Session): Thenable<unknown>;
+  runById(command: string, sessionId: string): Thenable<unknown>;
   /** When V1 cannot take it: the cockpit, on that conversation. */
   fallback(sessionId: string): void;
 }
@@ -27,6 +30,16 @@ export interface OpenSessionDeps {
  * back to the cockpit. Step 5 replaces this with the V2's own opening.
  */
 export async function openSession(sessionId: string, deps: OpenSessionDeps): Promise<'v1' | 'fallback'> {
+  // The engine of this branch takes the id and resolves the conversation as
+  // its window shows it — a tab restored at reload included (14/11).
+  if (await deps.hasCommand(V1_FOCUS_BY_ID)) {
+    try {
+      await deps.runById(V1_FOCUS_BY_ID, sessionId);
+      return 'v1';
+    } catch {
+      // On to the session read from disk, as with V1 1.5.0.
+    }
+  }
   const [session, available] = await Promise.all([deps.read(sessionId), deps.hasCommand(V1_FOCUS_COMMAND)]);
   if (session === undefined || !available) {
     deps.fallback(sessionId);

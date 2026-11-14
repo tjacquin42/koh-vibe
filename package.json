@@ -51,6 +51,7 @@
       { "command": "kohVibe.refresh", "title": "%command.kohVibe.refresh.title%", "category": "Koh-Vibe", "icon": "$(refresh)" },
       { "command": "kohVibe.rescanning", "title": "%command.kohVibe.rescanning.title%", "category": "Koh-Vibe", "icon": "$(sync~spin)", "enablement": "false" },
       { "command": "kohVibe.focusSession", "title": "%command.kohVibe.focusSession.title%", "category": "Koh-Vibe" },
+      { "command": "kohVibe.focusSessionById", "title": "%command.kohVibe.focusSessionById.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.reopenSession", "title": "%command.kohVibe.reopenSession.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.toggleSetting", "title": "%command.kohVibe.toggleSetting.title%", "category": "Koh-Vibe" },
       { "command": "kohVibe.installHooks", "title": "%command.kohVibe.installHooks.title%", "category": "Koh-Vibe" },
@@ -218,6 +219,7 @@
       "commandPalette": [
         { "command": "kohVibe.rescanning", "when": "false" },
         { "command": "kohVibe.focusSession", "when": "false" },
+        { "command": "kohVibe.focusSessionById", "when": "false" },
         { "command": "kohVibe.reopenSession", "when": "false" },
         { "command": "kohVibe.newSessionInGroup", "when": "false" },
         { "command": "kohVibe.addFolderRule", "when": "false" },

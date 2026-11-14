@@ -92,5 +92,6 @@
   "command.kohVibe.switchInterface.title": "Passer de la nouvelle interface à la classique, ou l’inverse",
   "config.kohVibe.interface.new": "Koh-Vibe 2 : une seule vue web dans la barre latérale, le cockpit dans un onglet.",
   "config.kohVibe.interface.classic": "Koh-Vibe 1 : les vues en arbre, comme avant la 2.0.",
-  "config.kohVibe.interface.description": "L’interface que Koh-Vibe affiche. Les hooks, les sons et tes dossiers sont les mêmes dans les deux. Un changement s’applique au rechargement de la fenêtre."
+  "config.kohVibe.interface.description": "L’interface que Koh-Vibe affiche. Les hooks, les sons et tes dossiers sont les mêmes dans les deux. Un changement s’applique au rechargement de la fenêtre.",
+  "command.kohVibe.focusSessionById.title": "Aller à la session"
 }

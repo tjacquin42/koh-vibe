@@ -368,6 +368,7 @@ export function activate(context: vscode.ExtensionContext): void {
       read: async (id) => (await readSessions(spoolDirs(home))).get(id),
       hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
+      runById: (cmd, id) => vscode.commands.executeCommand(cmd, id),
       fallback: (id) => openCockpit(id),
     });
   };

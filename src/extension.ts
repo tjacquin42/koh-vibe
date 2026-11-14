@@ -1144,6 +1144,52 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
   // triggered no event.
   const onViewVisible = view.onDidChangeVisibility(() => revealActiveSession());
 
+  /**
+   * A click on a conversation: a restored tab brought to the front, an ended
+   * one brought back, a live one acknowledged and focused. Takes the session
+   * as the list shows it — a restored tab is only known to this window.
+   */
+  const focusSession = (s: Session): void => {
+    // A restored tab is right there in the tab bar: bring it to the front.
+    // Only when it cannot be told apart does the Claude Code command take
+    // over — which, at worst, resumes the conversation in a second tab.
+    if (s.dormant === true) {
+      void revealSessionTab(s.id)
+        .then((done) => {
+          if (done) return;
+          // Never the Claude Code command here: it would open the
+          // conversation a second time, or a blank one.
+          void vscode.window.showInformationMessage(
+            vscode.l10n.t('Koh-Vibe: « {0} » is a restored tab this window cannot tell apart — click it in the tab bar.', sessionLabel(s)),
+          );
+        })
+        .catch(() => undefined);
+      return;
+    }
+    // An ended conversation is brought back, not focused: the same three-way
+    // decision the closed history used (closed/reopen.ts) — a tab in the
+    // window that holds the project, a terminal, or an explanation.
+    if (s.endedAt !== undefined) {
+      const endedAt = s.endedAt;
+      void hasTranscript(s).then((has) => {
+        if (has) return bringBack(toClosedEntry(s, endedAt));
+        // Nothing to resume: the row should not even be here (rescan drops such rows)
+        // — unless a folder holds it, and then it stays where it was put.
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
+        );
+        return filedNow(s.id).then((filed) => (filed ? undefined : remove(s.id)));
+      });
+      return;
+    }
+    // The click acknowledges unconditionally (spec §5: « click on the
+    // session »), independent of claims() — which only governs the passive
+    // acknowledgement of acknowledgeVisibleSessions, above.
+    // acknowledgeClickedSession is tested directly, like its twin.
+    void acknowledgeClickedSession(dirs, s).catch(() => undefined);
+    void broker.request(s).catch(() => undefined);
+  };
+
   // Absolute path: the terminal launched by the two commands below can have
   // any current directory, the script does not depend on it.
   const installScript = join(context.extensionPath, 'scripts', 'install-hooks.cjs');
@@ -1185,45 +1231,14 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
     // command because a title button has to be one; it does nothing on
     // purpose, and package.json keeps it disabled.
     vscode.commands.registerCommand('kohVibe.rescanning', () => undefined),
-    vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => {
-      // A restored tab is right there in the tab bar: bring it to the front.
-      // Only when it cannot be told apart does the Claude Code command take
-      // over — which, at worst, resumes the conversation in a second tab.
-      if (s.dormant === true) {
-        void revealSessionTab(s.id)
-          .then((done) => {
-            if (done) return;
-            // Never the Claude Code command here: it would open the
-            // conversation a second time, or a blank one.
-            void vscode.window.showInformationMessage(
-              vscode.l10n.t('Koh-Vibe: « {0} » is a restored tab this window cannot tell apart — click it in the tab bar.', sessionLabel(s)),
-            );
-          })
-          .catch(() => undefined);
-        return;
-      }
-      // An ended conversation is brought back, not focused: the same three-way
-      // decision the closed history used (closed/reopen.ts) — a tab in the
-      // window that holds the project, a terminal, or an explanation.
-      if (s.endedAt !== undefined) {
-        const endedAt = s.endedAt;
-        void hasTranscript(s).then((has) => {
-          if (has) return bringBack(toClosedEntry(s, endedAt));
-          // Nothing to resume: the row should not even be here (rescan drops such rows)
-          // — unless a folder holds it, and then it stays where it was put.
-          void vscode.window.showInformationMessage(
-            vscode.l10n.t('Koh-Vibe: « {0} » never got a message — nothing to resume.', sessionLabel(s)),
-          );
-          return filedNow(s.id).then((filed) => (filed ? undefined : remove(s.id)));
-        });
-        return;
-      }
-      // The click acknowledges unconditionally (spec §5: « click on the
-      // session »), independent of claims() — which only governs the passive
-      // acknowledgement of acknowledgeVisibleSessions, above.
-      // acknowledgeClickedSession is tested directly, like its twin.
-      void acknowledgeClickedSession(dirs, s).catch(() => undefined);
-      void broker.request(s).catch(() => undefined);
+    vscode.commands.registerCommand('kohVibe.focusSession', (s: Session) => focusSession(s)),
+    // Koh-Vibe 2's click: the id alone, resolved here as this window shows the
+    // conversation — a tab restored at reload is dormant in memory only, and
+    // read from disk it looked closed: resuming it opened a blank one.
+    vscode.commands.registerCommand('kohVibe.focusSessionById', async (id: unknown) => {
+      if (typeof id !== 'string') return;
+      const s = lastShown.get(id) ?? dormant.get(id) ?? (await readSession(dirs, id));
+      if (s !== undefined) focusSession(s);
     }),
     /**
      * The moon: closes the tab and leaves the conversation on the dashboard.
