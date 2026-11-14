@@ -7,7 +7,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
+import { activate, cloudDeps, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
 import type { ProcessDeps } from '../src/host/processes';
 import { readGroups } from '../../src/groups/store';
 import { tableOf } from '../../src/process/scan';
@@ -61,6 +61,8 @@ beforeEach(async () => {
   home = await makeHome();
   // Never the machine's own transcripts: an empty projects directory inside the fake home.
   transcriptsRoot.current = join(home, 'no-transcripts');
+  // Signed out, and a network that throws: no test reads the keychain or reaches claude.ai.
+  cloudDeps.current = { credentials: async () => undefined, send: () => Promise.reject(new Error('no network in tests')) };
   process.env['KOH_VIBE_HOME'] = home;
 });
 
@@ -68,6 +70,7 @@ afterEach(async () => {
   for (const s of subscriptions) s.dispose();
   processDeps.current = undefined;
   transcriptsRoot.current = undefined;
+  cloudDeps.current = undefined;
   if (savedHome === undefined) delete process.env['KOH_VIBE_HOME'];
   else process.env['KOH_VIBE_HOME'] = savedHome;
   await rm(home, { recursive: true, force: true });
@@ -115,10 +118,14 @@ describe('activate', () => {
         const last = messages(view).at(-1);
         expect(last?.type === 'snapshot' && last.snapshot.sessions.some((s) => s.id === 'f')).toBe(true);
       },
-      { timeout: 3_000, interval: 50 },
+      // fs.watch usually answers within milliseconds, but macOS may drop an
+      // event under load; the 5 s poll (watch.ts) then catches it. Waiting
+      // past the poll keeps the test about following the disk, not about
+      // which of the two paths did.
+      { timeout: 7_000, interval: 50 },
     );
     expect(await fingerprint(home)).toBe(afterOurWrite);
-  });
+  }, 10_000);
 
   it('opens one cockpit, inits it as the cockpit, and reveals it on the next ask', async () => {
     start(ExtensionMode.Production);
@@ -260,6 +267,14 @@ describe('activate', () => {
     const view = sidebar();
     await view.webview.receive({ type: 'act', req: 2, action: { kind: 'session.copyId', id: 'b' } });
     await vi.waitFor(() => expect(recorded.clipboard).toEqual(['b']), { timeout: 1_000, interval: 10 });
+  });
+
+  it('asks claude.ai for nothing when signed out, and says so on a cloud action', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'tab', tab: 'artifacts' });
+    await view.webview.receive({ type: 'act', req: 3, action: { kind: 'artifact.pin', slug: 'x', pinned: false } });
+    await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'acted')).toEqual({ type: 'acted', req: 3, result: { ok: false, error: 'cloud' } }), { timeout: 1_000, interval: 10 });
   });
 
   it('reads the transcripts only while a cockpit is open', async () => {

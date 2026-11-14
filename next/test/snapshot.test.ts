@@ -46,8 +46,8 @@ describe('buildSnapshot', () => {
       { slug: 'y', title: 'Notes', updatedAt: NOW - 1_500, pinned: false, project: 'koh' },
     ]);
     expect(snap.routines?.items).toEqual([
-      { id: 'r', name: 'Daily', enabled: true, group: 'today', cron: '0 7 * * *', repos: ['me/daily'], nextRunAt: NOW + 60 * 60_000 },
-      { id: 'q', name: 'Paused one', enabled: false, group: 'paused', repos: [] },
+      { id: 'r', name: 'Daily', enabled: true, group: 'today', cron: '0 7 * * *', repos: ['me/daily'], nextRunAt: NOW + 60 * 60_000, spent: false },
+      { id: 'q', name: 'Paused one', enabled: false, group: 'paused', repos: [], spent: false },
     ]);
     // An SDK run has nothing to resume it from: V1 would only explain so.
     expect(snap.closed.map((c) => [c.project, c.resumable]).sort()).toEqual([

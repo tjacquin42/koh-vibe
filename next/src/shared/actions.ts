@@ -35,6 +35,10 @@ export const SESSION_COMMANDS = ['sleep', 'close'] as const;
 export type SessionCommand = (typeof SESSION_COMMANDS)[number];
 
 export const MAX_NAME = 80;
+/** claude.ai caps nothing we know of; a title longer than this is a paste gone wrong. */
+export const MAX_TITLE = 200;
+/** claude.ai's slugs, as V1 accepts them (artifacts/model.ts): they end up in a URL. */
+const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_IDS = 200;
 
 export type Action =
@@ -64,15 +68,38 @@ export type Action =
   /** 0–100; V1 stores 0–1. */
   | { kind: 'setting.volume'; percent: number }
   /** V1's sound picker, which plays each sound as the selection moves. */
-  | { kind: 'setting.sound'; event: 'waiting' | 'done' };
+  | { kind: 'setting.sound'; event: 'waiting' | 'done' }
+  // ── claude.ai, through V1's own API functions (the cloud has no V1 state to clash with)
+  | { kind: 'artifact.rename'; slug: string; title: string }
+  | { kind: 'artifact.pin'; slug: string; pinned: boolean }
+  /** For good, for everyone who could see it: the view asks first. */
+  | { kind: 'artifact.delete'; slug: string }
+  /** Files pages under a project of the Artifacts tab — `null` is « Other ». Local file, shared with V1. */
+  | { kind: 'artifact.project'; slugs: string[]; project: string | null }
+  /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
+  | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
+  | { kind: 'artifact.copyLink'; slug: string }
+  /** Asks claude.ai again now, rather than at the shared five-minute pace. */
+  | { kind: 'cloud.refresh'; what: 'artifacts' | 'routines' }
+  /** Acts for real (messages, commits…): the view asks first. */
+  | { kind: 'routine.run'; id: string }
+  | { kind: 'routine.pause'; id: string; paused: boolean }
+  | { kind: 'routine.copyLink'; id: string }
+  | { kind: 'routine.open'; id: string }
+  | { kind: 'process.copy'; pid: number; what: 'pid' | 'command' }
+  /** Read again at the click, then confirmed in a dialog that lists what dies with it. */
+  | { kind: 'process.kill'; pid: number };
 
 /**
  * Why an action did not land. `v1-missing`: it goes through V1, which is not
- * there. `failed`: the write or the command threw. A folder gone in the
+ * there. `cloud`: claude.ai said no, or could not be reached — the output
+ * channel says which call and why. `stale`: what the row showed is no longer
+ * true (a routine paused or spent meanwhile, a process gone), so nothing was
+ * done. `failed`: the write or the command threw. A folder gone in the
  * meantime is not an error: V1's merge drops the change, as it does between
  * two V1 windows.
  */
-export const ACTION_ERRORS = ['v1-missing', 'failed'] as const;
+export const ACTION_ERRORS = ['v1-missing', 'cloud', 'stale', 'failed'] as const;
 export type ActionError = (typeof ACTION_ERRORS)[number];
 
 export type ActionResult = { ok: true } | { ok: false; error: ActionError };
@@ -101,6 +128,19 @@ function cleanName(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const name = v.trim();
   return name.length > 0 && name.length <= MAX_NAME ? name : undefined;
+}
+
+function isSlug(v: unknown): v is string {
+  return typeof v === 'string' && SLUG.test(v);
+}
+
+function slugs(v: unknown): string[] | undefined {
+  if (!Array.isArray(v) || v.length === 0 || v.length > MAX_IDS) return undefined;
+  return v.every(isSlug) ? (v as string[]) : undefined;
+}
+
+function isPid(v: unknown): v is number {
+  return typeof v === 'number' && Number.isSafeInteger(v) && v > 1;
 }
 
 function oneOf<T extends string>(list: readonly T[], v: unknown): v is T {
@@ -164,6 +204,46 @@ export function parseAction(raw: unknown): Action | undefined {
       const event = raw['event'];
       return event === 'waiting' || event === 'done' ? { kind: 'setting.sound', event } : undefined;
     }
+    case 'artifact.rename': {
+      const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';
+      return isSlug(raw['slug']) && title.length > 0 && title.length <= MAX_TITLE ? { kind: 'artifact.rename', slug: raw['slug'], title } : undefined;
+    }
+    case 'artifact.pin':
+      return isSlug(raw['slug']) && typeof raw['pinned'] === 'boolean' ? { kind: 'artifact.pin', slug: raw['slug'], pinned: raw['pinned'] } : undefined;
+    case 'artifact.delete':
+      return isSlug(raw['slug']) ? { kind: 'artifact.delete', slug: raw['slug'] } : undefined;
+    case 'artifact.project': {
+      const list = slugs(raw['slugs']);
+      if (list === undefined) return undefined;
+      if (raw['project'] === null) return { kind: 'artifact.project', slugs: list, project: null };
+      const project = cleanName(raw['project']);
+      return project === undefined ? undefined : { kind: 'artifact.project', slugs: list, project };
+    }
+    case 'artifact.folder': {
+      const title = raw['title'];
+      const folder = raw['folder'];
+      if (!isSlug(raw['slug']) || typeof title !== 'string' || title.length > MAX_TITLE) return undefined;
+      if (folder === undefined) return { kind: 'artifact.folder', slug: raw['slug'], title };
+      return isId(folder) ? { kind: 'artifact.folder', slug: raw['slug'], title, folder } : undefined;
+    }
+    case 'artifact.copyLink':
+      return isSlug(raw['slug']) ? { kind: 'artifact.copyLink', slug: raw['slug'] } : undefined;
+    case 'cloud.refresh': {
+      const what = raw['what'];
+      return what === 'artifacts' || what === 'routines' ? { kind: 'cloud.refresh', what } : undefined;
+    }
+    case 'routine.run':
+    case 'routine.copyLink':
+    case 'routine.open':
+      return isSlug(raw['id']) ? { kind: raw['kind'], id: raw['id'] } : undefined;
+    case 'routine.pause':
+      return isSlug(raw['id']) && typeof raw['paused'] === 'boolean' ? { kind: 'routine.pause', id: raw['id'], paused: raw['paused'] } : undefined;
+    case 'process.copy': {
+      const what = raw['what'];
+      return isPid(raw['pid']) && (what === 'pid' || what === 'command') ? { kind: 'process.copy', pid: raw['pid'], what } : undefined;
+    }
+    case 'process.kill':
+      return isPid(raw['pid']) ? { kind: 'process.kill', pid: raw['pid'] } : undefined;
     default:
       return undefined;
   }

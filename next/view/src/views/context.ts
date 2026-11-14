@@ -21,4 +21,6 @@ export interface ViewCtx {
   reopen(sessionId: string): void;
   /** A change, answered by the host; a refusal is already shown when it resolves. */
   act(action: Action): Promise<ActionResult>;
+  /** A short line at the bottom that goes away — for what worked and is worth saying. */
+  notify(text: string): void;
 }

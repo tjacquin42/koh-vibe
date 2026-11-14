@@ -5,6 +5,10 @@ import { readGroups } from '../../src/groups/store';
 import { readSettings } from '../../src/settings/store';
 import { parseAction, type Action } from '../src/shared/actions';
 import { runAction, V1_COMMANDS, type ActionDeps } from '../src/host/actions';
+import { readArtifactProjects } from '../../src/artifacts/projects-store';
+import type { SessionProcess } from '../../src/process/classify';
+import type { Routine } from '../../src/routines/model';
+import type { CloudActions } from '../src/host/cloud';
 import { makeHome } from './home';
 
 let home: string;
@@ -24,6 +28,40 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     copy: async (text) => {
       copied.push(text);
     },
+    artifactProjectsFile: join(home, 'artifact-projects.json'),
+    open: (url) => calls.push(['open', url]),
+    cloud: fakeCloud(),
+    locate: async (pid) => (pid === proc.pid ? { proc, among: [proc, child] } : undefined),
+    confirmKill: async () => true,
+    kill: (targets) => {
+      killed.push(...targets.map((t) => t.pid));
+      return targets.length;
+    },
+    ...over,
+  };
+}
+
+const proc: SessionProcess = { pid: 400, ppid: 1, elapsed: 60, rss: 1_000, command: 'node vite --port 5173', depth: 1, label: 'vite', kind: 'work' };
+const child: SessionProcess = { pid: 401, ppid: 400, elapsed: 60, rss: 1_000, command: 'esbuild --service', depth: 2, label: 'esbuild', kind: 'work' };
+let killed: number[];
+let cloudLog: string[];
+let routine: Routine | undefined;
+
+function fakeCloud(over: Partial<CloudActions> = {}): CloudActions {
+  const log = (line: string, ok = true) => {
+    cloudLog.push(line);
+    return Promise.resolve(ok);
+  };
+  return {
+    renameArtifact: (slug, title) => log(`rename ${slug} ${title}`),
+    pinArtifact: (slug, pinned) => log(`pin ${slug} ${pinned}`),
+    deleteArtifact: (slug) => log(`delete ${slug}`),
+    runRoutine: (id) => log(`run ${id}`),
+    setRoutineEnabled: (id, enabled) => log(`enabled ${id} ${enabled}`),
+    routine: async () => routine,
+    refresh: async (what, force) => {
+      cloudLog.push(`refresh ${what} ${force}`);
+    },
     ...over,
   };
 }
@@ -36,6 +74,9 @@ beforeEach(async () => {
   calls = [];
   copied = [];
   n = 0;
+  killed = [];
+  cloudLog = [];
+  routine = { id: 'r1', name: 'Daily', enabled: true, fired: false, cron: '0 7 * * *', repos: [] };
 });
 
 describe('folders, written through V1 stores', () => {
@@ -122,6 +163,71 @@ describe('what goes through V1 commands', () => {
   });
 });
 
+describe('claude.ai, through V1 API functions', () => {
+  it('renames, pins and deletes, then reads the list again', async () => {
+    await run({ kind: 'artifact.rename', slug: 'x', title: 'New' });
+    await run({ kind: 'artifact.pin', slug: 'x', pinned: false });
+    await run({ kind: 'artifact.delete', slug: 'x' });
+    expect(cloudLog).toEqual(['rename x New', 'refresh artifacts true', 'pin x false', 'refresh artifacts true', 'delete x', 'refresh artifacts true']);
+  });
+
+  it('says claude.ai refused, and still re-reads the list', async () => {
+    const r = await run({ kind: 'artifact.delete', slug: 'x' }, { cloud: fakeCloud({ deleteArtifact: async () => false }) });
+    expect(r).toEqual({ ok: false, error: 'cloud' });
+    expect(cloudLog).toEqual(['refresh artifacts true']);
+  });
+
+  it('runs and pauses a routine only as the freshest list allows', async () => {
+    expect(await run({ kind: 'routine.run', id: 'r1' })).toEqual({ ok: true });
+    expect(await run({ kind: 'routine.pause', id: 'r1', paused: true })).toEqual({ ok: true });
+    // Already running: resuming is stale.
+    expect(await run({ kind: 'routine.pause', id: 'r1', paused: false })).toEqual({ ok: false, error: 'stale' });
+    routine = { id: 'r1', name: 'Once', enabled: false, fired: true, repos: [] };
+    expect(await run({ kind: 'routine.run', id: 'r1' })).toEqual({ ok: false, error: 'stale' });
+    // A spent one-shot is never resumed: it might run at once.
+    expect(await run({ kind: 'routine.pause', id: 'r1', paused: false })).toEqual({ ok: false, error: 'stale' });
+    expect(cloudLog.filter((l) => !l.startsWith('refresh'))).toEqual(['run r1', 'enabled r1 false']);
+  });
+
+  it('files pages in a project and in a Sessions folder, both shared with V1', async () => {
+    await run({ kind: 'artifact.project', slugs: ['x', 'y'], project: 'Koh' });
+    const projects = await readArtifactProjects(join(home, 'artifact-projects.json'));
+    // V1 files under the project's key; its display name comes back from the key.
+    expect(projects.filed).toMatchObject({ x: 'koh', y: 'koh' });
+    await run({ kind: 'artifact.folder', slug: 'x', title: 'Plan', folder: 'g1' });
+    expect((await groups()).artifacts['x']).toMatchObject({ group: 'g1', title: 'Plan' });
+  });
+
+  it('copies links and opens a routine', async () => {
+    await run({ kind: 'artifact.copyLink', slug: 'x' });
+    await run({ kind: 'routine.copyLink', id: 'r1' });
+    await run({ kind: 'routine.open', id: 'r1' });
+    expect(copied).toEqual(['https://claude.ai/artifact/x', 'https://claude.ai/code/routines/r1']);
+    expect(calls).toEqual([['open', 'https://claude.ai/code/routines/r1']]);
+  });
+});
+
+describe('processes', () => {
+  it('kills what the fresh reading finds, children included, once confirmed', async () => {
+    expect(await run({ kind: 'process.kill', pid: 400 })).toEqual({ ok: true });
+    // Deepest first, the process itself last (V1 kill.ts): a parent killed alone leaves orphans.
+    expect(killed).toEqual([401, 400]);
+  });
+
+  it('kills nothing when cancelled, or when the pid is no longer one of ours', async () => {
+    await run({ kind: 'process.kill', pid: 400 }, { confirmKill: async () => false });
+    expect(await run({ kind: 'process.kill', pid: 999 })).toEqual({ ok: false, error: 'stale' });
+    expect(killed).toEqual([]);
+  });
+
+  it('copies a pid or a command line', async () => {
+    await run({ kind: 'process.copy', pid: 400, what: 'pid' });
+    await run({ kind: 'process.copy', pid: 400, what: 'command' });
+    expect(copied[0]).toBe('400');
+    expect(copied[1]).toContain('vite');
+  });
+});
+
 describe('parseAction', () => {
   it('accepts well-formed actions and trims names', () => {
     expect(parseAction({ kind: 'folder.create', name: '  Video ' })).toEqual({ kind: 'folder.create', name: 'Video' });
@@ -146,6 +252,12 @@ describe('parseAction', () => {
       { kind: 'setting.volume', percent: 101 },
       { kind: 'setting.volume', percent: 0.5 },
       { kind: 'setting.sound', event: 'start' },
+      { kind: 'artifact.delete', slug: 'a/b' },
+      { kind: 'artifact.rename', slug: 'x', title: '  ' },
+      { kind: 'artifact.project', slugs: [], project: 'p' },
+      { kind: 'process.kill', pid: 1 },
+      { kind: 'process.kill', pid: -4 },
+      { kind: 'routine.run', id: '../x' },
     ]) {
       expect(parseAction(bad), JSON.stringify(bad)).toBeUndefined();
     }

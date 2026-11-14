@@ -87,6 +87,11 @@ export interface RoutineView {
   cron?: string;
   /** `owner/name` of each repository it works in. */
   repos: string[];
+  /**
+   * A one-shot already fired or past due (V1 `isSpent`): nothing to run, and
+   * never resumed — that might run it at once, unasked.
+   */
+  spent: boolean;
 }
 
 export type ProcessKind = 'mcp' | 'shell' | 'work';

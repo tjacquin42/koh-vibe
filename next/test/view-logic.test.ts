@@ -90,6 +90,7 @@ describe('routine sections', () => {
     id,
     name: id,
     enabled: group !== 'paused',
+    spent: false,
     group,
     repos: [],
     ...(nextRunAt === undefined ? {} : { nextRunAt }),

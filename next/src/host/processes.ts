@@ -1,8 +1,8 @@
 /**
- * What the live conversations are running — READ ONLY, like the rest of the
- * snapshot: one `ps`, Claude Code's registry of running sessions, and `lsof`
- * for the orphans only when asked. Nothing here signals or writes anything;
- * stopping a process is an action, and actions come at step 4.
+ * What the live conversations are running: one `ps`, Claude Code's registry
+ * of running sessions, and `lsof` for the orphans only when asked. Nothing
+ * here signals anything — stopping a process is an action (actions.ts), which
+ * finds its target again with `locateProcess` at the moment of the click.
  *
  * The subagent mark V1 puts on a process is not reproduced: it comes from the
  * hook events V1 drains from the spool, which this extension must not touch
@@ -63,4 +63,29 @@ export async function scanProcesses(
     view.orphans = adrift.map((o): OrphanView => ({ cwd: o.cwd, tree: o.tree.map(toProcessView) }));
   }
   return view;
+}
+
+export interface Located {
+  proc: SessionProcess;
+  /** The list it sits in — a conversation's, or an orphan's tree — which says what dies with it. */
+  among: SessionProcess[];
+}
+
+/**
+ * The process `pid`, read again now rather than taken from the row: a row is
+ * seconds old, and a pid freed in the meantime can be handed to an unrelated
+ * process. Only a process this extension would list is found — one of a live
+ * conversation's, or one of the orphans under `roots` — never any pid at all.
+ */
+export async function locateProcess(deps: ProcessDeps, roots: readonly string[], pid: number): Promise<Located | undefined> {
+  const [table, live] = await Promise.all([deps.table(), deps.live()]);
+  for (const among of processesBySession(table, live).values()) {
+    const proc = among.find((p) => p.pid === pid);
+    if (proc !== undefined) return { proc, among };
+  }
+  for (const o of await deps.orphans(table, roots)) {
+    const proc = o.tree.find((p) => p.pid === pid);
+    if (proc !== undefined) return { proc, among: o.tree };
+  }
+  return undefined;
 }

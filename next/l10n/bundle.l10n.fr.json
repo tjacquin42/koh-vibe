@@ -1,5 +1,12 @@
 {
   "Koh-Vibe Next — {0} sessions": "Koh-Vibe Next — {0} sessions",
   "Koh-Vibe Next — {0} session": "Koh-Vibe Next — {0} session",
-  "Koh-Vibe: conversation ID copied": "Koh-Vibe : ID de la conversation copié"
+  "Koh-Vibe: conversation ID copied": "Koh-Vibe : ID de la conversation copié",
+  "Koh-Vibe: link copied": "Koh-Vibe : lien copié",
+  "Koh-Vibe: pid {0} copied": "Koh-Vibe : pid {0} copié",
+  "Koh-Vibe: command copied": "Koh-Vibe : commande copiée",
+  "Terminate": "Terminer",
+  "Terminate \"{0}\" and the {1} processes it started?": "Terminer « {0} » et les {1} processus qu’elle a lancés ?",
+  "Terminate \"{0}\"?": "Terminer « {0} » ?",
+  "This is a server Claude Code started for this conversation. The session loses its tools until it is reloaded.": "C’est un serveur lancé par Claude Code pour cette conversation. La session perd ses outils jusqu’à son rechargement."
 }

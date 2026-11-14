@@ -1,18 +1,23 @@
 import * as vscode from 'vscode';
 import { readClosed } from '../../../src/closed/store';
-import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
+import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import type { Action, ActionResult } from '../shared/actions';
-import { runAction } from './actions';
+import { runAction, type Copied } from './actions';
+import { cloudActions } from './cloud';
+import { readCredentials, type CloudDeps } from '../../../src/cloud/account';
+import { logged } from '../../../src/cloud/log';
+import { send } from '../../../src/cloud/request';
+import { killAll } from '../../../src/process/kill';
 import { ActivityIndex, WINDOW_MS } from './activity/index';
 import { toActivityView } from './activity/view';
 import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
 import { openSession, reopenClosed } from './open-session';
-import { scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
+import { locateProcess, scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
 import { buildSnapshot } from './snapshot';
 import { createStatusBar } from './status-bar';
 import { watchHome, type Disposable } from './watch';
@@ -60,6 +65,20 @@ function renderHtml(webview: vscode.Webview, context: vscode.ExtensionContext): 
 
 function webviewOptions(context: vscode.ExtensionContext): vscode.WebviewOptions {
   return { enableScripts: true, localResourceRoots: [viewRoot(context)] };
+}
+
+/** The status bar line after a copy — V1's wording, so its translations apply. */
+function copiedMessage(what: Copied, text: string): string {
+  switch (what) {
+    case 'id':
+      return vscode.l10n.t('Koh-Vibe: conversation ID copied');
+    case 'link':
+      return vscode.l10n.t('Koh-Vibe: link copied');
+    case 'pid':
+      return vscode.l10n.t('Koh-Vibe: pid {0} copied', text);
+    case 'command':
+      return vscode.l10n.t('Koh-Vibe: command copied');
+  }
 }
 
 /** What a view's messages can ask of the extension, beyond the hub. */
@@ -140,6 +159,8 @@ function connect(
 
 /** Overridable by tests, which must not read the machine's process table. */
 export const processDeps: { current: ProcessDeps | undefined } = { current: undefined };
+/** Overridable by tests, which must neither read the keychain nor call claude.ai. */
+export const cloudDeps: { current: CloudDeps | undefined } = { current: undefined };
 /** Overridable by tests, which must not read the machine's transcripts. */
 export const transcriptsRoot: { current: string | undefined } = { current: undefined };
 
@@ -147,6 +168,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
   const procs = processDeps.current ?? systemProcessDeps(claudeSessionsDir(claudeHome()));
+  // claude.ai, as V1 calls it: a failed call is written to the output channel
+  // (V1's cloud/log.ts) — never the token, never the body.
+  const cloud = cloudActions(home, cloudDeps.current ?? { send: logged(send, (line) => output.appendLine(line)), credentials: () => readCredentials() });
   // The tab each open view shows. Orphans cost an `lsof` over every adopted
   // dev server: looked for only while some view has the Processes tab open.
   const tabs = new Map<object, SidebarTab>();
@@ -157,8 +181,14 @@ export function activate(context: vscode.ExtensionContext): void {
   let activity: ActivityIndex | undefined;
   const transcripts = transcriptsRoot.current ?? join(claudeHome(), 'projects');
   const hub = new Hub({
-    build: () =>
-      buildSnapshot(home, Date.now(), {
+    build: () => {
+      // The shared lists, asked again only while a view shows them and at
+      // most every five minutes (Feed): a write lands in the cache file,
+      // which the watcher turns into the next build.
+      for (const what of ['artifacts', 'routines'] as const) {
+        if ([...tabs.values()].includes(what)) void cloud.refresh(what, false);
+      }
+      return buildSnapshot(home, Date.now(), {
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
           if (cockpit === undefined) {
@@ -170,7 +200,8 @@ export function activate(context: vscode.ExtensionContext): void {
           await activity.refresh(now);
           return toActivityView(activity.states, now, now - WINDOW_MS, known);
         },
-      }),
+      });
+    },
     watch: (onChange) => watchHome(home, onChange),
     log: (m) => output.appendLine(m),
   });
@@ -204,10 +235,20 @@ export function activate(context: vscode.ExtensionContext): void {
       newId: () => randomUUID(),
       hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
       run: (cmd, ...args) => vscode.commands.executeCommand(cmd, ...args),
-      copy: async (text) => {
+      artifactProjectsFile: artifactProjectsFile(home),
+      copy: async (text, what) => {
         await vscode.env.clipboard.writeText(text);
-        vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: conversation ID copied'), 3000);
+        vscode.window.setStatusBarMessage(copiedMessage(what, text), 3000);
       },
+      open: (url) => void vscode.env.openExternal(vscode.Uri.parse(url)),
+      cloud,
+      locate: (pid) => locateProcess(procs, workspaceRoots(), pid),
+      confirmKill: async (plan) => {
+        const confirm = vscode.l10n.t('Terminate');
+        const answer = await vscode.window.showWarningMessage(plan.message, { modal: true, ...(plan.detail === undefined ? {} : { detail: plan.detail }) }, confirm);
+        return answer === confirm;
+      },
+      kill: (targets) => killAll(targets),
     });
     void hub.refresh();
     return result;
@@ -225,6 +266,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if (tab === undefined) tabs.delete(key);
         else tabs.set(key, tab);
         if (wantOrphans() && !before) void hub.refresh();
+        // A cloud tab just shown: its list may be stale; refresh(false) asks
+        // claude.ai only if the shared cache is older than five minutes.
+        if (tab === 'artifacts' || tab === 'routines') void cloud.refresh(tab, false);
       },
     };
   };

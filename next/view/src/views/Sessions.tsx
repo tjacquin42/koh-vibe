@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { useMemo, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
 import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf } from '../format';
@@ -100,6 +101,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   const title = renaming ? (
     <NameInput
       initial={f.name}
+      max={MAX_NAME}
       label={t('folder.rename')}
       onDone={(name) => {
         setRenaming(false);
@@ -174,17 +176,19 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
         </div>
       )}
       {confirming && (
-        <div className="confirm" role="alertdialog" aria-label={t('folder.delete')}>
-          <p>{t('folder.deleteConfirm', { name: f.name, n: f.sessionIds.length })}</p>
-          <div className="confirm-btns">
-            <button type="button" className="btn-danger" onClick={() => { setConfirming(false); setMenu(false); void ctx.act({ kind: 'folder.delete', id: f.id }); }}>
-              {t('folder.delete')}
-            </button>
-            <button type="button" className="btn-ghost" onClick={() => setConfirming(false)}>
-              {t('action.cancel')}
-            </button>
-          </div>
-        </div>
+        <Confirm
+          danger
+          yes={t('folder.delete')}
+          no={t('action.cancel')}
+          onYes={() => {
+            setConfirming(false);
+            setMenu(false);
+            void ctx.act({ kind: 'folder.delete', id: f.id });
+          }}
+          onNo={() => setConfirming(false)}
+        >
+          {t('folder.deleteConfirm', { name: f.name, n: f.sessionIds.length })}
+        </Confirm>
       )}
       {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
       {sessions.map((s) => (
@@ -219,33 +223,6 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   );
 }
 
-/** A name typed in place: Enter keeps it, Escape or an empty field gives up. */
-function NameInput({ initial, label, onDone }: { initial: string; label: string; onDone(name: string | undefined): void }) {
-  const [value, setValue] = useState(initial);
-  const done = useRef(false);
-  const finish = (name: string | undefined): void => {
-    if (done.current) return;
-    done.current = true;
-    onDone(name);
-  };
-  return (
-    <input
-      className="name-input"
-      aria-label={label}
-      value={value}
-      maxLength={MAX_NAME}
-      autoFocus
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') finish(value.trim() === '' ? undefined : value.trim());
-        if (e.key === 'Escape') finish(undefined);
-      }}
-      onBlur={() => finish(value.trim() === '' ? undefined : value.trim())}
-    />
-  );
-}
-
 function NewFolder({ ctx }: { ctx: ViewCtx }) {
   const { t } = ctx;
   const [open, setOpen] = useState(false);
@@ -261,6 +238,7 @@ function NewFolder({ ctx }: { ctx: ViewCtx }) {
       <Icon name="plus" />
       <NameInput
         initial=""
+        max={MAX_NAME}
         label={t('folder.new')}
         onDone={(name) => {
           setOpen(false);

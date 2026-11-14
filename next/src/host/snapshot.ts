@@ -7,7 +7,10 @@
  * (`readSessions`, `readGroups`, `readClosed`, `readUsage`) and parses the
  * cloud caches itself instead of going through `Feed`, which refreshes them.
  * `test/snapshot.test.ts` checks that a build leaves the directory untouched.
+ * Since step 4 the V2 does refresh the cloud caches, as V1 does — but apart,
+ * from cloud.ts, and only while a tab shows them; a build itself never writes.
  */
+import { isSpent } from '../../../src/routines/schedule';
 import { readFile } from 'node:fs/promises';
 import type { Session, Status } from '../../../src/events/types';
 import { readClosed } from '../../../src/closed/store';
@@ -175,7 +178,7 @@ export function toArtifactViews(list: readonly Artifact[], filing: ArtifactProje
 }
 
 export function toRoutineView(r: Routine, now: number): RoutineView {
-  const v: RoutineView = { id: r.id, name: r.name, enabled: r.enabled, group: groupOf(r, now), repos: [...r.repos] };
+  const v: RoutineView = { id: r.id, name: r.name, enabled: r.enabled, group: groupOf(r, now), repos: [...r.repos], spent: isSpent(r, now) };
   if (r.nextRunAt !== undefined) v.nextRunAt = r.nextRunAt;
   if (r.cron !== undefined) v.cron = r.cron;
   return v;

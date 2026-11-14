@@ -162,6 +162,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     reopenNotice: (id) => notices.get(id),
     reopen,
     act,
+    notify: showToast,
   };
   if (context.surface === 'cockpit') {
     return (
