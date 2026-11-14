@@ -34,10 +34,10 @@ export function sessionTitle(s: SessionView, t: Translate): string {
 
 /** The second line: what it is doing now, else where it lives. */
 export function sessionDetail(s: SessionView): string {
-  if (s.pendingPermission !== undefined) return `${s.pendingPermission.tool} · ${s.pendingPermission.summary}`;
+  if (s.pendingPermission !== undefined) return `${toolLabel(s.pendingPermission.tool)} · ${s.pendingPermission.summary}`;
   if (s.status === 'running' && s.currentAction !== undefined) {
     const target = s.currentAction.target;
-    return target !== undefined ? `${s.currentAction.tool} ${target}` : s.currentAction.tool;
+    return target !== undefined ? `${toolLabel(s.currentAction.tool)} ${target}` : toolLabel(s.currentAction.tool);
   }
   return s.branch !== undefined ? `${s.project} · ${s.branch}` : s.project;
 }
@@ -100,4 +100,14 @@ export function countsOf(snap: Snapshot): Counts {
     else if (s.status === 'done_unseen') c.done++;
   }
   return c;
+}
+
+/**
+ * A tool's name as a line can hold it: an MCP tool (`mcp__server__tool`)
+ * reads « server › tool » — the prefix says nothing, and the whole name is
+ * long enough to push the line out of its box (14/11).
+ */
+export function toolLabel(name: string): string {
+  const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  return m === null ? name : `${m[1]} › ${m[2]}`;
 }

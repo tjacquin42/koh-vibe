@@ -54,3 +54,12 @@ describe('format', () => {
     expect(countsOf(sampleSnapshot(0))).toEqual({ waiting: 1, running: 1, done: 1 });
   });
 });
+
+describe('tool labels', () => {
+  it('reads an MCP tool as « server › tool », and leaves the others alone', async () => {
+    const { toolLabel } = await import('../view/src/format');
+    expect(toolLabel('mcp__claude-artifacts__publish_files')).toBe('claude-artifacts › publish_files');
+    expect(toolLabel('mcp__vercel__get_access_to_vercel_url')).toBe('vercel › get_access_to_vercel_url');
+    expect(toolLabel('Bash')).toBe('Bash');
+  });
+});

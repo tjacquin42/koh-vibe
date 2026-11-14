@@ -10,6 +10,8 @@ export interface ThemeTune {
   saturation: number;
   /** Percent, 100 untouched. */
   brightness: number;
+  /** A grain over the view, 0 (none) to 100 — Koh-Vibe only: the editor has no texture to take. */
+  grain: number;
 }
 
 export interface ThemeState {
@@ -23,9 +25,10 @@ export const THEME_RANGE = {
   hue: { min: -180, max: 180 },
   saturation: { min: 0, max: 200 },
   brightness: { min: 50, max: 150 },
+  grain: { min: 0, max: 100 },
 } as const;
 
-export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100 };
+export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0 };
 export const DEFAULT_THEME: ThemeState = { current: DEFAULT_TUNE, slots: Array.from({ length: THEME_SLOTS }, () => null) };
 
 function num(v: unknown, key: keyof ThemeTune): number | undefined {
@@ -41,7 +44,9 @@ export function parseTune(raw: unknown): ThemeTune | undefined {
   const hue = num(r['hue'], 'hue');
   const saturation = num(r['saturation'], 'saturation');
   const brightness = num(r['brightness'], 'brightness');
-  return hue === undefined || saturation === undefined || brightness === undefined ? undefined : { hue, saturation, brightness };
+  // Kept before the grain existed: none.
+  const grain = r['grain'] === undefined ? 0 : num(r['grain'], 'grain');
+  return hue === undefined || saturation === undefined || brightness === undefined || grain === undefined ? undefined : { hue, saturation, brightness, grain };
 }
 
 /** The whole state, or undefined when it cannot be read — never half of it. */
@@ -57,12 +62,12 @@ export function parseTheme(raw: unknown): ThemeState | undefined {
 }
 
 export function sameTune(a: ThemeTune, b: ThemeTune): boolean {
-  return a.hue === b.hue && a.saturation === b.saturation && a.brightness === b.brightness;
+  return a.hue === b.hue && a.saturation === b.saturation && a.brightness === b.brightness && a.grain === b.grain;
 }
 
 /** The CSS filter for a tuning; none when it changes nothing. */
 export function themeFilter(t: ThemeTune): string {
-  if (sameTune(t, DEFAULT_TUNE)) return 'none';
+  if (t.hue === 0 && t.saturation === 100 && t.brightness === 100) return 'none';
   return `hue-rotate(${t.hue}deg) saturate(${t.saturation}%) brightness(${t.brightness}%)`;
 }
 

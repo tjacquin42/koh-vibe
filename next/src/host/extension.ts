@@ -318,8 +318,6 @@ export function activate(context: vscode.ExtensionContext): void {
     // The tab bar changed from the editor's own settings: the settings panel follows.
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
-      // Another theme: the colours go into its block too (ide-theme.ts).
-      if (e.affectsConfiguration('workbench.colorTheme') && context.globalState.get(IDE_BACKUP_KEY) !== undefined) void ideTheme('adapt');
     }),
   );
 
@@ -462,11 +460,8 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
       setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
-      // An editor already in Koh-Vibe's colours follows a new tuning.
-      setTheme: async (theme) => {
-        await context.globalState.update(THEME_KEY, theme);
-        if (context.globalState.get(IDE_BACKUP_KEY) !== undefined) await ideTheme('adapt');
-      },
+      // The editor's colours are not followed: they change on a click of « Adapt » only (14/11).
+      setTheme: (theme) => context.globalState.update(THEME_KEY, theme),
       // As a folder rule (V1 groups/rules.ts): a conversation that starts with
       // a title, the skill and the file, left in the input unsent.
       tidyRules: async (mode) => {

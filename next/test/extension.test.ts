@@ -333,7 +333,7 @@ describe('activate', () => {
     await vi.waitFor(() => expect(recorded.config.get('workbench.editor.showTabs')).toBe('none'), { timeout: 1_000, interval: 10 });
   });
 
-  it('dresses the editor in Koh-Vibe colours, follows a new tuning, then gives the original back whole', async () => {
+  it('dresses the editor in Koh-Vibe colours on a click, not on a new tuning, then gives the original back whole', async () => {
     const mine = { 'editor.background': '#000000', 'statusBar.background': '#123456', '[Monokai]': { 'editor.background': '#111111' } };
     recorded.config.set('workbench.colorTheme', 'Monokai');
     recorded.config.set('workbench.colorCustomizations', mine);
@@ -346,6 +346,9 @@ describe('activate', () => {
     expect(colors()['[Monokai]']).toMatchObject({ 'editor.background': '#14121f' });
     const theme = { current: { hue: 180, saturation: 100, brightness: 100 }, slots: [null, null, null, null] };
     await view.webview.receive({ type: 'act', req: 6, action: { kind: 'theme.set', theme } });
+    await vi.waitFor(() => expect(messages(view).some((m) => m.type === 'acted' && m.req === 6)).toBe(true), { timeout: 1_000, interval: 10 });
+    expect(colors()['button.background']).toBe('#ff9e5e');
+    await view.webview.receive({ type: 'act', req: 8, action: { kind: 'theme.ide', mode: 'adapt' } });
     await vi.waitFor(() => expect(colors()['button.background']).not.toBe('#ff9e5e'), { timeout: 1_000, interval: 10 });
     await view.webview.receive({ type: 'act', req: 7, action: { kind: 'theme.ide', mode: 'restore' } });
     await vi.waitFor(() => expect(recorded.config.get('workbench.colorCustomizations')).toEqual(mine), { timeout: 1_000, interval: 10 });

@@ -12,7 +12,10 @@ let preview: ThemeTune | undefined;
 let stored: ThemeTune = DEFAULT_TUNE;
 
 function paint(): void {
-  document.documentElement.style.filter = themeFilter(preview ?? stored);
+  const t = preview ?? stored;
+  document.documentElement.style.filter = themeFilter(t);
+  // The grain is no filter: a texture over the page (app.css body::after).
+  document.documentElement.style.setProperty('--grain', String(t.grain / 100));
 }
 
 export function showStoredTheme(t: ThemeTune | undefined): void {

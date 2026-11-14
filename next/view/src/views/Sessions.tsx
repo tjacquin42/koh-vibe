@@ -7,7 +7,7 @@ import { SessionName } from '../ui/SessionName';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, toneOf } from '../format';
+import { formatAge, formatTokens, formatWhen, toneOf, toolLabel } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
@@ -388,7 +388,7 @@ function SessionInfo({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   if (s.branch !== undefined) rows.push([t('info.branch'), s.branch]);
   rows.push([t('info.where'), t(`origin.${s.origin}`)]);
   if (s.currentAction !== undefined && s.status === 'running') {
-    rows.push([t('info.doing'), s.currentAction.target !== undefined ? `${s.currentAction.tool} ${s.currentAction.target}` : s.currentAction.tool]);
+    rows.push([t('info.doing'), s.currentAction.target !== undefined ? `${toolLabel(s.currentAction.tool)} ${s.currentAction.target}` : toolLabel(s.currentAction.tool)]);
   }
   if (s.tokens !== undefined) rows.push([t('info.tokens'), t('info.tokensValue', { in: formatTokens(s.tokens.input), out: formatTokens(s.tokens.output) })]);
   rows.push([t('info.tools'), String(s.toolCount)]);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SessionSheetView, SheetAgentView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf } from '../format';
+import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf, toolLabel } from '../format';
 import { countTokens } from '../sections';
 import { Dot, Icon } from '../ui/icons';
 import { ProcessRow } from '../views/Processes';
@@ -77,7 +77,9 @@ export function SessionSheet({ ctx, id, onClose }: { ctx: ViewCtx; id: string; o
                 {tools.map((c, i) => (
                   <li key={`${c.at}-${i}`}>
                     <span className="tm mono">{formatWhen(c.at, now, language)}</span>
-                    <span className="tool mono">{c.tool}</span>
+                    <span className="tool mono" title={c.tool}>
+                      {toolLabel(c.tool)}
+                    </span>
                     <span className="tx">{c.target ?? ''}</span>
                     {c.agent !== undefined && <span className="agent-tag">{short(agentLabel.get(c.agent) ?? t('sheet.agentTag'))}</span>}
                   </li>

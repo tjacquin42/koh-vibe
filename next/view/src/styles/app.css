@@ -31,12 +31,16 @@ h1, h2 { margin: 0; font-family: var(--font-display); color: var(--text); }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* A text field shows its focus with its own border (or its box's): the outline
-   above would draw a second frame around it (14/11). Buttons, switches and the
-   volume slider keep it — they have no other mark. */
-input:not([type='range']):focus, input:not([type='range']):focus-visible, textarea:focus, textarea:focus-visible { outline: none; }
+   above would draw a second frame around it (14/11). Sliders show it on their
+   knob only, from the keyboard (below); buttons and switches keep the outline. */
+input:focus, input:focus-visible, textarea:focus, textarea:focus-visible { outline: none; }
+input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--muted); }
 
+:root { --grain-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.9'/></svg>"); }
+/* The theme's grain (ui/theme.ts sets --grain, 0 to 1): a texture over everything, clicks pass through. */
+body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; background-image: var(--grain-image); background-size: 160px 160px; mix-blend-mode: screen; opacity: calc(var(--grain, 0) * 0.3); }
 .boot { display: grid; place-items: center; height: 100%; color: var(--muted); }
 .app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .preview { background: var(--raised); color: var(--soft); font-size: 11.5px; text-align: center; padding: 4px; }
@@ -183,7 +187,8 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .sp-side-w { grid-area: sidew; }
 .sp-side-h { display: none; }
 .ck-side { min-height: 0; overflow: auto; padding: 4px 10px 16px; border-left: 1px solid var(--line); }
-.ck-main { min-height: 0; min-width: 0; overflow: auto; padding: 8px 20px 24px; }
+/* Never sideways: a line too long is cut with « … » inside its box, it does not widen the view. */
+.ck-main { min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 20px 24px; }
 .ck-title { font-size: 22px; font-weight: 700; margin: 8px 0 10px; }
 .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--soft); text-align: left; }
 .nav-btn:hover { background: var(--surface); }
@@ -219,15 +224,15 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .btn.primary:hover { filter: brightness(1.08); }
 .app:not(.surface-cockpit) .inbox { margin-top: 6px; }
 
-.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
 .tile { display: flex; flex-direction: column; gap: 4px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-align: left; color: inherit; min-width: 0; }
 .tile:hover { border-color: var(--raised); }
 .tile-h { display: flex; gap: 8px; align-items: flex-start; }
 .tile-h .ttl { font-weight: 600; }
-.tile-b { margin-top: 4px; padding: 8px 9px; background: var(--bg); border-radius: 8px; display: flex; flex-direction: column; gap: 3px; min-height: 60px; }
+.tile-b { overflow: hidden; margin-top: 4px; padding: 8px 9px; background: var(--bg); border-radius: 8px; display: flex; flex-direction: column; gap: 3px; min-height: 60px; }
 .it { display: flex; gap: 6px; align-items: baseline; min-width: 0; font-size: 11.5px; }
 .it .ik { flex: none; display: flex; color: var(--muted); transform: translateY(2px); }
-.it .tn { flex: none; font-family: var(--font-mono); font-weight: 500; color: var(--text); }
+.it .tn { flex: 0 1 auto; min-width: 0; max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-weight: 500; color: var(--text); }
 .it .tx { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--soft); }
 .it-tool .tx { font-family: var(--font-mono); color: var(--muted); }
 .it-prompt .tx { color: var(--text); }
@@ -364,6 +369,17 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .hint-text li::marker { color: var(--line); }
 .hint-text li b { color: var(--soft); font-weight: 600; font-size: inherit; }
 .set-row input[type="range"] { width: 110px; accent-color: var(--accent); }
+/* The theme (views/Theme.tsx): a colour pad à la Arc, tracks that show what they set, a grain. */
+.tpad { position: relative; height: 112px; border-radius: 12px; overflow: hidden; cursor: crosshair; touch-action: none; border: 1px solid var(--line); outline: none; }
+.tpad:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.tpad-colours { position: absolute; inset: 0; }
+.tpad-knob { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: 0 2px 8px rgb(0 0 0 / 0.45); pointer-events: none; }
+.set-row.tslider input.trange { width: 130px; }
+.trange { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 99px; border: 1px solid var(--line); cursor: pointer; }
+.trange::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); border: 2px solid var(--bg); box-shadow: 0 1px 4px rgb(0 0 0 / 0.5); }
+.trange-light { background: linear-gradient(to right, #050409, var(--raised) 50%, #b8b2cc); }
+.trange-grain { background: var(--grain-image), linear-gradient(to right, var(--surface), var(--raised)); background-size: 80px 80px, auto; }
+.tswatch.grainy { background-image: var(--grain-image); background-size: 60px 60px; }
 .switch { flex: none; width: 32px; height: 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); padding: 0; position: relative; }
 .switch span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform 0.15s; }
 .switch[aria-checked="true"] { background: color-mix(in srgb, var(--done) 35%, var(--raised)); border-color: var(--done); }
@@ -436,7 +452,7 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .sheet-tools li { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 12px; min-width: 0; }
 .sheet-tools li:hover { background: var(--surface); }
 .sheet-tools .tm { flex: none; width: 46px; color: var(--muted); font-size: 11px; }
-.sheet-tools .tool { flex: none; color: var(--run); font-size: 11.5px; }
+.sheet-tools .tool { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--run); font-size: 11.5px; }
 .sheet-tools .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); }
 .agent-tag { flex: none; font-size: 10.5px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-bottom: 6px; }

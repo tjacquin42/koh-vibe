@@ -1,5 +1,5 @@
 import type { ActivityItemView, ActivitySessionView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatWhen, sessionDetail, sessionTitle, toneOf, type Tone } from '../format';
+import { formatAge, formatWhen, sessionDetail, sessionTitle, toneOf, toolLabel, type Tone } from '../format';
 import type { Translate } from '../i18n';
 import { boardColumns, folderIndex, hourTicks, inbox, SPANS_H, timelineLanes, type BoardColumns } from '../sections';
 import { Dot, Icon, type IconName } from '../ui/icons';
@@ -288,7 +288,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           </div>
           {s.pendingPermission !== undefined && (
             <span className="q mono">
-              <b>{s.pendingPermission.tool}</b> {s.pendingPermission.summary}
+              <b>{toolLabel(s.pendingPermission.tool)}</b> {s.pendingPermission.summary}
             </span>
           )}
           <button type="button" className="btn primary" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
@@ -350,7 +350,11 @@ function ItemLine({ ctx, i, withTime }: { ctx: ViewCtx; i: ActivityItemView; wit
       <span className="ik" role="img" aria-label={i.kind === 'tool' ? (i.tool ?? '') : t(`feed.${i.kind}`)}>
         <Icon name={i.subagent ? 'bot' : KIND_ICON[i.kind]} size={12} />
       </span>
-      {i.kind === 'tool' && <b className="tn">{i.tool}</b>}
+      {i.kind === 'tool' && i.tool !== undefined && (
+        <b className="tn" title={i.tool}>
+          {toolLabel(i.tool)}
+        </b>
+      )}
       <span className="tx">{i.text}</span>
     </span>
   );

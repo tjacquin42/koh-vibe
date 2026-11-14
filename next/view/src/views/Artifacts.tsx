@@ -27,14 +27,21 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
   return (
     <>
       {bar}
+      {/* Pinned and Recent stay on top, open by default; they fold away when they take too much room (14/11). */}
       {s.pinned.length > 0 && (
-        <Section title={t('artifacts.pinned')} count={s.pinned.length} marker={<Icon name="pin" size={13} />}>
+        <Section
+          title={t('artifacts.pinned')}
+          count={s.pinned.length}
+          marker={<Icon name="pin" size={13} />}
+          folded={ctx.isFolded('art:pinned')}
+          onToggle={() => ctx.toggle('art:pinned')}
+        >
           {s.pinned.map((a) => (
             <ArtifactRow key={a.slug} ctx={ctx} a={a} />
           ))}
         </Section>
       )}
-      <Section title={t('artifacts.recent')} count={s.recent.length}>
+      <Section title={t('artifacts.recent')} count={s.recent.length} folded={ctx.isFolded('art:recent')} onToggle={() => ctx.toggle('art:recent')}>
         {s.recent.map((a) => (
           <ArtifactRow key={a.slug} ctx={ctx} a={a} />
         ))}

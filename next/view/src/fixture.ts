@@ -94,6 +94,8 @@ export function sampleSnapshot(now: number): Snapshot {
             { at: ago(12), sessionId: 's2', kind: 'tool', tool: 'Read', text: 'dates.test.ts', subagent: false },
             { at: ago(6), sessionId: 's2', kind: 'text', text: 'The test builds its date in local time and compares in UTC.', subagent: false },
             { at: ago(1), sessionId: 's2', kind: 'tool', tool: 'Edit', text: 'dates.ts', subagent: false },
+            // A long MCP name: it must stay inside its box (14/11).
+            { at: ago(1), sessionId: 's2', kind: 'tool', tool: 'mcp__vercel__get_access_to_vercel_url', text: 'preview', subagent: false },
           ],
           lastAt: ago(0),
         },
