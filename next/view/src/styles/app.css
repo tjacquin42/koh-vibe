@@ -41,9 +41,14 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 /* The theme's textures (ui/theme.ts sets --texture and --grain): fine patterns
    on a transparent ground over everything, brightness untouched, clicks pass through. */
 body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; background-image: var(--texture, none); background-size: var(--texture-size, auto); opacity: var(--grain, 0); }
-/* One scrollbar everywhere (14/11): thin, rounded, coral in the sidebar, lagoon in the cockpit. */
+/* One scrollbar everywhere (14/11): thin, rounded, coral in the sidebar, lagoon in the cockpit.
+   The standard properties first: the editor gives its web views a
+   `scrollbar-color` of its own, and once one is set Chromium ignores the
+   ::-webkit-scrollbar styles below — kept for an editor that does not. */
 .app { --scroll: var(--accent); }
 .app.surface-cockpit { --scroll: var(--run); }
+html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent) transparent; }
+.app, .app * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--scroll) 55%, transparent) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--scroll, var(--accent)) 55%, transparent); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
