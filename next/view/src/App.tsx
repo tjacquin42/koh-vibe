@@ -345,9 +345,11 @@ function Header({
 }
 
 /**
- * The name, and a rainbow that runs through it on each click (14/11) — a click
- * mid-run starts it again, so it can be clicked as fast as one likes. Still
- * under the system's reduced motion.
+ * The name, and a rainbow that runs through it on each click (14/11). Every
+ * click adds its own band on top of those still running — click fast and
+ * several cross the letters at once. Each band is a layer of the same text,
+ * transparent but for the band, laid over the name and gone when it is
+ * through. Still under the system's reduced motion.
  */
 function BrandName({ text }: { text: string }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -359,8 +361,14 @@ function BrandName({ text }: { text: string }) {
       onClick={() => {
         const el = ref.current;
         if (el === null || typeof el.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        for (const a of el.getAnimations()) a.cancel();
-        el.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
+        const band = document.createElement('span');
+        band.className = 'brand-band';
+        band.textContent = text;
+        band.setAttribute('aria-hidden', 'true');
+        el.appendChild(band);
+        const run = band.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
+        run.onfinish = () => band.remove();
+        run.oncancel = () => band.remove();
       }}
     >
       {text}
