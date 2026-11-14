@@ -217,6 +217,8 @@ export interface SnapshotExtras {
   tidy?: Snapshot['tidy'];
   theme?: Snapshot['theme'];
   ideThemed?: boolean;
+  tabNames?: boolean;
+  titleLines?: 1 | 2;
 }
 
 /**
@@ -272,6 +274,8 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   if (extras.tidy !== undefined) snap.tidy = extras.tidy;
   if (extras.theme !== undefined) snap.theme = extras.theme;
   if (extras.ideThemed !== undefined) snap.ideThemed = extras.ideThemed;
+  if (extras.tabNames !== undefined) snap.tabNames = extras.tabNames;
+  if (extras.titleLines !== undefined) snap.titleLines = extras.titleLines;
   if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
   if (extras.activity !== undefined) {
     const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));

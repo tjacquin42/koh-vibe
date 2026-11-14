@@ -134,6 +134,10 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
 
 /** Koh-Vibe's colours (shared/theme.ts), kept by the editor for every view. */
 const THEME_KEY = 'kohVibeNext.theme';
+/** Names beside the tab icons (default on), for the sidebar and the cockpit alike. */
+const TAB_NAMES_KEY = 'kohVibeNext.tabNames';
+/** Lines a conversation's title may take (1 or 2), for every view. */
+const TITLE_LINES_KEY = 'kohVibeNext.titleLines';
 /** The editor's colour customizations as they were before « Adapt to the IDE » (ide-theme.ts). */
 const IDE_BACKUP_KEY = 'kohVibeNext.ideColorsBackup';
 /** Whether Tidy asks before running the agent (default yes), kept by the editor. */
@@ -279,6 +283,8 @@ export function activate(context: vscode.ExtensionContext): void {
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
         theme: parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
         ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
+        tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
+        titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -444,6 +450,8 @@ export function activate(context: vscode.ExtensionContext): void {
       tidy: () => tidy(),
       setTidyAsk: (ask) => context.globalState.update(TIDY_ASK_KEY, ask),
       ideTheme,
+      setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
+      setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
       // An editor already in Koh-Vibe's colours follows a new tuning.
       setTheme: async (theme) => {
         await context.globalState.update(THEME_KEY, theme);

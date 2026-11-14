@@ -12,6 +12,7 @@ import { SessionName } from '../ui/SessionName';
 import { Splitter } from '../ui/Splitter';
 import { useFlip } from '../ui/flip';
 import { useReorder } from '../ui/reorder';
+import { useIconsOnly } from '../ui/fit';
 import { EdgeScroll } from '../ui/EdgeScroll';
 import { useRef, type CSSProperties, type ReactNode } from 'react';
 
@@ -116,12 +117,24 @@ export function CockpitTabs({
   useFlip(nav, ctx.animate);
   // Dragged into the order wanted, as the sidebar's tabs (ui/reorder.ts).
   const { shown, itemProps, barProps } = useReorder(order, onOrder);
+  // As the sidebar's tabs: names when they fit and the settings allow (ui/fit.ts).
+  const iconsOnly = useIconsOnly(nav, ctx.snapshot.tabNames !== false);
   return (
-    <nav ref={nav} className="ck-tabs" role="tablist" aria-label={t('cockpit.views')} {...barProps}>
+    <nav ref={nav} className={`ck-tabs${iconsOnly ? ' icons-only' : ''}`} role="tablist" aria-label={t('cockpit.views')} {...barProps}>
       {shown.map((v) => (
-        <button key={v} type="button" role="tab" data-flip={`view:${v}`} aria-selected={view === v && sheet === undefined} onClick={() => onView(v)} {...itemProps(v)}>
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          data-flip={`view:${v}`}
+          aria-selected={view === v && sheet === undefined}
+          aria-label={iconsOnly ? t(`cockpit.view.${v}`) : undefined}
+          data-tip={iconsOnly ? t(`cockpit.view.${v}`) : undefined}
+          onClick={() => onView(v)}
+          {...itemProps(v)}
+        >
           <Icon name={VIEW_ICON[v]} size={16} />
-          <span>{t(`cockpit.view.${v}`)}</span>
+          {!iconsOnly && <span>{t(`cockpit.view.${v}`)}</span>}
         </button>
       ))}
     </nav>
@@ -235,7 +248,7 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   return (
     <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)} data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}>
       <span className="l1">
-        <span className="ttl">
+        <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
         </span>
         <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
@@ -264,7 +277,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           <div className="ask-h">
             <Dot tone="wait" animate={false} />
             <span className="txt">
-              <span className="ttl">
+              <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
         </span>
               <span className="muted small">{now - s.lastEventAt < 60_000 ? t('inbox.justNow') : t('inbox.since', { d: formatAge(now - s.lastEventAt, t) })}</span>
@@ -292,7 +305,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           {box.toRead.map((s) => (
             <button key={s.id} type="button" className="row row-btn" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
               <Dot tone="done" animate={false} />
-              <span className="ttl">
+              <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
         </span>
               <span className="tm">{formatAge(now - s.lastEventAt, t)}</span>
@@ -363,7 +376,7 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
           >
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
-              <span className="ttl">{listed !== undefined ? <SessionName s={listed} t={t} animate={ctx.animate} /> : (s.title ?? s.project)}</span>
+              <span className="ttl conv-ttl">{listed !== undefined ? <SessionName s={listed} t={t} animate={ctx.animate} /> : (s.title ?? s.project)}</span>
               <span className="tm">{formatAge(now - s.lastAt, t)}</span>
             </span>
             <span className="muted small">

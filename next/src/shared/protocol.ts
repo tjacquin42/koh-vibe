@@ -287,6 +287,10 @@ export interface Snapshot {
   theme?: ThemeState;
   /** Whether the editor wears Koh-Vibe's colours (« Back to default » then undoes it). */
   ideThemed?: boolean;
+  /** Names beside the tabs' and views' icons (when they fit); icons only when off. */
+  tabNames?: boolean;
+  /** Lines a conversation's title may take before « … » (1 by default). */
+  titleLines?: 1 | 2;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;

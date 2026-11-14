@@ -1,23 +1,31 @@
 import type { ReactNode } from 'react';
 
 /**
- * A setting's explanation (14/11): sentences, then a bullet per option when
- * its lines start with « - ». « Name: what it does » (« Nom : … ») sets the
- * name in bold, so the eye finds each option.
+ * A setting's explanation (14/11): sentences, and a bullet per option where
+ * its lines start with « - », in the order written. « Name: what it does »
+ * (« Nom : … ») sets the name in bold, so the eye finds each option.
  */
 export function Hint({ text }: { text: string }) {
-  const lines = text.split('\n');
-  const intro = lines.filter((l) => !l.startsWith('- '));
-  const items = lines.filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+  // Runs of plain lines make a paragraph, runs of « - » lines a list, in order.
+  const blocks: { list: boolean; lines: string[] }[] = [];
+  for (const line of text.split('\n')) {
+    const list = line.startsWith('- ');
+    const last = blocks[blocks.length - 1];
+    if (last !== undefined && last.list === list) last.lines.push(list ? line.slice(2) : line);
+    else blocks.push({ list, lines: [list ? line.slice(2) : line] });
+  }
   return (
     <div className="sub hint-text">
-      {intro.length > 0 && <p>{intro.join(' ')}</p>}
-      {items.length > 0 && (
-        <ul>
-          {items.map((item) => (
-            <li key={item}>{named(item)}</li>
-          ))}
-        </ul>
+      {blocks.map((b, i) =>
+        b.list ? (
+          <ul key={i}>
+            {b.lines.map((item) => (
+              <li key={item}>{named(item)}</li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i}>{b.lines.join(' ')}</p>
+        ),
       )}
     </div>
   );

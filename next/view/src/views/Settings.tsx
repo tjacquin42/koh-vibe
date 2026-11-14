@@ -18,16 +18,12 @@ export function SettingsPanel({
   onClose,
   showUsage,
   onShowUsage,
-  showTabNames,
-  onShowTabNames,
   onSort,
 }: {
   ctx: ViewCtx;
   onClose(): void;
   showUsage: boolean;
   onShowUsage(on: boolean): void;
-  showTabNames: boolean;
-  onShowTabNames(on: boolean): void;
   onSort(sort: SessionSort): void;
 }) {
   const { t, snapshot } = ctx;
@@ -84,10 +80,21 @@ export function SettingsPanel({
             <b id="set-tab-names">{t('settings.tabNames')}</b>
             <Hint text={t('settings.tabNames.hint')} />
           </div>
-          <button type="button" role="switch" aria-checked={showTabNames} aria-labelledby="set-tab-names" className="switch" onClick={() => onShowTabNames(!showTabNames)}>
+          <button type="button" role="switch" aria-checked={snapshot.tabNames !== false} aria-labelledby="set-tab-names" className="switch" onClick={() => void ctx.act({ kind: 'setting.tabNames', on: snapshot.tabNames === false })}>
             <span />
           </button>
         </div>
+        <Choice label={t('settings.titleLines')} hint={t('settings.titleLines.hint')}>
+          <Segmented
+            label={t('settings.titleLines')}
+            options={[
+              { value: 1 as const, label: t('settings.titleLines.one') },
+              { value: 2 as const, label: t('settings.titleLines.two') },
+            ]}
+            value={snapshot.titleLines ?? 1}
+            onChange={(lines) => void ctx.act({ kind: 'setting.titleLines', lines })}
+          />
+        </Choice>
         <Choice label={t('settings.sort')} hint={t('settings.sort.hint')}>
           <Segmented
             label={t('settings.sort')}

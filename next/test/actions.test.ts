@@ -56,6 +56,12 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     ideTheme: async (mode) => {
       calls.push(['ideTheme', mode]);
     },
+    setTabNames: async (on) => {
+      calls.push(['tabNames', on]);
+    },
+    setTitleLines: async (lines) => {
+      calls.push(['titleLines', lines]);
+    },
     ...over,
   };
 }

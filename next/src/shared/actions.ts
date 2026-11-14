@@ -82,6 +82,10 @@ export type Action =
   | { kind: 'setting.editorTabs'; mode: EditorTabs }
   /** The V2's language, for its views; `auto` follows the editor's. */
   | { kind: 'setting.language'; choice: LanguageChoice }
+  /** Tab and view names beside their icons, in the sidebar and the cockpit alike. */
+  | { kind: 'setting.tabNames'; on: boolean }
+  /** A conversation's title cut on one line, or wrapped on two at most. */
+  | { kind: 'setting.titleLines'; lines: 1 | 2 }
   // ── claude.ai, through V1's own API functions (the cloud has no V1 state to clash with)
   | { kind: 'artifact.rename'; slug: string; title: string }
   | { kind: 'artifact.pin'; slug: string; pinned: boolean }
@@ -234,6 +238,10 @@ export function parseAction(raw: unknown): Action | undefined {
       return oneOf(EDITOR_TABS, raw['mode']) ? { kind: 'setting.editorTabs', mode: raw['mode'] } : undefined;
     case 'setting.language':
       return oneOf(LANGUAGE_CHOICES, raw['choice']) ? { kind: 'setting.language', choice: raw['choice'] } : undefined;
+    case 'setting.tabNames':
+      return typeof raw['on'] === 'boolean' ? { kind: 'setting.tabNames', on: raw['on'] } : undefined;
+    case 'setting.titleLines':
+      return raw['lines'] === 1 || raw['lines'] === 2 ? { kind: 'setting.titleLines', lines: raw['lines'] } : undefined;
     case 'artifact.rename': {
       const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';
       return isSlug(raw['slug']) && title.length > 0 && title.length <= MAX_TITLE ? { kind: 'artifact.rename', slug: raw['slug'], title } : undefined;

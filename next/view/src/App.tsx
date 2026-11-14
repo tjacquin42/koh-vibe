@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
 import { type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
@@ -12,6 +12,8 @@ import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
 import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
+import { useIconsOnly } from './ui/fit';
+import { TipLayer } from './ui/Tip';
 import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
 import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
@@ -185,6 +187,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     (action: Action): Promise<ActionResult> => {
       if (!bridge.inEditor) {
         if (action.kind === 'theme.set') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, theme: action.theme } }));
+        if (action.kind === 'setting.titleLines') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, titleLines: action.lines } }));
+        if (action.kind === 'setting.tabNames') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, tabNames: action.on } }));
         return Promise.resolve({ ok: true });
       }
       const req = nextReq.current++;
@@ -229,7 +233,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   };
   if (context.surface === 'cockpit') {
     return (
-      <div className="app surface-cockpit">
+      <div className={`app surface-cockpit${snapshot.titleLines === 2 ? ' titles-two' : ''}`}>
+        <TipLayer />
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
         <CockpitTop ctx={ctx} folder={ui.cockpit.folder} onFolder={(folder) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, folder } }))} />
@@ -250,7 +255,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
   const results = search(snapshot, query);
   return (
-    <div className={`app surface-${context.surface}`}>
+    <div className={`app surface-${context.surface}${snapshot.titleLines === 2 ? ' titles-two' : ''}`}>
+      <TipLayer />
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
       <Header
         t={t}
@@ -270,8 +276,6 @@ export function App({ bridge }: { bridge: Bridge }) {
             onClose={() => setSettingsOpen(false)}
             showUsage={ui.showUsage}
             onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))}
-            showTabNames={ui.showTabNames}
-            onShowTabNames={(on) => updateUi((prev) => ({ ...prev, showTabNames: on }))}
             onSort={(sort) => updateUi((prev) => ({ ...prev, sort }))}
           />
         </main>
@@ -283,7 +287,7 @@ export function App({ bridge }: { bridge: Bridge }) {
               t={t}
               tab={ui.tab}
               order={ui.tabOrder}
-              names={ui.showTabNames}
+              names={snapshot.tabNames !== false}
               animate={ctx.animate}
               onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))}
               onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}
@@ -479,8 +483,7 @@ function Tabs({
   const nav = useRef<HTMLElement>(null);
   useFlip(nav, animate);
   const { shown, itemProps, barProps } = useReorder(order, onOrder);
-  const narrow = useNamesOverflow(nav, names);
-  const iconsOnly = !names || narrow;
+  const iconsOnly = useIconsOnly(nav, names);
   return (
     <nav ref={nav} className={`tabs${iconsOnly ? ' icons-only' : ''}`} role="tablist" aria-label={t('tabs.label')} {...barProps}>
       {shown.map((id) => (
@@ -492,7 +495,7 @@ function Tabs({
           aria-selected={tab === id}
           aria-controls="panel"
           aria-label={iconsOnly ? t(`tab.${id}`) : undefined}
-          title={iconsOnly ? t(`tab.${id}`) : undefined}
+          data-tip={iconsOnly ? t(`tab.${id}`) : undefined}
           onClick={() => onTab(id)}
           {...itemProps(id)}
         >
@@ -504,32 +507,6 @@ function Tabs({
   );
 }
 
-/**
- * Whether the names would be cut: measured with them shown; once hidden, they
- * come back only when the bar is wider than where they stopped fitting.
- */
-function useNamesOverflow(nav: RefObject<HTMLElement | null>, wanted: boolean): boolean {
-  const [narrow, setNarrow] = useState(false);
-  const fitBelow = useRef(0);
-  useLayoutEffect(() => {
-    const el = nav.current;
-    if (el === null || !wanted) return undefined;
-    const check = (): void => {
-      const width = el.clientWidth;
-      setNarrow((was) => {
-        if (was) return width <= fitBelow.current;
-        const cut = [...el.querySelectorAll('button > span')].some((s) => s.scrollWidth > s.clientWidth + 1);
-        if (cut) fitBelow.current = width;
-        return cut;
-      });
-    };
-    check();
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [nav, wanted]);
-  return wanted && narrow;
-}
 
 function Results({ ctx, results, query }: { ctx: ViewCtx; results: NonNullable<ReturnType<typeof search>>; query: string }) {
   const { t } = ctx;

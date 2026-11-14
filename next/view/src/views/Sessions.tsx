@@ -354,7 +354,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           {busy ? <span className="spinner" aria-hidden="true" /> : <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />}
           <span className="txt">
             <span className="l1">
-              <span className="ttl">
+              <span className="ttl conv-ttl">
                 <SessionName s={s} t={t} animate={ctx.animate} />
               </span>
               <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
@@ -424,7 +424,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
       <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed" data-vscode-context={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: false })}>
         <Dot tone="ended" animate={false} />
         <span className="txt">
-          <span className="ttl">{title}</span>
+          <span className="ttl conv-ttl">{title}</span>
           <span className="sub">{t('closed.elsewhere')}</span>
         </span>
         {age}
@@ -444,7 +444,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
         onClick={() => ctx.reopen(c.sessionId)}
       >
         <Dot tone={waiting ? 'run' : 'ended'} animate={ctx.animate} />
-        <span className="ttl">{title}</span>
+        <span className="ttl conv-ttl">{title}</span>
         {waiting ? <span className="tm busy">{t('closed.reopening')}</span> : age}
         {!waiting && (
           <span className="go">
