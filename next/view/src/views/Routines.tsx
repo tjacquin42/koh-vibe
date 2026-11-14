@@ -41,7 +41,7 @@ function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
   // V1's rules: only an active, unspent routine runs; a spent one-shot is never resumed.
   const canRun = r.enabled && !r.spent;
   return (
-    <div className="card">
+    <div className={`card${ctx.isBusy(r.id) ? ' busy' : ''}`} aria-busy={ctx.isBusy(r.id)}>
       <div className="card-l1">
         <span className="ttl">{r.name}</span>
         <span className={`state ${live ? 'on' : 'off'}`}>{t(live ? 'routines.on' : 'routines.off')}</span>
@@ -60,7 +60,7 @@ function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
           no={t('action.cancel')}
           onYes={() => {
             setAsking(false);
-            void ctx.act({ kind: 'routine.run', id: r.id }).then((res) => {
+            void ctx.track(r.id, ctx.act({ kind: 'routine.run', id: r.id })).then((res) => {
               if (res.ok) ctx.notify(t('routines.launched', { name: r.name }));
             });
           }}
@@ -76,12 +76,12 @@ function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
             </button>
           )}
           {r.enabled ? (
-            <button type="button" className="btn-ghost" onClick={() => void ctx.act({ kind: 'routine.pause', id: r.id, paused: true })}>
+            <button type="button" className="btn-ghost" onClick={() => void ctx.track(r.id, ctx.act({ kind: 'routine.pause', id: r.id, paused: true }))}>
               {t('routines.pause')}
             </button>
           ) : (
             !r.spent && (
-              <button type="button" className="btn-ghost" onClick={() => void ctx.act({ kind: 'routine.pause', id: r.id, paused: false })}>
+              <button type="button" className="btn-ghost" onClick={() => void ctx.track(r.id, ctx.act({ kind: 'routine.pause', id: r.id, paused: false }))}>
                 {t('routines.resume')}
               </button>
             )

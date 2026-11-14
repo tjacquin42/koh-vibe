@@ -5,6 +5,7 @@ import type { Bridge } from './bridge';
 import { sampleSheet, sampleSnapshot } from './fixture';
 import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
+import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
 import { CockpitBody } from './cockpit/Cockpit';
@@ -55,12 +56,17 @@ export function App({ bridge }: { bridge: Bridge }) {
   const pending = useRef(new Map<number, (r: ActionResult) => void>());
   const nextReq = useRef(1);
   const [toast, setToast] = useState<string | undefined>();
+  // Rows whose action is under way (busy.ts).
+  const [busy, setBusy] = useState<Busy>(() => new Map());
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const off = bridge.listen((m) => {
       if (m.type === 'init') setState({ context: m.context, snapshot: m.snapshot });
-      else if (m.type === 'snapshot') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
+      else if (m.type === 'snapshot') {
+        setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
+        setBusy(onSnapshot);
+      }
       else if (m.type === 'showSheet') setSheet(m.sessionId);
       else if (m.type === 'acted') {
         pending.current.get(m.req)?.(m.result);
@@ -127,6 +133,22 @@ export function App({ bridge }: { bridge: Bridge }) {
     [bridge],
   );
 
+  // The caps of busy.ts need a clock only while something is busy.
+  const anyBusy = busy.size > 0;
+  useEffect(() => {
+    if (!anyBusy) return;
+    const id = window.setInterval(() => setBusy((b) => expire(b, Date.now())), 400);
+    return () => window.clearInterval(id);
+  }, [anyBusy]);
+
+  /** Marks `key` busy now, until `p` answers and the screen shows it (busy.ts). */
+  const track = useCallback(<T,>(key: string, p: Promise<T>, hold = 2_500): Promise<T> => {
+    setBusy((b) => startBusy(b, key, Date.now(), hold));
+    const done = (): void => setBusy((b) => answered(b, key, Date.now()));
+    p.then(done, done);
+    return p;
+  }, []);
+
   const showToast = useCallback((text: string) => {
     setToast(text);
     window.clearTimeout(toastTimer.current);
@@ -173,6 +195,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     reopen,
     act,
     notify: showToast,
+    isBusy: (key) => busy.has(key),
+    track,
     show: (id) => (context.surface === 'cockpit' ? setSheet(id) : bridge.post({ type: 'openSession', sessionId: id })),
   };
   if (context.surface === 'cockpit') {
@@ -194,7 +218,8 @@ export function App({ bridge }: { bridge: Bridge }) {
         surface={context.surface}
         version={context.version}
         onCockpit={() => bridge.post({ type: 'openCockpit' })}
-        onNew={() => void act({ kind: 'session.new' })}
+        onNew={() => void track('new:', act({ kind: 'session.new' }), 4_000)}
+        newBusy={busy.has('new:')}
         settingsOpen={settingsOpen}
         onSettings={() => setSettingsOpen((v) => !v)}
       />
@@ -246,6 +271,7 @@ function Header({
   version,
   onCockpit,
   onNew,
+  newBusy,
   settingsOpen,
   onSettings,
 }: {
@@ -256,6 +282,7 @@ function Header({
   version: string;
   onCockpit(): void;
   onNew?: () => void;
+  newBusy?: boolean;
   settingsOpen?: boolean;
   onSettings?: () => void;
 }) {
@@ -273,7 +300,7 @@ function Header({
         {surface === 'sidebar' && (
           <span className="head-tools">
             {onNew !== undefined && (
-              <button className="ibtn" type="button" onClick={onNew} aria-label={t('action.newSession')}>
+              <button className={`ibtn${newBusy === true ? ' busy' : ''}`} type="button" onClick={onNew} aria-label={t('action.newSession')} aria-busy={newBusy === true}>
                 <Icon name="plus" size={16} />
               </button>
             )}

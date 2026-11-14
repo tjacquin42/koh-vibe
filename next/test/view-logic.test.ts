@@ -5,6 +5,7 @@ import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
+import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
   boardColumns,
@@ -209,5 +210,23 @@ describe('separator sizes', () => {
     expect(ui.sizes).toEqual({ 'ck.nav': 260 });
     expect(setSize(ui, 'strip', 120).sizes).toEqual({ 'ck.nav': 260, strip: 120 });
     expect(setSize(ui, 'ck.nav', undefined).sizes).toEqual({});
+  });
+});
+
+describe('busy rows', () => {
+  it('stays busy until answered and the next snapshot is in', () => {
+    let b = startBusy(new Map(), 'a', 0, 2_000);
+    b = onSnapshot(b);
+    expect(b.has('a')).toBe(true);
+    b = answered(b, 'a', 100);
+    expect(b.has('a')).toBe(true);
+    expect(onSnapshot(b).has('a')).toBe(false);
+  });
+
+  it('gives up after the hold when no snapshot comes, and after a minute in all', () => {
+    const b = answered(startBusy(new Map(), 'a', 0, 2_000), 'a', 100);
+    expect(expire(b, 1_000).has('a')).toBe(true);
+    expect(expire(b, 2_200).has('a')).toBe(false);
+    expect(expire(startBusy(new Map(), 'x', 0, 2_000), MAX_MS + 1).has('x')).toBe(false);
   });
 });

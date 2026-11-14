@@ -92,7 +92,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
   const name = a.title || t('artifacts.untitled');
   const close = (): void => setPanel(undefined);
   return (
-    <div className={`arow${panel !== undefined ? ' open' : ''}`}>
+    <div className={`arow${panel !== undefined ? ' open' : ''}${ctx.isBusy(a.slug) ? ' busy' : ''}`} aria-busy={ctx.isBusy(a.slug)}>
       <div className="arow-line">
         {panel === 'rename' ? (
           <span className="row">
@@ -103,7 +103,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
               max={MAX_TITLE}
               onDone={(title) => {
                 close();
-                if (title !== undefined && title !== a.title) void ctx.act({ kind: 'artifact.rename', slug: a.slug, title });
+                if (title !== undefined && title !== a.title) void ctx.track(a.slug, ctx.act({ kind: 'artifact.rename', slug: a.slug, title }));
               }}
             />
           </span>
@@ -121,7 +121,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
             className="tbtn"
             aria-pressed={a.pinned}
             aria-label={a.pinned ? t('artifacts.unpin') : t('artifacts.pin')}
-            onClick={() => void ctx.act({ kind: 'artifact.pin', slug: a.slug, pinned: !a.pinned })}
+            onClick={() => void ctx.track(a.slug, ctx.act({ kind: 'artifact.pin', slug: a.slug, pinned: !a.pinned }))}
           >
             <Icon name="pin" />
           </button>
@@ -148,7 +148,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
             className="fm-btn"
             onClick={() => {
               close();
-              void ctx.act({ kind: 'artifact.copyLink', slug: a.slug });
+              void ctx.track(a.slug, ctx.act({ kind: 'artifact.copyLink', slug: a.slug }));
             }}
           >
             <Icon name="copy" /> {t('artifacts.copyLink')}
@@ -172,7 +172,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
                 close();
                 // undefined: Escape. '': emptied on purpose — « Other ».
                 if (project === undefined || project === (a.project ?? '')) return;
-                void ctx.act({ kind: 'artifact.project', slugs: [a.slug], project: project === '' ? null : project });
+                void ctx.track(a.slug, ctx.act({ kind: 'artifact.project', slugs: [a.slug], project: project === '' ? null : project }));
               }}
             />
           </label>
@@ -188,7 +188,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
               className="fm-btn"
               onClick={() => {
                 close();
-                void ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: f.id });
+                void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: f.id }));
               }}
             >
               <Icon name="list" /> {f.name}
@@ -199,7 +199,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
             className="fm-btn"
             onClick={() => {
               close();
-              void ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title });
+              void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title }));
             }}
           >
             <Icon name="close" /> {t('artifacts.noFolder')}
@@ -213,7 +213,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
           no={t('action.cancel')}
           onYes={() => {
             close();
-            void ctx.act({ kind: 'artifact.delete', slug: a.slug }).then((r) => {
+            void ctx.track(a.slug, ctx.act({ kind: 'artifact.delete', slug: a.slug })).then((r) => {
               if (r.ok) ctx.notify(t('artifacts.deleted', { name }));
             });
           }}

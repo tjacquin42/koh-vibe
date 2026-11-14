@@ -453,3 +453,28 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .new-folder .name-input, .new-folder .name-input:focus, .new-folder .name-input:focus-visible { border: 0; outline: none; box-shadow: none; background: transparent; padding: 0; }
 /* The version, small, right after the name (14/11). */
 .title .ver { font-size: 10.5px; color: var(--muted); align-self: flex-end; margin: 0 0 3px -4px; }
+
+/* Feedback at the click (14/11): the button gives under the finger, then the
+   row says « on it » — a spinning ring in place of its dot, a light sweeping
+   along its foot — until the result is on screen (busy.ts). */
+.tbtn, .ibtn, .btn-ghost, .btn-go, .btn-danger, .fm-btn, .srow-main, .row-btn, .new-folder, .ended-head { transition: transform 0.08s ease-out; }
+.tbtn:active, .ibtn:active, .btn-ghost:active:not(:disabled), .btn-go:active, .btn-danger:active { transform: scale(0.88); }
+.fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .ended-head:active { transform: scale(0.985); }
+
+.spinner { flex: none; width: 14px; height: 14px; margin: 1px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: spin 0.7s linear infinite; }
+
+.srow.busy .srow-main, .arow.busy .row, .card.busy, .proc.busy, .group.busy > .sec { position: relative; overflow: hidden; }
+.srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after {
+  content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; border-radius: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: busy-sweep 1s ease-in-out infinite;
+}
+@keyframes busy-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.ibtn.busy .icon { animation: spin 0.9s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tbtn:active, .ibtn:active, .btn-ghost:active, .btn-go:active, .btn-danger:active, .fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .ended-head:active { transform: none; }
+  .spinner, .ibtn.busy .icon { animation: none; }
+  /* Still a mark, just a still one. */
+  .srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after { animation: none; width: 100%; opacity: 0.6; }
+}

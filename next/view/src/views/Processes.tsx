@@ -54,7 +54,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
 export function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
   const { t } = ctx;
   return (
-    <div className="proc" style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
+    <div className={`proc${ctx.isBusy(`pid:${p.pid}`) ? ' busy' : ''}`} style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
       <span className="pk" role="img" aria-label={t(`processes.kind.${p.kind}`)}>
         <Icon name={KIND_ICON[p.kind]} size={13} />
       </span>
@@ -70,7 +70,7 @@ export function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
         <button type="button" className="tbtn" aria-label={t('processes.copyPid')} onClick={() => void ctx.act({ kind: 'process.copy', pid: p.pid, what: 'pid' })}>
           <span className="mono pid-btn">#</span>
         </button>
-        <button type="button" className="tbtn danger" aria-label={t('processes.kill')} onClick={() => void ctx.act({ kind: 'process.kill', pid: p.pid })}>
+        <button type="button" className="tbtn danger" aria-label={t('processes.kill')} onClick={() => void ctx.track(`pid:${p.pid}`, ctx.act({ kind: 'process.kill', pid: p.pid }))}>
           <Icon name="close" />
         </button>
       </span>

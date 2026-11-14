@@ -28,4 +28,11 @@ export interface ViewCtx {
    * sheet; in the sidebar, its tab.
    */
   show(sessionId: string): void;
+  /** Whether the row keyed `key` has an action under way (busy.ts). */
+  isBusy(key: string): boolean;
+  /**
+   * Shows `key` busy from now until `p` answers and the next snapshot is in —
+   * or `hold` ms after the answer when nothing on disk changes.
+   */
+  track<T>(key: string, p: Promise<T>, hold?: number): Promise<T>;
 }

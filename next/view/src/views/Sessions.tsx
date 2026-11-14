@@ -45,7 +45,14 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
       ))}
       <NewFolder ctx={ctx} />
       {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
-      <Section title={t('closed.title')} count={closed.length} marker={<Icon name="history" size={13} />} folded={ctx.isFolded('closed')} onToggle={() => ctx.toggle('closed')}>
+      <Section
+        title={t('closed.title')}
+        count={closed.length}
+        marker={<Icon name="history" size={13} />}
+        folded={ctx.isFolded('closed')}
+        onToggle={() => ctx.toggle('closed')}
+        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('closed')) }}
+      >
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
     </div>
@@ -105,10 +112,11 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   const ended = sessions.filter((x) => x.endedAt !== undefined);
   const endedKey = `${f.id}:ended`;
   const endedFolded = ctx.isFolded(endedKey);
-  const row = (s: SessionView) => (
+  const row = (parent: string) => (s: SessionView) => (
     <div
       key={s.id}
       data-flip={s.id}
+      data-flip-parent={parent}
       className={`drag-row${over === s.id && drag?.kind === 'session' ? ' drop-line' : ''}${drag?.kind === 'session' && drag.id === s.id ? ' dragging' : ''}`}
       draggable
       onDragStart={(e) => {
@@ -150,7 +158,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   );
   return (
     <Section
-      className={`folder${over !== undefined ? (drag?.kind === 'folder' ? ' drop-before' : ' drop-in') : ''}`}
+      className={`folder${over !== undefined ? (drag?.kind === 'folder' ? ' drop-before' : ' drop-in') : ''}${ctx.isBusy(`new:${f.id}`) ? ' busy' : ''}`}
       title={title}
       count={f.sessionIds.length}
       marker={real ? <span className="fold" style={{ background: color ?? 'var(--line)' }} /> : <Icon name="hourglass" size={13} />}
@@ -160,6 +168,8 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       headProps={
         real && !renaming
           ? {
+              'data-flip-anchor': f.id,
+              'data-flip-folded': String(ctx.isFolded(f.id)),
               draggable: true,
               onDragStart: (e) => {
                 e.dataTransfer.effectAllowed = 'move';
@@ -168,7 +178,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
               },
               onDragEnd: end,
             }
-          : {}
+          : { 'data-flip-anchor': f.id, 'data-flip-folded': String(ctx.isFolded(f.id)) }
       }
       tools={
         <>
@@ -177,7 +187,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
             type="button"
             className="tbtn"
             aria-label={real ? t('folder.newSessionIn', { name: f.name }) : t('action.newSession')}
-            onClick={() => void ctx.act(real ? { kind: 'session.new', folder: f.id } : { kind: 'session.new' })}
+            onClick={() => void ctx.track(`new:${f.id}`, ctx.act(real ? { kind: 'session.new', folder: f.id } : { kind: 'session.new' }), 4_000)}
           >
             <Icon name="plus" />
           </button>
@@ -239,16 +249,16 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
         </Confirm>
       )}
       {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
-      {live.map(row)}
+      {live.map(row(f.id))}
       {ended.length > 0 && (
         // The closed ones, under the others: one icon and a count, no words, set a little to the right.
         <div className="ended-group">
-          <button type="button" className="ended-head" aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
+          <button type="button" className="ended-head" data-flip-anchor={endedKey} data-flip-folded={String(endedFolded)} aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
             <Icon name={endedFolded ? 'chevR' : 'chev'} />
             <Dot tone="ended" animate={false} size={13} />
             <span className="n">{ended.length}</span>
           </button>
-          {!endedFolded && ended.map(row)}
+          {!endedFolded && ended.map(row(endedKey))}
         </div>
       )}
     </Section>
@@ -287,13 +297,22 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const tone = toneOf(s);
   const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
   const expiring = s.expiresAt !== undefined && s.expiresAt - now < 6 * 3_600_000;
+  const busy = ctx.isBusy(s.id);
   // A second line only when it says something: a permission, the tool running, a departure soon.
   const doing = s.endedAt === undefined ? sessionActivity(s) : undefined;
   return (
-    <div className={`srow tone-${tone}${info ? ' open' : ''}`}>
+    <div className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}`} aria-busy={busy}>
       <div className="srow-line">
-        <button type="button" className="srow-main" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
-          <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />
+        <button
+          type="button"
+          className="srow-main"
+          onClick={() => {
+            // V1 brings the tab forward and says nothing back: a short beat of « on it ».
+            void ctx.track(s.id, Promise.resolve(), 900);
+            ctx.bridge.post({ type: 'openSession', sessionId: s.id });
+          }}
+        >
+          {busy ? <span className="spinner" aria-hidden="true" /> : <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />}
           <span className="txt">
             <span className="l1">
               <span className="ttl">{sessionTitle(s, t)}</span>
@@ -315,11 +334,11 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
         <span className="tools">
           {/* V1 asks before putting to sleep or closing a conversation that still works. */}
           {s.endedAt === undefined && (
-            <button type="button" className="tbtn hover-only" aria-label={t('row.sleep')} onClick={() => void ctx.act({ kind: 'session.command', command: 'sleep', id: s.id })}>
+            <button type="button" className="tbtn hover-only" aria-label={t('row.sleep')} onClick={() => void ctx.track(s.id, ctx.act({ kind: 'session.command', command: 'sleep', id: s.id }))}>
               <Icon name="moon" />
             </button>
           )}
-          <button type="button" className="tbtn hover-only" aria-label={t('row.close')} onClick={() => void ctx.act({ kind: 'session.command', command: 'close', id: s.id })}>
+          <button type="button" className="tbtn hover-only" aria-label={t('row.close')} onClick={() => void ctx.track(s.id, ctx.act({ kind: 'session.command', command: 'close', id: s.id }))}>
             <Icon name="trash" />
           </button>
           <button type="button" className="tbtn" aria-label={t('info.button')} aria-expanded={info} aria-pressed={info} onClick={() => setInfo((v) => !v)}>
@@ -372,7 +391,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   if (!c.resumable) {
     // Started outside the editor and the terminal: V1 has nothing to resume it from.
     return (
-      <div className="row closed-row" data-flip={c.sessionId}>
+      <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed">
         <Dot tone="ended" animate={false} />
         <span className="txt">
           <span className="ttl">{title}</span>
@@ -385,7 +404,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   const waiting = ctx.reopening.has(c.sessionId);
   const notice = ctx.reopenNotice(c.sessionId);
   return (
-    <div className="closed-item" data-flip={c.sessionId}>
+    <div className="closed-item" data-flip={c.sessionId} data-flip-parent="closed">
       <button
         type="button"
         className="row row-btn closed-row"
