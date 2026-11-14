@@ -21,7 +21,7 @@
   "Pink": "Rose",
   "Purple": "Violet",
   "New title": "Nouveau titre",
-  "Delete « {0} »? Its conversations stay, out of any folder.": "Supprimer « {0} » ? Ses conversations ne sont pas supprimées : elles passent en sessions temporaires.",
+  "Delete « {0} »? Its conversations stay, out of any folder.": "Supprimer « {0} » ? Ses conversations ne sont pas supprimées : elles restent dans la liste, hors dossier.",
   "Delete": "Supprimer",
   "Delete « {0} » from claude.ai for good? Everyone it was shared with loses it too.": "Supprimer définitivement « {0} » de claude.ai ? Les personnes avec qui il est partagé n’y auront plus accès.",
   "Run « {0} » now? It acts for real: messages, commits, whatever its prompt says.": "Lancer « {0} » maintenant ? Elle fera réellement tout ce que demande son prompt : envoi de messages, commits, etc.",

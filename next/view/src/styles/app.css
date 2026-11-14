@@ -486,6 +486,9 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 /* A folder's closed conversations: under the open ones, a little to the right. */
 /* Three steps of indent: the folder, its open conversations, then the closed ones (14/11). */
 .folder > .drag-row { margin-left: 8px; }
+/* Conversations in no folder, at the bottom, without a heading (14/11). */
+.loose { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); border-radius: 0; min-height: 30px; }
+.loose.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); outline: 1px dashed var(--accent); outline-offset: -1px; border-radius: 10px; }
 .ended-group { margin: 2px 0 4px 16px; }
 .ended-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
 .ended-head:hover { background: var(--surface); color: var(--soft); }

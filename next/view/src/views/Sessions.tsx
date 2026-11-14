@@ -40,7 +40,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
     if (active === undefined || active === shown.current) return;
     shown.current = active;
     const folder = snapshot.folders.find((f) => f.sessionIds.includes(active))?.id ?? (snapshot.unfiled.includes(active) ? UNFILED : undefined);
-    if (folder !== undefined && ctx.isFolded(folder)) ctx.toggle(folder);
+    if (folder !== undefined && folder !== UNFILED && ctx.isFolded(folder)) ctx.toggle(folder);
     window.requestAnimationFrame(() => root.current?.querySelector(`[data-session="${CSS.escape(active)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   }, [active, snapshot.folders, snapshot.unfiled, ctx]);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
@@ -61,17 +61,18 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
         <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
       ))}
       <NewFolder ctx={ctx} />
-      {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
+      {/* The archives, then the conversations in no folder, at the very bottom (14/11). */}
       <Section
         title={t('closed.title')}
         count={closed.length}
-        marker={<Icon name="history" size={13} />}
+        marker={<Icon name="archive" size={13} />}
         folded={ctx.isFolded('closed')}
         onToggle={() => ctx.toggle('closed')}
         headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('closed')) }}
       >
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
+      {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
     </div>
   );
 }
@@ -174,6 +175,39 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       <SessionRow ctx={ctx} s={s} />
     </div>
   );
+  const body = (
+    <>
+        {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
+        {live.map(row(f.id))}
+        {ended.length > 0 && (
+          // The closed ones, under the others: one icon and a count, no words, set a little to the right.
+          <div className="ended-group">
+            <button
+              type="button"
+              className="ended-head"
+              data-flip={`head:${endedKey}`}
+              data-flip-parent={f.id}
+              data-flip-anchor={endedKey}
+              data-flip-folded={String(endedFolded)}
+              aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
+              <Icon name={endedFolded ? 'chevR' : 'chev'} />
+              <Dot tone="ended" animate={false} size={13} />
+              <span className="n">{ended.length}</span>
+            </button>
+            {!endedFolded && ended.map(row(`${endedKey} ${f.id}`))}
+          </div>
+        )}
+    </>
+  );
+  // Out of every folder (14/11): no heading, at the bottom of the list —
+  // still where a dragged conversation goes to leave its folder.
+  if (!real) {
+    return (
+      <section className={`loose${over !== undefined && drag?.kind === 'session' ? ' drop-in' : ''}`} aria-label={t('folder.temporary')} {...(sectionProps as HTMLAttributes<HTMLElement>)}>
+        {sessions.length === 0 ? <p className="hint drop-hint">{t('folder.looseDrop')}</p> : body}
+      </section>
+    );
+  }
   const color = f.color !== undefined ? FOLDER_COLORS[f.color] : undefined;
   const title = renaming ? (
     <NameInput
@@ -289,26 +323,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
         </>
       }
     >
-      {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
-      {live.map(row(f.id))}
-      {ended.length > 0 && (
-        // The closed ones, under the others: one icon and a count, no words, set a little to the right.
-        <div className="ended-group">
-          <button
-            type="button"
-            className="ended-head"
-            data-flip={`head:${endedKey}`}
-            data-flip-parent={f.id}
-            data-flip-anchor={endedKey}
-            data-flip-folded={String(endedFolded)}
-            aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
-            <Icon name={endedFolded ? 'chevR' : 'chev'} />
-            <Dot tone="ended" animate={false} size={13} />
-            <span className="n">{ended.length}</span>
-          </button>
-          {!endedFolded && ended.map(row(`${endedKey} ${f.id}`))}
-        </div>
-      )}
+      {body}
     </Section>
   );
 }

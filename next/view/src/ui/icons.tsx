@@ -104,6 +104,8 @@ const PATHS = {
   infinity: <path d="M8 8c-1.3-1.6-2.4-2.6-3.8-2.6a2.6 2.6 0 0 0 0 5.2C5.6 10.6 6.7 9.6 8 8s2.4-2.6 3.8-2.6a2.6 2.6 0 0 1 0 5.2C10.4 10.6 9.3 9.6 8 8z" />,
   // Tidy: a spark and a small one — things put in their place.
   tidy: <path d="M7 2.5l1.3 3.2 3.2 1.3-3.2 1.3L7 11.5 5.7 8.3 2.5 7l3.2-1.3zM12 10v4M10 12h4" />,
+  // A box with its lid: the archives (14/11).
+  archive: <path d="M2.5 3.5h11v3h-11zM3.5 6.5v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-6M6.5 9h3" />,
   hourglass: <path d="M4.5 2.5h7M4.5 13.5h7M5.5 2.5c0 3 5 3.2 5 5.5s-5 2.5-5 5.5M10.5 2.5c0 3-5 3.2-5 5.5s5 2.5 5 5.5" />,
   history: (
     <>
