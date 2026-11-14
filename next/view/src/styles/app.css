@@ -30,6 +30,10 @@ body { background: var(--bg); color: var(--soft); font-family: var(--font-body);
 h1, h2 { margin: 0; font-family: var(--font-display); color: var(--text); }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* A text field shows its focus with its own border (or its box's): the outline
+   above would draw a second frame around it (14/11). Buttons, switches and the
+   volume slider keep it — they have no other mark. */
+input:not([type='range']):focus, input:not([type='range']):focus-visible, textarea:focus, textarea:focus-visible { outline: none; }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--muted); }
 

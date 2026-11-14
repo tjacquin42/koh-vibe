@@ -114,7 +114,8 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
             {a.updatedAt !== undefined && <span className="tm">{formatAge(now - a.updatedAt, t)}</span>}
           </button>
         )}
-        <span className="tools">
+        {/* While renaming, the field takes the whole row: no tools over its end. */}
+        {panel !== 'rename' && <span className="tools">
           <button
             type="button"
             className="tbtn"
@@ -127,7 +128,7 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
           <button type="button" className="tbtn" aria-label={t('artifacts.menu', { name })} aria-expanded={panel === 'menu'} onClick={() => setPanel((p) => (p === 'menu' ? undefined : 'menu'))}>
             <Icon name="more" />
           </button>
-        </span>
+        </span>}
       </div>
       {panel === 'menu' && (
         <div className="fmenu" role="group" aria-label={t('artifacts.menu', { name })}>
