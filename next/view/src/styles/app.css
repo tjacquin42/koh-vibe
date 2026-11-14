@@ -110,6 +110,12 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 .dot.tone-done { color: var(--done); }
 .spin { transform-origin: 8px 8px; animation: spin 1.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* The status rings, as V1 turns them: waiting in and out, working steadily; still, the opening at the top. */
+.dot .turn-wait, .dot .turn-run, .dot .still { transform-box: view-box; transform-origin: 8px 8px; transform: rotate(-90deg); }
+.dot .turn-wait { animation: ring-turn 3.1s cubic-bezier(.5, 0, .5, 1) infinite; }
+.dot .turn-run { animation: ring-turn 4.2s linear infinite; }
+@keyframes ring-turn { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+.dot.tone-ended, .dot.tone-rest { color: var(--idle); }
 
 .empty { text-align: center; padding: 40px 16px; }
 .empty h2 { font-size: 15px; margin-bottom: 6px; }
@@ -288,7 +294,7 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin { animation: none; }
+  .spin, .dot .turn-wait, .dot .turn-run { animation: none; }
 }
 
 /* « Recently closed »: a click resumes through V1, the row spins meanwhile. */

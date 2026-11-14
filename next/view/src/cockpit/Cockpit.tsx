@@ -216,11 +216,11 @@ function CountBox({ n, label, tone }: { n: number; label: string; tone: string }
 
 /* ---------- A. Board ---------- */
 
-const COLUMNS: { key: keyof BoardColumns; tone: Tone; label: 'board.wait' | 'board.run' | 'board.done' | 'board.rest' }[] = [
+const COLUMNS: { key: keyof BoardColumns; tone: Tone | 'rest'; label: 'board.wait' | 'board.run' | 'board.done' | 'board.rest' }[] = [
   { key: 'wait', tone: 'wait', label: 'board.wait' },
   { key: 'run', tone: 'run', label: 'board.run' },
   { key: 'done', tone: 'done', label: 'board.done' },
-  { key: 'rest', tone: 'idle', label: 'board.rest' },
+  { key: 'rest', tone: 'rest', label: 'board.rest' },
 ];
 
 function Board({ ctx, cols }: { ctx: ViewCtx; cols: BoardColumns }) {

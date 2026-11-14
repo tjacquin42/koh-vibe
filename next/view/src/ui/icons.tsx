@@ -5,25 +5,51 @@ import type { Tone } from '../format';
  * setting, or the system's reduced-motion preference (CSS) — stops the ring
  * at its starting angle and never swaps the drawing, as in V1.
  */
-export function Dot({ tone, animate, size = 16, label }: { tone: Tone; animate: boolean; size?: number; label?: string }) {
-  const ring = tone === 'wait' || tone === 'run' || tone === 'done' || tone === 'ended';
+/** How a status dot is drawn — V1's set (resources/status), in Koh's colours. */
+const DOT: Record<Tone | 'rest', { glow: number; ring?: { dash?: string; width: number; turn?: 'wait' | 'run' }; core: number }> = {
+  // Waiting: a ring with one opening, turning slowly in and out.
+  wait: { glow: 0.62, ring: { dash: '29.61 9.35', width: 1.4, turn: 'wait' }, core: 2.7 },
+  // Working: a dashed ring turning steadily.
+  run: { glow: 0.56, ring: { dash: '4.87 2.43', width: 1.3, turn: 'run' }, core: 2.7 },
+  done: { glow: 0.53, ring: { width: 1.3 }, core: 2.7 },
+  idle: { glow: 0.22, core: 3.2 },
+  // Closed: the dotted outline only (14/11).
+  ended: { glow: 0.1, ring: { dash: '2 2.4', width: 1.3 }, core: 0 },
+  // « At rest and closed », the board's last column: both at once.
+  rest: { glow: 0.16, ring: { dash: '2 2.4', width: 1.3 }, core: 2.7 },
+};
+
+export function Dot({ tone, animate, size = 16, label }: { tone: Tone | 'rest'; animate: boolean; size?: number; label?: string }) {
+  const d = DOT[tone];
   const a11y = label === undefined ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': label };
+  // One gradient per tone: identical wherever it is defined again.
+  const glow = `kv-glow-${tone}`;
   return (
     <svg className={`dot tone-${tone}`} width={size} height={size} viewBox="0 0 16 16" {...a11y}>
       {label !== undefined && <title>{label}</title>}
-      {ring && (
+      <defs>
+        <radialGradient id={glow}>
+          <stop offset="30%" stopColor="currentColor" stopOpacity={d.glow} />
+          <stop offset="62%" stopColor="currentColor" stopOpacity={d.glow * 0.45} />
+          <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+        </radialGradient>
+      </defs>
+      <circle cx="8" cy="8" r="8" fill={`url(#${glow})`} />
+      {d.ring !== undefined && (
         <circle
-          className={tone === 'run' && animate ? 'spin' : undefined}
+          className={d.ring.turn !== undefined && animate ? `turn-${d.ring.turn}` : 'still'}
           cx="8"
           cy="8"
           r="6.2"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.4"
-          strokeDasharray={tone === 'run' ? '9 4' : tone === 'ended' ? '2 2.4' : undefined}
+          strokeOpacity={0.85}
+          strokeLinecap="round"
+          strokeWidth={d.ring.width}
+          strokeDasharray={d.ring.dash}
         />
       )}
-      {tone !== 'ended' && <circle cx="8" cy="8" r="3" fill="currentColor" />}
+      {d.core > 0 && <circle cx="8" cy="8" r={d.core} fill="currentColor" />}
     </svg>
   );
 }
