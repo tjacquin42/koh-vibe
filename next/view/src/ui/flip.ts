@@ -3,9 +3,9 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
 /**
  * Rows that move where they belong, « physically » (14/11): a conversation
  * that closes slides down to the closed ones, one filed in a folder slides
- * into it, one that leaves the list slides out, one that arrives fades in.
- * Folding a section draws its rows up into its heading, where they vanish;
- * unfolding lets them out of it, down to their places.
+ * into it. Folding a section draws its rows up into its heading, where they
+ * vanish; unfolding lets them out of it, down to their places — and every
+ * other coming and going does the same, by the same heading.
  *
  * FLIP: after each render, every `[data-flip="<id>"]` under `root` is
  * measured; one that was elsewhere a render ago is put back there with a
@@ -26,8 +26,6 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  */
 const BURST = 12;
 const MOVE_MS = 320;
-const IN_MS = 220;
-const OUT_MS = 260;
 const FOLD_MS = 240;
 
 interface Spot {
@@ -45,7 +43,7 @@ interface Anchor {
 }
 
 export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): void {
-  const prev = useRef<{ rows: Map<string, Spot>; anchors: Map<string, Anchor> }>({ rows: new Map(), anchors: new Map() });
+  const prev = useRef<{ rows: Map<string, Spot>; anchors: Map<string, Anchor> } | undefined>(undefined);
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return;
@@ -71,7 +69,9 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     const before = prev.current;
     prev.current = { rows, anchors };
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!enabled || reduced || before.rows.size === 0 || typeof el.animate !== 'function') return;
+    // The first render has nothing to move from — and with every folder folded
+    // it may hold no row at all, which must not pass for « first » later on.
+    if (before === undefined || !enabled || reduced || typeof el.animate !== 'function') return;
 
     // What a fold or an unfold touches is in sight or near it; the rest needs no show.
     const viewTop = scroller.scrollTop - 200;
@@ -97,31 +97,29 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       spot.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: MOVE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
     }
 
+    // One motion for every coming and going (14/11): a row leaves by going up
+    // into its section's heading and vanishing there — the fold's motion —
+    // and arrives by coming out of it. A row whose section has no heading
+    // left (a folder deleted) folds where it stands.
     const arrived = [...rows].filter(([id]) => !before.rows.has(id));
     const loose = arrived.filter(([, s]) => justOpened(s.parent) === undefined);
     for (const [, spot] of arrived) {
-      const from = justOpened(spot.parent);
-      if (from !== undefined) {
-        if (!inSight(spot.top)) continue;
-        // Out of the heading, down to its place.
-        spot.el.animate(
-          [
-            { opacity: 0, transform: `translateY(${from.top - spot.top}px) scaleY(0.6)` },
-            { opacity: 1, transform: 'none' },
-          ],
-          { duration: FOLD_MS, easing: 'cubic-bezier(.2,.8,.2,1)' },
-        );
-      } else if (loose.length <= BURST) {
-        spot.el.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: IN_MS, easing: 'ease-out' });
-      }
+      if (!inSight(spot.top)) continue;
+      if (justOpened(spot.parent) === undefined && loose.length > BURST) continue;
+      const from = spot.parent === undefined ? undefined : anchors.get(spot.parent);
+      const start = from === undefined ? 'scaleY(0.4)' : `translateY(${from.top - spot.top}px) scaleY(0.6)`;
+      spot.el.animate([{ opacity: 0, transform: start, transformOrigin: 'top center' }, { opacity: 1, transform: 'none', transformOrigin: 'top center' }], {
+        duration: FOLD_MS,
+        easing: 'cubic-bezier(.2,.8,.2,1)',
+      });
     }
 
     const gone = [...before.rows].filter(([id]) => !rows.has(id));
     const leaving = gone.filter(([, s]) => justFolded(s.parent) === undefined);
     for (const [, was] of gone) {
-      const into = justFolded(was.parent);
-      if (into === undefined && leaving.length > BURST) continue;
-      if (into !== undefined && !inSight(was.top)) continue;
+      if (!inSight(was.top)) continue;
+      if (justFolded(was.parent) === undefined && leaving.length > BURST) continue;
+      const into = was.parent === undefined ? undefined : anchors.get(was.parent);
       // The old node is detached by now; a copy of it stands where it was, then goes.
       const ghost = was.el.cloneNode(true) as HTMLElement;
       ghost.removeAttribute('data-flip');
@@ -137,17 +135,8 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
         transformOrigin: 'top center',
       });
       scroller.appendChild(ghost);
-      const out =
-        into !== undefined
-          ? // Up into the heading it belongs to, vanishing there.
-            ghost.animate(
-              [
-                { opacity: 1, transform: 'none' },
-                { opacity: 0, transform: `translateY(${into.top - was.top}px) scaleY(0.6)` },
-              ],
-              { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' },
-            )
-          : ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(28px)' }], { duration: OUT_MS, easing: 'ease-in' });
+      const end = into === undefined ? 'scaleY(0.2)' : `translateY(${into.top - was.top}px) scaleY(0.6)`;
+      const out = ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: end }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' });
       out.onfinish = () => ghost.remove();
     }
   });
