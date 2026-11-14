@@ -171,11 +171,22 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
           : {}
       }
       tools={
-        real ? (
-          <button type="button" className="tbtn" aria-label={t('folder.menu', { name: f.name })} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
-            <Icon name="more" />
+        <>
+          {/* At the row's end: a new conversation, filed right here (14/11). */}
+          <button
+            type="button"
+            className="tbtn"
+            aria-label={real ? t('folder.newSessionIn', { name: f.name }) : t('action.newSession')}
+            onClick={() => void ctx.act(real ? { kind: 'session.new', folder: f.id } : { kind: 'session.new' })}
+          >
+            <Icon name="plus" />
           </button>
-        ) : undefined
+          {real && (
+            <button type="button" className="tbtn" aria-label={t('folder.menu', { name: f.name })} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+              <Icon name="more" />
+            </button>
+          )}
+        </>
       }
     >
       {menu && real && !confirming && (
