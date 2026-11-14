@@ -9,6 +9,7 @@
  * state to clash with there, only the shared list caches, refreshed after
  * each change.
  */
+import type { ThemeState } from '../shared/theme';
 import { fileArtifacts } from '../../../src/artifacts/projects';
 import { updateArtifactProjects } from '../../../src/artifacts/projects-store';
 import { artifactUrl } from '../../../src/artifacts/model';
@@ -61,6 +62,9 @@ export interface ActionDeps {
   setTidyAsk(ask: boolean): Thenable<void>;
   /** Opens the conversation that adds a rule, or the rules file. */
   tidyRules(mode: 'add' | 'open'): Promise<void>;
+  /** Keeps the colours where every view reads them. */
+  setTheme(theme: ThemeState): Thenable<void>;
+  ideTheme(mode: 'adapt' | 'restore'): Promise<void>;
 }
 
 /** The argument V1's tree passes its menu commands; V1 reads only the id (ui/tree.ts `sessionIdOfNode`). */
@@ -147,6 +151,12 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return OK;
     case 'tidy.rules':
       await deps.tidyRules(a.mode);
+      return OK;
+    case 'theme.set':
+      await deps.setTheme(a.theme);
+      return OK;
+    case 'theme.ide':
+      await deps.ideTheme(a.mode);
       return OK;
     case 'cloud.refresh':
       await deps.cloud.refresh(a.what, true);

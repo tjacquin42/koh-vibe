@@ -31,21 +31,25 @@ export function SessionSheet({ ctx, id, onClose }: { ctx: ViewCtx; id: string; o
 
   return (
     <div className="sheet">
-      <button type="button" className="btn-ghost sheet-back" onClick={onClose}>
-        <Icon name="chev" /> {t('sheet.back')}
-      </button>
-      <header className="sheet-head">
+      {/* Stays at the top while the sheet scrolls (14/11): back on the left, the
+          conversation and where it lives in the middle, its tab on the right. In
+          the flow, not over it: it hides nothing when the sheet opens. */}
+      <div className="sheet-bar">
+        <button type="button" className="btn-ghost sheet-back" onClick={onClose}>
+          <Icon name="chev" /> {t('sheet.back')}
+        </button>
         <div className="sheet-t">
-          {s !== undefined && <Dot tone={toneOf(s)} animate={ctx.animate} size={18} label={t(toneOf(s) === 'ended' ? 'status.ended' : `status.${s.status}`)} />}
-          <h1>{s !== undefined ? <SessionName s={s} t={t} animate={ctx.animate} /> : title}</h1>
+          <div className="sheet-name">
+            {s !== undefined && <Dot tone={toneOf(s)} animate={ctx.animate} size={16} label={t(toneOf(s) === 'ended' ? 'status.ended' : `status.${s.status}`)} />}
+            <h1>{s !== undefined ? <SessionName s={s} t={t} animate={ctx.animate} /> : title}</h1>
+          </div>
+          <p className="muted mono">{s !== undefined ? `${s.project}${s.branch !== undefined ? ` · ${s.branch}` : ''}` : row?.project}</p>
         </div>
-        <p className="muted">{s !== undefined ? `${s.project}${s.branch !== undefined ? ` · ${s.branch}` : ''} · ${sessionDetail(s)}` : row?.project}</p>
-        <div className="sheet-acts">
-          <button type="button" className="btn-go" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: id })}>
-            <Icon name="external" /> {t('sheet.goTo')}
-          </button>
-        </div>
-      </header>
+        <button type="button" className="btn-go sheet-go" title={t('sheet.goTo')} onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: id })}>
+          <Icon name="external" /> {t('sheet.goTo')}
+        </button>
+      </div>
+      {s !== undefined && <p className="muted sheet-doing">{sessionDetail(s)}</p>}
 
       {sheet === undefined ? (
         <p className="hint pad">{snapshot.activity === undefined ? t('cockpit.loading') : t('sheet.nothing')}</p>

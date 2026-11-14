@@ -16,6 +16,7 @@
  * Every field is checked here, on the host side, before anything runs: the
  * ids end up in files and in V1's commands, the names in a shared file.
  */
+import { parseTheme, type ThemeState } from './theme';
 
 /** V1's folder palette (src/ui/colors.ts), by identifier. */
 export const FOLDER_COLOR_IDS = ['blue', 'indigo', 'cyan', 'green', 'lime', 'yellow', 'orange', 'red', 'pink', 'purple'] as const;
@@ -103,6 +104,10 @@ export type Action =
    * conversation that writes the new one, as a folder rule; `open` shows the file.
    */
   | { kind: 'tidy.rules'; mode: 'add' | 'open' }
+  /** The colours and the four kept tunings (theme.ts), all at once. */
+  | { kind: 'theme.set'; theme: ThemeState }
+  /** The editor's own colours (host ide-theme.ts): Koh-Vibe's, or back to what they were. */
+  | { kind: 'theme.ide'; mode: 'adapt' | 'restore' }
   /** Asks claude.ai again now, rather than at the shared five-minute pace. */
   | { kind: 'cloud.refresh'; what: 'artifacts' | 'routines' }
   /** Acts for real (messages, commits…): the view asks first. */
@@ -260,6 +265,14 @@ export function parseAction(raw: unknown): Action | undefined {
     case 'tidy.rules': {
       const mode = raw['mode'];
       return mode === 'add' || mode === 'open' ? { kind: 'tidy.rules', mode } : undefined;
+    }
+    case 'theme.set': {
+      const theme = parseTheme(raw['theme']);
+      return theme === undefined ? undefined : { kind: 'theme.set', theme };
+    }
+    case 'theme.ide': {
+      const mode = raw['mode'];
+      return mode === 'adapt' || mode === 'restore' ? { kind: 'theme.ide', mode } : undefined;
     }
     case 'cloud.refresh': {
       const what = raw['what'];

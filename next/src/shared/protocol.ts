@@ -9,6 +9,7 @@
  */
 
 import { isActionResult, parseAction, type Action, type ActionResult, type EditorTabs, type LanguageChoice } from './actions';
+import type { ThemeState } from './theme';
 
 export type SessionStatus = 'running' | 'waiting' | 'done_unseen' | 'idle';
 export type SessionOrigin = 'vscode' | 'terminal' | 'desktop' | 'sdk' | 'unknown';
@@ -282,6 +283,10 @@ export interface Snapshot {
   editorTabs?: EditorTabs;
   /** The tidying agent: whether Refresh asks first, and the rules it follows. */
   tidy?: { ask: boolean; rules: string[] };
+  /** Koh-Vibe's colours (theme.ts), the same in every view. */
+  theme?: ThemeState;
+  /** Whether the editor wears Koh-Vibe's colours (« Back to default » then undoes it). */
+  ideThemed?: boolean;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;

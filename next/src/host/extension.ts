@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { adapted, asColorMap, type IdeBackup } from './ide-theme';
+import { DEFAULT_THEME, parseTheme } from '../shared/theme';
 import { readClosed } from '../../../src/closed/store';
 import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
@@ -130,6 +132,10 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
+/** Koh-Vibe's colours (shared/theme.ts), kept by the editor for every view. */
+const THEME_KEY = 'kohVibeNext.theme';
+/** The editor's colour customizations as they were before « Adapt to the IDE » (ide-theme.ts). */
+const IDE_BACKUP_KEY = 'kohVibeNext.ideColorsBackup';
 /** Whether Tidy asks before running the agent (default yes), kept by the editor. */
 const TIDY_ASK_KEY = 'kohVibeNext.tidyAsk';
 /** Where the agent's rules were kept before they moved to a file (tidy.ts): moved there once. */
@@ -271,6 +277,8 @@ export function activate(context: vscode.ExtensionContext): void {
       return buildSnapshot(home, Date.now(), {
         editorTabs,
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
+        theme: parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
+        ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -377,6 +385,24 @@ export function activate(context: vscode.ExtensionContext): void {
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
     });
 
+  // « Adapt the theme to the IDE » (ide-theme.ts): written to the user's
+  // settings (every window, every workspace), the original kept once in the
+  // editor's state and given back whole.
+  const ideTheme = async (mode: 'adapt' | 'restore'): Promise<void> => {
+    const workbench = vscode.workspace.getConfiguration('workbench');
+    const backup = context.globalState.get<IdeBackup>(IDE_BACKUP_KEY);
+    if (mode === 'restore') {
+      if (backup === undefined) return;
+      await workbench.update('colorCustomizations', backup.value ?? undefined, vscode.ConfigurationTarget.Global);
+      await context.globalState.update(IDE_BACKUP_KEY, undefined);
+      return;
+    }
+    const original = backup !== undefined ? backup.value : asColorMap(workbench.inspect('colorCustomizations')?.globalValue);
+    if (backup === undefined) await context.globalState.update(IDE_BACKUP_KEY, { value: original } satisfies IdeBackup);
+    const tune = (parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME).current;
+    await workbench.update('colorCustomizations', adapted(original, tune), vscode.ConfigurationTarget.Global);
+  };
+
   // The first writes of the V2: shared files through V1's own stores, the
   // rest handed to V1's commands (actions.ts). The watcher sees the files
   // change and rebuilds; a refresh right away keeps the click from lagging.
@@ -417,6 +443,12 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       tidy: () => tidy(),
       setTidyAsk: (ask) => context.globalState.update(TIDY_ASK_KEY, ask),
+      ideTheme,
+      // An editor already in Koh-Vibe's colours follows a new tuning.
+      setTheme: async (theme) => {
+        await context.globalState.update(THEME_KEY, theme);
+        if (context.globalState.get(IDE_BACKUP_KEY) !== undefined) await ideTheme('adapt');
+      },
       // As a folder rule (V1 groups/rules.ts): a conversation that starts with
       // a title, the skill and the file, left in the input unsent.
       tidyRules: async (mode) => {

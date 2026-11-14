@@ -317,6 +317,22 @@ describe('activate', () => {
     await vi.waitFor(() => expect(recorded.config.get('workbench.editor.showTabs')).toBe('none'), { timeout: 1_000, interval: 10 });
   });
 
+  it('dresses the editor in Koh-Vibe colours, follows a new tuning, then gives the original back whole', async () => {
+    const mine = { 'editor.background': '#000000', 'statusBar.background': '#123456' };
+    recorded.config.set('workbench.colorCustomizations', mine);
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const colors = (): Record<string, string> => recorded.config.get('workbench.colorCustomizations') as Record<string, string>;
+    await view.webview.receive({ type: 'act', req: 5, action: { kind: 'theme.ide', mode: 'adapt' } });
+    await vi.waitFor(() => expect(colors()['editor.background']).toBe('#14121f'), { timeout: 1_000, interval: 10 });
+    const theme = { current: { hue: 180, saturation: 100, brightness: 100 }, slots: [null, null, null, null] };
+    await view.webview.receive({ type: 'act', req: 6, action: { kind: 'theme.set', theme } });
+    await vi.waitFor(() => expect(colors()['button.background']).not.toBe('#ff9e5e'), { timeout: 1_000, interval: 10 });
+    await view.webview.receive({ type: 'act', req: 7, action: { kind: 'theme.ide', mode: 'restore' } });
+    await vi.waitFor(() => expect(recorded.config.get('workbench.colorCustomizations')).toEqual(mine), { timeout: 1_000, interval: 10 });
+  });
+
   it('starts the views again in the language picked', async () => {
     start(ExtensionMode.Production);
     const view = sidebar();

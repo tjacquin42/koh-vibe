@@ -50,6 +50,12 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     tidyRules: async (mode) => {
       calls.push(['tidyRules', mode]);
     },
+    setTheme: async (theme) => {
+      calls.push(['theme', theme]);
+    },
+    ideTheme: async (mode) => {
+      calls.push(['ideTheme', mode]);
+    },
     ...over,
   };
 }

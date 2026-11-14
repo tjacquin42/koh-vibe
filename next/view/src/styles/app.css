@@ -150,7 +150,14 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .surface-cockpit .head { padding: 14px 18px 6px; }
 /* The top (14/11): folders side by side, the chosen one's counters, then the views. */
 .ck-top { display: flex; flex-direction: column; gap: 8px; padding: 2px 18px 8px; }
-.fchips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.fchips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.fchips::-webkit-scrollbar { display: none; }
+/* A side that still hides chips: a blur that fades into the row (EdgeScroll). */
+.edge-scroll { position: relative; min-width: 0; }
+.edge-scroll::before, .edge-scroll::after { content: ''; position: absolute; top: 0; bottom: 0; width: 56px; pointer-events: none; opacity: 0; transition: opacity 0.18s; backdrop-filter: blur(3px); background: linear-gradient(to right, var(--bg), transparent); z-index: 1; }
+.edge-scroll::before { left: 0; -webkit-mask-image: linear-gradient(to right, #000 30%, transparent); mask-image: linear-gradient(to right, #000 30%, transparent); }
+.edge-scroll::after { right: 0; background: linear-gradient(to left, var(--bg), transparent); -webkit-mask-image: linear-gradient(to left, #000 30%, transparent); mask-image: linear-gradient(to left, #000 30%, transparent); }
+.edge-scroll.more-left::before, .edge-scroll.more-right::after { opacity: 1; }
 .fchip { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--soft); font: inherit; font-size: 12.5px; white-space: nowrap; }
 .fchip:hover { color: var(--text); }
 .fchip[aria-checked="true"] { background: var(--raised); color: var(--text); border-color: var(--accent); }
@@ -325,6 +332,24 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .set-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .set-l b { font-weight: 600; font-size: 12.5px; }
 .set-l .sub { font-size: 11.5px; color: var(--muted); }
+.hint-text p { margin: 0; }
+/* The theme's kept tunings: a swatch each — the status colours and the accent — and its Save. */
+.tslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tslot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tswatch { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding: 0 4px; }
+.tswatch i { width: 9px; height: 9px; border-radius: 50%; }
+.tswatch i.tone-wait { background: var(--wait); }
+.tswatch i.tone-run { background: var(--run); }
+.tswatch i.tone-done { background: var(--done); }
+.tswatch i.accent { background: var(--accent); }
+.tswatch.empty { border-style: dashed; color: var(--muted); font-size: 11px; cursor: default; }
+.tswatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tswatch:not(.empty):hover { border-color: var(--soft); }
+.tsave { font-size: 11px; padding: 2px 4px; justify-content: center; }
+.treset { align-self: flex-start; }
+.hint-text ul { margin: 3px 0 0; padding-left: 14px; display: grid; gap: 2px; }
+.hint-text li::marker { color: var(--line); }
+.hint-text li b { color: var(--soft); font-weight: 600; font-size: inherit; }
 .set-row input[type="range"] { width: 110px; accent-color: var(--accent); }
 .switch { flex: none; width: 32px; height: 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); padding: 0; position: relative; }
 .switch span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform 0.15s; }
@@ -369,13 +394,21 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 
 /* F. The session sheet, in the cockpit's middle column. */
 .sheet { display: flex; flex-direction: column; gap: 14px; }
-.sheet-back { align-self: flex-start; }
+/* The bar that follows the scroll: the middle stays centred while there is room. */
+.sheet-bar {
+  position: sticky; top: -8px; z-index: 2; margin: -8px -20px 0; padding: 10px 20px;
+  display: grid; grid-template-columns: minmax(auto, 1fr) minmax(0, max-content) minmax(auto, 1fr); align-items: center; gap: 12px;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.sheet-back { justify-self: start; white-space: nowrap; }
 .sheet-back .icon { transform: rotate(90deg); }
-.sheet-head { display: flex; flex-direction: column; gap: 6px; }
-.sheet-t { display: flex; align-items: center; gap: 10px; }
-.sheet-t h1 { font-size: 22px; line-height: 1.2; }
-.sheet-head p { margin: 0; font-size: 12.5px; }
-.sheet-acts { display: flex; gap: 8px; margin-top: 4px; }
+.sheet-go { justify-self: end; white-space: nowrap; }
+.sheet-t { min-width: 0; text-align: center; }
+.sheet-name { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
+.sheet-name h1 { font-size: 17px; line-height: 1.25; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-t p { margin: 2px 0 0; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-doing { margin: 0; font-size: 12.5px; }
+@media (max-width: 560px) { .sheet-go span, .sheet-go { font-size: 0; gap: 0; } .sheet-go .icon { width: 16px; height: 16px; } }
 .sheet-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
 .stat b { font-family: var(--font-display); font-size: 20px; line-height: 1.1; }

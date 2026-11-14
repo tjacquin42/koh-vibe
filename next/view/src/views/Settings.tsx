@@ -4,6 +4,8 @@ import { Segmented } from '../cockpit/Cockpit';
 import { TidyRules } from '../ui/Rules';
 import { SESSION_SORTS, type SessionSort } from '../sections';
 import { Icon } from '../ui/icons';
+import { Hint } from '../ui/Hint';
+import { ThemeEditor } from './Theme';
 import type { ViewCtx } from './context';
 
 /**
@@ -65,10 +67,10 @@ export function SettingsPanel({
       <section className="set-group">
         <h3>{t('settings.display')}</h3>
         <div className="set-row">
-          <span className="set-l">
+          <div className="set-l">
             <b id="set-show-usage">{t('settings.showUsage')}</b>
-            <span className="sub">{t('settings.showUsage.hint')}</span>
-          </span>
+            <Hint text={t('settings.showUsage.hint')} />
+          </div>
           <button type="button" role="switch" aria-checked={showUsage} aria-labelledby="set-show-usage" className="switch" onClick={() => onShowUsage(!showUsage)}>
             <span />
           </button>
@@ -101,14 +103,19 @@ export function SettingsPanel({
         )}
       </section>
 
+      <section className="set-group">
+        <h3>{t('settings.theme')}</h3>
+        <ThemeEditor ctx={ctx} />
+      </section>
+
       {snapshot.tidy !== undefined && (
         <section className="set-group">
           <h3>{t('settings.tidy')}</h3>
           <div className="set-row">
-            <span className="set-l">
+            <div className="set-l">
               <b id="set-tidy-ask">{t('settings.tidyAsk')}</b>
-              <span className="sub">{t('settings.tidyAsk.hint')}</span>
-            </span>
+              <Hint text={t('settings.tidyAsk.hint')} />
+            </div>
             <button
               type="button"
               role="switch"
@@ -121,9 +128,9 @@ export function SettingsPanel({
             </button>
           </div>
           <div className="set-row set-choice">
-            <span className="set-l">
+            <div className="set-l">
               <b>{t('settings.tidyRules')}</b>
-            </span>
+            </div>
             <TidyRules
               t={t}
               rules={snapshot.tidy.rules}
@@ -149,10 +156,10 @@ export function SettingsPanel({
 function Choice({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
   return (
     <div className="set-row set-choice">
-      <span className="set-l">
+      <div className="set-l">
         <b>{label}</b>
-        <span className="sub">{hint}</span>
-      </span>
+        <Hint text={hint} />
+      </div>
       {children}
     </div>
   );
@@ -162,10 +169,10 @@ function Toggle({ ctx, k, on }: { ctx: ViewCtx; k: SettingToggle; on: boolean })
   const { t } = ctx;
   return (
     <div className="set-row">
-      <span className="set-l">
+      <div className="set-l">
         <b id={`set-${k}`}>{t(`settings.${k}`)}</b>
-        <span className="sub">{t(`settings.${k}.hint`)}</span>
-      </span>
+        <Hint text={t(`settings.${k}.hint`)} />
+      </div>
       <button type="button" role="switch" aria-checked={on} aria-labelledby={`set-${k}`} className="switch" onClick={() => void ctx.act({ kind: 'setting.toggle', key: k, on: !on })}>
         <span />
       </button>

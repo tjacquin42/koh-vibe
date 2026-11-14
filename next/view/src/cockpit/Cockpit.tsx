@@ -12,6 +12,7 @@ import { SessionName } from '../ui/SessionName';
 import { Splitter } from '../ui/Splitter';
 import { useFlip } from '../ui/flip';
 import { useReorder } from '../ui/reorder';
+import { EdgeScroll } from '../ui/EdgeScroll';
 import { useRef, type CSSProperties, type ReactNode } from 'react';
 
 type Cockpit = UiState['cockpit'];
@@ -163,7 +164,7 @@ export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: st
   );
   return (
     <div className="ck-top">
-      <div className="fchips" role="radiogroup" aria-label={t('cockpit.folders')}>
+      <EdgeScroll className="fchips" label={t('cockpit.folders')}>
         {chip(null, <Icon name="infinity" size={16} />, t('cockpit.allFolders'))}
         {snapshot.folders.map((f) =>
           chip(
@@ -181,7 +182,7 @@ export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: st
             {t('folder.temporary')}
           </>,
         )}
-      </div>
+      </EdgeScroll>
       <div className="counts">
         <CountBox n={counts.waiting} label={t('cockpit.count.waiting')} tone="wait" />
         <CountBox n={counts.running} label={t('cockpit.count.running')} tone="run" />

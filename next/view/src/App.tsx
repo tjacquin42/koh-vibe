@@ -12,6 +12,7 @@ import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
+import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
 import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
@@ -132,6 +133,10 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (snapshotNow !== undefined) setReopening((r) => settleReopening(r, snapshotNow, Date.now()));
   }, [snapshotNow, now]);
 
+  // The colours chosen in the settings (ui/theme.ts), in every view.
+  const tune = snapshotNow?.theme?.current;
+  useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness]);
+
   const reopen = useCallback(
     (sessionId: string) => {
       setReopening((r) => startReopening(r, sessionId, Date.now()));
@@ -173,11 +178,15 @@ export function App({ bridge }: { bridge: Bridge }) {
   /**
    * Sends a change and resolves with the host's answer. A refusal is shown
    * here, once, so no caller has to remember to. Outside the editor there is
-   * no host: the preview answers yes and nothing changes.
+   * no host: the preview answers yes and nothing changes — but the theme,
+   * which it keeps, so the colours can be tried there.
    */
   const act = useCallback(
     (action: Action): Promise<ActionResult> => {
-      if (!bridge.inEditor) return Promise.resolve({ ok: true });
+      if (!bridge.inEditor) {
+        if (action.kind === 'theme.set') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, theme: action.theme } }));
+        return Promise.resolve({ ok: true });
+      }
       const req = nextReq.current++;
       return new Promise<ActionResult>((resolve) => {
         pending.current.set(req, resolve);
