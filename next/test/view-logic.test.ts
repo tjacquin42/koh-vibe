@@ -137,7 +137,7 @@ describe('cockpit sections', () => {
 
   it('A: sorts conversations into status columns, ended with the idle ones, and filters by folder', () => {
     const all = boardColumns(snap, undefined);
-    expect([all.wait, all.run, all.done, all.rest].map((c) => c.map((s) => s.id))).toEqual([['s1'], ['s2'], ['s3'], ['s4', 's5']]);
+    expect([all.wait, all.run, all.done, all.rest].map((c) => c.map((s) => s.id))).toEqual([['s1'], ['s2'], ['s3'], ['s4', 's5', 's6', 's7']]);
     const backend = boardColumns(snap, 'f2');
     expect([backend.wait, backend.run, backend.rest].map((c) => c.map((s) => s.id))).toEqual([[], ['s2'], ['s5']]);
     expect(boardColumns(snap, 'unfiled').rest.map((s) => s.id)).toEqual(['s4']);

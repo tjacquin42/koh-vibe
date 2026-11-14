@@ -14,11 +14,12 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * Positions are taken in the scroll container's own coordinates, so
  * scrolling between two renders is not mistaken for a move.
  *
- * Folding is told apart from leaving by the headings: a row names its
- * section (`data-flip-parent`), a heading names itself (`data-flip-anchor`)
- * and says whether it is folded (`data-flip-folded`). A row gone because its
- * heading just folded goes up into it; a row back because it just unfolded
- * comes out of it.
+ * A row names its sections, nearest first (`data-flip-parent`, space
+ * separated: a sleeping row names its group, then its folder); a heading
+ * names itself (`data-flip-anchor`) and says whether it is folded
+ * (`data-flip-folded`). A row goes into, and comes out of, the nearest of its
+ * headings still on screen — the folder's when folding it took the group's
+ * heading away with it.
  *
  * Off with the Animations setting, and with the system's reduced motion.
  * Rows out of sight are not animated; a burst of unrelated arrivals or
@@ -34,7 +35,8 @@ interface Spot {
   width: number;
   height: number;
   el: HTMLElement;
-  parent?: string;
+  /** Its sections, nearest first: a sleeping row names its group, then its folder. */
+  parents: string[];
 }
 
 interface Anchor {
@@ -55,10 +57,8 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       const id = node.dataset['flip'];
       if (id === undefined) continue;
       const r = node.getBoundingClientRect();
-      const spot: Spot = { top: topOf(r), left: r.left - base.left, width: r.width, height: r.height, el: node };
-      const parent = node.dataset['flipParent'];
-      if (parent !== undefined) spot.parent = parent;
-      rows.set(id, spot);
+      const parents = (node.dataset['flipParent'] ?? '').split(' ').filter((p) => p.length > 0);
+      rows.set(id, { top: topOf(r), left: r.left - base.left, width: r.width, height: r.height, el: node, parents });
     }
     const anchors = new Map<string, Anchor>();
     for (const node of el.querySelectorAll<HTMLElement>('[data-flip-anchor]')) {
@@ -77,15 +77,27 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     const viewTop = scroller.scrollTop - 200;
     const viewBottom = scroller.scrollTop + scroller.clientHeight + 200;
     const inSight = (top: number): boolean => top >= viewTop && top <= viewBottom;
-    const justFolded = (parent: string | undefined): Anchor | undefined => {
-      if (parent === undefined) return undefined;
-      const now = anchors.get(parent);
-      return now !== undefined && now.folded && before.anchors.get(parent)?.folded === false ? now : undefined;
-    };
-    const justOpened = (parent: string | undefined): Anchor | undefined => {
-      if (parent === undefined) return undefined;
-      const now = anchors.get(parent);
-      return now !== undefined && !now.folded && before.anchors.get(parent)?.folded === true ? now : undefined;
+    // Whether one of a row's sections just folded or opened — its own group,
+    // or the folder around it, which takes the group with it.
+    const justFolded = (parents: readonly string[]): boolean =>
+      parents.some((p) => anchors.get(p)?.folded === true && before.anchors.get(p)?.folded === false);
+    const justOpened = (parents: readonly string[]): boolean =>
+      parents.some((p) => anchors.get(p)?.folded === false && before.anchors.get(p)?.folded === true);
+    // Where a row goes into or comes out of: the outermost of its sections
+    // that just folded or opened — a folder taking its group with it moves
+    // everything through its own heading — else the nearest still on screen.
+    const headingOf = (parents: readonly string[]): Anchor | undefined => {
+      const changed = [...parents].reverse().find((p) => {
+        const now = anchors.get(p);
+        const was = before.anchors.get(p);
+        return now !== undefined && was !== undefined && now.folded !== was.folded;
+      });
+      if (changed !== undefined) return anchors.get(changed);
+      for (const p of parents) {
+        const a = anchors.get(p);
+        if (a !== undefined) return a;
+      }
+      return undefined;
     };
 
     for (const [id, spot] of rows) {
@@ -102,11 +114,11 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     // and arrives by coming out of it. A row whose section has no heading
     // left (a folder deleted) folds where it stands.
     const arrived = [...rows].filter(([id]) => !before.rows.has(id));
-    const loose = arrived.filter(([, s]) => justOpened(s.parent) === undefined);
+    const loose = arrived.filter(([, s]) => !justOpened(s.parents));
     for (const [, spot] of arrived) {
       if (!inSight(spot.top)) continue;
-      if (justOpened(spot.parent) === undefined && loose.length > BURST) continue;
-      const from = spot.parent === undefined ? undefined : anchors.get(spot.parent);
+      if (!justOpened(spot.parents) && loose.length > BURST) continue;
+      const from = headingOf(spot.parents);
       const start = from === undefined ? 'scaleY(0.4)' : `translateY(${from.top - spot.top}px) scaleY(0.6)`;
       spot.el.animate([{ opacity: 0, transform: start, transformOrigin: 'top center' }, { opacity: 1, transform: 'none', transformOrigin: 'top center' }], {
         duration: FOLD_MS,
@@ -115,11 +127,11 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     }
 
     const gone = [...before.rows].filter(([id]) => !rows.has(id));
-    const leaving = gone.filter(([, s]) => justFolded(s.parent) === undefined);
+    const leaving = gone.filter(([, s]) => !justFolded(s.parents));
     for (const [, was] of gone) {
       if (!inSight(was.top)) continue;
-      if (justFolded(was.parent) === undefined && leaving.length > BURST) continue;
-      const into = was.parent === undefined ? undefined : anchors.get(was.parent);
+      if (!justFolded(was.parents) && leaving.length > BURST) continue;
+      const into = headingOf(was.parents);
       // The old node is detached by now; a copy of it stands where it was, then goes.
       const ghost = was.el.cloneNode(true) as HTMLElement;
       ghost.removeAttribute('data-flip');

@@ -264,12 +264,19 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       {ended.length > 0 && (
         // The closed ones, under the others: one icon and a count, no words, set a little to the right.
         <div className="ended-group">
-          <button type="button" className="ended-head" data-flip-anchor={endedKey} data-flip-folded={String(endedFolded)} aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
+          <button
+            type="button"
+            className="ended-head"
+            data-flip={`head:${endedKey}`}
+            data-flip-parent={f.id}
+            data-flip-anchor={endedKey}
+            data-flip-folded={String(endedFolded)}
+            aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
             <Icon name={endedFolded ? 'chevR' : 'chev'} />
             <Dot tone="ended" animate={false} size={13} />
             <span className="n">{ended.length}</span>
           </button>
-          {!endedFolded && ended.map(row(endedKey))}
+          {!endedFolded && ended.map(row(`${endedKey} ${f.id}`))}
         </div>
       )}
     </Section>

@@ -39,10 +39,13 @@ export function sampleSnapshot(now: number): Snapshot {
       { id: 's3', title: 'Write the release notes', project: 'docs', status: 'done_unseen', origin: 'vscode', toolCount: 6, lastEventAt: ago(12) },
       { id: 's4', project: 'scratch', status: 'idle', origin: 'desktop', toolCount: 0, lastEventAt: ago(2), expiresAt: later(3 * 60), fresh: true },
       { id: 's5', title: 'Audit the dependencies', project: 'api', status: 'idle', origin: 'vscode', toolCount: 22, lastEventAt: ago(300), endedAt: ago(240) },
+      { id: 's6', title: 'Migrate the old orders table', project: 'api', status: 'idle', origin: 'vscode', toolCount: 41, lastEventAt: ago(2_000), endedAt: ago(1_900) },
+      { id: 's7', title: 'Draft the pricing page', project: 'shop-front', status: 'idle', origin: 'terminal', toolCount: 9, lastEventAt: ago(3_000), endedAt: ago(2_900) },
     ],
     folders: [
       { id: 'f1', name: 'Shop', color: 'orange', sessionIds: ['s1', 's3'] },
       { id: 'f2', name: 'Backend', color: 'blue', sessionIds: ['s2', 's5'] },
+      { id: 'f3', name: 'Archive', color: 'purple', sessionIds: ['s6', 's7'] },
     ],
     unfiled: ['s4'],
     usage: {
