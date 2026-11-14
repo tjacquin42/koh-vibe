@@ -516,13 +516,14 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .toast > span { flex: 1; min-width: 0; padding-top: 2px; }
 .toast .tbtn { flex: none; margin: -3px -5px -3px 0; }
 
-/* The cockpit's views, as tabs on top of the middle column (14/11). */
-.ck-tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 2px; margin: 4px 0 14px; padding: 3px; background: var(--surface); border-radius: 10px; }
-.ck-tabs button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
-.ck-tabs button span { overflow: hidden; text-overflow: ellipsis; }
-.ck-tabs button:hover { color: var(--text); }
-.ck-tabs button[aria-selected="true"] { background: var(--raised); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
-@media (max-width: 700px) { .ck-tabs button span { display: none; } }
+/* The cockpit's views: icons fixed under the counters; the name slides out on hover (14/11). */
+.ck-tabs { display: flex; gap: 4px; padding: 0 12px 10px; }
+.ck-tabs button { display: flex; align-items: center; gap: 0; height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; transition: gap 0.18s ease, color 0.12s; }
+.ck-tabs button span { max-width: 0; opacity: 0; overflow: hidden; transition: max-width 0.22s ease, opacity 0.18s ease; }
+.ck-tabs button:hover, .ck-tabs button:focus-visible { color: var(--text); gap: 7px; }
+.ck-tabs button:hover span, .ck-tabs button:focus-visible span { max-width: 140px; opacity: 1; }
+.ck-tabs button[aria-selected="true"] { background: var(--raised); color: var(--text); border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+@media (prefers-reduced-motion: reduce) { .ck-tabs button, .ck-tabs button span { transition: none; } }
 
 /* The name in the header (14/11): each click lays a layer of the same text
    over it, transparent but for a rainbow band that crosses the letters, then

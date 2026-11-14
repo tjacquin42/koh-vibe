@@ -8,7 +8,7 @@ import { translator, type Translate } from './i18n';
 import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
-import { CockpitBody } from './cockpit/Cockpit';
+import { CockpitBody, CockpitTabs } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { Section } from './ui/Section';
 import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
@@ -219,6 +219,15 @@ export function App({ bridge }: { bridge: Bridge }) {
       <div className="app surface-cockpit">
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
+        <CockpitTabs
+          ctx={ctx}
+          view={ui.cockpit.view}
+          sheet={sheet}
+          onView={(view) => {
+            setSheet(undefined);
+            updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, view } }));
+          }}
+        />
         <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} sizes={ui.sizes} onSize={(key, px) => updateUi((prev) => setSize(prev, key, px))} />
       </div>
     );

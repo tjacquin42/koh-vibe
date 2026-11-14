@@ -90,24 +90,6 @@ export function CockpitBody({
       {split('ck.nav.w', 'x', nav, false)}
       {split('ck.nav.h', 'y', nav, false)}
       <main className="ck-main">
-        {/* The views as tabs, on top of what they show (14/11): a sheet open under them closes on a click. */}
-        <nav className="ck-tabs" role="tablist" aria-label={t('cockpit.views')}>
-          {COCKPIT_VIEWS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="tab"
-              aria-selected={ui.view === v && sheet === undefined}
-              onClick={() => {
-                onSheet(undefined);
-                setUi({ view: v });
-              }}
-            >
-              <Icon name={VIEW_ICON[v]} />
-              <span>{t(`cockpit.view.${v}`)}</span>
-            </button>
-          ))}
-        </nav>
         {sheet !== undefined ? (
           <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
         ) : (
@@ -130,6 +112,24 @@ export function CockpitBody({
         </div>
       </aside>
     </div>
+  );
+}
+
+/**
+ * The views, as icons fixed under the counters (14/11) — what each one is
+ * slides out on hover. A sheet open under them closes on a click.
+ */
+export function CockpitTabs({ ctx, view, sheet, onView }: { ctx: ViewCtx; view: CockpitView; sheet: string | undefined; onView(v: CockpitView): void }) {
+  const { t } = ctx;
+  return (
+    <nav className="ck-tabs" role="tablist" aria-label={t('cockpit.views')}>
+      {COCKPIT_VIEWS.map((v) => (
+        <button key={v} type="button" role="tab" aria-selected={view === v && sheet === undefined} aria-label={t(`cockpit.view.${v}`)} onClick={() => onView(v)}>
+          <Icon name={VIEW_ICON[v]} size={16} />
+          <span aria-hidden="true">{t(`cockpit.view.${v}`)}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
