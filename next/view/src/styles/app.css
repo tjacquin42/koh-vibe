@@ -443,3 +443,5 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .splitter:hover::after, .splitter:focus-visible::after, .splitter:active::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
 .splitter:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) { .splitter::after { transition: none; } }
+/* Inside the open « New folder » box the box is the frame: the field draws none of its own (14/11). */
+.new-folder .name-input, .new-folder .name-input:focus, .new-folder .name-input:focus-visible { border: 0; outline: none; box-shadow: none; background: transparent; padding: 0; }
