@@ -166,6 +166,8 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
     case 'theme.ide':
       await deps.ideTheme(a.mode);
       return OK;
+    case 'hooks.install':
+      return viaV1(deps, 'kohVibe.installHooks');
     case 'cloud.refresh':
       await deps.cloud.refresh(a.what, true);
       return OK;

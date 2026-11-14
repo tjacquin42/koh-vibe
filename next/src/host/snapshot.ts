@@ -220,6 +220,7 @@ export interface SnapshotExtras {
   tabNames?: boolean;
   titleLines?: 1 | 2;
   activeTab?: Snapshot['activeTab'];
+  hooksInstalled?: boolean;
 }
 
 /**
@@ -278,6 +279,7 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   if (extras.tabNames !== undefined) snap.tabNames = extras.tabNames;
   if (extras.titleLines !== undefined) snap.titleLines = extras.titleLines;
   if (extras.activeTab !== undefined) snap.activeTab = extras.activeTab;
+  if (extras.hooksInstalled !== undefined) snap.hooksInstalled = extras.hooksInstalled;
   if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
   if (extras.activity !== undefined) {
     const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));

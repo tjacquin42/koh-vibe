@@ -7,13 +7,14 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, cloudDeps, COCKPIT_PANEL, engineDeps, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
+import { activate, claudeSettings, cloudDeps, COCKPIT_PANEL, engineDeps, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
 import { realEngine } from '../src/host/engine';
 
 const engineRuns: string[] = [];
 import type { ProcessDeps } from '../src/host/processes';
 import { MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
+import { installHooks } from '../../src/hooks/installer';
 import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
 import { ExtensionMode, FakePanel, FakeWebviewView, recorded, Uri } from './stubs/vscode';
@@ -76,6 +77,8 @@ beforeEach(async () => {
   transcriptsRoot.current = join(home, 'no-transcripts');
   // Signed out, and a network that throws: no test reads the keychain or reaches claude.ai.
   cloudDeps.current = { credentials: async () => undefined, send: () => Promise.reject(new Error('no network in tests')) };
+  // Never the machine's own Claude Code settings.
+  claudeSettings.current = join(home, 'claude-settings.json');
   // V1 « installed »: no test runs V1's whole engine in the stubbed editor.
   engineRuns.length = 0;
   engineDeps.current = { installed: () => true, run: async () => void engineRuns.push('run') };
@@ -327,6 +330,23 @@ describe('activate', () => {
     recorded.commands.set('kohVibe.sleepSession', (n: unknown) => got.push(n));
     await recorded.commands.get('kohVibeNext.ctx.session.sleep')?.({ webviewSection: 'kvnSession', kvnSessionId: 'b', webview: 'kohVibeNext.sidebar' });
     expect(got).toEqual([{ kind: 'session', session: { id: 'b' } }]);
+  });
+
+  it('says when Claude Code holds no Koh-Vibe hook', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const first = messages(view)[0];
+    expect(first?.type === 'init' && first.snapshot.hooksInstalled).toBe(false);
+  });
+
+  it('says when it does, written as the V1 installer writes them', async () => {
+    await writeFile(claudeSettings.current ?? '', JSON.stringify(installHooks({}, '/x/.koh-vibe/bin/koh-vibe-bridge', '/x/.koh-vibe/bin/koh-vibe-rules')));
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const first = messages(view)[0];
+    expect(first?.type === 'init' && first.snapshot.hooksInstalled).toBe(true);
   });
 
   it('shows the editor tab bar and writes it where the editor reads it', async () => {

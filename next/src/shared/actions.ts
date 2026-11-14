@@ -112,6 +112,8 @@ export type Action =
   | { kind: 'theme.set'; theme: ThemeState }
   /** The editor's own colours (host ide-theme.ts): Koh-Vibe's, or back to what they were. */
   | { kind: 'theme.ide'; mode: 'adapt' | 'restore' }
+  /** Koh-Vibe's hooks into Claude Code's settings — V1's installer, in a terminal. */
+  | { kind: 'hooks.install' }
   /** Asks claude.ai again now, rather than at the shared five-minute pace. */
   | { kind: 'cloud.refresh'; what: 'artifacts' | 'routines' }
   /** Acts for real (messages, commits…): the view asks first. */
@@ -278,6 +280,8 @@ export function parseAction(raw: unknown): Action | undefined {
       const theme = parseTheme(raw['theme']);
       return theme === undefined ? undefined : { kind: 'theme.set', theme };
     }
+    case 'hooks.install':
+      return { kind: 'hooks.install' };
     case 'theme.ide': {
       const mode = raw['mode'];
       return mode === 'adapt' || mode === 'restore' ? { kind: 'theme.ide', mode } : undefined;

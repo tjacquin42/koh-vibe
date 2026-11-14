@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { readFile } from 'node:fs/promises';
+import { countKohEntries } from '../../../src/hooks/installer';
 import { realEngine, startEngine, type EngineDeps } from './engine';
 import { ActiveTab } from './active-tab';
 import { adapted, asCustomizations, type IdeBackup } from './ide-theme';
@@ -229,6 +231,19 @@ function connect(
 export const processDeps: { current: ProcessDeps | undefined } = { current: undefined };
 /** Overridable by tests, which must neither read the keychain nor call claude.ai. */
 export const cloudDeps: { current: CloudDeps | undefined } = { current: undefined };
+/** Overridable by tests, which must not read the machine's own Claude Code settings. */
+export const claudeSettings: { current: string | undefined } = { current: undefined };
+
+/** Whether Koh-Vibe's hooks are in Claude Code's settings — V1's own count (hooks/installer.ts). */
+async function hooksInstalledNow(): Promise<boolean> {
+  try {
+    const raw = await readFile(claudeSettings.current ?? join(homedir(), '.claude', 'settings.json'), 'utf8');
+    return countKohEntries(JSON.parse(raw)) > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Overridable by tests, which must not run V1's engine in a stubbed editor. */
 export const engineDeps: { current: EngineDeps } = { current: realEngine };
 /** Overridable by tests, which must not read the machine's transcripts. */
@@ -305,6 +320,7 @@ export function activate(context: vscode.ExtensionContext): void {
         tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
         titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
         ...(await activeTabExtra()),
+        hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {

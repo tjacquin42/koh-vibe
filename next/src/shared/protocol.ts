@@ -293,6 +293,8 @@ export interface Snapshot {
   titleLines?: 1 | 2;
   /** The conversation tab in front, if one is (host active-tab.ts). */
   activeTab?: ActiveTabView;
+  /** Whether Claude Code's settings hold Koh-Vibe's hooks: without them, nothing shows up. */
+  hooksInstalled?: boolean;
 }
 
 /** The tab in front: its conversation when the editor's memento says which, its title always. */

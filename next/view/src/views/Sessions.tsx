@@ -56,6 +56,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const dnd: Dnd = { drag, setDrag };
   return (
     <div ref={root} className="flip-root">
+      {snapshot.hooksInstalled === false && <HooksMissing ctx={ctx} />}
       <Inbox ctx={ctx} compact />
       {snapshot.folders.map((f) => (
         <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
@@ -488,3 +489,25 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
     </div>
   );
 }
+
+/**
+ * Claude Code's settings hold no Koh-Vibe hook: no conversation can show up.
+ * Said first, with the one button that fixes it — V1's installer, which shows
+ * what it does in a terminal and backs the settings up first.
+ */
+function HooksMissing({ ctx }: { ctx: ViewCtx }) {
+  const { t } = ctx;
+  const busy = ctx.isBusy('hooks');
+  return (
+    <div className="hooks-missing" role="alert">
+      <p>
+        <b>{t('hooks.missing.title')}</b>
+      </p>
+      <p className="muted small">{t('hooks.missing.body')}</p>
+      <button type="button" className={`btn-go${busy ? ' busy' : ''}`} onClick={() => void ctx.track('hooks', ctx.act({ kind: 'hooks.install' }), 3_000)}>
+        {t('hooks.missing.install')}
+      </button>
+    </div>
+  );
+}
+
