@@ -291,6 +291,14 @@ export interface Snapshot {
   tabNames?: boolean;
   /** Lines a conversation's title may take before « … » (1 by default). */
   titleLines?: 1 | 2;
+  /** The conversation tab in front, if one is (host active-tab.ts). */
+  activeTab?: ActiveTabView;
+}
+
+/** The tab in front: its conversation when the editor's memento says which, its title always. */
+export interface ActiveTabView {
+  label: string;
+  sessionId?: string;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;

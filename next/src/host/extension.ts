@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
+import { ActiveTab } from './active-tab';
 import { adapted, asCustomizations, type IdeBackup } from './ide-theme';
 import { DEFAULT_THEME, parseTheme } from '../shared/theme';
 import { readClosed } from '../../../src/closed/store';
 import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
-import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
+import { parseViewMessage, type ActiveTabView, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
 import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
@@ -230,6 +231,12 @@ export const cloudDeps: { current: CloudDeps | undefined } = { current: undefine
 /** Overridable by tests, which must not read the machine's transcripts. */
 export const transcriptsRoot: { current: string | undefined } = { current: undefined };
 
+/** Tab changes, and group changes — the tab in front changes with the group in front. */
+function watchActiveTab(changed: () => void): vscode.Disposable[] {
+  const tabGroups = vscode.window.tabGroups as vscode.TabGroups | undefined;
+  return tabGroups === undefined ? [] : [tabGroups.onDidChangeTabs(changed), tabGroups.onDidChangeTabGroups(changed)];
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
@@ -268,6 +275,13 @@ export function activate(context: vscode.ExtensionContext): void {
       void hub.refresh();
     }
   };
+  // The conversation tab in front (active-tab.ts), through the editor's memento
+  // in this workspace's storage — the same database V1 reads.
+  const activeTab = new ActiveTab(context.storageUri === undefined ? undefined : join(dirname(context.storageUri.fsPath), 'state.vscdb'));
+  const activeTabExtra = async (): Promise<{ activeTab?: ActiveTabView }> => {
+    const a = await activeTab.current(Date.now());
+    return a === undefined ? {} : { activeTab: a };
+  };
   const hub = new Hub({
     build: async () => {
       // The shared lists, asked again only while a view shows them and at
@@ -285,6 +299,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
         tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
         titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
+        ...(await activeTabExtra()),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -316,6 +331,11 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar,
     hub.subscribe((snap) => statusBar.update(snap)),
     // The tab bar changed from the editor's own settings: the settings panel follows.
+    // Another tab in front: the list marks its conversation.
+    ...watchActiveTab(() => {
+      activeTab.forget();
+      void hub.refresh();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
     }),

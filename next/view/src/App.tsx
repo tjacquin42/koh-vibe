@@ -8,6 +8,7 @@ import { translator, type Translate } from './i18n';
 import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
+import { activeSessionId } from './sections';
 import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
 import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
@@ -224,6 +225,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     act,
     notify: showToast,
     isBusy: (key) => busy.has(key),
+    activeId: activeSessionId(snapshot),
     isDismissed: (id, at) => ui.dismissed[id] === at,
     sort: ui.sort,
     languageChoice: context.languageChoice,
@@ -380,7 +382,8 @@ function Header({
         )}
       </div>
       {/* The cockpit counts its chosen folder, under its folders (Cockpit.tsx CockpitTop). */}
-      {surface === 'sidebar' && (
+      {/* Not over the settings either: they are not about the conversations (14/11). */}
+      {surface === 'sidebar' && settingsOpen !== true && (
         <div className="counts">
           <Count n={c.waiting} label={t('count.waiting')} tone="wait" />
           <Count n={c.running} label={t('count.running')} tone="run" />

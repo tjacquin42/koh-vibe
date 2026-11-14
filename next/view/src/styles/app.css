@@ -53,7 +53,7 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 .preview { background: var(--raised); color: var(--soft); font-size: 11.5px; text-align: center; padding: 4px; }
 
 .head { padding: 12px 10px 4px; }
-.title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; min-height: 28px; }
 .title h1 { font-weight: 700; font-size: 18px; }
 .tag { font-size: 10.5px; font-weight: 600; color: var(--link); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; }
 .ibtn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; display: flex; align-items: center; justify-content: center; padding: 0; color: var(--soft); }
@@ -83,6 +83,9 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 .srow { border-radius: 10px; }
 .srow-line { display: flex; align-items: flex-start; }
 .srow.open { background: var(--surface); outline: 1px solid var(--line); }
+/* The conversation whose tab is in front (14/11): a bar of accent at its left edge, a tint. */
+.srow.active { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.srow.active.open { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
 .srow .tools { display: flex; padding: 6px 4px 0 0; opacity: 0; }
 .srow:hover .tools, .srow.open .tools, .srow .tools:focus-within { opacity: 1; }
 .srow-main { display: flex; gap: 9px; align-items: flex-start; width: 100%; padding: 7px 8px; border: 0; background: transparent; text-align: left; border-radius: 10px; }
@@ -174,9 +177,12 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 .foot { display: flex; justify-content: space-between; gap: 8px; padding: 6px 12px 8px; font-size: 10.5px; color: var(--muted); }
 
 /* ---------- cockpit (W2) ---------- */
-.surface-cockpit .head { padding: 14px 18px 6px; }
+/* The cockpit's top lines up with the sidebar's (14/11): same title row, then
+   folders + counters taking what counters + search take there, so both icon
+   bars end at the same height and are as tall. */
+.surface-cockpit .head { padding: 12px 18px 0; }
 /* The top (14/11): folders side by side, the chosen one's counters, then the views. */
-.ck-top { display: flex; flex-direction: column; gap: 8px; padding: 2px 18px 8px; }
+.ck-top { display: flex; flex-direction: column; gap: 6px; padding: 0 18px 8px; }
 .fchips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .fchips::-webkit-scrollbar { display: none; }
 /* A side that still hides chips: a blur that fades into the row (EdgeScroll). */
@@ -572,8 +578,8 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 .toast .tbtn { flex: none; margin: -3px -5px -3px 0; }
 
 /* The cockpit's views, across the whole width (14/11). */
-.ck-tabs { display: flex; gap: 4px; margin: 0 18px 10px; padding: 3px; background: var(--surface); border-radius: 10px; }
-.ck-tabs button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; height: 30px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; }
+.ck-tabs { display: flex; gap: 2px; margin: 0 18px 6px; padding: 3px; background: var(--surface); border-radius: 9px; }
+.ck-tabs button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; }
 .ck-tabs button span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ck-tabs button .icon { flex: none; }
 .ck-tabs button:hover { color: var(--text); }

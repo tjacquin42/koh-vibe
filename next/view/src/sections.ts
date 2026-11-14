@@ -200,3 +200,26 @@ export function sortSessions(list: readonly SessionView[], sort: SessionSort): S
   if (sort === 'recent') return [...list].sort(byRecent);
   return [...list].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || byRecent(a, b));
 }
+
+/** The title Claude Code gives a conversation that has none yet. */
+const UNTITLED_TAB = 'Claude Code';
+
+/**
+ * The conversation whose tab is in front (host active-tab.ts): the one the
+ * editor's memento names; else the one open conversation of that title; else,
+ * for a tab still untitled, the newest conversation with nothing written yet —
+ * the one just opened. Nothing when it cannot be told: marking the wrong row
+ * is worse than marking none.
+ */
+export function activeSessionId(snap: Snapshot): string | undefined {
+  const a = snap.activeTab;
+  if (a === undefined) return undefined;
+  const open = snap.sessions.filter((s) => s.endedAt === undefined);
+  if (a.sessionId !== undefined && snap.sessions.some((s) => s.id === a.sessionId)) return a.sessionId;
+  const titled = open.filter((s) => s.title === a.label);
+  if (titled.length === 1) return titled[0]?.id;
+  if (a.label !== UNTITLED_TAB) return undefined;
+  const fresh = open.filter((s) => s.fresh === true).sort((x, y) => y.lastEventAt - x.lastEventAt);
+  return fresh[0]?.id;
+}
+

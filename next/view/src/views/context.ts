@@ -29,6 +29,8 @@ export interface ViewCtx {
    * sheet; in the sidebar, its tab.
    */
   show(sessionId: string): void;
+  /** The conversation whose tab is in front, when it can be told (sections.ts `activeSessionId`). */
+  activeId: string | undefined;
   /** Whether the row keyed `key` has an action under way (busy.ts). */
   isBusy(key: string): boolean;
   /**

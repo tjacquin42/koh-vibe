@@ -6,6 +6,7 @@ import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { atLaunch, DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
+import { activeSessionId } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
@@ -253,3 +254,23 @@ describe('tab and view order', () => {
     expect(moveBefore(['a', 'b', 'c', 'd'], 'b', undefined)).toEqual(['a', 'c', 'd', 'b']);
   });
 });
+
+describe('the conversation in front', () => {
+  const snap = { ...sampleSnapshot(0) };
+  delete snap.activeTab;
+  const with_ = (activeTab: { label: string; sessionId?: string } | undefined) => ({ ...snap, ...(activeTab === undefined ? {} : { activeTab }) });
+  const s1 = snap.sessions.find((s) => s.id === 's1');
+
+  it('is the one the editor names, else the one open conversation of that title', () => {
+    expect(activeSessionId(with_({ label: 'whatever', sessionId: 's2' }))).toBe('s2');
+    expect(activeSessionId(with_({ label: s1?.title ?? '' }))).toBe('s1');
+    expect(activeSessionId(with_({ label: 'Nothing has this title' }))).toBeUndefined();
+    expect(activeSessionId(with_(undefined))).toBeUndefined();
+  });
+
+  it('is the newest with nothing written yet, for a tab still untitled', () => {
+    const fresh = snap.sessions.filter((s) => s.fresh === true && s.endedAt === undefined).sort((a, b) => b.lastEventAt - a.lastEventAt);
+    expect(activeSessionId(with_({ label: 'Claude Code' }))).toBe(fresh[0]?.id);
+  });
+});
+

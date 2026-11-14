@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
 import { Popover } from '../ui/Popover';
 import { menuContext } from '../ui/menu-context';
 import { useFlip } from '../ui/flip';
@@ -32,6 +32,17 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   useFlip(root, ctx.animate);
   // Dragging near the list's top or bottom edge scrolls it (ui/drag-scroll.ts).
   useDragScroll(root, drag !== undefined);
+  // Another conversation in front — one just opened above all: its folder
+  // opens and the list brings its row into sight, as V1 revealed it.
+  const active = ctx.activeId;
+  const shown = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (active === undefined || active === shown.current) return;
+    shown.current = active;
+    const folder = snapshot.folders.find((f) => f.sessionIds.includes(active))?.id ?? (snapshot.unfiled.includes(active) ? UNFILED : undefined);
+    if (folder !== undefined && ctx.isFolded(folder)) ctx.toggle(folder);
+    window.requestAnimationFrame(() => root.current?.querySelector(`[data-session="${CSS.escape(active)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }, [active, snapshot.folders, snapshot.unfiled, ctx]);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
     return (
       <div className="empty">
@@ -337,8 +348,10 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   // One line only (14/11): what it does and when it leaves are behind the (i).
   return (
     <div
-      className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}`}
+      className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}${ctx.activeId === s.id ? ' active' : ''}`}
       aria-busy={busy}
+      aria-current={ctx.activeId === s.id ? 'true' : undefined}
+      data-session={s.id}
       data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}
     >
       <div className="srow-line">
