@@ -212,6 +212,8 @@ export interface SnapshotExtras {
    * conversations started in ~/DEV.
    */
   transcripts?: Map<string, TranscriptStats>;
+  /** The editor's tab bar, read by the extension (it is the editor's setting, not a file here). */
+  editorTabs?: Snapshot['editorTabs'];
 }
 
 /**
@@ -263,6 +265,7 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
     settings: toSettingsView(settings),
   };
   if (usage !== undefined) snap.usage = toUsageView(usage);
+  if (extras.editorTabs !== undefined) snap.editorTabs = extras.editorTabs;
   if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
   if (extras.activity !== undefined) {
     const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));

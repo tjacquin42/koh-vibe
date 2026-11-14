@@ -41,7 +41,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       ? undefined
       : {
           // ?surface=cockpit previews the cockpit tab in the browser.
-          context: { surface: new URLSearchParams(location.search).get('surface') === 'cockpit' ? 'cockpit' : 'sidebar', language: navigator.language, version: 'preview', launch: String(Date.now()) },
+          context: { surface: new URLSearchParams(location.search).get('surface') === 'cockpit' ? 'cockpit' : 'sidebar', language: navigator.language, version: 'preview', launch: String(Date.now()), languageChoice: 'auto' },
           snapshot: sampleSnapshot(Date.now()),
         },
   );
@@ -210,6 +210,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     notify: showToast,
     isBusy: (key) => busy.has(key),
     isDismissed: (id, at) => ui.dismissed[id] === at,
+    sort: ui.sort,
+    languageChoice: context.languageChoice,
     dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
     show: (id) => (context.surface === 'cockpit' ? setSheet(id) : bridge.post({ type: 'openSession', sessionId: id })),
@@ -249,7 +251,13 @@ export function App({ bridge }: { bridge: Bridge }) {
       />
       {settingsOpen ? (
         <main className="body">
-          <SettingsPanel ctx={ctx} onClose={() => setSettingsOpen(false)} showUsage={ui.showUsage} onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))} />
+          <SettingsPanel
+            ctx={ctx}
+            onClose={() => setSettingsOpen(false)}
+            showUsage={ui.showUsage}
+            onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))}
+            onSort={(sort) => updateUi((prev) => ({ ...prev, sort }))}
+          />
         </main>
       ) : (
         <>

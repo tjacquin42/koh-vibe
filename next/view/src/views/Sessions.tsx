@@ -11,7 +11,7 @@ import { formatAge, formatTokens, formatWhen, sessionActivity, toneOf } from '..
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
-import { dropOrder } from '../sections';
+import { dropOrder, sortSessions } from '../sections';
 import { FOLDER_COLORS } from '../ui/colors';
 import type { ViewCtx } from './context';
 
@@ -90,7 +90,11 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   }, []);
   const [over, setOver] = useState<string | undefined>();
   const { drag, setDrag } = dnd;
-  const sessions = f.sessionIds.map((id) => byId.get(id)).filter((s): s is SessionView => s !== undefined);
+  // The order picked in the settings; a drag still sets the hand-made one (manual).
+  const sessions = sortSessions(
+    f.sessionIds.map((id) => byId.get(id)).filter((s): s is SessionView => s !== undefined),
+    ctx.sort,
+  );
 
   const fileHere = (id: string, before?: string): void => {
     const order = dropOrder(f.sessionIds, [id], before);

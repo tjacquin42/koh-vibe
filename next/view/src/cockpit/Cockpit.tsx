@@ -482,7 +482,7 @@ function ProjectBars({ t, snapshot, count }: { t: Translate; snapshot: Snapshot;
 
 /* ---------- small parts ---------- */
 
-function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange(v: T): void }) {
+export function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange(v: T): void }) {
   return (
     <div className="seg" role="radiogroup" aria-label={label}>
       {options.map((o) => (

@@ -536,3 +536,7 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
   -webkit-background-clip: text; background-clip: text;
 }
 .brand:focus-visible { outline-offset: 3px; }
+/* A setting with several answers: its name, then the choice under it. */
+.set-row.set-choice { flex-direction: column; align-items: stretch; gap: 8px; }
+.set-choice .seg { width: 100%; }
+.set-choice .seg button { flex: 1; }

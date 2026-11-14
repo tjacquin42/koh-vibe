@@ -121,7 +121,9 @@ export const recorded = {
   opened: [] as string[],
   clipboard: [] as string[],
   statusMessages: [] as string[],
+  config: new Map<string, unknown>(),
   reset(): void {
+    this.config.clear();
     this.clipboard.length = 0;
     this.statusMessages.length = 0;
     this.providers.clear();
@@ -185,7 +187,28 @@ export const env = {
   },
 };
 
-export const workspace = { workspaceFolders: [{ uri: Uri.file('/work/open-folder') }] };
+export enum ConfigurationTarget {
+  Global = 1,
+  Workspace = 2,
+  WorkspaceFolder = 3,
+}
+
+export const workspace = {
+  workspaceFolders: [{ uri: Uri.file('/work/open-folder') }],
+  getConfiguration(section: string) {
+    return {
+      get: (key: string): unknown => recorded.config.get(`${section}.${key}`),
+      inspect: (key: string) => ({ globalValue: recorded.config.get(`${section}.${key}`) }),
+      update: (key: string, value: unknown, _target?: ConfigurationTarget): Promise<void> => {
+        recorded.config.set(`${section}.${key}`, value);
+        return Promise.resolve();
+      },
+    };
+  },
+  onDidChangeConfiguration(_listener: (e: { affectsConfiguration(s: string): boolean }) => void) {
+    return { dispose: () => undefined };
+  },
+};
 
 export const l10n = {
   t(message: string, ...args: unknown[]): string {

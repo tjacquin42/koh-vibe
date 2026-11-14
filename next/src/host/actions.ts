@@ -26,7 +26,7 @@ import { killPlan, type KillPlan } from '../../../src/process/kill';
 import { routineUrl } from '../../../src/routines/model';
 import { isSpent } from '../../../src/routines/schedule';
 import { writeSettings } from '../../../src/settings/store';
-import type { Action, ActionResult, SessionCommand } from '../shared/actions';
+import type { Action, ActionResult, EditorTabs, LanguageChoice, SessionCommand } from '../shared/actions';
 import type { CloudActions } from './cloud';
 import type { Located } from './processes';
 
@@ -54,6 +54,8 @@ export interface ActionDeps {
   /** The editor's modal, with V1's wording; true to go ahead. */
   confirmKill(plan: KillPlan): Promise<boolean>;
   kill(targets: readonly SessionProcess[]): number;
+  setEditorTabs(mode: EditorTabs): Thenable<void>;
+  setLanguage(choice: LanguageChoice): Thenable<void>;
 }
 
 /** The argument V1's tree passes its menu commands; V1 reads only the id (ui/tree.ts `sessionIdOfNode`). */
@@ -110,6 +112,12 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return OK;
     case 'setting.volume':
       await writeSettings(deps.settingsFile, { volume: a.percent / 100 });
+      return OK;
+    case 'setting.editorTabs':
+      await deps.setEditorTabs(a.mode);
+      return OK;
+    case 'setting.language':
+      await deps.setLanguage(a.choice);
       return OK;
 
     case 'artifact.rename':

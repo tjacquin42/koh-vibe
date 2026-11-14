@@ -1,5 +1,5 @@
 import { isSidebarTab, type SidebarTab } from '../../src/shared/protocol';
-import { COUNT_MODES, SPANS_H, type CountMode } from './sections';
+import { COUNT_MODES, SESSION_SORTS, SPANS_H, type CountMode, type SessionSort } from './sections';
 
 export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline', 'usage'] as const;
 export type CockpitView = (typeof COCKPIT_VIEWS)[number];
@@ -36,6 +36,8 @@ export interface UiState {
    * last event then. A new event — another question — brings the card back.
    */
   dismissed: Record<string, number>;
+  /** How a folder's conversations are ordered (sections.ts sortSessions). */
+  sort: SessionSort;
 }
 
 /** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
@@ -49,6 +51,7 @@ export const DEFAULT_UI: UiState = {
   sizes: {},
   showUsage: true,
   dismissed: {},
+  sort: 'manual',
 };
 
 function parseSizes(raw: unknown): Record<string, number> {
@@ -90,7 +93,8 @@ export function parseUiState(raw: unknown): UiState {
   if (typeof rec['dismissed'] === 'object' && rec['dismissed'] !== null) {
     for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
   }
-  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage, dismissed };
+  const sort = SESSION_SORTS.find((x) => x === rec['sort']) ?? DEFAULT_UI.sort;
+  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage, dismissed, sort };
   if (typeof rec['launch'] === 'string') out.launch = rec['launch'];
   return out;
 }

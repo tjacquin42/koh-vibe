@@ -12,6 +12,7 @@ import {
   COUNT_MODES,
   countTokens,
   dropOrder,
+  sortSessions,
   hourTicks,
   inbox,
   projectTotals,
@@ -57,7 +58,7 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {} });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'manual' });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', count: 'all', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', count: 'all', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
@@ -239,5 +240,17 @@ describe('a new start of the extension', () => {
     expect(fresh.launch).toBe('new');
     const reopened = toggleFold(fresh, 'f1');
     expect(atLaunch(reopened, 'new', ['f1', 'f2'])).toBe(reopened);
+  });
+});
+
+describe('sortSessions', () => {
+  const base = sampleSnapshot(0).sessions[0]!;
+  const s = (id: string, status: 'running' | 'waiting' | 'done_unseen' | 'idle', lastEventAt: number) => ({ ...base, id, status, lastEventAt });
+  const list = [s('a', 'idle', 30), s('b', 'waiting', 10), s('c', 'running', 20), s('d', 'waiting', 40)];
+  it('keeps the hand-made order, or sorts by recency, or by what needs you first', () => {
+    expect(sortSessions(list, 'manual').map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(sortSessions(list, 'recent').map((x) => x.id)).toEqual(['d', 'a', 'c', 'b']);
+    expect(sortSessions(list, 'status').map((x) => x.id)).toEqual(['d', 'b', 'c', 'a']);
+    expect(list.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
   });
 });

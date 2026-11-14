@@ -37,6 +37,12 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
       killed.push(...targets.map((t) => t.pid));
       return targets.length;
     },
+    setEditorTabs: async (mode) => {
+      calls.push(['editorTabs', mode]);
+    },
+    setLanguage: async (choice) => {
+      calls.push(['language', choice]);
+    },
     ...over,
   };
 }

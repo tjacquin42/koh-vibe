@@ -1,5 +1,6 @@
-import type { Action, ActionResult } from '../../../src/shared/actions';
+import type { Action, ActionResult, LanguageChoice } from '../../../src/shared/actions';
 import type { ReopenOutcome, Snapshot } from '../../../src/shared/protocol';
+import type { SessionSort } from '../sections';
 import type { Bridge } from '../bridge';
 import type { Translate } from '../i18n';
 
@@ -38,4 +39,8 @@ export interface ViewCtx {
   /** Whether this « For you » card was closed, and nothing happened since. */
   isDismissed(sessionId: string, lastEventAt: number): boolean;
   dismiss(sessionId: string, lastEventAt: number): void;
+  /** How a folder's conversations are ordered. */
+  sort: SessionSort;
+  /** The language picked in the settings (`auto` follows the editor). */
+  languageChoice: LanguageChoice;
 }

@@ -8,7 +8,7 @@
  * the on-disk format evolve without touching the UI.
  */
 
-import { isActionResult, parseAction, type Action, type ActionResult } from './actions';
+import { isActionResult, parseAction, type Action, type ActionResult, type EditorTabs, type LanguageChoice } from './actions';
 
 export type SessionStatus = 'running' | 'waiting' | 'done_unseen' | 'idle';
 export type SessionOrigin = 'vscode' | 'terminal' | 'desktop' | 'sdk' | 'unknown';
@@ -278,6 +278,8 @@ export interface Snapshot {
   activity?: ActivityView;
   /** The sheet of the conversation the cockpit shows, when it shows one. */
   sheet?: SessionSheetView;
+  /** The editor's tab bar (workbench.editor.showTabs), for the settings. */
+  editorTabs?: EditorTabs;
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;
@@ -302,6 +304,8 @@ export interface ViewContext {
    * a mere reload of the view keeps them as they were.
    */
   launch: string;
+  /** The language picked in the settings; `language` above is what it resolves to. */
+  languageChoice: LanguageChoice;
 }
 
 /** Host → view. */

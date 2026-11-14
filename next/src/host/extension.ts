@@ -5,7 +5,8 @@ import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { FOLDER_COLOR_IDS, type Action, type ActionResult, type FolderColor } from '../shared/actions';
+import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
+import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
 import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
 import { runAction, type Copied } from './actions';
 import { cloudActions } from './cloud';
@@ -120,6 +121,16 @@ interface ViewActions {
  * is ready — never before, since a message posted to a page that has not
  * loaded its script yet is lost.
  */
+/** The language picked in the settings (kept by the editor, across starts); `auto` when none. */
+const LANGUAGE_KEY = 'kohVibeNext.language';
+function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
+  const v: unknown = context.globalState.get(LANGUAGE_KEY);
+  return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
+}
+
+/** The editor's tab bar setting, read where it lives (V1 settings/tabs.ts). */
+const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
+
 /** One per activation: see ViewContext.launch. */
 const launch = randomUUID();
 
@@ -132,12 +143,17 @@ function connect(
 ): Disposable {
   webview.options = webviewOptions(context);
   webview.html = renderHtml(webview, context);
-  const viewContext = (): ViewContext => ({
+  // Read at every start of the view: a reload after a change of language must see the new one.
+  const viewContext = (): ViewContext => {
+    const choice = languageChoiceOf(context);
+    return {
     surface,
-    language: vscode.env.language,
+    language: choice === 'auto' ? vscode.env.language : choice,
+    languageChoice: choice,
     version: versionOf(context.extension.packageJSON as unknown),
     launch,
-  });
+    };
+  };
   let client: Disposable | undefined;
   const sub = webview.onDidReceiveMessage(async (raw: unknown) => {
     const msg = parseViewMessage(raw);
@@ -236,7 +252,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if ([...tabs.values()].includes(what)) void cloud.refresh(what, false);
       }
       if (names === 'cold') void warmNames();
+      const editorTabs = parseTabsMode(editorConfig().get('showTabs'));
       return buildSnapshot(home, Date.now(), {
+        editorTabs,
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -262,7 +280,16 @@ export function activate(context: vscode.ExtensionContext): void {
     log: (m) => output.appendLine(m),
   });
   const statusBar = createStatusBar();
-  context.subscriptions.push(output, hub, statusBar, hub.subscribe((snap) => statusBar.update(snap)));
+  context.subscriptions.push(
+    output,
+    hub,
+    statusBar,
+    hub.subscribe((snap) => statusBar.update(snap)),
+    // The tab bar changed from the editor's own settings: the settings panel follows.
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
+    }),
+  );
 
   /** One tab tracker per view; a switch to Processes rebuilds at once rather than at the next poll. */
   const focus = (sessionId: string): void => {
@@ -336,6 +363,20 @@ export function activate(context: vscode.ExtensionContext): void {
         return answer === confirm;
       },
       kill: (targets) => killAll(targets),
+      // Written where it is SEEN: the narrowest scope already setting it (V1 tabsTarget).
+      setEditorTabs: async (mode) => {
+        const target = tabsTarget(editorConfig().inspect('showTabs') ?? {});
+        await editorConfig().update(
+          'showTabs',
+          mode,
+          target === 'workspaceFolder' ? vscode.ConfigurationTarget.WorkspaceFolder : target === 'workspace' ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global,
+        );
+      },
+      // Every view starts again in the new language: its strings are built at load.
+      setLanguage: async (choice) => {
+        await context.globalState.update(LANGUAGE_KEY, choice);
+        for (const v of views) v.reload();
+      },
     });
     void hub.refresh();
     return result;

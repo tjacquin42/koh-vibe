@@ -203,3 +203,23 @@ export function dropOrder(list: readonly string[], moved: readonly string[], bef
   const cut = at < 0 ? rest.length : at;
   return [...rest.slice(0, cut), ...moved, ...rest.slice(cut)];
 }
+
+/** How a folder's conversations are ordered (14/11 — the triage's open request). */
+export const SESSION_SORTS = ['manual', 'recent', 'status'] as const;
+export type SessionSort = (typeof SESSION_SORTS)[number];
+
+/** What waits for you first, then what works, then what finished unread, then the rest. */
+const STATUS_RANK: Record<SessionView['status'], number> = { waiting: 0, running: 1, done_unseen: 2, idle: 3 };
+
+/**
+ * A folder's conversations in the order picked: `manual` keeps the order the
+ * list arrives in (dragged by hand, else the host's), `recent` puts the last
+ * active first, `status` what needs you first — the most recent first within
+ * a status. Stable, never in place.
+ */
+export function sortSessions(list: readonly SessionView[], sort: SessionSort): SessionView[] {
+  if (sort === 'manual') return [...list];
+  const byRecent = (a: SessionView, b: SessionView): number => b.lastEventAt - a.lastEventAt;
+  if (sort === 'recent') return [...list].sort(byRecent);
+  return [...list].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || byRecent(a, b));
+}

@@ -18,6 +18,7 @@ import { fingerprint, makeHome, session } from './home';
 
 let home: string;
 let subscriptions: { dispose(): unknown }[];
+const globalState = new Map<string, unknown>();
 const savedHome = process.env['KOH_VIBE_HOME'];
 
 function start(mode: ExtensionMode): void {
@@ -27,6 +28,13 @@ function start(mode: ExtensionMode): void {
     extensionUri: Uri.file('/ext'),
     extension: { packageJSON: { version: '0.0.1' } },
     subscriptions,
+    globalState: {
+      get: (k: string): unknown => globalState.get(k),
+      update: (k: string, v: unknown): Promise<void> => {
+        globalState.set(k, v);
+        return Promise.resolve();
+      },
+    },
   };
   activate(context as unknown as vscode.ExtensionContext);
 }
@@ -57,6 +65,7 @@ const deps: ProcessDeps = {
 
 beforeEach(async () => {
   recorded.reset();
+  globalState.clear();
   fakeProcs.orphanScans = 0;
   processDeps.current = deps;
   home = await makeHome();
@@ -295,6 +304,32 @@ describe('activate', () => {
     recorded.commands.set('kohVibe.sleepSession', (n: unknown) => got.push(n));
     await recorded.commands.get('kohVibeNext.ctx.session.sleep')?.({ webviewSection: 'kvnSession', kvnSessionId: 'b', webview: 'kohVibeNext.sidebar' });
     expect(got).toEqual([{ kind: 'session', session: { id: 'b' } }]);
+  });
+
+  it('shows the editor tab bar and writes it where the editor reads it', async () => {
+    recorded.config.set('workbench.editor.showTabs', 'single');
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const init = messages(view)[0];
+    expect(init?.type === 'init' && init.snapshot.editorTabs).toBe('single');
+    await view.webview.receive({ type: 'act', req: 4, action: { kind: 'setting.editorTabs', mode: 'none' } });
+    await vi.waitFor(() => expect(recorded.config.get('workbench.editor.showTabs')).toBe('none'), { timeout: 1_000, interval: 10 });
+  });
+
+  it('starts the views again in the language picked', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const first = messages(view)[0];
+    expect(first?.type === 'init' && first.context.languageChoice).toBe('auto');
+    view.webview.html = '';
+    await view.webview.receive({ type: 'act', req: 5, action: { kind: 'setting.language', choice: 'en' } });
+    // Reloaded: the page is served again (with a fresh nonce, so not byte for byte).
+    await vi.waitFor(() => expect(view.webview.html).toContain('<!doctype html>'), { timeout: 1_000, interval: 10 });
+    await view.webview.receive({ type: 'ready' });
+    const again = messages(view).filter((m) => m.type === 'init').at(-1);
+    expect(again?.type === 'init' && [again.context.language, again.context.languageChoice]).toEqual(['en', 'en']);
   });
 
   it('reads the transcripts only while a cockpit is open', async () => {

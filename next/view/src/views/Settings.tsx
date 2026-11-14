@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
+import { useEffect, useState, type ReactNode } from 'react';
+import { EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
+import { Segmented } from '../cockpit/Cockpit';
+import { SESSION_SORTS, type SessionSort } from '../sections';
 import { Icon } from '../ui/icons';
 import type { ViewCtx } from './context';
 
@@ -8,7 +10,19 @@ import type { ViewCtx } from './context';
  * The two sounds are fixed — Attente when a conversation waits, Fin when it is
  * done (triage, 14/11): only their volume is set here.
  */
-export function SettingsPanel({ ctx, onClose, showUsage, onShowUsage }: { ctx: ViewCtx; onClose(): void; showUsage: boolean; onShowUsage(on: boolean): void }) {
+export function SettingsPanel({
+  ctx,
+  onClose,
+  showUsage,
+  onShowUsage,
+  onSort,
+}: {
+  ctx: ViewCtx;
+  onClose(): void;
+  showUsage: boolean;
+  onShowUsage(on: boolean): void;
+  onSort(sort: SessionSort): void;
+}) {
   const { t, snapshot } = ctx;
   const s = snapshot.settings;
   // The slider moves freely; the file is written once, when it is let go.
@@ -58,6 +72,32 @@ export function SettingsPanel({ ctx, onClose, showUsage, onShowUsage }: { ctx: V
             <span />
           </button>
         </div>
+        <Choice label={t('settings.sort')} hint={t('settings.sort.hint')}>
+          <Segmented
+            label={t('settings.sort')}
+            options={SESSION_SORTS.map((v) => ({ value: v, label: t(`settings.sort.${v}`) }))}
+            value={ctx.sort}
+            onChange={onSort}
+          />
+        </Choice>
+        <Choice label={t('settings.language')} hint={t('settings.language.hint')}>
+          <Segmented
+            label={t('settings.language')}
+            options={LANGUAGE_CHOICES.map((v) => ({ value: v, label: t(`settings.language.${v}`) }))}
+            value={ctx.languageChoice}
+            onChange={(choice) => void ctx.act({ kind: 'setting.language', choice })}
+          />
+        </Choice>
+        {snapshot.editorTabs !== undefined && (
+          <Choice label={t('settings.editorTabs')} hint={t('settings.editorTabs.hint')}>
+            <Segmented
+              label={t('settings.editorTabs')}
+              options={EDITOR_TABS.map((v) => ({ value: v, label: t(`settings.editorTabs.${v}`) }))}
+              value={snapshot.editorTabs ?? 'multiple'}
+              onChange={(mode) => void ctx.act({ kind: 'setting.editorTabs', mode })}
+            />
+          </Choice>
+        )}
       </section>
 
       <section className="set-group">
@@ -67,6 +107,19 @@ export function SettingsPanel({ ctx, onClose, showUsage, onShowUsage }: { ctx: V
         ))}
       </section>
       <p className="hint pad">{t('settings.shared')}</p>
+    </div>
+  );
+}
+
+/** A setting with several answers: its name and what it does, the choice under them. */
+function Choice({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
+  return (
+    <div className="set-row set-choice">
+      <span className="set-l">
+        <b>{label}</b>
+        <span className="sub">{hint}</span>
+      </span>
+      {children}
     </div>
   );
 }

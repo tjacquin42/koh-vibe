@@ -34,6 +34,13 @@ export type SettingToggle = (typeof SETTING_TOGGLES)[number];
 export const SESSION_COMMANDS = ['sleep', 'close'] as const;
 export type SessionCommand = (typeof SESSION_COMMANDS)[number];
 
+/** V1's TabsMode (settings/tabs.ts), in the order its picker offers them. */
+export const EDITOR_TABS = ['multiple', 'single', 'none'] as const;
+export type EditorTabs = (typeof EDITOR_TABS)[number];
+
+export const LANGUAGE_CHOICES = ['auto', 'en', 'fr'] as const;
+export type LanguageChoice = (typeof LANGUAGE_CHOICES)[number];
+
 export const MAX_NAME = 80;
 /** claude.ai caps nothing we know of; a title longer than this is a paste gone wrong. */
 export const MAX_TITLE = 200;
@@ -70,6 +77,10 @@ export type Action =
    * sounds themselves are fixed (Attente, Fin — decided in the triage).
    */
   | { kind: 'setting.volume'; percent: number }
+  /** The editor's own tab bar (workbench.editor.showTabs) — not a Koh-Vibe file. */
+  | { kind: 'setting.editorTabs'; mode: EditorTabs }
+  /** The V2's language, for its views; `auto` follows the editor's. */
+  | { kind: 'setting.language'; choice: LanguageChoice }
   // ── claude.ai, through V1's own API functions (the cloud has no V1 state to clash with)
   | { kind: 'artifact.rename'; slug: string; title: string }
   | { kind: 'artifact.pin'; slug: string; pinned: boolean }
@@ -201,6 +212,10 @@ export function parseAction(raw: unknown): Action | undefined {
       const p = raw['percent'];
       return typeof p === 'number' && Number.isInteger(p) && p >= 0 && p <= 100 ? { kind: 'setting.volume', percent: p } : undefined;
     }
+    case 'setting.editorTabs':
+      return oneOf(EDITOR_TABS, raw['mode']) ? { kind: 'setting.editorTabs', mode: raw['mode'] } : undefined;
+    case 'setting.language':
+      return oneOf(LANGUAGE_CHOICES, raw['choice']) ? { kind: 'setting.language', choice: raw['choice'] } : undefined;
     case 'artifact.rename': {
       const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';
       return isSlug(raw['slug']) && title.length > 0 && title.length <= MAX_TITLE ? { kind: 'artifact.rename', slug: raw['slug'], title } : undefined;
