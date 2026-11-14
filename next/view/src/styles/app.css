@@ -107,7 +107,11 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
 .search input::-webkit-search-cancel-button { display: none; }
 .tabs { display: flex; gap: 2px; margin: 0 10px 6px; padding: 3px; background: var(--surface); border-radius: 9px; }
-.tabs button { flex: 1; min-width: 0; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 500; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabs button { flex: 1; min-width: 0; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 500; padding: 0 3px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.tabs button span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tabs button .icon { flex: none; }
+.tabs.icons-only button .icon { width: 16px; height: 16px; }
+.tabs button:hover { color: var(--soft); }
 .tabs button[aria-selected="true"] { background: var(--raised); color: var(--text); }
 
 .row { display: flex; gap: 9px; align-items: center; width: 100%; padding: 6px 8px; border-radius: 9px; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; }

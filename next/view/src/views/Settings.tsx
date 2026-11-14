@@ -18,12 +18,16 @@ export function SettingsPanel({
   onClose,
   showUsage,
   onShowUsage,
+  showTabNames,
+  onShowTabNames,
   onSort,
 }: {
   ctx: ViewCtx;
   onClose(): void;
   showUsage: boolean;
   onShowUsage(on: boolean): void;
+  showTabNames: boolean;
+  onShowTabNames(on: boolean): void;
   onSort(sort: SessionSort): void;
 }) {
   const { t, snapshot } = ctx;
@@ -72,6 +76,15 @@ export function SettingsPanel({
             <Hint text={t('settings.showUsage.hint')} />
           </div>
           <button type="button" role="switch" aria-checked={showUsage} aria-labelledby="set-show-usage" className="switch" onClick={() => onShowUsage(!showUsage)}>
+            <span />
+          </button>
+        </div>
+        <div className="set-row">
+          <div className="set-l">
+            <b id="set-tab-names">{t('settings.tabNames')}</b>
+            <Hint text={t('settings.tabNames.hint')} />
+          </div>
+          <button type="button" role="switch" aria-checked={showTabNames} aria-labelledby="set-tab-names" className="switch" onClick={() => onShowTabNames(!showTabNames)}>
             <span />
           </button>
         </div>

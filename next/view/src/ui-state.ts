@@ -30,6 +30,8 @@ export interface UiState {
   sizes: Record<string, number>;
   /** The usage at the foot of the sidebar; off from the settings. */
   showUsage: boolean;
+  /** The sidebar tabs' names next to their icons; off from the settings, and hidden anyway when they do not fit. */
+  showTabNames: boolean;
   /** The extension start this state was last seen under (ViewContext.launch). */
   launch?: string;
   /**
@@ -54,6 +56,7 @@ export const DEFAULT_UI: UiState = {
   cockpit: { view: 'board', folder: null, spanH: 8 },
   sizes: {},
   showUsage: true,
+  showTabNames: true,
   dismissed: {},
   sort: 'manual',
   tabOrder: [...SIDEBAR_TABS],
@@ -94,6 +97,7 @@ export function parseUiState(raw: unknown): UiState {
     ? (rec['folded'] as unknown[]).filter((k): k is string => typeof k === 'string')
     : DEFAULT_UI.folded;
   const showUsage = typeof rec['showUsage'] === 'boolean' ? rec['showUsage'] : DEFAULT_UI.showUsage;
+  const showTabNames = typeof rec['showTabNames'] === 'boolean' ? rec['showTabNames'] : DEFAULT_UI.showTabNames;
   const dismissed: Record<string, number> = {};
   if (typeof rec['dismissed'] === 'object' && rec['dismissed'] !== null) {
     for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
@@ -105,6 +109,7 @@ export function parseUiState(raw: unknown): UiState {
     cockpit: parseCockpit(rec['cockpit']),
     sizes: parseSizes(rec['sizes']),
     showUsage,
+    showTabNames,
     dismissed,
     sort,
     tabOrder: normalizeOrder(rec['tabOrder'], SIDEBAR_TABS),

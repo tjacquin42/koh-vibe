@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
 import { type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
@@ -9,7 +9,7 @@ import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
 import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
-import { Icon } from './ui/icons';
+import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
 import { showStoredTheme } from './ui/theme';
@@ -270,6 +270,8 @@ export function App({ bridge }: { bridge: Bridge }) {
             onClose={() => setSettingsOpen(false)}
             showUsage={ui.showUsage}
             onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))}
+            showTabNames={ui.showTabNames}
+            onShowTabNames={(on) => updateUi((prev) => ({ ...prev, showTabNames: on }))}
             onSort={(sort) => updateUi((prev) => ({ ...prev, sort }))}
           />
         </main>
@@ -281,6 +283,7 @@ export function App({ bridge }: { bridge: Bridge }) {
               t={t}
               tab={ui.tab}
               order={ui.tabOrder}
+              names={ui.showTabNames}
               animate={ctx.animate}
               onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))}
               onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}
@@ -449,10 +452,18 @@ function SearchBox({ t, query, onChange }: { t: Translate; query: string; onChan
 }
 
 /** The sidebar's tabs, in the order the user dragged them to (ui/reorder.ts). */
+const TAB_ICON: Record<SidebarTab, IconName> = { sessions: 'chat', artifacts: 'doc', routines: 'clock', processes: 'term', usage: 'bars' };
+
+/**
+ * The sidebar's tabs, in the order the user dragged them to (ui/reorder.ts),
+ * an icon each and its name beside it (14/11) — unless the settings say
+ * icons only, or the names do not fit: then the name is the tooltip.
+ */
 function Tabs({
   t,
   tab,
   order,
+  names,
   animate,
   onTab,
   onOrder,
@@ -460,6 +471,7 @@ function Tabs({
   t: Translate;
   tab: SidebarTab;
   order: readonly SidebarTab[];
+  names: boolean;
   animate: boolean;
   onTab(tab: SidebarTab): void;
   onOrder(order: SidebarTab[]): void;
@@ -467,15 +479,56 @@ function Tabs({
   const nav = useRef<HTMLElement>(null);
   useFlip(nav, animate);
   const { shown, itemProps, barProps } = useReorder(order, onOrder);
+  const narrow = useNamesOverflow(nav, names);
+  const iconsOnly = !names || narrow;
   return (
-    <nav ref={nav} className="tabs" role="tablist" aria-label={t('tabs.label')} {...barProps}>
+    <nav ref={nav} className={`tabs${iconsOnly ? ' icons-only' : ''}`} role="tablist" aria-label={t('tabs.label')} {...barProps}>
       {shown.map((id) => (
-        <button key={id} type="button" role="tab" data-flip={`tab:${id}`} aria-selected={tab === id} aria-controls="panel" onClick={() => onTab(id)} {...itemProps(id)}>
-          {t(`tab.${id}`)}
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          data-flip={`tab:${id}`}
+          aria-selected={tab === id}
+          aria-controls="panel"
+          aria-label={iconsOnly ? t(`tab.${id}`) : undefined}
+          title={iconsOnly ? t(`tab.${id}`) : undefined}
+          onClick={() => onTab(id)}
+          {...itemProps(id)}
+        >
+          <Icon name={TAB_ICON[id]} />
+          {!iconsOnly && <span>{t(`tab.${id}`)}</span>}
         </button>
       ))}
     </nav>
   );
+}
+
+/**
+ * Whether the names would be cut: measured with them shown; once hidden, they
+ * come back only when the bar is wider than where they stopped fitting.
+ */
+function useNamesOverflow(nav: RefObject<HTMLElement | null>, wanted: boolean): boolean {
+  const [narrow, setNarrow] = useState(false);
+  const fitBelow = useRef(0);
+  useLayoutEffect(() => {
+    const el = nav.current;
+    if (el === null || !wanted) return undefined;
+    const check = (): void => {
+      const width = el.clientWidth;
+      setNarrow((was) => {
+        if (was) return width <= fitBelow.current;
+        const cut = [...el.querySelectorAll('button > span')].some((s) => s.scrollWidth > s.clientWidth + 1);
+        if (cut) fitBelow.current = width;
+        return cut;
+      });
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [nav, wanted]);
+  return wanted && narrow;
 }
 
 function Results({ ctx, results, query }: { ctx: ViewCtx; results: NonNullable<ReturnType<typeof search>>; query: string }) {
