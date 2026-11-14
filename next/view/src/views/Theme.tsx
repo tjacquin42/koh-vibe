@@ -82,7 +82,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
         <div className="set-l">
           <b>{t('theme.grain')}</b>
         </div>
-        {/* Several at once; the first one picked starts at half strength. */}
+        {/* Several at once; the first one picked starts at a fifth of the strength (14/11). */}
         <div className="ttex" role="group" aria-label={t('theme.grain')}>
           {TEXTURES.map((id) => {
             const on = draft.textures.includes(id);
@@ -91,7 +91,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
               const now = live.current;
               const was = now.textures.includes(id);
               const textures = was ? now.textures.filter((x) => x !== id) : TEXTURES.filter((x) => x === id || now.textures.includes(x));
-              save({ ...theme, current: { ...now, textures, grain: !was && now.grain === 0 ? 50 : now.grain } });
+              save({ ...theme, current: { ...now, textures, grain: !was && now.grain === 0 ? TEXTURE_START : now.grain } });
             };
             return (
               <button key={id} type="button" aria-pressed={on} onClick={pick}>
@@ -111,7 +111,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
           track="trange-grain"
           onMove={(grain) => move({ grain })}
           onCommit={commit}
-          onReset={() => save({ ...theme, current: { ...live.current, grain: 50 } })}
+          onReset={() => save({ ...theme, current: { ...live.current, grain: TEXTURE_START } })}
         />
       )}
       <div className="set-row set-choice">
@@ -193,6 +193,8 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
  * theme, not its coral accents (14/11).
  */
 const BASE_HUE = 252;
+/** Where the strength starts when a first texture is picked, and goes back on a double-click. */
+const TEXTURE_START = 20;
 const HUES = [-180, -120, -60, 0, 60, 120, 180].map((d) => `hsl(${BASE_HUE + d}deg 80% 68%)`).join(', ');
 
 /**
