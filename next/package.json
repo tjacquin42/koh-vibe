@@ -122,6 +122,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build-host.mjs && vite build",
+    "build:root": "node scripts/build-root.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.view.json",
     "test": "vitest run",
     "test:watch": "vitest",

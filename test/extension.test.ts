@@ -46,6 +46,9 @@ import {
 type Manifest = { contributes: { commands: Array<{ command: string }> } };
 const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as Manifest;
 
+/** The commands V1's own activation registers. */
+const isV1Command = (command: string): boolean => command.startsWith('kohVibe.') && command !== 'kohVibe.switchInterface';
+
 let root: string;
 let subscriptions: Array<{ dispose?: () => void }>;
 
@@ -95,7 +98,8 @@ describe('activate', () => {
       await expect(activate(fakeContext())).resolves.toBeUndefined();
 
       const registered = new Set(registeredCommands.map((c) => c.command));
-      const declared = manifest.contributes.commands.map((c) => c.command);
+      // V1's own: Koh-Vibe 2's (kohVibeNext.*) and the interface switch come from next/src/host/main.ts.
+      const declared = manifest.contributes.commands.map((c) => c.command).filter(isV1Command);
       // Both directions: a command declared in package.json but never
       // registered is a button that does nothing; one registered but never
       // declared can never be reached from the UI at all.
@@ -192,7 +196,7 @@ describe('the engine without its views (Koh-Vibe 2, after the switch-over)', () 
       expect(webviewViewProviders).toHaveLength(0);
       expect(statusBarItems).toHaveLength(0);
       const registered = new Set(registeredCommands.map((c) => c.command));
-      for (const { command } of manifest.contributes.commands) expect(registered.has(command)).toBe(true);
+      for (const command of manifest.contributes.commands.map((c) => c.command).filter(isV1Command)) expect(registered.has(command)).toBe(true);
 
       // A hook through the real bridge: the engine reduces it into the
       // session's state file, views or not.

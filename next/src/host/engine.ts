@@ -12,6 +12,7 @@
  * two sounds, the hooks installer — sits in engine/ (scripts/engine-assets.mjs):
  * the engine is given that folder as the extension's own.
  */
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { activate as runEngine } from '../../../src/extension';
@@ -27,7 +28,9 @@ export function v1Installed(context: vscode.ExtensionContext): boolean {
 
 /** The context the engine sees: this extension's, with engine/ as its folder. */
 export function engineContext(context: vscode.ExtensionContext): vscode.ExtensionContext {
-  const folder = join(context.extensionPath, 'engine');
+  // engine/ in Koh-Vibe Next's own package; in 2.0's, the files sit at the root, where V1 kept them.
+  const engine = join(context.extensionPath, 'engine');
+  const folder = existsSync(engine) ? engine : context.extensionPath;
   return new Proxy(context, {
     get: (target, key) => (key === 'extensionPath' ? folder : Reflect.get(target, key, target)),
   });

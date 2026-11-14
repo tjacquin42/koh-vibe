@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 // the button is simply not there — which is why it is asserted here.
 type Command = { command: string; icon?: string | { light: string; dark: string } };
 type MenuEntry = { command: string; when?: string; group?: string };
-type View = { id: string; visibility?: string };
+type View = { id: string; visibility?: string; when?: string };
 type Manifest = {
   contributes: { commands: Command[]; menus: Record<string, MenuEntry[]>; views: Record<string, View[]> };
 };
@@ -86,7 +86,13 @@ describe('the manifest', () => {
       'kohVibe.processes',
       'kohVibe.closed',
       'kohVibe.settings',
+      'kohVibeNext.sidebar',
     ]);
+  });
+
+  it('shows one interface at a time: the tree views for the classic one, the web view for the new one', () => {
+    const views = manifest.contributes.views['koh-vibe'] ?? [];
+    for (const v of views) expect(v.when).toBe(v.id === 'kohVibeNext.sidebar' ? "config.kohVibe.interface != 'classic'" : "config.kohVibe.interface == 'classic'");
   });
 
   it('folds Routines until someone opens it', () => {
