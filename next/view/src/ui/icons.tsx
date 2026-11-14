@@ -1,0 +1,173 @@
+import type { Tone } from '../format';
+
+/**
+ * The status dot. Same shapes moving or still: turning animation off — the
+ * setting, or the system's reduced-motion preference (CSS) — stops the ring
+ * at its starting angle and never swaps the drawing, as in V1.
+ */
+/** How a status dot is drawn — V1's set (resources/status), in Koh's colours. */
+const DOT: Record<Tone | 'rest', { glow: number; ring?: { dash?: string; width: number; turn?: 'wait' | 'run' }; core: number }> = {
+  // Waiting: a ring with one opening, turning slowly in and out.
+  wait: { glow: 0.62, ring: { dash: '29.61 9.35', width: 1.4, turn: 'wait' }, core: 2.7 },
+  // Working: a dashed ring turning steadily.
+  run: { glow: 0.56, ring: { dash: '4.87 2.43', width: 1.3, turn: 'run' }, core: 2.7 },
+  done: { glow: 0.53, ring: { width: 1.3 }, core: 2.7 },
+  idle: { glow: 0.22, core: 3.2 },
+  // Closed: the dotted outline only (14/11).
+  ended: { glow: 0.1, ring: { dash: '2 2.4', width: 1.3 }, core: 0 },
+  // « At rest and closed », the board's last column: both at once.
+  rest: { glow: 0.16, ring: { dash: '2 2.4', width: 1.3 }, core: 2.7 },
+};
+
+export function Dot({ tone, animate, size = 16, label }: { tone: Tone | 'rest'; animate: boolean; size?: number; label?: string }) {
+  const d = DOT[tone];
+  const a11y = label === undefined ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': label };
+  // One gradient per tone: identical wherever it is defined again.
+  const glow = `kv-glow-${tone}`;
+  return (
+    <svg className={`dot tone-${tone}`} width={size} height={size} viewBox="0 0 16 16" {...a11y}>
+      {label !== undefined && <title>{label}</title>}
+      <defs>
+        <radialGradient id={glow}>
+          <stop offset="30%" stopColor="currentColor" stopOpacity={d.glow} />
+          <stop offset="62%" stopColor="currentColor" stopOpacity={d.glow * 0.45} />
+          <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+        </radialGradient>
+      </defs>
+      <circle cx="8" cy="8" r="8" fill={`url(#${glow})`} />
+      {d.ring !== undefined && (
+        <circle
+          className={d.ring.turn !== undefined && animate ? `turn-${d.ring.turn}` : 'still'}
+          cx="8"
+          cy="8"
+          r="6.2"
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={0.85}
+          strokeLinecap="round"
+          strokeWidth={d.ring.width}
+          strokeDasharray={d.ring.dash}
+        />
+      )}
+      {d.core > 0 && <circle cx="8" cy="8" r={d.core} fill="currentColor" />}
+    </svg>
+  );
+}
+
+const PATHS = {
+  info: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 7.2v4" />
+      <circle cx="8" cy="4.9" r=".55" fill="currentColor" stroke="none" />
+    </>
+  ),
+  chev: <path d="M5 6.5l3 3 3-3" />,
+  chevR: <path d="M6.5 5l3 3-3 3" />,
+  pin: <path d="M6 2.5h4l-.5 4 2 2H4.5l2-2zM8 8.5V14" />,
+  doc: (
+    <>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M5 6h6M5 8.5h6M5 11h3.5" />
+    </>
+  ),
+  term: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <path d="M4.5 6.5l2 1.5-2 1.5M8 10h3" />
+    </>
+  ),
+  plug: <path d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3" />,
+  // A cog with eight teeth — the rays of the first drawing read as a sun (14/11).
+  gear: (
+    <>
+      <path d="M12.82 6.67L14.5 6.87v2.26l-1.68.2-.47 1.13 1.05 1.34-1.6 1.6-1.34-1.05-1.13.47-.2 1.68H6.87l-.2-1.68-1.13-.47L4.2 13.4l-1.6-1.6 1.05-1.34-.47-1.13-1.68-.2V6.87l1.68-.2.47-1.13L2.6 4.2l1.6-1.6 1.34 1.05 1.13-.47.2-1.68h2.26l.2 1.68 1.13.47 1.34-1.05 1.6 1.6-1.05 1.34z" />
+      <circle cx="8" cy="8" r="2.1" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="7" cy="7" r="4.2" />
+      <path d="M10.2 10.2L13.5 13.5" />
+    </>
+  ),
+  close: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
+  panel: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="2" />
+      <path d="M6 3v10" />
+    </>
+  ),
+  external: <path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5" />,
+  resume: <path d="M3 8a5 5 0 1 0 1.5-3.6L3 6M3 3v3h3" />,
+  plus: <path d="M8 3v10M3 8h10" />,
+  infinity: <path d="M8 8c-1.3-1.6-2.4-2.6-3.8-2.6a2.6 2.6 0 0 0 0 5.2C5.6 10.6 6.7 9.6 8 8s2.4-2.6 3.8-2.6a2.6 2.6 0 0 1 0 5.2C10.4 10.6 9.3 9.6 8 8z" />,
+  // Tidy: a spark and a small one — things put in their place.
+  tidy: <path d="M7 2.5l1.3 3.2 3.2 1.3-3.2 1.3L7 11.5 5.7 8.3 2.5 7l3.2-1.3zM12 10v4M10 12h4" />,
+  // A box with its lid: the archives (14/11).
+  archive: <path d="M2.5 3.5h11v3h-11zM3.5 6.5v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-6M6.5 9h3" />,
+  hourglass: <path d="M4.5 2.5h7M4.5 13.5h7M5.5 2.5c0 3 5 3.2 5 5.5s-5 2.5-5 5.5M10.5 2.5c0 3-5 3.2-5 5.5s5 2.5 5 5.5" />,
+  history: (
+    <>
+      <path d="M2.8 8a5.2 5.2 0 1 0 1.5-3.7L2.8 5.8M2.8 3v2.8h2.8" />
+      <path d="M8 5.2V8l2 1.3" />
+    </>
+  ),
+  more: <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.2" />,
+  moon: <path d="M12.5 9.5A5 5 0 0 1 6.5 3.5a5 5 0 1 0 6 6z" />,
+  trash: <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M6.8 7v4M9.2 7v4" />,
+  copy: (
+    <>
+      <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" />
+      <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+    </>
+  ),
+  edit: <path d="M10.5 3l2.5 2.5L6 12.5H3.5V10zM9 4.5L11.5 7" />,
+  clock: (
+    <>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M8 4.8V8l2.2 1.4" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="2" y="3" width="3.5" height="10" rx="1" />
+      <rect x="6.25" y="3" width="3.5" height="7" rx="1" />
+      <rect x="10.5" y="3" width="3.5" height="4.5" rx="1" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
+    </>
+  ),
+  list: <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" />,
+  bars: <path d="M3 13V8M6.5 13V4M10 13V6.5M13.5 13V10" />,
+  user: (
+    <>
+      <circle cx="8" cy="5.5" r="2.6" />
+      <path d="M3 13.5c.8-2.6 2.7-3.8 5-3.8s4.2 1.2 5 3.8" />
+    </>
+  ),
+  // A closed bubble with its tail at the bottom left — the first drawing left its left side open.
+  chat: <path d="M4.5 3h7A1.5 1.5 0 0 1 13 4.5v5A1.5 1.5 0 0 1 11.5 11H7.5l-3 2.5V11A1.5 1.5 0 0 1 3 9.5v-5A1.5 1.5 0 0 1 4.5 3z" />,
+  bot: (
+    <>
+      <rect x="3.5" y="5.5" width="9" height="7" rx="2" />
+      <path d="M8 3v2.5M6.3 9h.01M9.7 9h.01" />
+    </>
+  ),
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 14 }: { name: IconName; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="icon">
+      {PATHS[name]}
+    </svg>
+  );
+}

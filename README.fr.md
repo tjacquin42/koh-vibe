@@ -82,6 +82,30 @@ ensuite la fenêtre (*Developer: Reload Window*). Le numéro vient de l'horloge 
 installation tombe dans un dossier neuf : celui de `package.json` ne bouge qu'à la livraison,
 et réinstaller sous le même numéro laisse l'éditeur servir ce qu'il avait déjà.
 
+### Koh-Vibe 1, l'interface classique
+
+Koh-Vibe 2.0 réunit les deux interfaces dans une seule extension : la nouvelle par défaut, et
+les vues en arbre de Koh-Vibe 1 à un réglage près — **Koh-Vibe › Interface**, ou *Koh-Vibe :
+Passer de la nouvelle interface à la classique, ou l'inverse* dans la palette. Les hooks, les
+sons et vos dossiers sont les mêmes dans les deux ; changer demande de recharger la fenêtre.
+
+Pour installer Koh-Vibe 1 elle-même, figée en **1.5.0** :
+
+- depuis l'éditeur : dans la vue Extensions, Koh-Vibe → *Installer une version spécifique…* →
+  1.5.0 — puis coupez ses mises à jour automatiques, sinon la 2.0 la remplace à la suivante ;
+- depuis les sources : la branche [`v1`](https://github.com/tjacquin42/koh-vibe/tree/v1), puis
+  les mêmes étapes que ci-dessus :
+
+```bash
+git clone -b v1 https://github.com/tjacquin42/koh-vibe.git
+cd koh-vibe
+pnpm install
+sh install.sh
+```
+
+Un éditeur n'accueille qu'un Koh-Vibe à la fois : la 1.5.0 et la 2.0 ont le même identifiant,
+installer l'une remplace l'autre.
+
 ## Ce que ça affiche
 
 - **Les sessions vivantes**, triées par ce qui réclame votre attention : celles qui vous

@@ -1,0 +1,17 @@
+{
+  // F5 opens a second editor window (the Extension Development Host) running
+  // Koh-Vibe Next from next/. The window you work in is never reloaded: edits
+  // to next/view show up live through Vite; edits to next/src/host need
+  // "Developer: Restart Extension Host" in the development window.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Koh-Vibe Next",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/next"],
+      "outFiles": ["${workspaceFolder}/next/out/**/*.js"],
+      "preLaunchTask": "next: dev"
+    }
+  ]
+}
