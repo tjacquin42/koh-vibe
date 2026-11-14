@@ -31,6 +31,11 @@ export interface UiState {
   showUsage: boolean;
   /** The extension start this state was last seen under (ViewContext.launch). */
   launch?: string;
+  /**
+   * « For you » cards closed with their ×, by conversation: the time of its
+   * last event then. A new event — another question — brings the card back.
+   */
+  dismissed: Record<string, number>;
 }
 
 /** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
@@ -43,6 +48,7 @@ export const DEFAULT_UI: UiState = {
   cockpit: { view: 'board', folder: null, count: 'weighted', spanH: 8 },
   sizes: {},
   showUsage: true,
+  dismissed: {},
 };
 
 function parseSizes(raw: unknown): Record<string, number> {
@@ -80,7 +86,11 @@ export function parseUiState(raw: unknown): UiState {
     ? (rec['folded'] as unknown[]).filter((k): k is string => typeof k === 'string')
     : DEFAULT_UI.folded;
   const showUsage = typeof rec['showUsage'] === 'boolean' ? rec['showUsage'] : DEFAULT_UI.showUsage;
-  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage };
+  const dismissed: Record<string, number> = {};
+  if (typeof rec['dismissed'] === 'object' && rec['dismissed'] !== null) {
+    for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
+  }
+  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage, dismissed };
   if (typeof rec['launch'] === 'string') out.launch = rec['launch'];
   return out;
 }
@@ -95,6 +105,12 @@ export function atLaunch(state: UiState, launch: string, folderIds: readonly str
   if (state.launch === launch) return state;
   const folders = [...folderIds, 'unfiled'];
   return { ...state, launch, folded: [...new Set([...state.folded, ...folders])] };
+}
+
+/** Closes a « For you » card; only the conversations still waiting are kept, so the list stays short. */
+export function dismiss(state: UiState, sessionId: string, lastEventAt: number, waiting: readonly string[]): UiState {
+  const kept = Object.fromEntries(Object.entries(state.dismissed).filter(([id]) => waiting.includes(id)));
+  return { ...state, dismissed: { ...kept, [sessionId]: lastEventAt } };
 }
 
 export function toggleFold(state: UiState, key: string): UiState {

@@ -5,6 +5,7 @@ import { formatWhen } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm } from '../ui/Inline';
 import { Section } from '../ui/Section';
+import { menuContext } from '../ui/menu-context';
 import { CloudBar } from './Artifacts';
 import type { ViewCtx } from './context';
 
@@ -41,7 +42,11 @@ function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
   // V1's rules: only an active, unspent routine runs; a spent one-shot is never resumed.
   const canRun = r.enabled && !r.spent;
   return (
-    <div className={`card${ctx.isBusy(r.id) ? ' busy' : ''}`} aria-busy={ctx.isBusy(r.id)}>
+    <div
+      className={`card${ctx.isBusy(r.id) ? ' busy' : ''}`}
+      aria-busy={ctx.isBusy(r.id)}
+      data-vscode-context={menuContext('kvnRoutine', { kvnRoutineId: r.id, kvnName: r.name, kvnEnabled: r.enabled, kvnCanRun: canRun, kvnCanResume: !r.enabled && !r.spent })}
+    >
       <div className="card-l1">
         <span className="ttl">{r.name}</span>
         <span className={`state ${live ? 'on' : 'off'}`}>{t(live ? 'routines.on' : 'routines.off')}</span>

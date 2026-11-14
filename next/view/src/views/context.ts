@@ -35,4 +35,7 @@ export interface ViewCtx {
    * or `hold` ms after the answer when nothing on disk changes.
    */
   track<T>(key: string, p: Promise<T>, hold?: number): Promise<T>;
+  /** Whether this « For you » card was closed, and nothing happened since. */
+  isDismissed(sessionId: string, lastEventAt: number): boolean;
+  dismiss(sessionId: string, lastEventAt: number): void;
 }

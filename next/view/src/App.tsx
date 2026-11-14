@@ -11,7 +11,7 @@ import { isEmpty, search } from './search';
 import { CockpitBody } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { Section } from './ui/Section';
-import { atLaunch, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
+import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
@@ -209,6 +209,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     act,
     notify: showToast,
     isBusy: (key) => busy.has(key),
+    isDismissed: (id, at) => ui.dismissed[id] === at,
+    dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
     show: (id) => (context.surface === 'cockpit' ? setSheet(id) : bridge.post({ type: 'openSession', sessionId: id })),
   };
@@ -252,7 +254,10 @@ export function App({ bridge }: { bridge: Bridge }) {
       )}
       {toast !== undefined && (
         <div className="toast" role="status">
-          {toast}
+          <span>{toast}</span>
+          <button type="button" className="tbtn" aria-label={t('action.close')} onClick={() => setToast(undefined)}>
+            <Icon name="close" />
+          </button>
         </div>
       )}
       <footer className="foot">

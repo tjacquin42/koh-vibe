@@ -34,12 +34,12 @@ export function sessionTitle(s: SessionView, t: Translate): string {
 
 /** The second line: what it is doing now, else where it lives. */
 /**
- * What a conversation is doing that is worth a second line in the sidebar: a
- * permission it waits on, the tool it runs. Its folder is not — it costs a
- * line on every row to repeat what the section already says (14/11).
+ * What a conversation is doing that is worth a second line in the sidebar:
+ * the tool it runs. Not its folder — it costs a line on every row to repeat
+ * what the section already says — nor what it waits on: the « For you » card
+ * above says it in full (14/11).
  */
 export function sessionActivity(s: SessionView): string | undefined {
-  if (s.pendingPermission !== undefined) return `${s.pendingPermission.tool} · ${s.pendingPermission.summary}`;
   if (s.status === 'running' && s.currentAction !== undefined) {
     const target = s.currentAction.target;
     return target !== undefined ? `${s.currentAction.tool} ${target}` : s.currentAction.tool;

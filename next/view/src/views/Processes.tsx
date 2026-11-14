@@ -2,6 +2,7 @@ import type { ProcessKind, ProcessView, SessionView } from '../../../src/shared/
 import { formatAge, megabytes, toneOf } from '../format';
 import { Dot, Icon, type IconName } from '../ui/icons';
 import { Section } from '../ui/Section';
+import { menuContext } from '../ui/menu-context';
 import { SessionName } from '../ui/SessionName';
 import type { ViewCtx } from './context';
 
@@ -55,7 +56,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
 export function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
   const { t } = ctx;
   return (
-    <div className={`proc${ctx.isBusy(`pid:${p.pid}`) ? ' busy' : ''}`} style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
+    <div className={`proc${ctx.isBusy(`pid:${p.pid}`) ? ' busy' : ''}`} data-vscode-context={menuContext('kvnProcess', { kvnPid: p.pid })} style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
       <span className="pk" role="img" aria-label={t(`processes.kind.${p.kind}`)}>
         <Icon name={KIND_ICON[p.kind]} size={13} />
       </span>

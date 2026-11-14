@@ -6,6 +6,7 @@ import { formatAge } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm, NameInput } from '../ui/Inline';
 import { Section } from '../ui/Section';
+import { menuContext } from '../ui/menu-context';
 import type { ViewCtx } from './context';
 
 export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
@@ -92,7 +93,11 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
   const name = a.title || t('artifacts.untitled');
   const close = (): void => setPanel(undefined);
   return (
-    <div className={`arow${panel !== undefined ? ' open' : ''}${ctx.isBusy(a.slug) ? ' busy' : ''}`} aria-busy={ctx.isBusy(a.slug)}>
+    <div
+      className={`arow${panel !== undefined ? ' open' : ''}${ctx.isBusy(a.slug) ? ' busy' : ''}`}
+      aria-busy={ctx.isBusy(a.slug)}
+      data-vscode-context={menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: a.title, kvnPinned: a.pinned })}
+    >
       <div className="arow-line">
         {panel === 'rename' ? (
           <span className="row">

@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activate, cloudDeps, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
 import type { ProcessDeps } from '../src/host/processes';
+import { MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
 import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
@@ -80,7 +81,8 @@ describe('activate', () => {
   it('registers the sidebar and the commands', () => {
     start(ExtensionMode.Production);
     expect([...recorded.providers.keys()]).toEqual([SIDEBAR_VIEW]);
-    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload']);
+    // Two of its own, and one per right-click entry (menus.ts).
+    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload', ...MENU_ITEMS.map((m) => m.command)].sort());
   });
 
   it('serves the built bundle outside a development host', () => {
@@ -285,6 +287,14 @@ describe('activate', () => {
     await view.webview.receive({ type: 'tab', tab: 'artifacts' });
     await view.webview.receive({ type: 'act', req: 3, action: { kind: 'artifact.pin', slug: 'x', pinned: false } });
     await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'acted')).toEqual({ type: 'acted', req: 3, result: { ok: false, error: 'cloud' } }), { timeout: 1_000, interval: 10 });
+  });
+
+  it('runs a right-click entry on the row it was opened on', async () => {
+    start(ExtensionMode.Production);
+    const got: unknown[] = [];
+    recorded.commands.set('kohVibe.sleepSession', (n: unknown) => got.push(n));
+    await recorded.commands.get('kohVibeNext.ctx.session.sleep')?.({ webviewSection: 'kvnSession', kvnSessionId: 'b', webview: 'kohVibeNext.sidebar' });
+    expect(got).toEqual([{ kind: 'session', session: { id: 'b' } }]);
   });
 
   it('reads the transcripts only while a cockpit is open', async () => {

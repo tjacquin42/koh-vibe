@@ -17,6 +17,7 @@ import { COCKPIT_VIEWS, type CockpitView, type UiState } from '../ui-state';
 import type { ViewCtx } from '../views/context';
 import { FOLDER_COLORS } from '../ui/colors';
 import { SessionSheet } from './Sheet';
+import { menuContext } from '../ui/menu-context';
 import { SessionName } from '../ui/SessionName';
 import { Splitter } from '../ui/Splitter';
 import { useRef, type CSSProperties } from 'react';
@@ -199,7 +200,7 @@ function Board({ ctx, cols }: { ctx: ViewCtx; cols: BoardColumns }) {
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
   return (
-    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)}>
+    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)} data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}>
       <span className="l1">
         <span className="ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
@@ -215,7 +216,9 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
 
 export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolean }) {
   const { t, now } = ctx;
-  const box = inbox(ctx.snapshot);
+  const all = inbox(ctx.snapshot);
+  // A card closed with its × stays closed until the conversation moves again.
+  const box = { ...all, waiting: all.waiting.filter((s) => !ctx.isDismissed(s.id, s.lastEventAt)) };
   if (compact && box.waiting.length === 0) return null;
   return (
     <section className="inbox" aria-label={t('inbox.title')}>
@@ -231,10 +234,11 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
               <span className="ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
         </span>
-              <span className="muted small">
-                {s.project} · {t('inbox.since', { d: formatAge(now - s.lastEventAt, t) })}
-              </span>
+              <span className="muted small">{now - s.lastEventAt < 60_000 ? t('inbox.justNow') : t('inbox.since', { d: formatAge(now - s.lastEventAt, t) })}</span>
             </span>
+            <button type="button" className="tbtn ask-x" aria-label={t('inbox.dismiss')} onClick={() => ctx.dismiss(s.id, s.lastEventAt)}>
+              <Icon name="close" />
+            </button>
           </div>
           {s.pendingPermission !== undefined && (
             <span className="q mono">
@@ -317,7 +321,13 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
       {a.sessions.map((s) => {
         const listed = a.listed.get(s.id);
         return (
-          <button key={s.id} type="button" className="tile" onClick={() => ctx.show(s.id)}>
+          <button
+            key={s.id}
+            type="button"
+            className="tile"
+            onClick={() => ctx.show(s.id)}
+            data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: listed?.endedAt !== undefined })}
+          >
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
               <span className="ttl">{listed !== undefined ? <SessionName s={listed} t={t} animate={ctx.animate} /> : (s.title ?? s.project)}</span>

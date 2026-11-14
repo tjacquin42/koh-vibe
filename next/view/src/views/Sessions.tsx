@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
 import { Popover } from '../ui/Popover';
+import { menuContext } from '../ui/menu-context';
 import { useFlip } from '../ui/flip';
 import { useDragScroll } from '../ui/drag-scroll';
 import { SessionName } from '../ui/SessionName';
@@ -186,6 +187,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
           ? {
               'data-flip-anchor': f.id,
               'data-flip-folded': String(ctx.isFolded(f.id)),
+              'data-vscode-context': menuContext('kvnFolder', { kvnFolderId: f.id, kvnName: f.name, kvnColor: f.color }),
               draggable: true,
               onDragStart: (e) => {
                 e.dataTransfer.effectAllowed = 'move';
@@ -194,7 +196,11 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
               },
               onDragEnd: end,
             }
-          : { 'data-flip-anchor': f.id, 'data-flip-folded': String(ctx.isFolded(f.id)) }
+          : {
+              'data-flip-anchor': f.id,
+              'data-flip-folded': String(ctx.isFolded(f.id)),
+              'data-vscode-context': real ? menuContext('kvnFolder', { kvnFolderId: f.id, kvnName: f.name, kvnColor: f.color }) : menuContext('kvnUnfiled'),
+            }
       }
       tools={
         <>
@@ -328,7 +334,11 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   // A second line only when it says something: a permission, the tool running, a departure soon.
   const doing = s.endedAt === undefined ? sessionActivity(s) : undefined;
   return (
-    <div className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}`} aria-busy={busy}>
+    <div
+      className={`srow tone-${tone}${info ? ' open' : ''}${busy ? ' busy' : ''}`}
+      aria-busy={busy}
+      data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}
+    >
       <div className="srow-line">
         <button
           type="button"
@@ -420,7 +430,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   if (!c.resumable) {
     // Started outside the editor and the terminal: V1 has nothing to resume it from.
     return (
-      <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed">
+      <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed" data-vscode-context={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: false })}>
         <Dot tone="ended" animate={false} />
         <span className="txt">
           <span className="ttl">{title}</span>
@@ -433,7 +443,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   const waiting = ctx.reopening.has(c.sessionId);
   const notice = ctx.reopenNotice(c.sessionId);
   return (
-    <div className="closed-item" data-flip={c.sessionId} data-flip-parent="closed">
+    <div className="closed-item" data-flip={c.sessionId} data-flip-parent="closed" data-vscode-context={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: true })}>
       <button
         type="button"
         className="row row-btn closed-row"

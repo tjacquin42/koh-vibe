@@ -31,7 +31,7 @@ export function Section({
   className?: string;
   sectionProps?: HTMLAttributes<HTMLElement>;
   /** `data-flip-*`: what ui/flip.ts folds rows into (see there). */
-  headProps?: HTMLAttributes<HTMLHeadingElement> & { draggable?: boolean; 'data-flip-anchor'?: string; 'data-flip-folded'?: string };
+  headProps?: HTMLAttributes<HTMLHeadingElement> & { draggable?: boolean; 'data-flip-anchor'?: string; 'data-flip-folded'?: string; 'data-vscode-context'?: string };
   children: ReactNode;
 }) {
   const head = (

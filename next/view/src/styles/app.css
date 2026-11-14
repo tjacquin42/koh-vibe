@@ -508,3 +508,10 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
   .popover { animation: pop-in 0.12s ease-out; transform-origin: top right; }
   @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
 }
+
+/* The ×: on a « For you » card (closed until the conversation asks again), and on the toast. */
+.ask-h .txt { flex: 1; min-width: 0; }
+.ask-x { flex: none; margin: -4px -4px 0 0; }
+.toast { display: flex; align-items: flex-start; gap: 8px; }
+.toast > span { flex: 1; min-width: 0; padding-top: 2px; }
+.toast .tbtn { flex: none; margin: -3px -5px -3px 0; }

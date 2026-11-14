@@ -5,7 +5,8 @@ import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import type { Action, ActionResult } from '../shared/actions';
+import { FOLDER_COLOR_IDS, type Action, type ActionResult, type FolderColor } from '../shared/actions';
+import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
 import { runAction, type Copied } from './actions';
 import { cloudActions } from './cloud';
 import type { TranscriptStats } from '../../../src/transcript/reader';
@@ -68,6 +69,23 @@ function renderHtml(webview: vscode.Webview, context: vscode.ExtensionContext): 
 
 function webviewOptions(context: vscode.ExtensionContext): vscode.WebviewOptions {
   return { enableScripts: true, localResourceRoots: [viewRoot(context)] };
+}
+
+/** A folder colour's name, as V1's picker says it (src/ui/colors.ts). */
+function colorName(id: FolderColor): string {
+  const names: Record<FolderColor, string> = {
+    blue: vscode.l10n.t('Blue'),
+    indigo: vscode.l10n.t('Indigo'),
+    cyan: vscode.l10n.t('Cyan'),
+    green: vscode.l10n.t('Green'),
+    lime: vscode.l10n.t('Lime'),
+    yellow: vscode.l10n.t('Yellow'),
+    orange: vscode.l10n.t('Orange'),
+    red: vscode.l10n.t('Red'),
+    pink: vscode.l10n.t('Pink'),
+    purple: vscode.l10n.t('Purple'),
+  };
+  return names[id];
 }
 
 /** The status bar line after a copy — V1's wording, so its translations apply. */
@@ -256,6 +274,37 @@ export function activate(context: vscode.ExtensionContext): void {
     });
   };
 
+  const menuDeps: MenuDeps = {
+    act: (a) => act(a),
+    open: (id) => focus(id),
+    sheet: (id) => openCockpit(id),
+    reopen: (id) => void reopen(id),
+    openUrl: (url) => void vscode.env.openExternal(vscode.Uri.parse(url)),
+    ask: (prompt, value) => vscode.window.showInputBox({ prompt, value }),
+    pickColor: async (current) => {
+      const none = vscode.l10n.t('No color');
+      const items = [none, ...FOLDER_COLOR_IDS.map((c) => colorName(c))].map((label, i) => ({
+        label,
+        description: (i === 0 ? current === undefined : FOLDER_COLOR_IDS[i - 1] === current) ? '●' : '',
+        id: i === 0 ? null : (FOLDER_COLOR_IDS[i - 1] ?? null),
+      }));
+      const picked = await vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t('Folder color') });
+      return picked === undefined ? undefined : picked.id;
+    },
+    confirm: async (message, yes) => (await vscode.window.showWarningMessage(message, { modal: true }, yes)) === yes,
+    t: (message, ...args) => vscode.l10n.t(message, ...args),
+    report: (r) => {
+      if (r.ok) return;
+      const text = {
+        'v1-missing': vscode.l10n.t('This goes through Koh-Vibe (V1) until the switch-over, and it is not installed here.'),
+        cloud: vscode.l10n.t('claude.ai did not take it (signed out, or refused). The « Koh-Vibe Next » output says why.'),
+        stale: vscode.l10n.t('That changed in the meantime: nothing was done.'),
+        failed: vscode.l10n.t('That did not go through. Nothing was changed.'),
+      }[r.error];
+      void vscode.window.showWarningMessage(`Koh-Vibe: ${text}`);
+    },
+  };
+
   const reopen = (sessionId: string): Promise<ReopenOutcome> =>
     reopenClosed(sessionId, {
       read: async (id) => (await readClosed(closedFile(home))).closed.find((e) => e.id === id),
@@ -373,6 +422,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kohVibeNext.reload', () => {
       for (const v of views) v.reload();
     }),
+    // The right-click menus (menus.ts): VSCode hands each the row's data-vscode-context.
+    ...MENU_ITEMS.map((m) => vscode.commands.registerCommand(m.command, (arg: unknown) => runMenu(m.command, arg, menuDeps))),
   );
 }
 
