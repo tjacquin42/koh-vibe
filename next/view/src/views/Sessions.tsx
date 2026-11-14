@@ -1,52 +1,273 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
+import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
 import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
+import { dropOrder } from '../sections';
 import { FOLDER_COLORS } from '../ui/colors';
 import type { ViewCtx } from './context';
 
+
+/** What is being dragged in the Sessions tab. */
+type Drag = { kind: 'session'; id: string } | { kind: 'folder'; id: string };
+
+/** The unfiled list's key, as a drop target and a fold key — never a folder id (V1 writes UUIDs). */
+const UNFILED = 'unfiled';
 
 export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
   const byId = useMemo(() => new Map(snapshot.sessions.map((s) => [s.id, s])), [snapshot.sessions]);
   const closed = snapshot.closed.filter((c) => !byId.has(c.sessionId));
-  if (snapshot.sessions.length === 0 && closed.length === 0) {
+  const [drag, setDrag] = useState<Drag | undefined>();
+  if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
     return (
       <div className="empty">
         <h2>{t('empty.title')}</h2>
         <p>{t('empty.body')}</p>
+        <NewFolder ctx={ctx} />
       </div>
     );
   }
-  const unfiled: FolderView = { id: 'unfiled', name: t('folder.temporary'), sessionIds: snapshot.unfiled };
+  const unfiled: FolderView = { id: UNFILED, name: t('folder.temporary'), sessionIds: snapshot.unfiled };
+  const dnd: Dnd = { drag, setDrag };
   return (
     <>
       <Inbox ctx={ctx} compact />
-      {[...snapshot.folders, unfiled]
-        .filter((f) => f.sessionIds.length > 0)
-        .map((f) => (
-          <Section
-            key={f.id}
-            title={f.name}
-            count={f.sessionIds.length}
-            marker={<span className="fold" style={{ background: (f.color !== undefined ? FOLDER_COLORS[f.color] : undefined) ?? 'var(--line)' }} />}
-            folded={ctx.isFolded(f.id)}
-            onToggle={() => ctx.toggle(f.id)}
-          >
-            {f.sessionIds
-              .map((id) => byId.get(id))
-              .filter((s): s is SessionView => s !== undefined)
-              .map((s) => (
-                <SessionRow key={s.id} ctx={ctx} s={s} />
-              ))}
-          </Section>
-        ))}
+      {snapshot.folders.map((f) => (
+        <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
+      ))}
+      <NewFolder ctx={ctx} />
+      {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
       <Section title={t('closed.title')} count={closed.length} folded={ctx.isFolded('closed')} onToggle={() => ctx.toggle('closed')}>
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
     </>
+  );
+}
+
+interface Dnd {
+  drag: Drag | undefined;
+  setDrag(d: Drag | undefined): void;
+}
+
+/**
+ * One folder — or the unfiled list — with its menu and its drop targets.
+ *
+ * A conversation dropped on a row lands in front of it, dropped anywhere
+ * else in the section it lands at the end; dropped on the unfiled list it
+ * leaves its folder. A folder dragged by its heading lands in front of the
+ * folder it is dropped on. Each drop is one write (actions.ts).
+ */
+function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byId: ReadonlyMap<string, SessionView>; dnd: Dnd }) {
+  const { t } = ctx;
+  const real = f.id !== UNFILED;
+  const [menu, setMenu] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [over, setOver] = useState<string | undefined>();
+  const { drag, setDrag } = dnd;
+  const sessions = f.sessionIds.map((id) => byId.get(id)).filter((s): s is SessionView => s !== undefined);
+
+  const fileHere = (id: string, before?: string): void => {
+    const order = dropOrder(f.sessionIds, [id], before);
+    void ctx.act(real ? { kind: 'session.file', ids: [id], folder: f.id, order } : { kind: 'session.file', ids: [id], order });
+  };
+  const accepts = drag !== undefined && (drag.kind === 'session' || (real && drag.id !== f.id));
+  const end = (): void => {
+    setDrag(undefined);
+    setOver(undefined);
+  };
+  const sectionProps = {
+    onDragOver: (e: DragEvent) => {
+      if (!accepts) return;
+      e.preventDefault();
+      if (over === undefined) setOver('end');
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(undefined);
+    },
+    onDrop: (e: DragEvent) => {
+      if (!accepts || drag === undefined) return;
+      e.preventDefault();
+      if (drag.kind === 'session') fileHere(drag.id);
+      else void ctx.act({ kind: 'folder.move', ids: [drag.id], before: f.id });
+      end();
+    },
+  };
+  const color = f.color !== undefined ? FOLDER_COLORS[f.color] : undefined;
+  const title = renaming ? (
+    <NameInput
+      initial={f.name}
+      label={t('folder.rename')}
+      onDone={(name) => {
+        setRenaming(false);
+        if (name !== undefined && name !== f.name) void ctx.act({ kind: 'folder.rename', id: f.id, name });
+      }}
+    />
+  ) : (
+    f.name
+  );
+  return (
+    <Section
+      className={`folder${over !== undefined ? (drag?.kind === 'folder' ? ' drop-before' : ' drop-in') : ''}`}
+      title={title}
+      count={f.sessionIds.length}
+      marker={<span className="fold" style={{ background: color ?? 'var(--line)' }} />}
+      folded={ctx.isFolded(f.id) && !renaming}
+      {...(renaming ? {} : { onToggle: () => ctx.toggle(f.id) })}
+      sectionProps={sectionProps as HTMLAttributes<HTMLElement>}
+      headProps={
+        real && !renaming
+          ? {
+              draggable: true,
+              onDragStart: (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', f.name);
+                setDrag({ kind: 'folder', id: f.id });
+              },
+              onDragEnd: end,
+            }
+          : {}
+      }
+      tools={
+        real ? (
+          <button type="button" className="tbtn" aria-label={t('folder.menu', { name: f.name })} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+            <Icon name="more" />
+          </button>
+        ) : undefined
+      }
+    >
+      {menu && real && !confirming && (
+        <div className="fmenu" role="group" aria-label={t('folder.menu', { name: f.name })}>
+          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'session.new', folder: f.id }); }}>
+            <Icon name="plus" /> {t('folder.newSession')}
+          </button>
+          <button type="button" className="fm-btn" onClick={() => { setMenu(false); setRenaming(true); }}>
+            <Icon name="edit" /> {t('folder.rename')}
+          </button>
+          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'add' }); }}>
+            <Icon name="chat" /> {t('folder.addRule')}
+          </button>
+          <button type="button" className="fm-btn" onClick={() => { setMenu(false); void ctx.act({ kind: 'folder.rules', id: f.id, mode: 'open' }); }}>
+            <Icon name="doc" /> {t('folder.openRules')}
+          </button>
+          <div className="swatches" role="radiogroup" aria-label={t('folder.color')}>
+            <button type="button" role="radio" aria-checked={f.color === undefined} aria-label={t('folder.noColor')} className="sw none" onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: null })} />
+            {FOLDER_COLOR_IDS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={f.color === c}
+                aria-label={c}
+                className="sw"
+                style={{ background: FOLDER_COLORS[c] }}
+                onClick={() => void ctx.act({ kind: 'folder.color', id: f.id, color: c })}
+              />
+            ))}
+          </div>
+          <button type="button" className="fm-btn danger" onClick={() => setConfirming(true)}>
+            <Icon name="trash" /> {t('folder.delete')}
+          </button>
+        </div>
+      )}
+      {confirming && (
+        <div className="confirm" role="alertdialog" aria-label={t('folder.delete')}>
+          <p>{t('folder.deleteConfirm', { name: f.name, n: f.sessionIds.length })}</p>
+          <div className="confirm-btns">
+            <button type="button" className="btn-danger" onClick={() => { setConfirming(false); setMenu(false); void ctx.act({ kind: 'folder.delete', id: f.id }); }}>
+              {t('folder.delete')}
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setConfirming(false)}>
+              {t('action.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+      {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
+      {sessions.map((s) => (
+        <div
+          key={s.id}
+          className={`drag-row${over === s.id && drag?.kind === 'session' ? ' drop-line' : ''}${drag?.kind === 'session' && drag.id === s.id ? ' dragging' : ''}`}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', s.id);
+            setDrag({ kind: 'session', id: s.id });
+          }}
+          onDragEnd={end}
+          onDragOver={(e) => {
+            if (drag?.kind !== 'session') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (over !== s.id) setOver(s.id);
+          }}
+          onDrop={(e) => {
+            if (drag?.kind !== 'session') return;
+            e.preventDefault();
+            e.stopPropagation();
+            fileHere(drag.id, s.id);
+            end();
+          }}
+        >
+          <SessionRow ctx={ctx} s={s} />
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+/** A name typed in place: Enter keeps it, Escape or an empty field gives up. */
+function NameInput({ initial, label, onDone }: { initial: string; label: string; onDone(name: string | undefined): void }) {
+  const [value, setValue] = useState(initial);
+  const done = useRef(false);
+  const finish = (name: string | undefined): void => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name);
+  };
+  return (
+    <input
+      className="name-input"
+      aria-label={label}
+      value={value}
+      maxLength={MAX_NAME}
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(value.trim() === '' ? undefined : value.trim());
+        if (e.key === 'Escape') finish(undefined);
+      }}
+      onBlur={() => finish(value.trim() === '' ? undefined : value.trim())}
+    />
+  );
+}
+
+function NewFolder({ ctx }: { ctx: ViewCtx }) {
+  const { t } = ctx;
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button type="button" className="new-folder" onClick={() => setOpen(true)}>
+        <Icon name="plus" /> {t('folder.new')}
+      </button>
+    );
+  }
+  return (
+    <div className="new-folder open">
+      <Icon name="plus" />
+      <NameInput
+        initial=""
+        label={t('folder.new')}
+        onDone={(name) => {
+          setOpen(false);
+          if (name !== undefined) void ctx.act({ kind: 'folder.create', name });
+        }}
+      />
+    </div>
   );
 }
 
@@ -75,6 +296,15 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           </span>
         </button>
         <span className="tools">
+          {/* V1 asks before putting to sleep or closing a conversation that still works. */}
+          {s.endedAt === undefined && (
+            <button type="button" className="tbtn hover-only" aria-label={t('row.sleep')} onClick={() => void ctx.act({ kind: 'session.command', command: 'sleep', id: s.id })}>
+              <Icon name="moon" />
+            </button>
+          )}
+          <button type="button" className="tbtn hover-only" aria-label={t('row.close')} onClick={() => void ctx.act({ kind: 'session.command', command: 'close', id: s.id })}>
+            <Icon name="trash" />
+          </button>
           <button type="button" className="tbtn" aria-label={t('info.button')} aria-expanded={info} aria-pressed={info} onClick={() => setInfo((v) => !v)}>
             <Icon name="info" />
           </button>
@@ -107,6 +337,11 @@ function SessionInfo({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           <dd>{v}</dd>
         </div>
       ))}
+      <div className="info-acts">
+        <button type="button" className="btn-ghost" onClick={() => void ctx.act({ kind: 'session.copyId', id: s.id })}>
+          <Icon name="copy" /> {t('row.copyId')}
+        </button>
+      </div>
     </dl>
   );
 }

@@ -119,7 +119,11 @@ export const recorded = {
   output: [] as string[],
   statusItems: [] as FakeStatusBarItem[],
   opened: [] as string[],
+  clipboard: [] as string[],
+  statusMessages: [] as string[],
   reset(): void {
+    this.clipboard.length = 0;
+    this.statusMessages.length = 0;
     this.providers.clear();
     this.commands.clear();
     this.panels.length = 0;
@@ -130,6 +134,10 @@ export const recorded = {
 };
 
 export const window = {
+  setStatusBarMessage(text: string, _ms?: number) {
+    recorded.statusMessages.push(text);
+    return { dispose: () => undefined };
+  },
   createOutputChannel(_name: string) {
     return { appendLine: (line: string) => recorded.output.push(line), dispose: () => undefined };
   },
@@ -168,6 +176,12 @@ export const env = {
   openExternal(uri: Uri): Promise<boolean> {
     recorded.opened.push(uri.toString());
     return Promise.resolve(true);
+  },
+  clipboard: {
+    writeText(text: string): Promise<void> {
+      recorded.clipboard.push(text);
+      return Promise.resolve();
+    },
   },
 };
 

@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
 import { readClosed } from '../../../src/closed/store';
-import { claudeHome, claudeSessionsDir, closedFile, kohVibeHome, spoolDirs } from '../../../src/paths';
+import { claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import type { Action, ActionResult } from '../shared/actions';
+import { runAction } from './actions';
 import { ActivityIndex, WINDOW_MS } from './activity/index';
 import { toActivityView } from './activity/view';
 import { Hub } from './hub';
@@ -64,6 +67,7 @@ interface ViewActions {
   openCockpit(sessionId?: string): void;
   openSession(sessionId: string): void;
   reopenClosed(sessionId: string): Promise<ReopenOutcome>;
+  act(action: Action): Promise<ActionResult>;
   showTab(tab: SidebarTab | undefined): void;
 }
 
@@ -112,6 +116,11 @@ function connect(
       case 'reopenClosed': {
         // Told back to this view only: the spinner is on its row.
         const reply: HostMessage = { type: 'reopen', sessionId: msg.sessionId, outcome: await actions.reopenClosed(msg.sessionId) };
+        void webview.postMessage(reply);
+        return;
+      }
+      case 'act': {
+        const reply: HostMessage = { type: 'acted', req: msg.req, result: await actions.act(msg.action) };
         void webview.postMessage(reply);
         return;
       }
@@ -185,9 +194,29 @@ export function activate(context: vscode.ExtensionContext): void {
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
     });
 
+  // The first writes of the V2: shared files through V1's own stores, the
+  // rest handed to V1's commands (actions.ts). The watcher sees the files
+  // change and rebuilds; a refresh right away keeps the click from lagging.
+  const act = async (action: Action): Promise<ActionResult> => {
+    const result = await runAction(action, {
+      groupsFile: groupsFile(home),
+      settingsFile: settingsFile(home),
+      newId: () => randomUUID(),
+      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      run: (cmd, ...args) => vscode.commands.executeCommand(cmd, ...args),
+      copy: async (text) => {
+        await vscode.env.clipboard.writeText(text);
+        vscode.window.setStatusBarMessage(vscode.l10n.t('Koh-Vibe: conversation ID copied'), 3000);
+      },
+    });
+    void hub.refresh();
+    return result;
+  };
+
   const tabTracker = (): ViewActions => {
     const key = {};
     return {
+      act,
       openCockpit: () => openCockpit(),
       openSession: focus,
       reopenClosed: reopen,

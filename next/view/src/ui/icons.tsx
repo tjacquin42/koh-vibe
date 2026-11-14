@@ -73,6 +73,17 @@ const PATHS = {
   ),
   external: <path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5" />,
   resume: <path d="M3 8a5 5 0 1 0 1.5-3.6L3 6M3 3v3h3" />,
+  plus: <path d="M8 3v10M3 8h10" />,
+  more: <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.2" />,
+  moon: <path d="M12.5 9.5A5 5 0 0 1 6.5 3.5a5 5 0 1 0 6 6z" />,
+  trash: <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M6.8 7v4M9.2 7v4" />,
+  copy: (
+    <>
+      <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" />
+      <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+    </>
+  ),
+  edit: <path d="M10.5 3l2.5 2.5L6 12.5H3.5V10zM9 4.5L11.5 7" />,
   clock: (
     <>
       <circle cx="8" cy="8" r="5.8" />

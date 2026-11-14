@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Action, ActionResult } from '../../src/shared/actions';
 import { SIDEBAR_TABS, type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
 import { sampleSnapshot } from './fixture';
@@ -13,6 +14,7 @@ import { parseUiState, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
+import { SettingsPanel } from './views/Settings';
 import { RoutinesTab } from './views/Routines';
 import { ClosedRow, SessionRow, SessionsTab } from './views/Sessions';
 import { UsageStrip, UsageTab } from './views/Usage';
@@ -46,12 +48,21 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [query, setQuery] = useState('');
   const [reopening, setReopening] = useState<Reopening>(() => new Map());
   const [notices, setNotices] = useState<ReadonlyMap<string, Exclude<ReopenOutcome, 'v1'>>>(() => new Map());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Actions waiting for the host's answer, by request number.
+  const pending = useRef(new Map<number, (r: ActionResult) => void>());
+  const nextReq = useRef(1);
+  const [toast, setToast] = useState<string | undefined>();
+  const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const off = bridge.listen((m) => {
       if (m.type === 'init') setState({ context: m.context, snapshot: m.snapshot });
       else if (m.type === 'snapshot') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
-      else if (m.outcome !== 'v1') {
+      else if (m.type === 'acted') {
+        pending.current.get(m.req)?.(m.result);
+        pending.current.delete(m.req);
+      } else if (m.outcome !== 'v1') {
         // Nothing is on its way: stop the spinner now and say why, for a while.
         const { sessionId, outcome } = m;
         setReopening((r) => stopReopening(r, sessionId));
@@ -108,6 +119,32 @@ export function App({ bridge }: { bridge: Bridge }) {
     [bridge],
   );
 
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(undefined), 6_000);
+  }, []);
+
+  /**
+   * Sends a change and resolves with the host's answer. A refusal is shown
+   * here, once, so no caller has to remember to. Outside the editor there is
+   * no host: the preview answers yes and nothing changes.
+   */
+  const act = useCallback(
+    (action: Action): Promise<ActionResult> => {
+      if (!bridge.inEditor) return Promise.resolve({ ok: true });
+      const req = nextReq.current++;
+      return new Promise<ActionResult>((resolve) => {
+        pending.current.set(req, resolve);
+        bridge.post({ type: 'act', req, action });
+      }).then((r) => {
+        if (!r.ok) showToast(t(`act.${r.error}`));
+        return r;
+      });
+    },
+    [bridge, showToast, t],
+  );
+
   if (state === undefined) {
     return <div className="boot">{t('live.wait')}</div>;
   }
@@ -124,6 +161,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     reopening: new Set(reopening.keys()),
     reopenNotice: (id) => notices.get(id),
     reopen,
+    act,
   };
   if (context.surface === 'cockpit') {
     return (
@@ -138,13 +176,34 @@ export function App({ bridge }: { bridge: Bridge }) {
   return (
     <div className={`app surface-${context.surface}`}>
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
-      <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => bridge.post({ type: 'openCockpit' })} />
-      <SearchBox t={t} query={query} onChange={setQuery} />
-      {results === undefined && <Tabs t={t} tab={ui.tab} onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))} />}
-      <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
-        {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
-      </main>
-      {ui.tab !== 'usage' && <UsageStrip ctx={ctx} />}
+      <Header
+        t={t}
+        snapshot={snapshot}
+        surface={context.surface}
+        onCockpit={() => bridge.post({ type: 'openCockpit' })}
+        onNew={() => void act({ kind: 'session.new' })}
+        settingsOpen={settingsOpen}
+        onSettings={() => setSettingsOpen((v) => !v)}
+      />
+      {settingsOpen ? (
+        <main className="body">
+          <SettingsPanel ctx={ctx} onClose={() => setSettingsOpen(false)} />
+        </main>
+      ) : (
+        <>
+          <SearchBox t={t} query={query} onChange={setQuery} />
+          {results === undefined && <Tabs t={t} tab={ui.tab} onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))} />}
+          <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
+            {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
+          </main>
+          {ui.tab !== 'usage' && <UsageStrip ctx={ctx} />}
+        </>
+      )}
+      {toast !== undefined && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
       <footer className="foot">
         <span>{t('footer.readonly')}</span>
         {/^\d/.test(context.version) && <span className="mono">v{context.version}</span>}
@@ -168,7 +227,23 @@ function TabBody({ ctx, tab }: { ctx: ViewCtx; tab: SidebarTab }) {
   }
 }
 
-function Header({ t, snapshot, surface, onCockpit }: { t: Translate; snapshot: Snapshot; surface: string; onCockpit(): void }) {
+function Header({
+  t,
+  snapshot,
+  surface,
+  onCockpit,
+  onNew,
+  settingsOpen,
+  onSettings,
+}: {
+  t: Translate;
+  snapshot: Snapshot;
+  surface: string;
+  onCockpit(): void;
+  onNew?: () => void;
+  settingsOpen?: boolean;
+  onSettings?: () => void;
+}) {
   const c = countsOf(snapshot);
   return (
     <header className="head">
@@ -180,9 +255,21 @@ function Header({ t, snapshot, surface, onCockpit }: { t: Translate; snapshot: S
           {t('live.on')}
         </span>
         {surface === 'sidebar' && (
-          <button className="ibtn" type="button" onClick={onCockpit} aria-label={t('action.cockpit')}>
-            <Icon name="panel" size={16} />
-          </button>
+          <span className="head-tools">
+            {onNew !== undefined && (
+              <button className="ibtn" type="button" onClick={onNew} aria-label={t('action.newSession')}>
+                <Icon name="plus" size={16} />
+              </button>
+            )}
+            {onSettings !== undefined && (
+              <button className="ibtn" type="button" onClick={onSettings} aria-label={t('action.settings')} aria-pressed={settingsOpen === true}>
+                <Icon name="gear" size={16} />
+              </button>
+            )}
+            <button className="ibtn" type="button" onClick={onCockpit} aria-label={t('action.cockpit')}>
+              <Icon name="panel" size={16} />
+            </button>
+          </span>
         )}
       </div>
       <div className="counts">

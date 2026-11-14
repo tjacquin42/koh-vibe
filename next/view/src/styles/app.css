@@ -13,6 +13,7 @@
   --wait: #ff9e5e;
   --run: #5cc8f0;
   --done: #7ee0a8;
+  --danger: #ff7a7a;
   --idle: #8c86a8;
   --wait-bg: #2a1f2e;
   --wait-line: #6e4338;
@@ -261,3 +262,79 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .closed-row .busy { color: var(--run); }
 .closed-row:disabled { cursor: progress; }
 .notice { margin: 0 8px 6px 33px; font-size: 11.5px; color: var(--wait); }
+
+/* ── Step 4: actions ─────────────────────────────────────────────── */
+.head-tools { display: flex; gap: 6px; margin-left: auto; }
+.title .live + .head-tools { margin-left: 8px; }
+.ibtn[aria-pressed="true"] { background: var(--raised); color: var(--text); }
+
+.sec-tools { display: flex; margin-left: auto; opacity: 0; }
+.sec:hover .sec-tools, .sec-tools:focus-within, .sec-tools [aria-expanded="true"] { opacity: 1; }
+.sec[draggable="true"] { cursor: grab; }
+
+.btn-ghost, .btn-danger { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px; font: inherit; font-size: 12px; cursor: pointer; }
+.btn-ghost { border: 1px solid var(--line); background: transparent; color: var(--soft); }
+.btn-ghost:hover { background: var(--raised); color: var(--text); }
+.btn-danger { border: 1px solid transparent; background: var(--danger); color: var(--bg); font-weight: 600; }
+
+.fmenu { margin: 0 8px 8px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 2px; }
+.fm-btn { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; }
+.fm-btn:hover { background: var(--raised); }
+.fm-btn .icon { color: var(--muted); }
+.fm-btn.danger, .fm-btn.danger .icon { color: var(--danger); }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+.sw { width: 18px; height: 18px; border-radius: 6px; border: 1px solid transparent; padding: 0; }
+.sw.none { background: transparent; border-color: var(--line); background-image: linear-gradient(135deg, transparent 45%, var(--muted) 45% 55%, transparent 55%); }
+.sw[aria-checked="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+
+.confirm { margin: 0 8px 8px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: 10px; background: color-mix(in srgb, var(--danger) 10%, var(--surface)); font-size: 12.5px; }
+.confirm p { margin: 0 0 8px; }
+.confirm-btns { display: flex; gap: 8px; }
+
+.name-input { flex: 1; min-width: 0; font: inherit; font-family: var(--font-display); font-weight: 700; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 2px 6px; }
+.new-folder { display: flex; align-items: center; gap: 8px; margin: 10px 6px 4px; padding: 5px 8px; width: calc(100% - 12px); border: 1px dashed var(--line); border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; text-align: left; }
+.new-folder:hover { color: var(--text); border-color: var(--muted); }
+.new-folder.open { border-style: solid; border-color: var(--accent); }
+.empty .new-folder { width: auto; margin: 14px 0 0; }
+
+/* Drag and drop: the section that takes a drop, the line a row lands on. */
+.drag-row { position: relative; }
+.drag-row[draggable="true"] { cursor: grab; }
+.drag-row.dragging { opacity: 0.4; }
+.drag-row.drop-line::before { content: ''; position: absolute; left: 8px; right: 8px; top: -1px; height: 2px; border-radius: 1px; background: var(--accent); }
+.group.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 10px; outline: 1px dashed var(--accent); outline-offset: -1px; }
+.group.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.drop-hint { font-style: italic; }
+
+.info-acts { display: flex; gap: 6px; padding-top: 4px; }
+
+.toast { position: sticky; bottom: 34px; margin: 0 10px 6px; padding: 8px 11px; border-radius: 9px; background: var(--raised); border: 1px solid var(--wait); color: var(--text); font-size: 12px; box-shadow: 0 6px 18px rgb(0 0 0 / 0.3); }
+
+/* Settings, in place of the tabs. */
+.settings { padding: 4px 6px 10px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; margin: 8px 4px 4px; }
+.settings-head h2 { font-size: 15px; }
+.set-group { margin-top: 14px; }
+.set-group h3 { margin: 0 4px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.set-row { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 9px; }
+.set-row:hover { background: var(--surface); }
+.set-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-l b { font-weight: 600; font-size: 12.5px; }
+.set-l .sub { font-size: 11.5px; color: var(--muted); }
+.set-row input[type="range"] { width: 110px; accent-color: var(--accent); }
+.switch { flex: none; width: 32px; height: 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); padding: 0; position: relative; }
+.switch span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: color-mix(in srgb, var(--done) 35%, var(--raised)); border-color: var(--done); }
+.switch[aria-checked="true"] span { transform: translateX(14px); background: var(--done); }
+@media (prefers-reduced-motion: reduce) { .switch span { transition: none; } }
+
+/* Row tools float over the time, on hover only: hidden, they take no width. */
+.srow-line { position: relative; }
+.srow .tools { position: absolute; right: 4px; top: 4px; padding: 2px; gap: 2px; border-radius: 8px; background: var(--bg); box-shadow: -10px 0 10px var(--bg); pointer-events: none; }
+.srow:hover .tools, .srow.open .tools, .srow .tools:focus-within { pointer-events: auto; }
+.srow.tone-wait .tools { background: var(--wait-bg); box-shadow: -10px 0 10px var(--wait-bg); }
+.sec-tools:has([aria-expanded="true"]) { opacity: 1; }
+.srow:hover .srow-main { background: var(--surface); }
+.srow .tools, .srow.open .tools { background: var(--surface); box-shadow: -10px 0 10px var(--surface); }
+.srow.tone-wait .tools, .srow.tone-wait:hover .srow-main { background: var(--wait-bg); }
+.srow.tone-wait .tools { box-shadow: -10px 0 10px var(--wait-bg); }

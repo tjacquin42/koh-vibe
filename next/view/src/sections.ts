@@ -190,3 +190,16 @@ export function hourTicks(now: number, spanMs: number, everyH: number): [number,
   }
   return out;
 }
+
+/**
+ * A list's order once `moved` is dropped in front of `before` — or at the end
+ * when `before` is absent, unknown, or one of the moved ids itself (a drop on
+ * itself must still land somewhere sensible, never vanish).
+ */
+export function dropOrder(list: readonly string[], moved: readonly string[], before?: string): string[] {
+  const moving = new Set(moved);
+  const rest = list.filter((id) => !moving.has(id));
+  const at = before === undefined || moving.has(before) ? -1 : rest.indexOf(before);
+  const cut = at < 0 ? rest.length : at;
+  return [...rest.slice(0, cut), ...moved, ...rest.slice(cut)];
+}

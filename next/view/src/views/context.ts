@@ -1,3 +1,4 @@
+import type { Action, ActionResult } from '../../../src/shared/actions';
 import type { ReopenOutcome, Snapshot } from '../../../src/shared/protocol';
 import type { Bridge } from '../bridge';
 import type { Translate } from '../i18n';
@@ -18,4 +19,6 @@ export interface ViewCtx {
   /** Why the last click on that row brought nothing back, for a few seconds. */
   reopenNotice(sessionId: string): Exclude<ReopenOutcome, 'v1'> | undefined;
   reopen(sessionId: string): void;
+  /** A change, answered by the host; a refusal is already shown when it resolves. */
+  act(action: Action): Promise<ActionResult>;
 }

@@ -10,6 +10,7 @@ import {
   boardColumns,
   COUNT_MODES,
   countTokens,
+  dropOrder,
   hourTicks,
   inbox,
   projectTotals,
@@ -185,5 +186,18 @@ describe('cockpit sections', () => {
     const ticks = hourTicks(now, 4 * 3_600_000, 1);
     expect(ticks.map(([, t]) => new Date(t).getHours())).toEqual([12, 13, 14, 15]);
     expect(ticks[0]?.[0]).toBeCloseTo(0.125);
+  });
+});
+
+describe('dropOrder', () => {
+  it('inserts in front of the target, or at the end', () => {
+    expect(dropOrder(['a', 'b', 'c'], ['c'], 'a')).toEqual(['c', 'a', 'b']);
+    expect(dropOrder(['a', 'b', 'c'], ['a'])).toEqual(['b', 'c', 'a']);
+    expect(dropOrder(['a', 'b'], ['x'], 'b')).toEqual(['a', 'x', 'b']);
+  });
+
+  it('lands a drop on itself or on an unknown id at the end rather than losing it', () => {
+    expect(dropOrder(['a', 'b'], ['a'], 'a')).toEqual(['b', 'a']);
+    expect(dropOrder(['a', 'b'], ['x'], 'zz')).toEqual(['a', 'b', 'x']);
   });
 });

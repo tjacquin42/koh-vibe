@@ -8,6 +8,8 @@
  * the on-disk format evolve without touching the UI.
  */
 
+import { isActionResult, parseAction, type Action, type ActionResult } from './actions';
+
 export type SessionStatus = 'running' | 'waiting' | 'done_unseen' | 'idle';
 export type SessionOrigin = 'vscode' | 'terminal' | 'desktop' | 'sdk' | 'unknown';
 
@@ -243,7 +245,9 @@ export type ReopenOutcome = (typeof REOPEN_OUTCOMES)[number];
 export type HostMessage =
   | { type: 'init'; context: ViewContext; snapshot: Snapshot }
   | { type: 'snapshot'; snapshot: Snapshot }
-  | { type: 'reopen'; sessionId: string; outcome: ReopenOutcome };
+  | { type: 'reopen'; sessionId: string; outcome: ReopenOutcome }
+  /** The answer to the view's `act` of the same `req`. */
+  | { type: 'acted'; req: number; result: ActionResult };
 
 /** View → host. */
 export type ViewMessage =
@@ -260,7 +264,9 @@ export type ViewMessage =
   /** A click on a « Recently closed » row: handed to V1's resume, like openSession. */
   | { type: 'reopenClosed'; sessionId: string }
   /** Opens the artifact's page on claude.ai in the browser — a link, nothing written. */
-  | { type: 'openArtifact'; slug: string };
+  | { type: 'openArtifact'; slug: string }
+  /** A change (actions.ts). `req` numbers it, so the answer finds its way back. */
+  | { type: 'act'; req: number; action: Action };
 
 /** claude.ai's slugs, as V1 accepts them (artifacts/model.ts): they end up in a URL. */
 const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
@@ -293,6 +299,11 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       const slug = raw['slug'];
       return typeof slug === 'string' && SLUG.test(slug) ? { type: 'openArtifact', slug } : undefined;
     }
+    case 'act': {
+      const req = raw['req'];
+      const action = parseAction(raw['action']);
+      return typeof req === 'number' && Number.isSafeInteger(req) && action !== undefined ? { type: 'act', req, action } : undefined;
+    }
     case 'tab':
       return isSidebarTab(raw['tab']) ? { type: 'tab', tab: raw['tab'] } : undefined;
     case 'openCockpit': {
@@ -311,6 +322,7 @@ export function isHostMessage(raw: unknown): raw is HostMessage {
   const t = raw['type'];
   if (t === 'snapshot') return isRecord(raw['snapshot']);
   if (t === 'init') return isRecord(raw['snapshot']) && isRecord(raw['context']);
+  if (t === 'acted') return typeof raw['req'] === 'number' && isActionResult(raw['result']);
   if (t === 'reopen') return typeof raw['sessionId'] === 'string' && REOPEN_OUTCOMES.some((o) => o === raw['outcome']);
   return false;
 }

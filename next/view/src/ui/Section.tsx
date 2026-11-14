@@ -1,9 +1,14 @@
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { Icon } from './icons';
 
 /**
  * A foldable heading and what it holds. The fold is remembered by the view
  * (ui-state.ts) under `foldKey`; without one the section cannot fold.
+ *
+ * `tools` sit at the right of the heading, outside the fold button; `title`
+ * may be replaced by an input while renaming. `sectionProps` and `headProps`
+ * carry drag and drop: a whole section takes a dropped conversation, a
+ * heading is what a folder is dragged by.
  */
 export function Section({
   title,
@@ -11,6 +16,10 @@ export function Section({
   marker,
   folded,
   onToggle,
+  tools,
+  className,
+  sectionProps,
+  headProps,
   children,
 }: {
   title: ReactNode;
@@ -18,6 +27,10 @@ export function Section({
   marker?: ReactNode;
   folded?: boolean;
   onToggle?: () => void;
+  tools?: ReactNode;
+  className?: string;
+  sectionProps?: HTMLAttributes<HTMLElement>;
+  headProps?: HTMLAttributes<HTMLHeadingElement> & { draggable?: boolean };
   children: ReactNode;
 }) {
   const head = (
@@ -29,8 +42,8 @@ export function Section({
     </>
   );
   return (
-    <section className="group">
-      <h2 className="sec">
+    <section className={className === undefined ? 'group' : `group ${className}`} {...sectionProps}>
+      <h2 className="sec" {...headProps}>
         {onToggle === undefined ? (
           head
         ) : (
@@ -38,6 +51,7 @@ export function Section({
             {head}
           </button>
         )}
+        {tools !== undefined && <span className="sec-tools">{tools}</span>}
       </h2>
       {folded !== true && children}
     </section>

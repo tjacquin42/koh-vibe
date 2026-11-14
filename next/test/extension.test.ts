@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activate, COCKPIT_PANEL, processDeps, SIDEBAR_VIEW, transcriptsRoot } from '../src/host/extension';
 import type { ProcessDeps } from '../src/host/processes';
+import { readGroups } from '../../src/groups/store';
 import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
 import { ExtensionMode, FakeWebviewView, recorded, Uri } from './stubs/vscode';
@@ -235,6 +236,30 @@ describe('activate', () => {
     const view = sidebar();
     await view.webview.receive({ type: 'reopenClosed', sessionId: '11111111-1111-4111-8111-111111111111' });
     await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'reopen')).toMatchObject({ outcome: 'unavailable' }), { timeout: 1_000, interval: 10 });
+  });
+
+  it('writes a folder through V1 stores and answers the view', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'act', req: 7, action: { kind: 'folder.rename', id: 'g1', name: 'Renamed' } });
+    await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'acted')).toEqual({ type: 'acted', req: 7, result: { ok: true } }), { timeout: 1_000, interval: 10 });
+    expect((await readGroups(join(home, 'groups.json'))).groups.find((g) => g.id === 'g1')?.name).toBe('Renamed');
+  });
+
+  it('drops a malformed action without answering or writing', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    const before = await fingerprint(home);
+    await view.webview.receive({ type: 'act', req: 1, action: { kind: 'folder.rename', id: 'g1', name: '' } });
+    expect(messages(view).some((m) => m.type === 'acted')).toBe(false);
+    expect(await fingerprint(home)).toBe(before);
+  });
+
+  it('copies a conversation id to the clipboard', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'act', req: 2, action: { kind: 'session.copyId', id: 'b' } });
+    await vi.waitFor(() => expect(recorded.clipboard).toEqual(['b']), { timeout: 1_000, interval: 10 });
   });
 
   it('reads the transcripts only while a cockpit is open', async () => {
