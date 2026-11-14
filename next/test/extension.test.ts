@@ -164,7 +164,16 @@ describe('activate', () => {
     const reload = recorded.commands.get('kohVibeNext.reload');
     await view.webview.receive({ type: 'reload' });
     expect(reload).toBeDefined();
-    expect(messages(view).map((m) => m.type)).toEqual(['init', 'init', 'snapshot']);
+    const all = messages(view);
+    const types = all.map((m) => m.type);
+    expect(types.filter((t) => t === 'init')).toHaveLength(2);
+    // Stacked clients would each post every build: the same snapshot twice.
+    // (How many builds there are varies — the names warm up in the background.)
+    const after = all.slice(types.lastIndexOf('init') + 1);
+    expect(after.length).toBeGreaterThan(0);
+    // Each client gets its own envelope around the SAME snapshot: compare those.
+    const sent = after.map((m) => (m.type === 'snapshot' ? m.snapshot : m));
+    expect(new Set(sent).size).toBe(sent.length);
   });
 
   it('shows what each conversation runs, and looks for orphans only behind the Processes tab', async () => {

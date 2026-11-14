@@ -134,7 +134,6 @@ describe('what goes through V1 commands', () => {
     await run({ kind: 'session.command', command: 'close', id: 'a' });
     await run({ kind: 'session.new', folder: 'g1' });
     await run({ kind: 'session.new' });
-    await run({ kind: 'setting.sound', event: 'done' });
     await run({ kind: 'folder.rules', id: 'g1', mode: 'add' });
     await run({ kind: 'folder.rules', id: 'g1', mode: 'open' });
     expect(calls).toEqual([
@@ -142,7 +141,6 @@ describe('what goes through V1 commands', () => {
       [V1_COMMANDS.close, { kind: 'session', session: { id: 'a' } }],
       ['kohVibe.newSessionInGroup', { kind: 'group', group: { id: 'g1' } }],
       ['kohVibe.newSession'],
-      ['kohVibe.chooseSound', 'done'],
       ['kohVibe.addFolderRule', { kind: 'group', group: { id: 'g1' } }],
       ['kohVibe.openFolderRules', { kind: 'group', group: { id: 'g1' } }],
     ]);
@@ -251,7 +249,7 @@ describe('parseAction', () => {
       { kind: 'setting.toggle', key: 'volume', on: true },
       { kind: 'setting.volume', percent: 101 },
       { kind: 'setting.volume', percent: 0.5 },
-      { kind: 'setting.sound', event: 'start' },
+      { kind: 'setting.sound', event: 'done' },
       { kind: 'artifact.delete', slug: 'a/b' },
       { kind: 'artifact.rename', slug: 'x', title: '  ' },
       { kind: 'artifact.project', slugs: [], project: 'p' },

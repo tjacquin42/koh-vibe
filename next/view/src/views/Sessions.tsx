@@ -2,7 +2,7 @@ import { useMemo, useState, type DragEvent, type HTMLAttributes } from 'react';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneOf } from '../format';
+import { formatAge, formatTokens, formatWhen, sessionActivity, sessionTitle, toneOf } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
@@ -41,7 +41,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
       ))}
       <NewFolder ctx={ctx} />
       {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
-      <Section title={t('closed.title')} count={closed.length} folded={ctx.isFolded('closed')} onToggle={() => ctx.toggle('closed')}>
+      <Section title={t('closed.title')} count={closed.length} marker={<Icon name="history" size={13} />} folded={ctx.isFolded('closed')} onToggle={() => ctx.toggle('closed')}>
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
     </>
@@ -97,6 +97,38 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       end();
     },
   };
+  const live = sessions.filter((x) => x.endedAt === undefined);
+  const ended = sessions.filter((x) => x.endedAt !== undefined);
+  const endedKey = `${f.id}:ended`;
+  const endedFolded = ctx.isFolded(endedKey);
+  const row = (s: SessionView) => (
+    <div
+      key={s.id}
+      className={`drag-row${over === s.id && drag?.kind === 'session' ? ' drop-line' : ''}${drag?.kind === 'session' && drag.id === s.id ? ' dragging' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', s.id);
+        setDrag({ kind: 'session', id: s.id });
+      }}
+      onDragEnd={end}
+      onDragOver={(e) => {
+        if (drag?.kind !== 'session') return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (over !== s.id) setOver(s.id);
+      }}
+      onDrop={(e) => {
+        if (drag?.kind !== 'session') return;
+        e.preventDefault();
+        e.stopPropagation();
+        fileHere(drag.id, s.id);
+        end();
+      }}
+    >
+      <SessionRow ctx={ctx} s={s} />
+    </div>
+  );
   const color = f.color !== undefined ? FOLDER_COLORS[f.color] : undefined;
   const title = renaming ? (
     <NameInput
@@ -116,7 +148,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       className={`folder${over !== undefined ? (drag?.kind === 'folder' ? ' drop-before' : ' drop-in') : ''}`}
       title={title}
       count={f.sessionIds.length}
-      marker={<span className="fold" style={{ background: color ?? 'var(--line)' }} />}
+      marker={real ? <span className="fold" style={{ background: color ?? 'var(--line)' }} /> : <Icon name="hourglass" size={13} />}
       folded={ctx.isFolded(f.id) && !renaming}
       {...(renaming ? {} : { onToggle: () => ctx.toggle(f.id) })}
       sectionProps={sectionProps as HTMLAttributes<HTMLElement>}
@@ -191,34 +223,18 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
         </Confirm>
       )}
       {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
-      {sessions.map((s) => (
-        <div
-          key={s.id}
-          className={`drag-row${over === s.id && drag?.kind === 'session' ? ' drop-line' : ''}${drag?.kind === 'session' && drag.id === s.id ? ' dragging' : ''}`}
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', s.id);
-            setDrag({ kind: 'session', id: s.id });
-          }}
-          onDragEnd={end}
-          onDragOver={(e) => {
-            if (drag?.kind !== 'session') return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (over !== s.id) setOver(s.id);
-          }}
-          onDrop={(e) => {
-            if (drag?.kind !== 'session') return;
-            e.preventDefault();
-            e.stopPropagation();
-            fileHere(drag.id, s.id);
-            end();
-          }}
-        >
-          <SessionRow ctx={ctx} s={s} />
+      {live.map(row)}
+      {ended.length > 0 && (
+        // The closed ones, under the others: one icon and a count, no words, set a little to the right.
+        <div className="ended-group">
+          <button type="button" className="ended-head" aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
+            <Icon name={endedFolded ? 'chevR' : 'chev'} />
+            <Dot tone="ended" animate={false} size={13} />
+            <span className="n">{ended.length}</span>
+          </button>
+          {!endedFolded && ended.map(row)}
         </div>
-      ))}
+      )}
     </Section>
   );
 }
@@ -254,8 +270,9 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const [info, setInfo] = useState(false);
   const tone = toneOf(s);
   const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
-  const tokens = s.tokens === undefined ? undefined : formatTokens(s.tokens.input + s.tokens.output);
   const expiring = s.expiresAt !== undefined && s.expiresAt - now < 6 * 3_600_000;
+  // A second line only when it says something: a permission, the tool running, a departure soon.
+  const doing = s.endedAt === undefined ? sessionActivity(s) : undefined;
   return (
     <div className={`srow tone-${tone}${info ? ' open' : ''}`}>
       <div className="srow-line">
@@ -266,11 +283,17 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
               <span className="ttl">{sessionTitle(s, t)}</span>
               <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
             </span>
-            <span className="l2">
-              {sessionDetail(s)}
-              {tokens !== undefined && <span> · {tokens}</span>}
-              {expiring && s.expiresAt !== undefined && <span className="exp"> · {t('session.expires', { d: formatAge(Math.max(0, s.expiresAt - now), t) })}</span>}
-            </span>
+            {(doing !== undefined || expiring) && (
+              <span className="l2">
+                {doing}
+                {expiring && s.expiresAt !== undefined && (
+                  <span className="exp">
+                    {doing !== undefined ? ' · ' : ''}
+                    {t('session.expires', { d: formatAge(Math.max(0, s.expiresAt - now), t) })}
+                  </span>
+                )}
+              </span>
+            )}
           </span>
         </button>
         <span className="tools">
@@ -304,7 +327,6 @@ function SessionInfo({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   }
   if (s.tokens !== undefined) rows.push([t('info.tokens'), t('info.tokensValue', { in: formatTokens(s.tokens.input), out: formatTokens(s.tokens.output) })]);
   rows.push([t('info.tools'), String(s.toolCount)]);
-  if (s.startedAt !== undefined) rows.push([t('info.started'), formatWhen(s.startedAt, now, language)]);
   if (s.endedAt !== undefined) rows.push([t('info.ended'), formatWhen(s.endedAt, now, language)]);
   if (s.expiresAt !== undefined) rows.push([t('info.expires'), formatWhen(s.expiresAt, now, language)]);
   return (

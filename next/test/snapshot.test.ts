@@ -63,7 +63,7 @@ describe('buildSnapshot', () => {
 
   it('reads the shared settings', async () => {
     const snap = await buildSnapshot(home, NOW);
-    expect(snap.settings).toEqual({ animate: false, persistent: true, expireTemporary: true, volume: 30, waiting: 'Glass', done: 'Pop' });
+    expect(snap.settings).toEqual({ animate: false, persistent: true, expireTemporary: true, volume: 30 });
   });
 
   it('dates the departure of temporary conversations, and only theirs', async () => {

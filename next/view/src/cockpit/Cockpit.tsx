@@ -17,8 +17,18 @@ import { COCKPIT_VIEWS, type CockpitView, type UiState } from '../ui-state';
 import type { ViewCtx } from '../views/context';
 import { FOLDER_COLORS } from '../ui/colors';
 import { SessionSheet } from './Sheet';
+import { Splitter } from '../ui/Splitter';
+import { useRef, type CSSProperties } from 'react';
 
 type Cockpit = UiState['cockpit'];
+
+/** Each remembered separator size, and the CSS variable that applies it (app.css). */
+const SIZE_VARS = new Map<string, string>([
+  ['ck.nav.w', '--nav-w'],
+  ['ck.nav.h', '--nav-h'],
+  ['ck.side.w', '--side-w'],
+  ['ck.side.h', '--side-h'],
+]);
 
 /**
  * W2: the cockpit in an editor tab, on three columns — the views and the
@@ -31,6 +41,8 @@ export function CockpitBody({
   setUi,
   sheet,
   onSheet,
+  sizes,
+  onSize,
 }: {
   ctx: ViewCtx;
   ui: Cockpit;
@@ -38,11 +50,38 @@ export function CockpitBody({
   /** The conversation whose sheet takes the middle column, if any. */
   sheet: string | undefined;
   onSheet(id: string | undefined): void;
+  /** Separator sizes the user dragged (ui-state.ts `sizes`), and where to remember a new one. */
+  sizes: Readonly<Record<string, number>>;
+  onSize(key: string, px: number | undefined): void;
 }) {
   const { t, snapshot } = ctx;
+  const box = useRef<HTMLDivElement>(null);
+  const nav = useRef<HTMLElement>(null);
+  const side = useRef<HTMLElement>(null);
+  // Which handles show depends on the width (app.css): side by side they size
+  // widths, stacked they size heights — each remembered on its own.
+  const vars: Record<string, string> = {};
+  for (const [key, cssVar] of SIZE_VARS) {
+    const px = sizes[key];
+    if (px !== undefined) vars[cssVar] = `${px}px`;
+  }
+  const split = (key: string, axis: 'x' | 'y', target: typeof nav, invert: boolean) => (
+    <Splitter
+      axis={axis}
+      target={target}
+      container={box}
+      cssVar={SIZE_VARS.get(key) ?? ''}
+      invert={invert}
+      min={axis === 'x' ? 150 : 80}
+      max={axis === 'x' ? 640 : 900}
+      label={t('cockpit.resize')}
+      className={`sp-${key.replace('ck.', '').replace('.', '-')}`}
+      onCommit={(px) => onSize(key, px)}
+    />
+  );
   return (
-    <div className="cockpit">
-      <nav className="ck-nav" aria-label={t('cockpit.views')}>
+    <div className="cockpit" ref={box} style={vars as CSSProperties}>
+      <nav className="ck-nav" ref={nav} aria-label={t('cockpit.views')}>
         <h2 className="sec sec-label">{t('cockpit.views')}</h2>
         {COCKPIT_VIEWS.map((v) => (
           <button
@@ -62,6 +101,8 @@ export function CockpitBody({
         <h2 className="sec sec-label">{t('cockpit.folders')}</h2>
         <FolderFilter ctx={ctx} value={ui.folder} onChange={(folder) => setUi({ folder })} />
       </nav>
+      {split('ck.nav.w', 'x', nav, false)}
+      {split('ck.nav.h', 'y', nav, false)}
       <main className="ck-main">
         {sheet !== undefined ? (
           <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
@@ -72,7 +113,9 @@ export function CockpitBody({
           </>
         )}
       </main>
-      <aside className="ck-side">
+      {split('ck.side.w', 'x', side, true)}
+      {split('ck.side.h', 'y', side, true)}
+      <aside className="ck-side" ref={side}>
         <Inbox ctx={ctx} />
         <h2 className="sec">{t('usage.title')}</h2>
         <div className="meters">

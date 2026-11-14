@@ -149,7 +149,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ---------- cockpit (W2) ---------- */
 .surface-cockpit .head { padding: 14px 18px 6px; }
 .surface-cockpit .counts { max-width: 560px; }
-.cockpit { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 300px; }
+.cockpit {
+  flex: 1; min-height: 0; display: grid;
+  grid-template-columns: var(--nav-w, 210px) 0 minmax(0, 1fr) 0 var(--side-w, 300px);
+  grid-template-areas: 'nav navw main sidew side';
+}
+.ck-nav { grid-area: nav; }
+.ck-main { grid-area: main; }
+.ck-side { grid-area: side; }
+.sp-nav-w { grid-area: navw; }
+.sp-side-w { grid-area: sidew; }
+.sp-nav-h, .sp-side-h { display: none; }
 .ck-nav, .ck-side { min-height: 0; overflow: auto; padding: 4px 10px 16px; }
 .ck-nav { border-right: 1px solid var(--line); }
 .ck-side { border-left: 1px solid var(--line); }
@@ -241,13 +251,23 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .b em { font-style: normal; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
 
 @media (max-width: 1100px) {
-  .cockpit { grid-template-columns: 190px minmax(0, 1fr); }
-  .ck-side { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+  .cockpit {
+    grid-template-columns: var(--nav-w, 190px) 0 minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 0 var(--side-h, 38%);
+    grid-template-areas: 'nav navw main' 'sideh sideh sideh' 'side side side';
+  }
+  .ck-side { border-left: 0; border-top: 1px solid var(--line); }
+  .sp-side-w { display: none; }
+  .sp-side-h { display: block; grid-area: sideh; }
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
   .cockpit { display: flex; flex-direction: column; overflow: auto; }
-  .ck-nav { border-right: 0; border-bottom: 1px solid var(--line); }
+  .ck-nav { border-right: 0; border-bottom: 1px solid var(--line); flex: none; height: var(--nav-h, auto); }
+  .ck-main { flex: 1 0 auto; }
+  .ck-side { flex: none; height: var(--side-h, auto); }
+  .sp-nav-w { display: none; }
+  .sp-nav-h { display: block; }
   .board { grid-template-columns: minmax(0, 1fr); }
   .tl-axis { margin-left: 0; }
   .tl-lane { grid-template-columns: minmax(0, 1fr); }
@@ -397,3 +417,29 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet-files li { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; font-size: 12px; }
 .sheet-files .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) { .sheet-grid { grid-template-columns: 1fr; } }
+
+/* A folder's closed conversations: under the open ones, a little to the right. */
+.ended-group { margin: 2px 0 4px 14px; }
+.ended-head { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; }
+.ended-head:hover { background: var(--surface); color: var(--soft); }
+.ended-head .n { font-variant-numeric: tabular-nums; }
+
+/* The usage at the foot of the sidebar, one line per limit. */
+.usage.compact { gap: 4px; padding: 6px 12px; }
+.lgauge { display: grid; grid-template-columns: 34px minmax(0, 1fr) 38px 34px; align-items: center; gap: 8px; font-size: 11.5px; }
+.lgauge .bar { margin-top: 0; height: 5px; }
+.lg-l { color: var(--soft); }
+.lg-p { text-align: right; }
+.lg-r { color: var(--muted); font-size: 10.5px; text-align: right; }
+
+/* Separators (Splitter.tsx): a hairline that widens under the pointer. Zero
+   width in the grid, so they take no room; the grab area overlaps both sides. */
+.splitter { position: relative; z-index: 2; touch-action: none; }
+.splitter::after { content: ''; position: absolute; background: transparent; transition: background 0.12s; }
+.splitter-x { cursor: col-resize; }
+.splitter-x::after { top: 0; bottom: 0; left: -3px; width: 6px; }
+.splitter-y { cursor: row-resize; height: 0; }
+.splitter-y::after { left: 0; right: 0; top: -3px; height: 6px; }
+.splitter:hover::after, .splitter:focus-visible::after, .splitter:active::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.splitter:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) { .splitter::after { transition: none; } }

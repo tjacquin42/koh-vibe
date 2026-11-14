@@ -21,13 +21,43 @@ export interface UiState {
     /** The timeline's span, in hours. */
     spanH: number;
   };
+  /**
+   * Sizes the user dragged a separator to, in pixels, by separator: absent
+   * means the layout's own size (a double-click on the separator brings it
+   * back).
+   */
+  sizes: Record<string, number>;
+  /** The usage at the foot of the sidebar; off from the settings. */
+  showUsage: boolean;
 }
+
+/** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
+const SIZE_MIN = 40;
+const SIZE_MAX = 4000;
 
 export const DEFAULT_UI: UiState = {
   tab: 'sessions',
   folded: ['closed'],
   cockpit: { view: 'board', folder: null, count: 'weighted', spanH: 8 },
+  sizes: {},
+  showUsage: true,
 };
+
+function parseSizes(raw: unknown): Record<string, number> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v) && v >= SIZE_MIN && v <= SIZE_MAX) out[k] = Math.round(v);
+  }
+  return out;
+}
+
+export function setSize(state: UiState, key: string, px: number | undefined): UiState {
+  const sizes = { ...state.sizes };
+  if (px === undefined) delete sizes[key];
+  else sizes[key] = Math.round(px);
+  return { ...state, sizes };
+}
 
 function parseCockpit(raw: unknown): UiState['cockpit'] {
   const d = DEFAULT_UI.cockpit;
@@ -47,7 +77,8 @@ export function parseUiState(raw: unknown): UiState {
   const folded = Array.isArray(rec['folded'])
     ? (rec['folded'] as unknown[]).filter((k): k is string => typeof k === 'string')
     : DEFAULT_UI.folded;
-  return { tab, folded, cockpit: parseCockpit(rec['cockpit']) };
+  const showUsage = typeof rec['showUsage'] === 'boolean' ? rec['showUsage'] : DEFAULT_UI.showUsage;
+  return { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage };
 }
 
 export function toggleFold(state: UiState, key: string): UiState {

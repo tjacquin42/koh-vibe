@@ -238,10 +238,8 @@ export interface SettingsView {
   animate: boolean;
   persistent: boolean;
   expireTemporary: boolean;
-  /** 0–100. */
+  /** 0–100. The sounds themselves are fixed — Attente and Fin — so the view has no name to show. */
   volume: number;
-  waiting: string;
-  done: string;
 }
 
 export interface ClosedView {

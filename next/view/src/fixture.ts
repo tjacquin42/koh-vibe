@@ -71,7 +71,7 @@ export function sampleSnapshot(now: number): Snapshot {
       { sessionId: 'c1', title: 'Try the new router', project: 'shop-front', closedAt: ago(80), resumable: true },
       { sessionId: 'c2', title: 'Nightly import script', project: 'data-jobs', closedAt: ago(300), resumable: false },
     ],
-    settings: { animate: true, persistent: true, expireTemporary: true, volume: 60, waiting: 'Glass', done: 'Pop' },
+    settings: { animate: true, persistent: true, expireTemporary: true, volume: 60 },
     activity: {
       at: now,
       since: now - 24 * 60 * 60_000,

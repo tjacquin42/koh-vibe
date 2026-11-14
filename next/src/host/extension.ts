@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Action, ActionResult } from '../shared/actions';
 import { runAction, type Copied } from './actions';
 import { cloudActions } from './cloud';
+import type { TranscriptStats } from '../../../src/transcript/reader';
 import { readCredentials, type CloudDeps } from '../../../src/cloud/account';
 import { logged } from '../../../src/cloud/log';
 import { send } from '../../../src/cloud/request';
@@ -20,7 +21,7 @@ import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
 import { openSession, reopenClosed } from './open-session';
 import { locateProcess, scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
-import { buildSnapshot } from './snapshot';
+import { buildSnapshot, namesFrom } from './snapshot';
 import { createStatusBar } from './status-bar';
 import { watchHome, type Disposable } from './watch';
 import { builtHtml, devHtml, makeNonce } from './webview-html';
@@ -190,6 +191,20 @@ export function activate(context: vscode.ExtensionContext): void {
   // index is dropped with the last cockpit: reopened, it reads its window again.
   let activity: ActivityIndex | undefined;
   const transcripts = transcriptsRoot.current ?? join(claudeHome(), 'projects');
+  // V1's incremental transcript readings: how a conversation gets its name.
+  // The first pass reads every transcript whole (2.4 s on a busy machine);
+  // it runs apart, so the list shows at once and the names follow.
+  const namesFromTranscripts = new Map<string, TranscriptStats>();
+  let names: 'cold' | 'warming' | 'ready' = 'cold';
+  const warmNames = async (): Promise<void> => {
+    names = 'warming';
+    try {
+      await namesFrom(await readSessions(spoolDirs(home)), namesFromTranscripts);
+    } finally {
+      names = 'ready';
+      void hub.refresh();
+    }
+  };
   const hub = new Hub({
     build: () => {
       // The shared lists, asked again only while a view shows them and at
@@ -198,7 +213,9 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const what of ['artifacts', 'routines'] as const) {
         if ([...tabs.values()].includes(what)) void cloud.refresh(what, false);
       }
+      if (names === 'cold') void warmNames();
       return buildSnapshot(home, Date.now(), {
+        ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
           if (cockpit === undefined) {

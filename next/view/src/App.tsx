@@ -10,7 +10,7 @@ import { isEmpty, search } from './search';
 import { CockpitBody } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { Section } from './ui/Section';
-import { parseUiState, toggleFold, type UiState } from './ui-state';
+import { parseUiState, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
@@ -180,7 +180,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       <div className="app surface-cockpit">
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} onCockpit={() => undefined} />
-        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} />
+        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} sizes={ui.sizes} onSize={(key, px) => updateUi((prev) => setSize(prev, key, px))} />
       </div>
     );
   }
@@ -199,7 +199,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       />
       {settingsOpen ? (
         <main className="body">
-          <SettingsPanel ctx={ctx} onClose={() => setSettingsOpen(false)} />
+          <SettingsPanel ctx={ctx} onClose={() => setSettingsOpen(false)} showUsage={ui.showUsage} onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))} />
         </main>
       ) : (
         <>
@@ -208,7 +208,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
             {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
           </main>
-          {ui.tab !== 'usage' && <UsageStrip ctx={ctx} />}
+          {ui.tab !== 'usage' && ui.showUsage && <UsageStrip ctx={ctx} />}
         </>
       )}
       {toast !== undefined && (

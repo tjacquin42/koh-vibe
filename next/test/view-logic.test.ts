@@ -4,7 +4,7 @@ import { sampleSnapshot } from '../view/src/fixture';
 import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
-import { DEFAULT_UI, parseUiState, toggleFold } from '../view/src/ui-state';
+import { DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
 import {
   artifactSections,
   boardColumns,
@@ -56,7 +56,7 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', count: 'all', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', count: 'all', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
@@ -200,5 +200,14 @@ describe('dropOrder', () => {
   it('lands a drop on itself or on an unknown id at the end rather than losing it', () => {
     expect(dropOrder(['a', 'b'], ['a'], 'a')).toEqual(['b', 'a']);
     expect(dropOrder(['a', 'b'], ['x'], 'zz')).toEqual(['a', 'b', 'x']);
+  });
+});
+
+describe('separator sizes', () => {
+  it('keeps sane sizes, drops the rest, and resets one on demand', () => {
+    const ui = parseUiState({ sizes: { 'ck.nav': 260.4, 'ck.side': 'wide', 'strip': 12, 'huge': 99_999 } });
+    expect(ui.sizes).toEqual({ 'ck.nav': 260 });
+    expect(setSize(ui, 'strip', 120).sizes).toEqual({ 'ck.nav': 260, strip: 120 });
+    expect(setSize(ui, 'ck.nav', undefined).sizes).toEqual({});
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Hub, type Client } from '../src/host/hub';
 import type { HostMessage, Snapshot } from '../src/shared/protocol';
 
-const snap = (at: number): Snapshot => ({ at, sessions: [], folders: [], unfiled: [], artifacts: undefined, routines: undefined, closed: [], settings: { animate: true, persistent: true, expireTemporary: true, volume: 50, waiting: 'a', done: 'b' } });
+const snap = (at: number): Snapshot => ({ at, sessions: [], folders: [], unfiled: [], artifacts: undefined, routines: undefined, closed: [], settings: { animate: true, persistent: true, expireTemporary: true, volume: 50 } });
 
 function client(): Client & { got: HostMessage[] } {
   const got: HostMessage[] = [];

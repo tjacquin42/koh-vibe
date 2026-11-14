@@ -24,20 +24,42 @@ export function UsageTab({ ctx }: { ctx: ViewCtx }) {
 }
 
 /** The compact strip under the other tabs: 5 hours and the week only. */
+/**
+ * The usage at the foot of the sidebar: one line per limit — name, bar,
+ * percentage, reset — half the height the two-line gauges took (14/11). The
+ * Usage tab keeps the full ones. Hidden from the settings.
+ */
 export function UsageStrip({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
   const u = snapshot.usage;
   return (
-    <section className="usage" aria-label={t('usage.title')}>
+    <section className="usage compact" aria-label={t('usage.title')}>
       {u === undefined ? (
         <span className="muted">{t('usage.none')}</span>
       ) : (
         <>
-          {u.fiveHour !== undefined && <Gauge ctx={ctx} label={t('usage.fiveHour')} w={u.fiveHour} />}
-          {u.weekly !== undefined && <Gauge ctx={ctx} label={t('usage.weekly')} w={u.weekly} />}
+          {u.fiveHour !== undefined && <LineGauge ctx={ctx} label={t('usage.fiveHourShort')} w={u.fiveHour} />}
+          {u.weekly !== undefined && <LineGauge ctx={ctx} label={t('usage.weeklyShort')} w={u.weekly} />}
         </>
       )}
     </section>
+  );
+}
+
+function LineGauge({ ctx, label, w }: { ctx: ViewCtx; label: string; w: UsageWindowView }) {
+  const { t, now } = ctx;
+  const p = Math.max(0, Math.min(100, Math.round(w.percent)));
+  const tone = p >= 85 ? 'wait' : 'run';
+  const resets = w.resetsAt !== undefined && w.resetsAt > now ? w.resetsAt : undefined;
+  return (
+    <div className="lgauge">
+      <span className="lg-l">{label}</span>
+      <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={label}>
+        <span className={`fill tone-${tone}`} style={{ width: `${p}%` }} />
+      </div>
+      <span className="mono lg-p">{p} %</span>
+      <span className="lg-r">{resets !== undefined ? formatAge(resets - now, t) : ''}</span>
+    </div>
   );
 }
 

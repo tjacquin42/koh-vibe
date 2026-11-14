@@ -111,8 +111,6 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
     case 'setting.volume':
       await writeSettings(deps.settingsFile, { volume: a.percent / 100 });
       return OK;
-    case 'setting.sound':
-      return viaV1(deps, 'kohVibe.chooseSound', a.event);
 
     case 'artifact.rename':
       return viaCloud(deps, 'artifacts', () => deps.cloud.renameArtifact(a.slug, a.title));

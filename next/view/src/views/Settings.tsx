@@ -5,10 +5,10 @@ import type { ViewCtx } from './context';
 
 /**
  * The settings V1 and V2 share (settings.json), written through V1's store.
- * Sounds go through V1's picker: it plays each one as the selection moves,
- * which a list in a web view cannot do without shipping the sounds.
+ * The two sounds are fixed — Attente when a conversation waits, Fin when it is
+ * done (triage, 14/11): only their volume is set here.
  */
-export function SettingsPanel({ ctx, onClose }: { ctx: ViewCtx; onClose(): void }) {
+export function SettingsPanel({ ctx, onClose, showUsage, onShowUsage }: { ctx: ViewCtx; onClose(): void; showUsage: boolean; onShowUsage(on: boolean): void }) {
   const { t, snapshot } = ctx;
   const s = snapshot.settings;
   // The slider moves freely; the file is written once, when it is let go.
@@ -27,18 +27,7 @@ export function SettingsPanel({ ctx, onClose }: { ctx: ViewCtx; onClose(): void 
       </div>
 
       <section className="set-group">
-        <h3>{t('settings.sounds')}</h3>
-        {(['waiting', 'done'] as const).map((event) => (
-          <div className="set-row" key={event}>
-            <span className="set-l">
-              <b>{t(`settings.sound.${event}`)}</b>
-              <span className="sub">{s[event] === '' ? t('settings.sound.none') : s[event]}</span>
-            </span>
-            <button type="button" className="btn-ghost" onClick={() => void ctx.act({ kind: 'setting.sound', event })}>
-              {t('settings.change')}
-            </button>
-          </div>
-        ))}
+        <h3>{t('settings.sound')}</h3>
         <label className="set-row">
           <span className="set-l">
             <b>{t('settings.volume')}</b>
@@ -56,6 +45,19 @@ export function SettingsPanel({ ctx, onClose }: { ctx: ViewCtx; onClose(): void 
             onBlur={commitVolume}
           />
         </label>
+      </section>
+
+      <section className="set-group">
+        <h3>{t('settings.display')}</h3>
+        <div className="set-row">
+          <span className="set-l">
+            <b id="set-show-usage">{t('settings.showUsage')}</b>
+            <span className="sub">{t('settings.showUsage.hint')}</span>
+          </span>
+          <button type="button" role="switch" aria-checked={showUsage} aria-labelledby="set-show-usage" className="switch" onClick={() => onShowUsage(!showUsage)}>
+            <span />
+          </button>
+        </div>
       </section>
 
       <section className="set-group">

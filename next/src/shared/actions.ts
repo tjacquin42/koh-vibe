@@ -65,10 +65,11 @@ export type Action =
   | { kind: 'session.new'; folder?: string }
   | { kind: 'session.copyId'; id: string }
   | { kind: 'setting.toggle'; key: SettingToggle; on: boolean }
-  /** 0–100; V1 stores 0–1. */
+  /**
+   * 0–100; V1 stores 0–1. The volume is the only sound setting: the two
+   * sounds themselves are fixed (Attente, Fin — decided in the triage).
+   */
   | { kind: 'setting.volume'; percent: number }
-  /** V1's sound picker, which plays each sound as the selection moves. */
-  | { kind: 'setting.sound'; event: 'waiting' | 'done' }
   // ── claude.ai, through V1's own API functions (the cloud has no V1 state to clash with)
   | { kind: 'artifact.rename'; slug: string; title: string }
   | { kind: 'artifact.pin'; slug: string; pinned: boolean }
@@ -199,10 +200,6 @@ export function parseAction(raw: unknown): Action | undefined {
     case 'setting.volume': {
       const p = raw['percent'];
       return typeof p === 'number' && Number.isInteger(p) && p >= 0 && p <= 100 ? { kind: 'setting.volume', percent: p } : undefined;
-    }
-    case 'setting.sound': {
-      const event = raw['event'];
-      return event === 'waiting' || event === 'done' ? { kind: 'setting.sound', event } : undefined;
     }
     case 'artifact.rename': {
       const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';

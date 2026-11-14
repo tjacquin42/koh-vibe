@@ -14,6 +14,8 @@ import { isSpent } from '../../../src/routines/schedule';
 import { readFile } from 'node:fs/promises';
 import type { Session, Status } from '../../../src/events/types';
 import { readClosed } from '../../../src/closed/store';
+import type { TranscriptStats } from '../../../src/transcript/reader';
+import { withTokens } from '../../../src/transcript/tokens';
 import { isEditorOrigin } from '../../../src/events/origin';
 import { readGroups } from '../../../src/groups/store';
 import { groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
@@ -146,8 +148,6 @@ export function toSettingsView(s: AppSettings): SettingsView {
     expireTemporary: s.expireTemporary,
     // V1 keeps the volume as afplay takes it, 0–1; the view shows a percentage.
     volume: Math.round(s.volume * 100),
-    waiting: s.waiting,
-    done: s.done,
   };
 }
 
@@ -203,6 +203,30 @@ export interface SnapshotExtras {
   activity?: (known: ReadonlyMap<string, KnownSession>) => Promise<ActivityView | undefined>;
   /** The sheet of the conversation the cockpit shows, built after the activity it reads from. */
   sheet?: () => Promise<SessionSheetView | undefined>;
+  /**
+   * V1's per-conversation transcript readings, kept between builds so each
+   * one reads only what was appended. With it, a conversation is named as V1
+   * names it (transcript/reader.ts): the title chosen, else Claude's, else
+   * the last thing asked, the summary, the first thing asked. Without it,
+   * only the rare title the session file carries — « DEV » everywhere for
+   * conversations started in ~/DEV.
+   */
+  transcripts?: Map<string, TranscriptStats>;
+}
+
+/**
+ * The title and branch V1's transcript reader finds — and nothing else: the
+ * same pass sets V1's token counters, which leave out the cache and read two
+ * to six hundred times low; the session keeps whatever counters it had.
+ */
+export async function namesFrom(sessions: Map<string, Session>, transcripts: Map<string, TranscriptStats>): Promise<void> {
+  const tokens = new Map([...sessions].map(([id, s]) => [id, s.tokens] as const));
+  await withTokens(sessions, transcripts);
+  for (const [id, s] of sessions) {
+    const kept = tokens.get(id);
+    if (kept === undefined) delete s.tokens;
+    else s.tokens = kept;
+  }
 }
 
 export async function buildSnapshot(home: string, now: number, extras: SnapshotExtras = {}): Promise<Snapshot> {
@@ -216,6 +240,8 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
     readCache(routinesFile(home), isRoutine),
     readSettings(settingsFile(home)),
   ]);
+  // Read only: V1's own reader, which opens each transcript and writes nothing.
+  if (extras.transcripts !== undefined) await namesFrom(all, extras.transcripts);
   const shown = [...visibleSessions(all).values()];
   const visible = shown.map(toSessionView).sort(compareSessions);
   const { folders, unfiled } = foldersOf(groups, visible);
