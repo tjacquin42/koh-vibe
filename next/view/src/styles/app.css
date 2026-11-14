@@ -180,7 +180,9 @@ body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-even
 /* The cockpit's top lines up with the sidebar's (14/11): same title row, then
    folders + counters taking what counters + search take there, so both icon
    bars end at the same height and are as tall. */
-.surface-cockpit .head { padding: 12px 18px 0; }
+/* 3 px more on top: an editor tab's area starts that much higher on screen
+   than a side view's, which is where the eye compares them (measured 14/11). */
+.surface-cockpit .head { padding: 15px 18px 0; }
 /* The top (14/11): folders side by side, the chosen one's counters, then the views. */
 .ck-top { display: flex; flex-direction: column; gap: 6px; padding: 0 18px 8px; }
 .fchips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
