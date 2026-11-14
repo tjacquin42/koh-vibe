@@ -308,7 +308,9 @@ function Header({
   return (
     <header className="head">
       <div className="title">
-        <h1>{surface === 'cockpit' ? t('cockpit.title') : t('app.name')}</h1>
+        <h1>
+          <BrandName text={surface === 'cockpit' ? t('cockpit.title') : t('app.name')} />
+        </h1>
         {/^\d/.test(version) && <span className="ver mono">v{version}</span>}
         <span className="tag">{t('app.next')}</span>
         <span className="live">
@@ -339,6 +341,30 @@ function Header({
         <Count n={c.done} label={t('count.done')} tone="done" />
       </div>
     </header>
+  );
+}
+
+/**
+ * The name, and a rainbow that runs through it on each click (14/11) — a click
+ * mid-run starts it again, so it can be clicked as fast as one likes. Still
+ * under the system's reduced motion.
+ */
+function BrandName({ text }: { text: string }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="brand"
+      onClick={() => {
+        const el = ref.current;
+        if (el === null || typeof el.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        for (const a of el.getAnimations()) a.cancel();
+        el.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
+      }}
+    >
+      {text}
+    </button>
   );
 }
 

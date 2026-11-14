@@ -83,34 +83,35 @@ export function CockpitBody({
   );
   return (
     <div className="cockpit" ref={box} style={vars as CSSProperties}>
-      <nav className="ck-nav" ref={nav} aria-label={t('cockpit.views')}>
-        <h2 className="sec sec-label">{t('cockpit.views')}</h2>
-        {COCKPIT_VIEWS.map((v) => (
-          <button
-            key={v}
-            type="button"
-            className="nav-btn"
-            aria-current={ui.view === v && sheet === undefined ? 'page' : undefined}
-            onClick={() => {
-              onSheet(undefined);
-              setUi({ view: v });
-            }}
-          >
-            <Icon name={VIEW_ICON[v]} />
-            {t(`cockpit.view.${v}`)}
-          </button>
-        ))}
+      <nav className="ck-nav" ref={nav} aria-label={t('cockpit.folders')}>
         <h2 className="sec sec-label">{t('cockpit.folders')}</h2>
         <FolderFilter ctx={ctx} value={ui.folder} onChange={(folder) => setUi({ folder })} />
       </nav>
       {split('ck.nav.w', 'x', nav, false)}
       {split('ck.nav.h', 'y', nav, false)}
       <main className="ck-main">
+        {/* The views as tabs, on top of what they show (14/11): a sheet open under them closes on a click. */}
+        <nav className="ck-tabs" role="tablist" aria-label={t('cockpit.views')}>
+          {COCKPIT_VIEWS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={ui.view === v && sheet === undefined}
+              onClick={() => {
+                onSheet(undefined);
+                setUi({ view: v });
+              }}
+            >
+              <Icon name={VIEW_ICON[v]} />
+              <span>{t(`cockpit.view.${v}`)}</span>
+            </button>
+          ))}
+        </nav>
         {sheet !== undefined ? (
           <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
         ) : (
           <>
-            <h1 className="ck-title">{t(`cockpit.view.${ui.view}`)}</h1>
             <ViewBody ctx={ctx} ui={ui} setUi={setUi} />
           </>
         )}
