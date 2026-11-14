@@ -5,6 +5,7 @@ import { artifactSections } from '../sections';
 import { formatAge } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm, NameInput } from '../ui/Inline';
+import { Popover } from '../ui/Popover';
 import { Section } from '../ui/Section';
 import { menuContext } from '../ui/menu-context';
 import type { ViewCtx } from './context';
@@ -130,103 +131,110 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
           >
             <Icon name="pin" />
           </button>
-          <button type="button" className="tbtn" aria-label={t('artifacts.menu', { name })} aria-expanded={panel === 'menu'} onClick={() => setPanel((p) => (p === 'menu' ? undefined : 'menu'))}>
+          <button type="button" className="tbtn" aria-label={t('artifacts.menu', { name })} aria-expanded={panel !== undefined} onClick={() => setPanel((p) => (p === undefined ? 'menu' : undefined))}>
             <Icon name="more" />
           </button>
         </span>}
-      </div>
-      {panel === 'menu' && (
-        <div className="fmenu" role="group" aria-label={t('artifacts.menu', { name })}>
-          <button type="button" className="fm-btn" onClick={() => setPanel('rename')}>
-            <Icon name="edit" /> {t('artifacts.rename')}
-          </button>
-          <button type="button" className="fm-btn" onClick={() => setPanel('project')}>
-            <Icon name="columns" /> {t('artifacts.toProject')}
-          </button>
-          {snapshot.folders.length > 0 && (
-            <button type="button" className="fm-btn" onClick={() => setPanel('folder')}>
-              <Icon name="list" /> {t('artifacts.toFolder')}
-            </button>
+        {panel !== undefined && panel !== 'rename' && (
+          // Floats under the row's tools, over the list: nothing below moves (14/11).
+          <Popover label={t('artifacts.menu', { name })} onClose={close}>
+            <>
+          {panel === 'menu' && (
+            <div className="fmenu" role="group" aria-label={t('artifacts.menu', { name })}>
+              <button type="button" className="fm-btn" onClick={() => setPanel('rename')}>
+                <Icon name="edit" /> {t('artifacts.rename')}
+              </button>
+              <button type="button" className="fm-btn" onClick={() => setPanel('project')}>
+                <Icon name="columns" /> {t('artifacts.toProject')}
+              </button>
+              {snapshot.folders.length > 0 && (
+                <button type="button" className="fm-btn" onClick={() => setPanel('folder')}>
+                  <Icon name="list" /> {t('artifacts.toFolder')}
+                </button>
+              )}
+              <button
+                type="button"
+                className="fm-btn"
+                onClick={() => {
+                  close();
+                  void ctx.track(a.slug, ctx.act({ kind: 'artifact.copyLink', slug: a.slug }));
+                }}
+              >
+                <Icon name="copy" /> {t('artifacts.copyLink')}
+              </button>
+              <button type="button" className="fm-btn danger" onClick={() => setPanel('delete')}>
+                <Icon name="trash" /> {t('artifacts.delete')}
+              </button>
+            </div>
           )}
-          <button
-            type="button"
-            className="fm-btn"
-            onClick={() => {
-              close();
-              void ctx.track(a.slug, ctx.act({ kind: 'artifact.copyLink', slug: a.slug }));
-            }}
-          >
-            <Icon name="copy" /> {t('artifacts.copyLink')}
-          </button>
-          <button type="button" className="fm-btn danger" onClick={() => setPanel('delete')}>
-            <Icon name="trash" /> {t('artifacts.delete')}
-          </button>
-        </div>
-      )}
-      {panel === 'project' && (
-        <div className="fmenu">
-          <label className="field">
-            <span>{t('artifacts.projectLabel')}</span>
-            <NameInput
-              initial={a.project ?? ''}
-              label={t('artifacts.projectLabel')}
-              max={MAX_NAME}
-              list="artifact-projects"
-              allowEmpty
-              onDone={(project) => {
+          {panel === 'project' && (
+            <div className="fmenu">
+              <label className="field">
+                <span>{t('artifacts.projectLabel')}</span>
+                <NameInput
+                  initial={a.project ?? ''}
+                  label={t('artifacts.projectLabel')}
+                  max={MAX_NAME}
+                  list="artifact-projects"
+                  allowEmpty
+                  onDone={(project) => {
+                    close();
+                    // undefined: Escape. '': emptied on purpose — « Other ».
+                    if (project === undefined || project === (a.project ?? '')) return;
+                    void ctx.track(a.slug, ctx.act({ kind: 'artifact.project', slugs: [a.slug], project: project === '' ? null : project }));
+                  }}
+                />
+              </label>
+              <p className="hint">{t('artifacts.projectHint')}</p>
+            </div>
+          )}
+          {panel === 'folder' && (
+            <div className="fmenu" role="group" aria-label={t('artifacts.toFolder')}>
+              {snapshot.folders.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="fm-btn"
+                  onClick={() => {
+                    close();
+                    void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: f.id }));
+                  }}
+                >
+                  <Icon name="list" /> {f.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="fm-btn"
+                onClick={() => {
+                  close();
+                  void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title }));
+                }}
+              >
+                <Icon name="close" /> {t('artifacts.noFolder')}
+              </button>
+            </div>
+          )}
+          {panel === 'delete' && (
+            <Confirm
+              danger
+              yes={t('artifacts.delete')}
+              no={t('action.cancel')}
+              onYes={() => {
                 close();
-                // undefined: Escape. '': emptied on purpose — « Other ».
-                if (project === undefined || project === (a.project ?? '')) return;
-                void ctx.track(a.slug, ctx.act({ kind: 'artifact.project', slugs: [a.slug], project: project === '' ? null : project }));
+                void ctx.track(a.slug, ctx.act({ kind: 'artifact.delete', slug: a.slug })).then((r) => {
+                  if (r.ok) ctx.notify(t('artifacts.deleted', { name }));
+                });
               }}
-            />
-          </label>
-          <p className="hint">{t('artifacts.projectHint')}</p>
-        </div>
-      )}
-      {panel === 'folder' && (
-        <div className="fmenu" role="group" aria-label={t('artifacts.toFolder')}>
-          {snapshot.folders.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="fm-btn"
-              onClick={() => {
-                close();
-                void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: f.id }));
-              }}
+              onNo={close}
             >
-              <Icon name="list" /> {f.name}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="fm-btn"
-            onClick={() => {
-              close();
-              void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title }));
-            }}
-          >
-            <Icon name="close" /> {t('artifacts.noFolder')}
-          </button>
-        </div>
-      )}
-      {panel === 'delete' && (
-        <Confirm
-          danger
-          yes={t('artifacts.delete')}
-          no={t('action.cancel')}
-          onYes={() => {
-            close();
-            void ctx.track(a.slug, ctx.act({ kind: 'artifact.delete', slug: a.slug })).then((r) => {
-              if (r.ok) ctx.notify(t('artifacts.deleted', { name }));
-            });
-          }}
-          onNo={close}
-        >
-          {t('artifacts.deleteConfirm', { name })}
-        </Confirm>
-      )}
+              {t('artifacts.deleteConfirm', { name })}
+            </Confirm>
+          )}
+            </>
+          </Popover>
+        )}
+      </div>
     </div>
   );
 }
