@@ -49,7 +49,11 @@ describe('buildSnapshot', () => {
       { id: 'r', name: 'Daily', enabled: true, group: 'today', cron: '0 7 * * *', repos: ['me/daily'], nextRunAt: NOW + 60 * 60_000 },
       { id: 'q', name: 'Paused one', enabled: false, group: 'paused', repos: [] },
     ]);
-    expect(snap.closed.map((c) => c.project)).toEqual(['old']);
+    // An SDK run has nothing to resume it from: V1 would only explain so.
+    expect(snap.closed.map((c) => [c.project, c.resumable]).sort()).toEqual([
+      ['batch', false],
+      ['old', true],
+    ]);
   });
 
   it('gives reset deadlines in milliseconds, not V1 seconds', async () => {

@@ -112,11 +112,48 @@ function SessionInfo({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
 }
 
 export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
+  const { t, now } = ctx;
+  const title = c.title ?? c.project;
+  const age = <span className="tm">{formatAge(now - c.closedAt, t)}</span>;
+  if (!c.resumable) {
+    // Started outside the editor and the terminal: V1 has nothing to resume it from.
+    return (
+      <div className="row closed-row">
+        <Dot tone="ended" animate={false} />
+        <span className="txt">
+          <span className="ttl">{title}</span>
+          <span className="sub">{t('closed.elsewhere')}</span>
+        </span>
+        {age}
+      </div>
+    );
+  }
+  const waiting = ctx.reopening.has(c.sessionId);
+  const notice = ctx.reopenNotice(c.sessionId);
   return (
-    <div className="row">
-      <Dot tone="ended" animate={false} />
-      <span className="ttl">{c.title ?? c.project}</span>
-      <span className="tm">{formatAge(ctx.now - c.closedAt, ctx.t)}</span>
+    <div className="closed-item">
+      <button
+        type="button"
+        className="row row-btn closed-row"
+        disabled={waiting}
+        aria-busy={waiting}
+        aria-label={`${title} — ${t('closed.reopen')}`}
+        onClick={() => ctx.reopen(c.sessionId)}
+      >
+        <Dot tone={waiting ? 'run' : 'ended'} animate={ctx.animate} />
+        <span className="ttl">{title}</span>
+        {waiting ? <span className="tm busy">{t('closed.reopening')}</span> : age}
+        {!waiting && (
+          <span className="go">
+            <Icon name="resume" size={12} />
+          </span>
+        )}
+      </button>
+      {notice !== undefined && (
+        <p className="notice" role="status">
+          {t(`closed.${notice}`)}
+        </p>
+      )}
     </div>
   );
 }

@@ -55,7 +55,7 @@ export async function makeHome(): Promise<string> {
     ],
   });
   await write('settings.json', { version: 1, waiting: 'Glass', done: 'Pop', volume: 0.3, persistent: true, expireTemporary: true, animate: false });
-  await write('closed.json', { version: 1, closed: [{ id: '11111111-1111-4111-8111-111111111111', cwd: '/w', project: 'old', origin: 'vscode', closedAt: NOW - 9_000 }] });
+  await write('closed.json', { version: 1, closed: [{ id: '11111111-1111-4111-8111-111111111111', cwd: '/w', project: 'old', origin: 'vscode', closedAt: NOW - 9_000 }, { id: '22222222-2222-4222-8222-222222222222', cwd: '/w', project: 'batch', origin: 'sdk', closedAt: NOW - 8_000 }] });
   return home;
 }
 

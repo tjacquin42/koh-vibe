@@ -67,7 +67,10 @@ export function sampleSnapshot(now: number): Snapshot {
         { id: 'r2', name: 'Dependency check', enabled: false, group: 'paused', cron: '0 9 * * 1', repos: [] },
       ],
     },
-    closed: [{ sessionId: 'c1', title: 'Try the new router', project: 'shop-front', closedAt: ago(80) }],
+    closed: [
+      { sessionId: 'c1', title: 'Try the new router', project: 'shop-front', closedAt: ago(80), resumable: true },
+      { sessionId: 'c2', title: 'Nightly import script', project: 'data-jobs', closedAt: ago(300), resumable: false },
+    ],
     settings: { animate: true, persistent: true, expireTemporary: true, volume: 60, waiting: 'Glass', done: 'Pop' },
     activity: {
       at: now,

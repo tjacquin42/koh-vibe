@@ -11,6 +11,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Session, Status } from '../../../src/events/types';
 import { readClosed } from '../../../src/closed/store';
+import { isEditorOrigin } from '../../../src/events/origin';
 import { readGroups } from '../../../src/groups/store';
 import { groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
 import { artifactProjectsFile, artifactsFile, closedFile, groupsFile, routinesFile, settingsFile, spoolDirs } from '../../../src/paths';
@@ -221,7 +222,7 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
     artifacts: artifacts === undefined ? undefined : { at: artifacts.at, items: toArtifactViews(artifacts.items, filing) },
     routines: routines === undefined ? undefined : { at: routines.at, items: routines.items.map((r) => toRoutineView(r, now)) },
     closed: closed.closed.map((e) => {
-      const c = { sessionId: e.id, project: e.project, closedAt: e.closedAt };
+      const c = { sessionId: e.id, project: e.project, closedAt: e.closedAt, resumable: isEditorOrigin(e.origin) || e.origin === 'terminal' };
       return e.title === undefined ? c : { ...c, title: e.title };
     }),
     settings: toSettingsView(settings),

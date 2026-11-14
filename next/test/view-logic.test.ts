@@ -46,7 +46,7 @@ describe('search', () => {
   });
 
   it('shows a closed conversation that is back on the list only once', () => {
-    const back = { ...snap, closed: [{ sessionId: 's2', title: 'Fix the flaky date test', project: 'api', closedAt: 0 }] };
+    const back = { ...snap, closed: [{ sessionId: 's2', title: 'Fix the flaky date test', project: 'api', closedAt: 0, resumable: true }] };
     expect(search(back, 'flaky')?.closed).toEqual([]);
   });
 });

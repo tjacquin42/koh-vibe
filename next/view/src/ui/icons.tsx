@@ -72,6 +72,7 @@ const PATHS = {
     </>
   ),
   external: <path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5" />,
+  resume: <path d="M3 8a5 5 0 1 0 1.5-3.6L3 6M3 3v3h3" />,
   clock: (
     <>
       <circle cx="8" cy="8" r="5.8" />

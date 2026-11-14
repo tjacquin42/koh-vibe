@@ -12,10 +12,11 @@ describe('parseViewMessage', () => {
     expect(parseViewMessage({ type: 'tab', tab: 'processes' })).toEqual({ type: 'tab', tab: 'processes' });
     expect(parseViewMessage({ type: 'openSession', sessionId: 'a' })).toEqual({ type: 'openSession', sessionId: 'a' });
     expect(parseViewMessage({ type: 'openArtifact', slug: 'a_b-9' })).toEqual({ type: 'openArtifact', slug: 'a_b-9' });
+    expect(parseViewMessage({ type: 'reopenClosed', sessionId: 'c' })).toEqual({ type: 'reopenClosed', sessionId: 'c' });
   });
 
   it('drops anything malformed', () => {
-    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }, { type: 'tab', tab: 'settings' }, { type: 'openArtifact', slug: 'a/b' }, { type: 'openArtifact', slug: '' }, { type: 'openArtifact' }, { type: 'openSession' }, { type: 'openSession', sessionId: 7 }]) {
+    for (const bad of [null, 'ready', [], {}, { type: 'rm -rf' }, { type: 'openCockpit', sessionId: 3 }, { type: 'openCockpit', sessionId: '' }, { type: 'tab', tab: 'settings' }, { type: 'openArtifact', slug: 'a/b' }, { type: 'openArtifact', slug: '' }, { type: 'openArtifact' }, { type: 'openSession' }, { type: 'openSession', sessionId: 7 }, { type: 'reopenClosed' }, { type: 'reopenClosed', sessionId: '' }]) {
       expect(parseViewMessage(bad)).toBeUndefined();
     }
   });
@@ -26,6 +27,8 @@ describe('isHostMessage', () => {
     expect(isHostMessage({ type: 'snapshot', snapshot: {} })).toBe(true);
     expect(isHostMessage({ type: 'init', snapshot: {}, context: {} })).toBe(true);
     expect(isHostMessage({ type: 'init', snapshot: {} })).toBe(false);
+    expect(isHostMessage({ type: 'reopen', sessionId: 'c', outcome: 'v1' })).toBe(true);
+    expect(isHostMessage({ type: 'reopen', sessionId: 'c', outcome: 'maybe' })).toBe(false);
     expect(isHostMessage({ type: 'other' })).toBe(false);
   });
 });

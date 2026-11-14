@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { ClosedEntry } from '../../src/closed/model';
 import type { Session } from '../../src/events/types';
-import { openSession, V1_FOCUS_COMMAND, type OpenSessionDeps } from '../src/host/open-session';
+import { openSession, reopenClosed, V1_FOCUS_COMMAND, V1_REOPEN_COMMAND, type OpenSessionDeps, type ReopenDeps } from '../src/host/open-session';
 
 const session: Session = { id: 'a', cwd: '/w', project: 'p', origin: 'vscode', status: 'idle', toolCount: 0, lastEventAt: 0 };
 
@@ -35,5 +36,34 @@ describe('openSession', () => {
       expect(await openSession('a', d)).toBe('fallback');
       expect(log.at(-1)).toBe('cockpit:a');
     }
+  });
+});
+
+describe('reopenClosed', () => {
+  const entry: ClosedEntry = { id: 'c', cwd: '/w', project: 'p', origin: 'vscode', closedAt: 0 };
+
+  function reopenDeps(over: Partial<ReopenDeps> = {}) {
+    const log: string[] = [];
+    const d: ReopenDeps = {
+      read: async (id) => (id === 'c' ? entry : undefined),
+      hasCommand: async (cmd) => cmd === V1_REOPEN_COMMAND,
+      run: async (cmd, arg) => {
+        log.push(`${cmd}:${arg.id}`);
+      },
+      ...over,
+    };
+    return { d, log };
+  }
+
+  it('hands the stored entry to V1, which resumes it', async () => {
+    const { d, log } = reopenDeps();
+    expect(await reopenClosed('c', d)).toBe('v1');
+    expect(log).toEqual(['kohVibe.reopenSession:c']);
+  });
+
+  it('says why nothing is coming back', async () => {
+    expect(await reopenClosed('c', reopenDeps({ hasCommand: async () => false }).d)).toBe('unavailable');
+    expect(await reopenClosed('gone', reopenDeps().d)).toBe('gone');
+    expect(await reopenClosed('c', reopenDeps({ run: async () => Promise.reject(new Error('boom')) }).d)).toBe('failed');
   });
 });

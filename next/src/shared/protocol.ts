@@ -189,6 +189,12 @@ export interface ClosedView {
   title?: string;
   project: string;
   closedAt: number;
+  /**
+   * Whether V1 can bring it back: started in the editor or in a terminal.
+   * Elsewhere (SDK, unknown) V1 only explains it cannot — the row says so
+   * instead of offering a click that leads nowhere.
+   */
+  resumable: boolean;
 }
 
 export interface Snapshot {
@@ -226,9 +232,18 @@ export interface ViewContext {
 }
 
 /** Host → view. */
+/**
+ * What a click on a closed conversation led to. `v1`: V1 took it and the
+ * conversation is on its way — the view waits for it to show up again.
+ * Anything else: nothing is coming, and the view stops waiting at once.
+ */
+export const REOPEN_OUTCOMES = ['v1', 'unavailable', 'gone', 'failed'] as const;
+export type ReopenOutcome = (typeof REOPEN_OUTCOMES)[number];
+
 export type HostMessage =
   | { type: 'init'; context: ViewContext; snapshot: Snapshot }
-  | { type: 'snapshot'; snapshot: Snapshot };
+  | { type: 'snapshot'; snapshot: Snapshot }
+  | { type: 'reopen'; sessionId: string; outcome: ReopenOutcome };
 
 /** View → host. */
 export type ViewMessage =
@@ -242,6 +257,8 @@ export type ViewMessage =
    * the click to V1's own command, which owns the acknowledgement it writes.
    */
   | { type: 'openSession'; sessionId: string }
+  /** A click on a « Recently closed » row: handed to V1's resume, like openSession. */
+  | { type: 'reopenClosed'; sessionId: string }
   /** Opens the artifact's page on claude.ai in the browser — a link, nothing written. */
   | { type: 'openArtifact'; slug: string };
 
@@ -268,6 +285,10 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       const id = raw['sessionId'];
       return typeof id === 'string' && id.length > 0 ? { type: 'openSession', sessionId: id } : undefined;
     }
+    case 'reopenClosed': {
+      const id = raw['sessionId'];
+      return typeof id === 'string' && id.length > 0 ? { type: 'reopenClosed', sessionId: id } : undefined;
+    }
     case 'openArtifact': {
       const slug = raw['slug'];
       return typeof slug === 'string' && SLUG.test(slug) ? { type: 'openArtifact', slug } : undefined;
@@ -290,5 +311,6 @@ export function isHostMessage(raw: unknown): raw is HostMessage {
   const t = raw['type'];
   if (t === 'snapshot') return isRecord(raw['snapshot']);
   if (t === 'init') return isRecord(raw['snapshot']) && isRecord(raw['context']);
+  if (t === 'reopen') return typeof raw['sessionId'] === 'string' && REOPEN_OUTCOMES.some((o) => o === raw['outcome']);
   return false;
 }

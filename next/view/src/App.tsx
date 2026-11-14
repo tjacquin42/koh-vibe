@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SIDEBAR_TABS, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
+import { SIDEBAR_TABS, type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
 import { sampleSnapshot } from './fixture';
 import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
+import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
 import { isEmpty, search } from './search';
 import { CockpitBody } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
@@ -43,11 +44,24 @@ export function App({ bridge }: { bridge: Bridge }) {
   );
   const [ui, setUi] = useState<UiState>(() => parseUiState(bridge.load()));
   const [query, setQuery] = useState('');
+  const [reopening, setReopening] = useState<Reopening>(() => new Map());
+  const [notices, setNotices] = useState<ReadonlyMap<string, Exclude<ReopenOutcome, 'v1'>>>(() => new Map());
 
   useEffect(() => {
     const off = bridge.listen((m) => {
       if (m.type === 'init') setState({ context: m.context, snapshot: m.snapshot });
-      else setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
+      else if (m.type === 'snapshot') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
+      else if (m.outcome !== 'v1') {
+        // Nothing is on its way: stop the spinner now and say why, for a while.
+        const { sessionId, outcome } = m;
+        setReopening((r) => stopReopening(r, sessionId));
+        setNotices((n) => new Map(n).set(sessionId, outcome));
+        window.setTimeout(() => setNotices((n) => {
+          const next = new Map(n);
+          next.delete(sessionId);
+          return next;
+        }), 8_000);
+      }
     });
     bridge.post({ type: 'ready' });
     return off;
@@ -72,6 +86,28 @@ export function App({ bridge }: { bridge: Bridge }) {
   const t = useMemo(() => translator(state?.context.language ?? navigator.language), [state?.context.language]);
   const now = useNow();
 
+  // A wait ends when the conversation is back, or when V1 lets go of it.
+  const snapshotNow = state?.snapshot;
+  useEffect(() => {
+    if (snapshotNow !== undefined) setReopening((r) => settleReopening(r, snapshotNow, Date.now()));
+  }, [snapshotNow, now]);
+
+  const reopen = useCallback(
+    (sessionId: string) => {
+      setReopening((r) => startReopening(r, sessionId, Date.now()));
+      setNotices((n) => {
+        if (!n.has(sessionId)) return n;
+        const next = new Map(n);
+        next.delete(sessionId);
+        return next;
+      });
+      // The 30 s cap must not wait for the next snapshot to be noticed.
+      window.setTimeout(() => setReopening((r) => (r.has(sessionId) && Date.now() - (r.get(sessionId) ?? 0) >= REOPEN_WAIT_MS ? stopReopening(r, sessionId) : r)), REOPEN_WAIT_MS + 50);
+      bridge.post({ type: 'reopenClosed', sessionId });
+    },
+    [bridge],
+  );
+
   if (state === undefined) {
     return <div className="boot">{t('live.wait')}</div>;
   }
@@ -85,6 +121,9 @@ export function App({ bridge }: { bridge: Bridge }) {
     animate: snapshot.settings.animate,
     isFolded: (key) => ui.folded.includes(key),
     toggle: (key) => updateUi((prev) => toggleFold(prev, key)),
+    reopening: new Set(reopening.keys()),
+    reopenNotice: (id) => notices.get(id),
+    reopen,
   };
   if (context.surface === 'cockpit') {
     return (

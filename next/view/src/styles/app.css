@@ -255,3 +255,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .pulse, .spin { animation: none; }
 }
+
+/* « Recently closed »: a click resumes through V1, the row spins meanwhile. */
+.closed-row .sub { font-size: 11.5px; color: var(--muted); }
+.closed-row .busy { color: var(--run); }
+.closed-row:disabled { cursor: progress; }
+.notice { margin: 0 8px 6px 33px; font-size: 11.5px; color: var(--wait); }

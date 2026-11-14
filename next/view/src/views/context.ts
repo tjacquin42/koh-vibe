@@ -1,4 +1,4 @@
-import type { Snapshot } from '../../../src/shared/protocol';
+import type { ReopenOutcome, Snapshot } from '../../../src/shared/protocol';
 import type { Bridge } from '../bridge';
 import type { Translate } from '../i18n';
 
@@ -13,4 +13,9 @@ export interface ViewCtx {
   animate: boolean;
   isFolded(key: string): boolean;
   toggle(key: string): void;
+  /** Closed conversations V1 is bringing back: their row spins. */
+  reopening: ReadonlySet<string>;
+  /** Why the last click on that row brought nothing back, for a few seconds. */
+  reopenNotice(sessionId: string): Exclude<ReopenOutcome, 'v1'> | undefined;
+  reopen(sessionId: string): void;
 }

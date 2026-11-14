@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
-import { claudeHome, claudeSessionsDir, kohVibeHome, spoolDirs } from '../../../src/paths';
+import { readClosed } from '../../../src/closed/store';
+import { claudeHome, claudeSessionsDir, closedFile, kohVibeHome, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
-import { parseViewMessage, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
+import { parseViewMessage, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
 import { join } from 'node:path';
 import { ActivityIndex, WINDOW_MS } from './activity/index';
 import { toActivityView } from './activity/view';
 import { Hub } from './hub';
 import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
-import { openSession } from './open-session';
+import { openSession, reopenClosed } from './open-session';
 import { scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
 import { buildSnapshot } from './snapshot';
 import { createStatusBar } from './status-bar';
@@ -58,6 +59,14 @@ function webviewOptions(context: vscode.ExtensionContext): vscode.WebviewOptions
   return { enableScripts: true, localResourceRoots: [viewRoot(context)] };
 }
 
+/** What a view's messages can ask of the extension, beyond the hub. */
+interface ViewActions {
+  openCockpit(sessionId?: string): void;
+  openSession(sessionId: string): void;
+  reopenClosed(sessionId: string): Promise<ReopenOutcome>;
+  showTab(tab: SidebarTab | undefined): void;
+}
+
 /**
  * Wires one web view to the hub: HTML, then a client once the page says it
  * is ready — never before, since a message posted to a page that has not
@@ -68,7 +77,7 @@ function connect(
   surface: Surface,
   context: vscode.ExtensionContext,
   hub: Hub,
-  actions: { openCockpit(sessionId?: string): void; openSession(sessionId: string): void; showTab(tab: SidebarTab | undefined): void },
+  actions: ViewActions,
 ): Disposable {
   webview.options = webviewOptions(context);
   webview.html = renderHtml(webview, context);
@@ -100,6 +109,12 @@ function connect(
       case 'openSession':
         actions.openSession(msg.sessionId);
         return;
+      case 'reopenClosed': {
+        // Told back to this view only: the spinner is on its row.
+        const reply: HostMessage = { type: 'reopen', sessionId: msg.sessionId, outcome: await actions.reopenClosed(msg.sessionId) };
+        void webview.postMessage(reply);
+        return;
+      }
       case 'openArtifact':
         void vscode.env.openExternal(vscode.Uri.parse(`https://claude.ai/artifact/${msg.slug}`));
         return;
@@ -163,11 +178,19 @@ export function activate(context: vscode.ExtensionContext): void {
     });
   };
 
-  const tabTracker = (): { openCockpit(): void; openSession(sessionId: string): void; showTab(tab: SidebarTab | undefined): void } => {
+  const reopen = (sessionId: string): Promise<ReopenOutcome> =>
+    reopenClosed(sessionId, {
+      read: async (id) => (await readClosed(closedFile(home))).closed.find((e) => e.id === id),
+      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
+    });
+
+  const tabTracker = (): ViewActions => {
     const key = {};
     return {
       openCockpit: () => openCockpit(),
       openSession: focus,
+      reopenClosed: reopen,
       showTab(tab) {
         const before = wantOrphans();
         if (tab === undefined) tabs.delete(key);

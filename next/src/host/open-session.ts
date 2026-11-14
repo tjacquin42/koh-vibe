@@ -1,4 +1,6 @@
+import type { ClosedEntry } from '../../../src/closed/model';
 import type { Session } from '../../../src/events/types';
+import type { ReopenOutcome } from '../shared/protocol';
 
 /** V1's row click (extension.ts `kohVibe.focusSession`): acknowledge, then bring the tab forward. */
 export const V1_FOCUS_COMMAND = 'kohVibe.focusSession';
@@ -36,5 +38,39 @@ export async function openSession(sessionId: string, deps: OpenSessionDeps): Pro
   } catch {
     deps.fallback(sessionId);
     return 'fallback';
+  }
+}
+
+/** V1's click on a « Recently closed » row (extension.ts `kohVibe.reopenSession`). */
+export const V1_REOPEN_COMMAND = 'kohVibe.reopenSession';
+
+export interface ReopenDeps {
+  /** The entry as V1 stored it in closed.json — its command takes its own type. */
+  read(sessionId: string): Promise<ClosedEntry | undefined>;
+  hasCommand(command: string): Promise<boolean>;
+  run(command: string, arg: ClosedEntry): Thenable<unknown>;
+}
+
+/**
+ * A click on a closed conversation, while V1 is installed.
+ *
+ * Resuming writes: V1 drops the row from closed.json once the conversation is
+ * back, and may ask another window to open it. Same rule as `openSession`:
+ * V1's own command does it, V1 stays the only writer. V1 also decides HOW it
+ * comes back (editor tab, terminal running `claude --resume`, or a message
+ * saying it cannot), so nothing of that is guessed here.
+ *
+ * There is no fallback this time: without V1, resuming would be the V2's
+ * first write. The view says it is not possible yet.
+ */
+export async function reopenClosed(sessionId: string, deps: ReopenDeps): Promise<ReopenOutcome> {
+  const [entry, available] = await Promise.all([deps.read(sessionId), deps.hasCommand(V1_REOPEN_COMMAND)]);
+  if (!available) return 'unavailable';
+  if (entry === undefined) return 'gone';
+  try {
+    await deps.run(V1_REOPEN_COMMAND, entry);
+    return 'v1';
+  } catch {
+    return 'failed';
   }
 }

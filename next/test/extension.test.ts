@@ -216,6 +216,27 @@ describe('activate', () => {
     await vi.waitFor(() => expect(recorded.panels).toHaveLength(1), { timeout: 1_000, interval: 10 });
   });
 
+  it('hands a closed conversation to V1 to resume, and tells the view', async () => {
+    start(ExtensionMode.Production);
+    const got: unknown[] = [];
+    recorded.commands.set('kohVibe.reopenSession', (e: unknown) => got.push(e));
+    const view = sidebar();
+    const id = '11111111-1111-4111-8111-111111111111';
+    const before = await fingerprint(home);
+    await view.webview.receive({ type: 'reopenClosed', sessionId: id });
+    await vi.waitFor(() => expect(messages(view).some((m) => m.type === 'reopen')).toBe(true), { timeout: 1_000, interval: 10 });
+    expect(got[0]).toMatchObject({ id, cwd: '/w', origin: 'vscode' });
+    expect(messages(view).find((m) => m.type === 'reopen')).toEqual({ type: 'reopen', sessionId: id, outcome: 'v1' });
+    expect(await fingerprint(home)).toBe(before);
+  });
+
+  it('says so when V1 is not there to resume it', async () => {
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'reopenClosed', sessionId: '11111111-1111-4111-8111-111111111111' });
+    await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'reopen')).toMatchObject({ outcome: 'unavailable' }), { timeout: 1_000, interval: 10 });
+  });
+
   it('reads the transcripts only while a cockpit is open', async () => {
     start(ExtensionMode.Production);
     const view = sidebar();
