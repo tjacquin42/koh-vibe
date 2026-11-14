@@ -123,11 +123,6 @@ export function SettingsPanel({
         )}
       </section>
 
-      <section className="set-group">
-        <h3>{t('settings.theme')}</h3>
-        <ThemeEditor ctx={ctx} />
-      </section>
-
       {snapshot.tidy !== undefined && (
         <section className="set-group">
           <h3>{t('settings.tidy')}</h3>
@@ -166,6 +161,10 @@ export function SettingsPanel({
         {SETTING_TOGGLES.map((key) => (
           <Toggle key={key} ctx={ctx} k={key} on={s[key]} />
         ))}
+      </section>
+      <section className="set-group">
+        <h3>{t('settings.theme')}</h3>
+        <ThemeEditor ctx={ctx} />
       </section>
       <p className="hint pad">{t('settings.shared')}</p>
     </div>
