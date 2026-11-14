@@ -44,8 +44,11 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
       calls.push(['language', choice]);
     },
     tidy: async () => ({ ok: true, count: 2 }),
-    setTidy: async (ask, rules) => {
-      calls.push(['tidy', ask, rules]);
+    setTidyAsk: async (ask) => {
+      calls.push(['tidyAsk', ask]);
+    },
+    tidyRules: async (mode) => {
+      calls.push(['tidyRules', mode]);
     },
     ...over,
   };
@@ -239,8 +242,14 @@ describe('processes', () => {
 describe('the tidying agent, from the view', () => {
   it('runs it and keeps its settings', async () => {
     expect(await run({ kind: 'artifact.tidy' })).toEqual({ ok: true, count: 2 });
-    await run({ kind: 'tidy.settings', ask: false, rules: ['Recipes go to Cooking'] });
-    expect(calls).toEqual([['tidy', false, ['Recipes go to Cooking']]]);
+    await run({ kind: 'tidy.settings', ask: false });
+    await run({ kind: 'tidy.rules', mode: 'add' });
+    await run({ kind: 'tidy.rules', mode: 'open' });
+    expect(calls).toEqual([
+      ['tidyAsk', false],
+      ['tidyRules', 'add'],
+      ['tidyRules', 'open'],
+    ]);
   });
 });
 
@@ -275,8 +284,8 @@ describe('parseAction', () => {
       { kind: 'process.kill', pid: -4 },
       { kind: 'routine.run', id: '../x' },
       { kind: 'tidy.settings', ask: 'yes' },
-      { kind: 'tidy.settings', rules: ['ok', 3] },
-      { kind: 'tidy.settings', rules: ['  '] },
+      { kind: 'tidy.settings' },
+      { kind: 'tidy.rules', mode: 'write' },
     ]) {
       expect(parseAction(bad), JSON.stringify(bad)).toBeUndefined();
     }

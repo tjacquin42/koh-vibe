@@ -36,6 +36,11 @@ fields not listed here: keep them as they are.
 Markdown with a `folder:` header naming the folder. See the skill for the format. The hook
 records what each conversation has already received under `rules-seen/`: never edit that.
 
+## `rules/artifacts.md` — the artifact tidying agent's rules
+
+Markdown with a `for:` header, one bullet per rule. See the skill. Not a folder's rules: the
+prompt hook never sends it to a conversation.
+
 ## `artifact-projects.json` — the Artifacts view
 
 ```json

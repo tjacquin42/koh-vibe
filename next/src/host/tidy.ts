@@ -14,9 +14,9 @@
  * (`--bare` would skip the hooks too, but it only takes an API key.)
  */
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileArtifacts, projectKey } from '../../../src/artifacts/projects';
 import { updateArtifactProjects } from '../../../src/artifacts/projects-store';
 import { MAX_NAME } from '../shared/actions';
@@ -95,6 +95,69 @@ export async function applyMoves(file: string, moves: readonly Move[]): Promise<
   const byProject = new Map<string, string[]>();
   for (const m of moves) byProject.set(m.project, [...(byProject.get(m.project) ?? []), m.slug]);
   await updateArtifactProjects(file, (s) => [...byProject].reduce((acc, [project, slugs]) => fileArtifacts(acc, slugs, project), s));
+}
+
+/**
+ * The agent's rules (14/11): a Markdown file next to the folders' rules,
+ * written by a conversation opened for it — as a folder rule is — or by hand.
+ * Not a folder's: no folder id is « artifacts », so the prompt hook never sends it.
+ */
+export function tidyRulesFile(home: string): string {
+  return join(home, 'rules', 'artifacts.md');
+}
+
+const HEADER = '---\nfor: Koh-Vibe artifact tidying\n---\n\n';
+const MAX_RULES = 50;
+
+/**
+ * The rules in the file: each bullet is one, its indented lines with it; a
+ * plain line is one on its own. The header and the titles are not rules.
+ */
+export function rulesOf(text: string): string[] {
+  const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+  const rules: string[] = [];
+  let open = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (line.trim().length === 0) {
+      open = false;
+      continue;
+    }
+    const bullet = /^\s{0,3}[-*+]\s+(.*)$/.exec(line);
+    if (bullet !== null) {
+      rules.push((bullet[1] ?? '').trim());
+      open = true;
+    } else if (open && /^\s/.test(line)) {
+      rules[rules.length - 1] += ` ${line.trim()}`;
+    } else if (!line.startsWith('#')) {
+      rules.push(line.trim());
+      open = false;
+    }
+  }
+  return rules.filter((r) => r.length > 0).slice(0, MAX_RULES);
+}
+
+/** The rules, none when the file is not there yet. */
+export async function readTidyRules(file: string): Promise<string[]> {
+  try {
+    return rulesOf(await readFile(file, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Creates the file with its header — and `rules`, the ones kept by the editor
+ * before the file existed — if it is not there. Never overwritten: the rules
+ * are the person's.
+ */
+export async function ensureTidyRulesFile(file: string, rules: readonly string[] = []): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  try {
+    // `wx`: written only if absent, without a check-then-write race.
+    await writeFile(file, HEADER + rules.map((r) => `- ${r}\n`).join(''), { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+  }
 }
 
 /** Where Claude Code usually lives: the editor's PATH may not reach the user's. */

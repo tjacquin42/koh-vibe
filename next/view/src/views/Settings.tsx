@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
 import { Segmented } from '../cockpit/Cockpit';
-import { RulesEditor } from '../ui/Rules';
+import { TidyRules } from '../ui/Rules';
 import { SESSION_SORTS, type SessionSort } from '../sections';
 import { Icon } from '../ui/icons';
 import type { ViewCtx } from './context';
@@ -124,7 +124,12 @@ export function SettingsPanel({
             <span className="set-l">
               <b>{t('settings.tidyRules')}</b>
             </span>
-            <RulesEditor t={t} rules={snapshot.tidy.rules} onChange={(rules) => void ctx.act({ kind: 'tidy.settings', rules })} />
+            <TidyRules
+              t={t}
+              rules={snapshot.tidy.rules}
+              onAdd={() => void ctx.act({ kind: 'tidy.rules', mode: 'add' })}
+              onOpen={() => void ctx.act({ kind: 'tidy.rules', mode: 'open' })}
+            />
           </div>
         </section>
       )}

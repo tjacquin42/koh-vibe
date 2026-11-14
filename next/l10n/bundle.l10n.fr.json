@@ -31,5 +31,6 @@
   "This goes through Koh-Vibe (V1) until the switch-over, and it is not installed here.": "Jusqu’à la bascule, ceci passe par Koh-Vibe (V1), qui n’est pas installé ici.",
   "claude.ai did not take it (signed out, or refused). The « Koh-Vibe Next » output says why.": "claude.ai ne l’a pas pris (déconnecté, ou refusé). La sortie « Koh-Vibe Next » dit pourquoi.",
   "That changed in the meantime: nothing was done.": "Ça a changé entre-temps : rien n’a été fait.",
-  "That did not go through. Nothing was changed.": "Ça n’a pas abouti. Rien n’a été changé."
+  "That did not go through. Nothing was changed.": "Ça n’a pas abouti. Rien n’a été changé.",
+  "Artifact tidying rule\n\nUse the {0} skill. The rules of the Koh-Vibe agent that files the claude.ai artifacts under projects are in {1}.\nAsk me which rule to add.": "Règle de rangement des artifacts\n\nUtilise le skill {0}. Les règles de l’agent Koh-Vibe qui range les artifacts claude.ai par projet sont dans {1}.\nDemande-moi quelle règle ajouter."
 }

@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
 import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
-import { applyMoves, parseMoves, runClaude, tidyPrompt, type TidyItem } from './tidy';
+import { applyMoves, ensureTidyRulesFile, parseMoves, readTidyRules, runClaude, tidyPrompt, tidyRulesFile, type TidyItem } from './tidy';
+import { SKILL_NAME } from '../../../src/skill/install';
 import { runAction, type Copied } from './actions';
 import { cloudActions } from './cloud';
 import type { TranscriptStats } from '../../../src/transcript/reader';
@@ -129,9 +130,10 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
-/** The tidying agent's settings, kept by the editor: ask before running (default yes), and its rules. */
+/** Whether Tidy asks before running the agent (default yes), kept by the editor. */
 const TIDY_ASK_KEY = 'kohVibeNext.tidyAsk';
-const TIDY_RULES_KEY = 'kohVibeNext.tidyRules';
+/** Where the agent's rules were kept before they moved to a file (tidy.ts): moved there once. */
+const OLD_TIDY_RULES_KEY = 'kohVibeNext.tidyRules';
 
 /** The editor's tab bar setting, read where it lives (V1 settings/tabs.ts). */
 const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
@@ -222,10 +224,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
   const procs = processDeps.current ?? systemProcessDeps(claudeSessionsDir(claudeHome()));
-  const tidyRules = (): string[] => {
-    const v: unknown = context.globalState.get(TIDY_RULES_KEY);
-    return Array.isArray(v) ? v.filter((r): r is string => typeof r === 'string') : [];
-  };
+  const rulesFile = tidyRulesFile(home);
+  const oldRules: unknown = context.globalState.get(OLD_TIDY_RULES_KEY);
+  if (Array.isArray(oldRules)) {
+    const rules = oldRules.filter((r): r is string => typeof r === 'string');
+    void (rules.length === 0 ? Promise.resolve() : ensureTidyRulesFile(rulesFile, rules))
+      .then(() => context.globalState.update(OLD_TIDY_RULES_KEY, undefined))
+      .then(undefined, (e: unknown) => output.appendLine(`tidy rules → not moved to ${rulesFile}: ${String(e)}`));
+  }
   // claude.ai, as V1 calls it: a failed call is written to the output channel
   // (V1's cloud/log.ts) — never the token, never the body.
   const cloud = cloudActions(home, cloudDeps.current ?? { send: logged(send, (line) => output.appendLine(line)), credentials: () => readCredentials() });
@@ -253,7 +259,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
   const hub = new Hub({
-    build: () => {
+    build: async () => {
       // The shared lists, asked again only while a view shows them and at
       // most every five minutes (Feed): a write lands in the cache file,
       // which the watcher turns into the next build.
@@ -264,7 +270,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const editorTabs = parseTabsMode(editorConfig().get('showTabs'));
       return buildSnapshot(home, Date.now(), {
         editorTabs,
-        tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: tidyRules() },
+        tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -353,7 +359,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const items: TidyItem[] = (snap.artifacts?.items ?? []).map((a) => (a.project === undefined ? { slug: a.slug, title: a.title } : { slug: a.slug, title: a.title, project: a.project }));
       if (items.length === 0) return { ok: true, count: 0 };
       const projects = [...new Set(items.map((i) => i.project).filter((p): p is string => p !== undefined))];
-      const answer = await runClaude(tidyPrompt(items, projects, tidyRules()), (line) => output.appendLine(`${new Date().toISOString()} ${line}`));
+      const answer = await runClaude(tidyPrompt(items, projects, await readTidyRules(rulesFile)), (line) => output.appendLine(`${new Date().toISOString()} ${line}`));
       if (answer === undefined) return { ok: false, error: 'failed' };
       const moves = parseMoves(answer, items);
       await applyMoves(artifactProjectsFile(home), moves);
@@ -410,9 +416,24 @@ export function activate(context: vscode.ExtensionContext): void {
         for (const v of views) v.reload();
       },
       tidy: () => tidy(),
-      setTidy: async (ask, rules) => {
-        if (ask !== undefined) await context.globalState.update(TIDY_ASK_KEY, ask);
-        if (rules !== undefined) await context.globalState.update(TIDY_RULES_KEY, rules);
+      setTidyAsk: (ask) => context.globalState.update(TIDY_ASK_KEY, ask),
+      // As a folder rule (V1 groups/rules.ts): a conversation that starts with
+      // a title, the skill and the file, left in the input unsent.
+      tidyRules: async (mode) => {
+        await ensureTidyRulesFile(rulesFile);
+        if (mode === 'open') {
+          await vscode.window.showTextDocument(vscode.Uri.file(rulesFile));
+          return;
+        }
+        await vscode.commands.executeCommand(
+          'claude-vscode.editor.open',
+          undefined,
+          vscode.l10n.t(
+            'Artifact tidying rule\n\nUse the {0} skill. The rules of the Koh-Vibe agent that files the claude.ai artifacts under projects are in {1}.\nAsk me which rule to add.',
+            SKILL_NAME,
+            rulesFile,
+          ),
+        );
       },
     });
     void hub.refresh();

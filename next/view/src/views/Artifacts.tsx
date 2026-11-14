@@ -6,7 +6,7 @@ import { formatAge } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm, NameInput } from '../ui/Inline';
 import { Popover } from '../ui/Popover';
-import { RulesEditor } from '../ui/Rules';
+import { TidyRules } from '../ui/Rules';
 import { Section } from '../ui/Section';
 import { menuContext } from '../ui/menu-context';
 import type { ViewCtx } from './context';
@@ -84,7 +84,9 @@ export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 
       })
       .finally(() => setBusy(false));
   };
-  const working = busy || ctx.isBusy('tidy');
+  const tidying = ctx.isBusy('tidy');
+  const working = busy || tidying;
+  const label = tidying ? t('tidy.running') : busy ? t('cloud.refreshing') : tidy !== undefined ? t('tidy.button') : t('cloud.refresh');
   return (
     <div className="cloudbar">
       <span>{at === undefined ? t('cloud.never') : t('cloud.age', { age: formatAge(now - at, t) })}</span>
@@ -101,16 +103,25 @@ export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 
             else runTidy();
           }}
         >
-          <Icon name="resume" /> {working ? (tidy !== undefined ? t('tidy.running') : t('cloud.refreshing')) : t('cloud.refresh')}
+          <Icon name={tidy !== undefined ? 'tidy' : 'resume'} /> {label}
         </button>
         {asking && tidy !== undefined && (
           <Popover label={t('tidy.title')} onClose={() => setAsking(false)}>
             <TidyAsk
               ctx={ctx}
               rules={tidy.rules}
-              onRun={(dontAsk, rules) => {
+              onRun={(dontAsk) => {
                 setAsking(false);
-                void ctx.act({ kind: 'tidy.settings', ask: !dontAsk, rules }).then(runTidy);
+                if (dontAsk) void ctx.act({ kind: 'tidy.settings', ask: false });
+                runTidy();
+              }}
+              onAddRule={() => {
+                setAsking(false);
+                void ctx.act({ kind: 'tidy.rules', mode: 'add' });
+              }}
+              onOpenRules={() => {
+                setAsking(false);
+                void ctx.act({ kind: 'tidy.rules', mode: 'open' });
               }}
               onListOnly={() => {
                 setAsking(false);
@@ -126,24 +137,28 @@ export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 
 }
 
 /**
- * Asked before the tidying agent runs (14/11): what it does, its rules — to
- * add to on the spot — and « don't ask again », undone from the settings.
+ * Asked before the tidying agent runs (14/11): what it does, its rules — a
+ * conversation adds one, as for a folder — and « don't ask again », undone
+ * from the settings.
  */
 function TidyAsk({
   ctx,
-  rules: initial,
+  rules,
   onRun,
+  onAddRule,
+  onOpenRules,
   onListOnly,
   onCancel,
 }: {
   ctx: ViewCtx;
   rules: readonly string[];
-  onRun(dontAsk: boolean, rules: string[]): void;
+  onRun(dontAsk: boolean): void;
+  onAddRule(): void;
+  onOpenRules(): void;
   onListOnly(): void;
   onCancel(): void;
 }) {
   const { t } = ctx;
-  const [rules, setRules] = useState<string[]>([...initial]);
   const [dontAsk, setDontAsk] = useState(false);
   return (
     <div className="confirm calm tidy-ask">
@@ -152,13 +167,13 @@ function TidyAsk({
       </p>
       <p>{t('tidy.explain')}</p>
       <p className="muted small">{t('tidy.rules')}</p>
-      <RulesEditor t={t} rules={rules} onChange={setRules} />
+      <TidyRules t={t} rules={rules} onAdd={onAddRule} onOpen={onOpenRules} />
       <label className="check">
         <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} />
         <span>{t('tidy.dontAsk')}</span>
       </label>
       <div className="confirm-btns">
-        <button type="button" className="btn-go" onClick={() => onRun(dontAsk, rules)}>
+        <button type="button" className="btn-go" onClick={() => onRun(dontAsk)}>
           {t('tidy.run')}
         </button>
         <button type="button" className="btn-ghost" onClick={onListOnly}>

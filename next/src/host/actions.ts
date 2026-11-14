@@ -58,7 +58,9 @@ export interface ActionDeps {
   setLanguage(choice: LanguageChoice): Thenable<void>;
   /** Runs the tidying agent; how many artifacts it moved, or why it did not. */
   tidy(): Promise<ActionResult>;
-  setTidy(ask: boolean | undefined, rules: string[] | undefined): Thenable<void>;
+  setTidyAsk(ask: boolean): Thenable<void>;
+  /** Opens the conversation that adds a rule, or the rules file. */
+  tidyRules(mode: 'add' | 'open'): Promise<void>;
 }
 
 /** The argument V1's tree passes its menu commands; V1 reads only the id (ui/tree.ts `sessionIdOfNode`). */
@@ -141,7 +143,10 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
     case 'artifact.tidy':
       return deps.tidy();
     case 'tidy.settings':
-      await deps.setTidy(a.ask, a.rules);
+      await deps.setTidyAsk(a.ask);
+      return OK;
+    case 'tidy.rules':
+      await deps.tidyRules(a.mode);
       return OK;
     case 'cloud.refresh':
       await deps.cloud.refresh(a.what, true);

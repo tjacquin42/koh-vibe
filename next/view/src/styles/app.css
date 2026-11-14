@@ -541,16 +541,14 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 .set-choice .seg { width: 100%; }
 .set-choice .seg button { flex: 1; }
 
-/* The tidying agent: its question under Refresh, its rules. */
+/* The tidying agent: its question under Tidy, its rules. */
 .cloudbar-act { position: relative; display: inline-flex; }
 .tidy-ask { width: min(320px, calc(100vw - 28px)); }
 .tidy-ask p { margin: 0 0 8px; }
 .rules ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
-.rules li { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12px; }
-.rules li span { flex: 1; min-width: 0; }
-.rule-add { display: flex; gap: 6px; align-items: center; }
-.rule-add .name-input { font-family: var(--font-body); font-weight: 400; font-size: 12px; border-color: var(--line); }
-.rule-add .name-input:focus { border-color: var(--accent); }
+.rules li { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12px; overflow-wrap: anywhere; }
+.rules > p { margin: 0 0 8px; }
+.rule-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 12.5px; }
 .check input { accent-color: var(--accent); }
 .btn-ghost.busy .icon { animation: spin 0.9s linear infinite; }
