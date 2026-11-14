@@ -26,6 +26,13 @@ describe('buildSnapshot', () => {
     expect(snap.sessions.map((s) => s.id).sort()).toEqual(['a', 'b', 'c', 'e']);
   });
 
+  it('calls « new » only an idle, untitled conversation with nothing run — once the transcripts are read', async () => {
+    expect((await buildSnapshot(home, NOW)).sessions.some((s) => s.fresh === true)).toBe(false);
+    const read = await buildSnapshot(home, NOW, { transcripts: new Map() });
+    // c: idle, no tool, no title. a has a title, b waits, e has ended.
+    expect(read.sessions.filter((s) => s.fresh === true).map((s) => s.id)).toEqual(['c']);
+  });
+
   it('orders folders by their order, then sessions by the hand-picked order then the default sort', async () => {
     const snap = await buildSnapshot(home, NOW);
     expect(snap.folders.map((f) => f.id)).toEqual(['g1', 'g2']);

@@ -17,6 +17,7 @@ import { COCKPIT_VIEWS, type CockpitView, type UiState } from '../ui-state';
 import type { ViewCtx } from '../views/context';
 import { FOLDER_COLORS } from '../ui/colors';
 import { SessionSheet } from './Sheet';
+import { SessionName } from '../ui/SessionName';
 import { Splitter } from '../ui/Splitter';
 import { useRef, type CSSProperties } from 'react';
 
@@ -200,7 +201,9 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   return (
     <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)}>
       <span className="l1">
-        <span className="ttl">{sessionTitle(s, t)}</span>
+        <span className="ttl">
+          <SessionName s={s} t={t} animate={ctx.animate} />
+        </span>
         <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
       </span>
       <span className="l2">{sessionDetail(s)}</span>
@@ -225,7 +228,9 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           <div className="ask-h">
             <Dot tone="wait" animate={false} />
             <span className="txt">
-              <span className="ttl">{sessionTitle(s, t)}</span>
+              <span className="ttl">
+          <SessionName s={s} t={t} animate={ctx.animate} />
+        </span>
               <span className="muted small">
                 {s.project} · {t('inbox.since', { d: formatAge(now - s.lastEventAt, t) })}
               </span>
@@ -250,7 +255,9 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           {box.toRead.map((s) => (
             <button key={s.id} type="button" className="row row-btn" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
               <Dot tone="done" animate={false} />
-              <span className="ttl">{sessionTitle(s, t)}</span>
+              <span className="ttl">
+          <SessionName s={s} t={t} animate={ctx.animate} />
+        </span>
               <span className="tm">{formatAge(now - s.lastEventAt, t)}</span>
             </button>
           ))}
@@ -313,7 +320,7 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
           <button key={s.id} type="button" className="tile" onClick={() => ctx.show(s.id)}>
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
-              <span className="ttl">{listed !== undefined ? sessionTitle(listed, t) : (s.title ?? s.project)}</span>
+              <span className="ttl">{listed !== undefined ? <SessionName s={listed} t={t} animate={ctx.animate} /> : (s.title ?? s.project)}</span>
               <span className="tm">{formatAge(now - s.lastAt, t)}</span>
             </span>
             <span className="muted small">
@@ -393,7 +400,7 @@ function Timeline({ ctx, folder, spanH, onSpan }: { ctx: ViewCtx; folder: string
             const tone = toneFor(l.session.id, a.listed);
             return (
               <button key={l.session.id} type="button" className="tl-lane" onClick={() => ctx.show(l.session.id)}>
-                <span className="tl-name">{listed !== undefined ? sessionTitle(listed, t) : (l.session.title ?? l.session.project)}</span>
+                <span className="tl-name">{listed !== undefined ? <SessionName s={listed} t={t} animate={ctx.animate} /> : (l.session.title ?? l.session.project)}</span>
                 <span className="tl-track">
                   {ticks.map(([x, at]) => (
                     <i key={at} className="tl-grid" style={{ left: `${x * 100}%` }} />

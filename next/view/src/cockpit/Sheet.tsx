@@ -4,6 +4,7 @@ import { formatAge, formatTokens, formatWhen, sessionDetail, sessionTitle, toneO
 import { countTokens } from '../sections';
 import { Dot, Icon } from '../ui/icons';
 import { ProcessRow } from '../views/Processes';
+import { SessionName } from '../ui/SessionName';
 import type { ViewCtx } from '../views/context';
 
 /** How many calls show before « Show all ». */
@@ -36,7 +37,7 @@ export function SessionSheet({ ctx, id, onClose }: { ctx: ViewCtx; id: string; o
       <header className="sheet-head">
         <div className="sheet-t">
           {s !== undefined && <Dot tone={toneOf(s)} animate={ctx.animate} size={18} label={t(toneOf(s) === 'ended' ? 'status.ended' : `status.${s.status}`)} />}
-          <h1>{title}</h1>
+          <h1>{s !== undefined ? <SessionName s={s} t={t} animate={ctx.animate} /> : title}</h1>
         </div>
         <p className="muted">{s !== undefined ? `${s.project}${s.branch !== undefined ? ` · ${s.branch}` : ''} · ${sessionDetail(s)}` : row?.project}</p>
         <div className="sheet-acts">

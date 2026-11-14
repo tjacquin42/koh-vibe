@@ -27,6 +27,8 @@ export function formatTokens(n: number): string {
 export function sessionTitle(s: SessionView, t: Translate): string {
   const title = s.title?.trim();
   if (title !== undefined && title.length > 0) return title;
+  // Nothing written yet (SessionView.fresh): plain « New » where only text fits; ui/SessionName.tsx dresses it.
+  if (s.fresh === true) return 'New';
   return s.branch !== undefined ? `${s.project} · ${s.branch}` : s.project || t('session.untitled');
 }
 

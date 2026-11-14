@@ -17,6 +17,13 @@ export interface SessionView {
   id: string;
   /** Claude's title for the conversation, absent until it has set one. */
   title?: string;
+  /**
+   * Just opened, nothing written yet: idle, open, no tool run, and neither a title
+   * nor a single request in its transcript. Shown as « New » (14/11). Only
+   * set once the transcripts have been read — before that, a quiet old
+   * conversation would pass for a new one.
+   */
+  fresh?: true;
   project: string;
   branch?: string;
   status: SessionStatus;

@@ -1,7 +1,8 @@
 import type { ProcessKind, ProcessView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, megabytes, sessionTitle, toneOf } from '../format';
+import { formatAge, megabytes, toneOf } from '../format';
 import { Dot, Icon, type IconName } from '../ui/icons';
 import { Section } from '../ui/Section';
+import { SessionName } from '../ui/SessionName';
 import type { ViewCtx } from './context';
 
 const KIND_ICON: Record<ProcessKind, IconName> = { mcp: 'plug', shell: 'term', work: 'gear' };
@@ -23,7 +24,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
       {sessions.map((s) => {
         const list = procs.bySession[s.id] ?? [];
         return (
-          <Section key={s.id} title={sessionTitle(s, t)} count={list.length} marker={<Dot tone={toneOf(s)} animate={ctx.animate} size={13} />}>
+          <Section key={s.id} title={<SessionName s={s} t={t} animate={ctx.animate} />} count={list.length} marker={<Dot tone={toneOf(s)} animate={ctx.animate} size={13} />}>
             {list.map((p) => (
               <ProcessRow key={p.pid} ctx={ctx} p={p} />
             ))}

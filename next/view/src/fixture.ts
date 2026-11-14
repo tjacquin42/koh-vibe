@@ -37,7 +37,7 @@ export function sampleSnapshot(now: number): Snapshot {
         tokens: { input: 64_000, output: 3_100 },
       },
       { id: 's3', title: 'Write the release notes', project: 'docs', status: 'done_unseen', origin: 'vscode', toolCount: 6, lastEventAt: ago(12) },
-      { id: 's4', project: 'scratch', status: 'idle', origin: 'desktop', toolCount: 0, lastEventAt: ago(21 * 60), expiresAt: later(3 * 60) },
+      { id: 's4', project: 'scratch', status: 'idle', origin: 'desktop', toolCount: 0, lastEventAt: ago(2), expiresAt: later(3 * 60), fresh: true },
       { id: 's5', title: 'Audit the dependencies', project: 'api', status: 'idle', origin: 'vscode', toolCount: 22, lastEventAt: ago(300), endedAt: ago(240) },
     ],
     folders: [

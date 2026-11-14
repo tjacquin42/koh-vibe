@@ -478,3 +478,15 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
   /* Still a mark, just a still one. */
   .srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after { animation: none; width: 100%; opacity: 0.6; }
 }
+
+/* « New »: a conversation with nothing written yet (14/11). Italic, rainbow;
+   the colours run only while animations are on. */
+.new-name {
+  font-style: italic; font-weight: 600; padding-right: 2px;
+  background: linear-gradient(90deg, #ff7a7a, #ff9e5e, #f5d06b, #7ee0a8, #5cc8f0, #8a9bff, #b9a6ff, #f59ac8, #ff7a7a);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.new-name.moving { animation: rainbow 4s linear infinite; }
+@keyframes rainbow { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .new-name.moving { animation: none; } }

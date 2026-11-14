@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState, type DragEvent, type HTMLAttributes } from 'react';
 import { useFlip } from '../ui/flip';
+import { useDragScroll } from '../ui/drag-scroll';
+import { SessionName } from '../ui/SessionName';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, sessionActivity, sessionTitle, toneOf } from '../format';
+import { formatAge, formatTokens, formatWhen, sessionActivity, toneOf } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
@@ -26,6 +28,8 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   // Rows slide to where they now belong (ui/flip.ts) — under the Animations setting.
   const root = useRef<HTMLDivElement>(null);
   useFlip(root, ctx.animate);
+  // Dragging near the list's top or bottom edge scrolls it (ui/drag-scroll.ts).
+  useDragScroll(root, drag !== undefined);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
     return (
       <div className="empty">
@@ -322,7 +326,9 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           {busy ? <span className="spinner" aria-hidden="true" /> : <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />}
           <span className="txt">
             <span className="l1">
-              <span className="ttl">{sessionTitle(s, t)}</span>
+              <span className="ttl">
+                <SessionName s={s} t={t} animate={ctx.animate} />
+              </span>
               <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
             </span>
             {(doing !== undefined || expiring) && (

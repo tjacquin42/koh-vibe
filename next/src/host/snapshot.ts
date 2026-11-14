@@ -245,7 +245,10 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   const shown = [...visibleSessions(all).values()];
   const visible = shown.map(toSessionView).sort(compareSessions);
   const { folders, unfiled } = foldersOf(groups, visible);
-  const sessions = withExpiry(visible, unfiled, settings);
+  const sessions = withExpiry(visible, unfiled, settings).map((s) =>
+    // A conversation that waits or works has been asked something: only an idle one can be new.
+    extras.transcripts !== undefined && s.status === 'idle' && s.title === undefined && s.toolCount === 0 && s.endedAt === undefined ? { ...s, fresh: true as const } : s,
+  );
   const snap: Snapshot = {
     at: now,
     sessions,
