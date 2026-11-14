@@ -1,6 +1,6 @@
 // Fonts are bundled, never fetched: the web view's security policy blocks
 // Google Fonts, and the panel has to render the same offline.
-import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/bricolage-grotesque/opsz.css';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import './styles/app.css';

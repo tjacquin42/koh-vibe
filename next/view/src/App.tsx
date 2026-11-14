@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
 import { type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
@@ -14,6 +14,7 @@ import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
 import { useIconsOnly } from './ui/fit';
+import { bandNodes, brandParts, sunTone, type BrandPart, type SunTone } from './ui/brand';
 import { TipLayer } from './ui/Tip';
 import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
@@ -358,8 +359,10 @@ function Header({
     <header className="head">
       <div className="title">
         <h1>
-          <BrandName text={surface === 'cockpit' ? t('cockpit.title') : t('app.name')} />
+          {/* The sidebar's name is striped with the logo's colours (C2, 14/11); the cockpit's title stays as it was. */}
+          <BrandName text={surface === 'cockpit' ? t('cockpit.title') : t('app.name')} striped={surface === 'sidebar'} />
         </h1>
+        {surface === 'sidebar' && <BrandLogo label={t('app.name')} tone={sunTone(c)} />}
         {/* The cockpit keeps its title alone (14/11). */}
         {surface === 'sidebar' && /^\d/.test(version) && <span className="ver mono">v{version}</span>}
         {surface === 'sidebar' && <span className="tag">{t('app.next')}</span>}
@@ -401,28 +404,62 @@ function Header({
  * transparent but for the band, laid over the name and gone when it is
  * through. Still under the system's reduced motion.
  */
-function BrandName({ text }: { text: string }) {
+function BrandName({ text, striped = false }: { text: string; striped?: boolean }) {
   const ref = useRef<HTMLButtonElement>(null);
+  const parts: BrandPart[] = striped ? brandParts(text) : [{ kind: 'text', text }];
   return (
     <button
       ref={ref}
       type="button"
-      className="brand"
+      className={`brand${striped ? ' brand-c2' : ''}`}
+      aria-label={striped ? text : undefined}
       onClick={() => {
         const el = ref.current;
         if (el === null || typeof el.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // The same structure as the name — its text, and an empty box where
+        // the bar is — so the band's letters fall on the name's (ui/brand.ts).
         const band = document.createElement('span');
         band.className = 'brand-band';
-        band.textContent = text;
         band.setAttribute('aria-hidden', 'true');
+        for (const node of bandNodes(parts)) {
+          if ('text' in node) band.appendChild(document.createTextNode(node.text));
+          else {
+            const box = document.createElement('span');
+            box.className = node.className;
+            band.appendChild(box);
+          }
+        }
         el.appendChild(band);
         const run = band.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
         run.onfinish = () => band.remove();
         run.oncancel = () => band.remove();
       }}
     >
-      {text}
+      {striped ? (
+        <span className="brand-name" aria-hidden="true">
+          {parts.map((p, i) => (p.kind === 'text' ? <Fragment key={i}>{p.text}</Fragment> : <span key={i} className="brand-dash" />))}
+        </span>
+      ) : (
+        text
+      )}
     </button>
+  );
+}
+
+/**
+ * The logo alone — a half sun over two strokes of sea — where the sidebar is
+ * too narrow for the name (app.css container query). The sun takes the state's
+ * colour; never a glow nor a pulse (refused, 14/11).
+ */
+function BrandLogo({ label, tone }: { label: string; tone: SunTone }) {
+  return (
+    <span className={`brand-logo tone-${tone}`} role="img" aria-label={label}>
+      <svg viewBox="36 56 184 176" width="26" height="25" aria-hidden="true">
+        <path d="M53 139A75 75 0 0 1 203 139Z" fill="currentColor" />
+        <path d="M43 181H149" fill="none" stroke="var(--run)" strokeWidth="21" strokeLinecap="round" />
+        <path d="M107 219H213" fill="none" stroke="var(--done)" strokeWidth="21" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }
 

@@ -615,6 +615,38 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   -webkit-background-clip: text; background-clip: text;
 }
 .brand:focus-visible { outline-offset: 3px; }
+/* C2 (14/11): the sidebar's name striped with the logo's colours — coral, a
+   cut, a lagoon band, a cut, sea green — measured for Bricolage Grotesque 800
+   at opsz 96: the lagoon band lies exactly on the e's bar, never in its lower
+   part. The percentages assume a 1em line box: no padding, no other
+   line-height on the element that carries the gradient. */
+.brand-c2 { display: inline-block; vertical-align: middle; white-space: nowrap; font-size: 21px; font-weight: 800; font-variation-settings: 'opsz' 96; letter-spacing: -0.02em; line-height: 1; }
+.brand-name {
+  display: inline-block; vertical-align: top; color: transparent;
+  background-image: linear-gradient(to bottom,
+    var(--wait) 0, var(--wait) min(46.8%, calc(50.8% - 1.2px)),
+    transparent min(46.8%, calc(50.8% - 1.2px)), transparent 50.8%,
+    var(--run) 50.8%, var(--run) 59.7%,
+    transparent 59.7%, transparent max(63.7%, calc(59.7% + 1.2px)),
+    var(--done) max(63.7%, calc(59.7% + 1.2px)), var(--done) 100%);
+  -webkit-background-clip: text; background-clip: text;
+}
+/* The hyphen is no character: a lagoon bar as thick as the band, laid on it,
+   short and centred to the eye between the h and the V. The negative right
+   margin makes up for the gap the V's diagonal leaves at that height. */
+.brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.089em; margin: 0.508em -0.08em 0 0.034em; background: var(--run); }
+/* In the rainbow's layer, the same box, see-through. */
+.brand-dash-ghost { background: transparent; }
+/* The logo alone, for a sidebar too narrow for the name: the sun in the
+   state's colour, the sea as in the logo. No glow, no pulse. */
+.brand-logo { display: none; align-items: center; line-height: 0; color: var(--done); }
+.brand-logo.tone-wait { color: var(--wait); }
+.brand-logo.tone-run { color: var(--run); }
+.surface-sidebar .head { container: kvhead / inline-size; }
+@container kvhead (max-width: 290px) {
+  .title h1, .title .ver, .title .tag { display: none; }
+  .brand-logo { display: inline-flex; }
+}
 /* A setting with several answers: its name, then the choice under it. */
 .set-row.set-choice { flex-direction: column; align-items: stretch; gap: 8px; }
 .set-choice .seg { width: 100%; }
