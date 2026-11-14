@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
 import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
+import { applyMoves, parseMoves, runClaude, tidyPrompt, type TidyItem } from './tidy';
 import { runAction, type Copied } from './actions';
 import { cloudActions } from './cloud';
 import type { TranscriptStats } from '../../../src/transcript/reader';
@@ -128,6 +129,10 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
+/** The tidying agent's settings, kept by the editor: ask before running (default yes), and its rules. */
+const TIDY_ASK_KEY = 'kohVibeNext.tidyAsk';
+const TIDY_RULES_KEY = 'kohVibeNext.tidyRules';
+
 /** The editor's tab bar setting, read where it lives (V1 settings/tabs.ts). */
 const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
 
@@ -217,6 +222,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
   const procs = processDeps.current ?? systemProcessDeps(claudeSessionsDir(claudeHome()));
+  const tidyRules = (): string[] => {
+    const v: unknown = context.globalState.get(TIDY_RULES_KEY);
+    return Array.isArray(v) ? v.filter((r): r is string => typeof r === 'string') : [];
+  };
   // claude.ai, as V1 calls it: a failed call is written to the output channel
   // (V1's cloud/log.ts) — never the token, never the body.
   const cloud = cloudActions(home, cloudDeps.current ?? { send: logged(send, (line) => output.appendLine(line)), credentials: () => readCredentials() });
@@ -255,6 +264,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const editorTabs = parseTabsMode(editorConfig().get('showTabs'));
       return buildSnapshot(home, Date.now(), {
         editorTabs,
+        tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: tidyRules() },
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
         activity: async (known) => {
@@ -332,6 +342,28 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
+  // The tidying agent (tidy.ts): one run at a time, on the freshest list.
+  let tidying = false;
+  const tidy = async (): Promise<ActionResult> => {
+    if (tidying) return { ok: true, count: 0 };
+    tidying = true;
+    try {
+      await cloud.refresh('artifacts', true);
+      const snap = await buildSnapshot(home, Date.now());
+      const items: TidyItem[] = (snap.artifacts?.items ?? []).map((a) => (a.project === undefined ? { slug: a.slug, title: a.title } : { slug: a.slug, title: a.title, project: a.project }));
+      if (items.length === 0) return { ok: true, count: 0 };
+      const projects = [...new Set(items.map((i) => i.project).filter((p): p is string => p !== undefined))];
+      const answer = await runClaude(tidyPrompt(items, projects, tidyRules()), (line) => output.appendLine(`${new Date().toISOString()} ${line}`));
+      if (answer === undefined) return { ok: false, error: 'failed' };
+      const moves = parseMoves(answer, items);
+      await applyMoves(artifactProjectsFile(home), moves);
+      void hub.refresh();
+      return { ok: true, count: moves.length };
+    } finally {
+      tidying = false;
+    }
+  };
+
   const reopen = (sessionId: string): Promise<ReopenOutcome> =>
     reopenClosed(sessionId, {
       read: async (id) => (await readClosed(closedFile(home))).closed.find((e) => e.id === id),
@@ -376,6 +408,11 @@ export function activate(context: vscode.ExtensionContext): void {
       setLanguage: async (choice) => {
         await context.globalState.update(LANGUAGE_KEY, choice);
         for (const v of views) v.reload();
+      },
+      tidy: () => tidy(),
+      setTidy: async (ask, rules) => {
+        if (ask !== undefined) await context.globalState.update(TIDY_ASK_KEY, ask);
+        if (rules !== undefined) await context.globalState.update(TIDY_RULES_KEY, rules);
       },
     });
     void hub.refresh();

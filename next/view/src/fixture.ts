@@ -76,6 +76,7 @@ export function sampleSnapshot(now: number): Snapshot {
     ],
     settings: { animate: true, persistent: true, expireTemporary: true, volume: 60 },
     editorTabs: 'multiple',
+    tidy: { ask: true, rules: ['Les recettes vont dans Cuisine'] },
     activity: {
       at: now,
       since: now - 24 * 60 * 60_000,

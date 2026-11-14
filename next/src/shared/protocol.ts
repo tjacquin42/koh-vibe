@@ -280,6 +280,8 @@ export interface Snapshot {
   sheet?: SessionSheetView;
   /** The editor's tab bar (workbench.editor.showTabs), for the settings. */
   editorTabs?: EditorTabs;
+  /** The tidying agent: whether Refresh asks first, and the rules it follows. */
+  tidy?: { ask: boolean; rules: string[] };
 }
 
 export const SIDEBAR_TABS = ['sessions', 'artifacts', 'routines', 'processes', 'usage'] as const;

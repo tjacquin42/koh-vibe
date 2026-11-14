@@ -43,6 +43,10 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     setLanguage: async (choice) => {
       calls.push(['language', choice]);
     },
+    tidy: async () => ({ ok: true, count: 2 }),
+    setTidy: async (ask, rules) => {
+      calls.push(['tidy', ask, rules]);
+    },
     ...over,
   };
 }
@@ -232,6 +236,14 @@ describe('processes', () => {
   });
 });
 
+describe('the tidying agent, from the view', () => {
+  it('runs it and keeps its settings', async () => {
+    expect(await run({ kind: 'artifact.tidy' })).toEqual({ ok: true, count: 2 });
+    await run({ kind: 'tidy.settings', ask: false, rules: ['Recipes go to Cooking'] });
+    expect(calls).toEqual([['tidy', false, ['Recipes go to Cooking']]]);
+  });
+});
+
 describe('parseAction', () => {
   it('accepts well-formed actions and trims names', () => {
     expect(parseAction({ kind: 'folder.create', name: '  Video ' })).toEqual({ kind: 'folder.create', name: 'Video' });
@@ -262,6 +274,9 @@ describe('parseAction', () => {
       { kind: 'process.kill', pid: 1 },
       { kind: 'process.kill', pid: -4 },
       { kind: 'routine.run', id: '../x' },
+      { kind: 'tidy.settings', ask: 'yes' },
+      { kind: 'tidy.settings', rules: ['ok', 3] },
+      { kind: 'tidy.settings', rules: ['  '] },
     ]) {
       expect(parseAction(bad), JSON.stringify(bad)).toBeUndefined();
     }

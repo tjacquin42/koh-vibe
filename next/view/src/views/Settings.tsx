@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
 import { Segmented } from '../cockpit/Cockpit';
+import { RulesEditor } from '../ui/Rules';
 import { SESSION_SORTS, type SessionSort } from '../sections';
 import { Icon } from '../ui/icons';
 import type { ViewCtx } from './context';
@@ -99,6 +100,34 @@ export function SettingsPanel({
           </Choice>
         )}
       </section>
+
+      {snapshot.tidy !== undefined && (
+        <section className="set-group">
+          <h3>{t('settings.tidy')}</h3>
+          <div className="set-row">
+            <span className="set-l">
+              <b id="set-tidy-ask">{t('settings.tidyAsk')}</b>
+              <span className="sub">{t('settings.tidyAsk.hint')}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={snapshot.tidy.ask}
+              aria-labelledby="set-tidy-ask"
+              className="switch"
+              onClick={() => void ctx.act({ kind: 'tidy.settings', ask: !(snapshot.tidy?.ask ?? true) })}
+            >
+              <span />
+            </button>
+          </div>
+          <div className="set-row set-choice">
+            <span className="set-l">
+              <b>{t('settings.tidyRules')}</b>
+            </span>
+            <RulesEditor t={t} rules={snapshot.tidy.rules} onChange={(rules) => void ctx.act({ kind: 'tidy.settings', rules })} />
+          </div>
+        </section>
+      )}
 
       <section className="set-group">
         <h3>{t('settings.behaviour')}</h3>

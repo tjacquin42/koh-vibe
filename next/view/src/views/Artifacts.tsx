@@ -6,6 +6,7 @@ import { formatAge } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm, NameInput } from '../ui/Inline';
 import { Popover } from '../ui/Popover';
+import { RulesEditor } from '../ui/Rules';
 import { Section } from '../ui/Section';
 import { menuContext } from '../ui/menu-context';
 import type { ViewCtx } from './context';
@@ -65,23 +66,108 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
  * is otherwise asked at most every five minutes, whichever window asks.
  */
 export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 'routines'; at: number | undefined }) {
-  const { t, now } = ctx;
+  const { t, now, snapshot } = ctx;
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const tidy = what === 'artifacts' ? snapshot.tidy : undefined;
+  const refresh = (): void => {
+    setBusy(true);
+    void ctx.act({ kind: 'cloud.refresh', what }).finally(() => setBusy(false));
+  };
+  // The tidying agent (host tidy.ts): it reads the list again itself, then files.
+  const runTidy = (): void => {
+    setBusy(true);
+    void ctx
+      .track('tidy', ctx.act({ kind: 'artifact.tidy' }), 1_000)
+      .then((r) => {
+        if (r.ok) ctx.notify(r.count === undefined || r.count === 0 ? t('tidy.none') : t('tidy.done', { n: r.count }));
+      })
+      .finally(() => setBusy(false));
+  };
+  const working = busy || ctx.isBusy('tidy');
   return (
     <div className="cloudbar">
       <span>{at === undefined ? t('cloud.never') : t('cloud.age', { age: formatAge(now - at, t) })}</span>
-      <button
-        type="button"
-        className="btn-ghost"
-        disabled={busy}
-        aria-busy={busy}
-        onClick={() => {
-          setBusy(true);
-          void ctx.act({ kind: 'cloud.refresh', what }).finally(() => setBusy(false));
-        }}
-      >
-        <Icon name="resume" /> {busy ? t('cloud.refreshing') : t('cloud.refresh')}
-      </button>
+      <span className="cloudbar-act">
+        <button
+          type="button"
+          className={`btn-ghost${working ? ' busy' : ''}`}
+          disabled={working}
+          aria-busy={working}
+          aria-expanded={asking}
+          onClick={() => {
+            if (tidy === undefined) refresh();
+            else if (tidy.ask) setAsking(true);
+            else runTidy();
+          }}
+        >
+          <Icon name="resume" /> {working ? (tidy !== undefined ? t('tidy.running') : t('cloud.refreshing')) : t('cloud.refresh')}
+        </button>
+        {asking && tidy !== undefined && (
+          <Popover label={t('tidy.title')} onClose={() => setAsking(false)}>
+            <TidyAsk
+              ctx={ctx}
+              rules={tidy.rules}
+              onRun={(dontAsk, rules) => {
+                setAsking(false);
+                void ctx.act({ kind: 'tidy.settings', ask: !dontAsk, rules }).then(runTidy);
+              }}
+              onListOnly={() => {
+                setAsking(false);
+                refresh();
+              }}
+              onCancel={() => setAsking(false)}
+            />
+          </Popover>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Asked before the tidying agent runs (14/11): what it does, its rules — to
+ * add to on the spot — and « don't ask again », undone from the settings.
+ */
+function TidyAsk({
+  ctx,
+  rules: initial,
+  onRun,
+  onListOnly,
+  onCancel,
+}: {
+  ctx: ViewCtx;
+  rules: readonly string[];
+  onRun(dontAsk: boolean, rules: string[]): void;
+  onListOnly(): void;
+  onCancel(): void;
+}) {
+  const { t } = ctx;
+  const [rules, setRules] = useState<string[]>([...initial]);
+  const [dontAsk, setDontAsk] = useState(false);
+  return (
+    <div className="confirm calm tidy-ask">
+      <p>
+        <b>{t('tidy.title')}</b>
+      </p>
+      <p>{t('tidy.explain')}</p>
+      <p className="muted small">{t('tidy.rules')}</p>
+      <RulesEditor t={t} rules={rules} onChange={setRules} />
+      <label className="check">
+        <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} />
+        <span>{t('tidy.dontAsk')}</span>
+      </label>
+      <div className="confirm-btns">
+        <button type="button" className="btn-go" onClick={() => onRun(dontAsk, rules)}>
+          {t('tidy.run')}
+        </button>
+        <button type="button" className="btn-ghost" onClick={onListOnly}>
+          {t('tidy.listOnly')}
+        </button>
+        <button type="button" className="btn-ghost" onClick={onCancel}>
+          {t('action.cancel')}
+        </button>
+      </div>
     </div>
   );
 }

@@ -91,6 +91,13 @@ export type Action =
   /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
   | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
   | { kind: 'artifact.copyLink'; slug: string }
+  /**
+   * The tidying agent (host tidy.ts): reads the list again, then files the
+   * artifacts under projects. Answered with how many moved.
+   */
+  | { kind: 'artifact.tidy' }
+  /** Whether Refresh asks before running the agent, and the rules it follows. */
+  | { kind: 'tidy.settings'; ask?: boolean; rules?: string[] }
   /** Asks claude.ai again now, rather than at the shared five-minute pace. */
   | { kind: 'cloud.refresh'; what: 'artifacts' | 'routines' }
   /** Acts for real (messages, commits…): the view asks first. */
@@ -114,7 +121,12 @@ export type Action =
 export const ACTION_ERRORS = ['v1-missing', 'cloud', 'stale', 'failed'] as const;
 export type ActionError = (typeof ACTION_ERRORS)[number];
 
-export type ActionResult = { ok: true } | { ok: false; error: ActionError };
+/** `count`: how many things an action changed, when it says (the tidying agent's moves). */
+export type ActionResult = { ok: true; count?: number } | { ok: false; error: ActionError };
+
+/** A rule for the tidying agent: one sentence, as typed. */
+export const MAX_RULE = 200;
+const MAX_RULES = 30;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -240,6 +252,24 @@ export function parseAction(raw: unknown): Action | undefined {
     }
     case 'artifact.copyLink':
       return isSlug(raw['slug']) ? { kind: 'artifact.copyLink', slug: raw['slug'] } : undefined;
+    case 'artifact.tidy':
+      return { kind: 'artifact.tidy' };
+    case 'tidy.settings': {
+      const out: Action = { kind: 'tidy.settings' };
+      const ask = raw['ask'];
+      const rules = raw['rules'];
+      if (ask !== undefined) {
+        if (typeof ask !== 'boolean') return undefined;
+        out.ask = ask;
+      }
+      if (rules !== undefined) {
+        if (!Array.isArray(rules) || rules.length > MAX_RULES) return undefined;
+        const clean = rules.map((r) => (typeof r === 'string' ? r.trim() : '')).filter((r) => r.length > 0 && r.length <= MAX_RULE);
+        if (clean.length !== rules.length) return undefined;
+        out.rules = clean;
+      }
+      return out;
+    }
     case 'cloud.refresh': {
       const what = raw['what'];
       return what === 'artifacts' || what === 'routines' ? { kind: 'cloud.refresh', what } : undefined;
