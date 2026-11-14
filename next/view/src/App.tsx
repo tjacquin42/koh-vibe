@@ -11,7 +11,7 @@ import { isEmpty, search } from './search';
 import { CockpitBody } from './cockpit/Cockpit';
 import { Icon } from './ui/icons';
 import { Section } from './ui/Section';
-import { parseUiState, setSize, toggleFold, type UiState } from './ui-state';
+import { atLaunch, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
@@ -41,11 +41,15 @@ export function App({ bridge }: { bridge: Bridge }) {
       ? undefined
       : {
           // ?surface=cockpit previews the cockpit tab in the browser.
-          context: { surface: new URLSearchParams(location.search).get('surface') === 'cockpit' ? 'cockpit' : 'sidebar', language: navigator.language, version: 'preview' },
+          context: { surface: new URLSearchParams(location.search).get('surface') === 'cockpit' ? 'cockpit' : 'sidebar', language: navigator.language, version: 'preview', launch: String(Date.now()) },
           snapshot: sampleSnapshot(Date.now()),
         },
   );
-  const [ui, setUi] = useState<UiState>(() => parseUiState(bridge.load()));
+  const [ui, setUi] = useState<UiState>(() => {
+    const saved = parseUiState(bridge.load());
+    // The preview has no init message: its page load is its start.
+    return bridge.inEditor ? saved : atLaunch(saved, String(Date.now()), sampleSnapshot(Date.now()).folders.map((f) => f.id));
+  });
   const [query, setQuery] = useState('');
   const [reopening, setReopening] = useState<Reopening>(() => new Map());
   const [notices, setNotices] = useState<ReadonlyMap<string, Exclude<ReopenOutcome, 'v1'>>>(() => new Map());
@@ -62,7 +66,16 @@ export function App({ bridge }: { bridge: Bridge }) {
 
   useEffect(() => {
     const off = bridge.listen((m) => {
-      if (m.type === 'init') setState({ context: m.context, snapshot: m.snapshot });
+      if (m.type === 'init') {
+        setState({ context: m.context, snapshot: m.snapshot });
+        // A new start of the extension: every folder starts folded (ui-state.ts atLaunch).
+        const ids = m.snapshot.folders.map((f) => f.id);
+        setUi((prev) => {
+          const next = atLaunch(prev, m.context.launch, ids);
+          if (next !== prev) bridge.save(next);
+          return next;
+        });
+      }
       else if (m.type === 'snapshot') {
         setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
         setBusy(onSnapshot);

@@ -103,7 +103,8 @@ describe('activate', () => {
     const first = messages(view)[0];
     expect(first?.type).toBe('init');
     if (first?.type !== 'init') return;
-    expect(first.context).toEqual({ surface: 'sidebar', language: 'fr', version: '0.0.1' });
+    expect(first.context).toMatchObject({ surface: 'sidebar', language: 'fr', version: '0.0.1' });
+    expect(first.context.launch).toMatch(/^[0-9a-f-]{36}$/);
     expect(first.snapshot.sessions).toHaveLength(4);
   });
 

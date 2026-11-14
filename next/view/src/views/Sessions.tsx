@@ -112,6 +112,13 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
   const ended = sessions.filter((x) => x.endedAt !== undefined);
   const endedKey = `${f.id}:ended`;
   const endedFolded = ctx.isFolded(endedKey);
+  // Opening a folder that holds only sleeping conversations opens them too:
+  // a folder that unfolds onto one closed line has shown nothing (14/11).
+  const toggleFolder = (): void => {
+    const opening = ctx.isFolded(f.id);
+    ctx.toggle(f.id);
+    if (opening && live.length === 0 && ended.length > 0 && endedFolded) ctx.toggle(endedKey);
+  };
   const row = (parent: string) => (s: SessionView) => (
     <div
       key={s.id}
@@ -163,7 +170,7 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
       count={f.sessionIds.length}
       marker={real ? <span className="fold" style={{ background: color ?? 'var(--line)' }} /> : <Icon name="hourglass" size={13} />}
       folded={ctx.isFolded(f.id) && !renaming}
-      {...(renaming ? {} : { onToggle: () => ctx.toggle(f.id) })}
+      {...(renaming ? {} : { onToggle: toggleFolder })}
       sectionProps={sectionProps as HTMLAttributes<HTMLElement>}
       headProps={
         real && !renaming

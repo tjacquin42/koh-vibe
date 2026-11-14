@@ -4,7 +4,7 @@ import { sampleSnapshot } from '../view/src/fixture';
 import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
-import { DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
+import { atLaunch, DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
@@ -228,5 +228,16 @@ describe('busy rows', () => {
     expect(expire(b, 1_000).has('a')).toBe(true);
     expect(expire(b, 2_200).has('a')).toBe(false);
     expect(expire(startBusy(new Map(), 'x', 0, 2_000), MAX_MS + 1).has('x')).toBe(false);
+  });
+});
+
+describe('a new start of the extension', () => {
+  it('folds every folder once, then leaves them be under the same start', () => {
+    const opened = { ...DEFAULT_UI, folded: ['closed'], launch: 'old' };
+    const fresh = atLaunch(opened, 'new', ['f1', 'f2']);
+    expect(fresh.folded.sort()).toEqual(['closed', 'f1', 'f2', 'unfiled']);
+    expect(fresh.launch).toBe('new');
+    const reopened = toggleFold(fresh, 'f1');
+    expect(atLaunch(reopened, 'new', ['f1', 'f2'])).toBe(reopened);
   });
 });

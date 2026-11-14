@@ -287,8 +287,14 @@ export interface ViewContext {
   surface: Surface;
   /** The editor's display language, e.g. "fr" or "en-us". */
   language: string;
-  /** The extension's version, for the footer. */
+  /** The extension's version, shown beside the name. */
   version: string;
+  /**
+   * New at every start of the extension: a view that sees a different one
+   * from the one it remembers starts with its folders folded (14/11), where
+   * a mere reload of the view keeps them as they were.
+   */
+  launch: string;
 }
 
 /** Host → view. */

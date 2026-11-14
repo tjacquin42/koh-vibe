@@ -6,7 +6,7 @@ const snap = (at: number): Snapshot => ({ at, sessions: [], folders: [], unfiled
 
 function client(): Client & { got: HostMessage[] } {
   const got: HostMessage[] = [];
-  return { got, context: { surface: 'sidebar', language: 'en', version: '0' }, post: (m) => got.push(m) };
+  return { got, context: { surface: 'sidebar', language: 'en', version: '0', launch: 'l' }, post: (m) => got.push(m) };
 }
 
 function hub(build: () => Promise<Snapshot>) {

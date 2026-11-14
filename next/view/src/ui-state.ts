@@ -29,6 +29,8 @@ export interface UiState {
   sizes: Record<string, number>;
   /** The usage at the foot of the sidebar; off from the settings. */
   showUsage: boolean;
+  /** The extension start this state was last seen under (ViewContext.launch). */
+  launch?: string;
 }
 
 /** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
@@ -78,7 +80,21 @@ export function parseUiState(raw: unknown): UiState {
     ? (rec['folded'] as unknown[]).filter((k): k is string => typeof k === 'string')
     : DEFAULT_UI.folded;
   const showUsage = typeof rec['showUsage'] === 'boolean' ? rec['showUsage'] : DEFAULT_UI.showUsage;
-  return { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage };
+  const out: UiState = { tab, folded, cockpit: parseCockpit(rec['cockpit']), sizes: parseSizes(rec['sizes']), showUsage };
+  if (typeof rec['launch'] === 'string') out.launch = rec['launch'];
+  return out;
+}
+
+/**
+ * At a new start of the extension every folder starts folded — the
+ * temporary sessions included — and what was opened before is forgotten
+ * (14/11). A reload of the view under the same start changes nothing.
+ * Other folds (closed groups, projects) are kept as they were.
+ */
+export function atLaunch(state: UiState, launch: string, folderIds: readonly string[]): UiState {
+  if (state.launch === launch) return state;
+  const folders = [...folderIds, 'unfiled'];
+  return { ...state, launch, folded: [...new Set([...state.folded, ...folders])] };
 }
 
 export function toggleFold(state: UiState, key: string): UiState {

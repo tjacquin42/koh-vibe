@@ -102,6 +102,9 @@ interface ViewActions {
  * is ready — never before, since a message posted to a page that has not
  * loaded its script yet is lost.
  */
+/** One per activation: see ViewContext.launch. */
+const launch = randomUUID();
+
 function connect(
   webview: vscode.Webview,
   surface: Surface,
@@ -115,6 +118,7 @@ function connect(
     surface,
     language: vscode.env.language,
     version: versionOf(context.extension.packageJSON as unknown),
+    launch,
   });
   let client: Disposable | undefined;
   const sub = webview.onDidReceiveMessage(async (raw: unknown) => {
