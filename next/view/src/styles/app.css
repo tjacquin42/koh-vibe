@@ -423,8 +423,10 @@ input:not([type='range']):focus, input:not([type='range']):focus-visible, textar
 @media (max-width: 900px) { .sheet-grid { grid-template-columns: 1fr; } }
 
 /* A folder's closed conversations: under the open ones, a little to the right. */
-.ended-group { margin: 2px 0 4px 14px; }
-.ended-head { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; }
+/* Three steps of indent: the folder, its open conversations, then the closed ones (14/11). */
+.folder > .drag-row { margin-left: 8px; }
+.ended-group { margin: 2px 0 4px 16px; }
+.ended-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
 .ended-head:hover { background: var(--surface); color: var(--soft); }
 .ended-head .n { font-variant-numeric: tabular-nums; }
 
