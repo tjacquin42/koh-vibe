@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { editorViews, type ViewHost } from './view-host';
 import * as vscode from 'vscode';
 import { pinArtifact, retitleArtifact, type ArtifactCalls, type ArtifactUi } from '../artifacts/actions';
 import { listArtifacts, renameArtifact, setArtifactPinned } from '../artifacts/api';
@@ -48,6 +49,7 @@ export function registerCloudViews(
   home: string,
   render: () => Promise<void>,
   fileInSessionsFolder: FileInSessionsFolder,
+  views: ViewHost = editorViews,
 ): CloudViews {
   // Where a failed call says what failed. The endpoints are undocumented; the
   // day one changes, this channel is the only place that tells which call
@@ -63,7 +65,7 @@ export function registerCloudViews(
     now: () => Date.now(),
   });
   const routinesTree = new RoutinesTree();
-  const routinesView = vscode.window.createTreeView('kohVibe.routines', { treeDataProvider: routinesTree });
+  const routinesView = views.createTreeView('kohVibe.routines', { treeDataProvider: routinesTree });
   const artifactsFeed = new Feed<Artifact>(artifactsFile(home), isArtifact, {
     fetch: () => listArtifacts(cloud),
     now: () => Date.now(),
@@ -82,7 +84,7 @@ export function registerCloudViews(
     await render();
   };
   const artifactsTree = new ArtifactsTree(fileInto);
-  const artifactsView = vscode.window.createTreeView('kohVibe.artifacts', {
+  const artifactsView = views.createTreeView('kohVibe.artifacts', {
     treeDataProvider: artifactsTree,
     dragAndDropController: artifactsTree,
     // Several pages at once: filed together by a drag or by the menu.

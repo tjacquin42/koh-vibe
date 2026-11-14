@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,6 +28,9 @@ vi.mock('../src/usage/oauth', () => ({
 }));
 
 import { activate } from '../src/extension';
+import { readSessions } from '../src/spool/persist';
+import { spoolDirs } from '../src/paths';
+import { noViews } from '../src/ui/view-host';
 import { forgetAttempts } from '../src/usage/reader';
 import type { SessionsTree, TreeNode } from '../src/ui/tree';
 import {
@@ -175,6 +179,33 @@ describe('activate', () => {
       expect(existsSync(join(home, 'sessions', 'old.json'))).toBe(true);
     },
     10_000,
+  );
+});
+
+describe('the engine without its views (Koh-Vibe 2, after the switch-over)', () => {
+  it(
+    'shows no view and no status item, still registers every command, and still drains the spool',
+    async () => {
+      await activate(fakeContext(), noViews);
+
+      expect(treeViews).toHaveLength(0);
+      expect(webviewViewProviders).toHaveLength(0);
+      expect(statusBarItems).toHaveLength(0);
+      const registered = new Set(registeredCommands.map((c) => c.command));
+      for (const { command } of manifest.contributes.commands) expect(registered.has(command)).toBe(true);
+
+      // A hook through the real bridge: the engine reduces it into the
+      // session's state file, views or not.
+      const home = process.env['KOH_VIBE_HOME'];
+      if (home === undefined) throw new Error('KOH_VIBE_HOME was not set');
+      execFileSync(join(__dirname, '..', 'bin', 'koh-vibe-bridge'), ['SessionStart'], {
+        input: JSON.stringify({ session_id: 'headless-1', cwd: root, transcript_path: join(root, 't.jsonl') }),
+        env: { ...process.env, HOME: homeRef.current, KOH_VIBE_HOME: home, CLAUDE_CODE_ENTRYPOINT: 'cli' },
+        encoding: 'utf8',
+      });
+      await vi.waitFor(async () => expect((await readSessions(spoolDirs(home))).get('headless-1')).toBeDefined(), { timeout: 8_000, interval: 100 });
+    },
+    15_000,
   );
 });
 

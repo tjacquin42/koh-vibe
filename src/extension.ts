@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { editorViews, type ViewHost } from './ui/view-host';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -119,7 +120,11 @@ async function offerSkillUpdate(paths: ReturnType<typeof skillPaths>): Promise<v
   }
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+/**
+ * `views`: where the old tree views go — the editor's window, or nowhere when
+ * Koh-Vibe 2 runs this engine under its own web views (ui/view-host.ts).
+ */
+export async function activate(context: vscode.ExtensionContext, views: ViewHost = editorViews): Promise<void> {
   const home = kohVibeHome();
   // Before everything else: ensureDirs would create the new root and make the
   // recovery impossible — it only runs while that root does not exist yet.
@@ -149,7 +154,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const busy = {
     setBusy: (on: boolean) => vscode.commands.executeCommand('setContext', RESCANNING, on),
     progress: <T>(task: () => Promise<T>) =>
-      vscode.window.withProgress({ location: { viewId: 'kohVibe.sessions' } }, task),
+      views.withViewProgress('kohVibe.sessions', task),
   };
   // The editor's own memory of its tabs, kept next to our workspace storage:
   // the one place that knows about a restored Claude tab nobody has opened.
@@ -531,7 +536,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tree = new SessionsTree(checkHooksInstalled, onSessionsDropped, onGroupsDropped, context.extensionPath, onArtifactsDropped);
   const footer = new FooterTree();
   const usageView = new UsageView(() => void vscode.commands.executeCommand('kohVibe.refreshUsage'));
-  const status = new StatusSummary();
+  const status = new StatusSummary(views);
   const transcripts = new Map<string, TranscriptStats>();
 
   // The only way VSCode offers to colour the TEXT of a tree row. With no
@@ -546,7 +551,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  const view = vscode.window.createTreeView('kohVibe.sessions', {
+  const view = views.createTreeView('kohVibe.sessions', {
     treeDataProvider: tree,
     dragAndDropController: tree,
   });
@@ -559,11 +564,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // processes nothing carries any more. Its own view, between the
   // conversations and the usage.
   const processesTree = new ProcessesTree();
-  const processesView = vscode.window.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
+  const processesView = views.createTreeView('kohVibe.processes', { treeDataProvider: processesTree });
   // Routines and artifacts live on claude.ai: their views, feeds and commands
   // are wired in their own module, which hands back the one call the render
   // loop makes (ui/cloud-views.ts).
-  const cloud = registerCloudViews(context, home, () => render(), fileInSessionsFolder);
+  const cloud = registerCloudViews(context, home, () => render(), fileInSessionsFolder, views);
   // The rows a click is bringing back: both trees draw them spinning, and
   // the render loop below settles them once the conversation is open again.
   const reopening = new Reopening((ids) => {
@@ -583,7 +588,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const outcome = await reopenClosedSession(entry, (e) => broker.requestReopen(e));
     if (outcome === 'explain' || outcome === 'failed') reopening.stop(entry.id);
   }
-  const settingsView = vscode.window.createTreeView('kohVibe.settings', { treeDataProvider: footer });
+  const settingsView = views.createTreeView('kohVibe.settings', { treeDataProvider: footer });
   // The editor's tab bar: the editor's own setting, read where it lives and
   // followed when changed from anywhere — settings/tabs.ts.
   const editorConfig = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('workbench.editor');
@@ -600,9 +605,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Four views stacked in the container: the sessions, « Recently closed »
     // (only when sessions are not persistent), the usage, then the settings.
     // The order comes from package.json, not from here.
-    vscode.window.createTreeView('kohVibe.closed', { treeDataProvider: closedTree }),
+    views.createTreeView('kohVibe.closed', { treeDataProvider: closedTree }),
     processesView,
-    vscode.window.registerWebviewViewProvider('kohVibe.usage', usageView),
+    views.registerWebviewViewProvider('kohVibe.usage', usageView),
     settingsView,
     // The checkbox itself; the rest of the row goes through the command.
     settingsView.onDidChangeCheckboxState((e) => {
