@@ -367,7 +367,6 @@ function Header({
         {surface === 'sidebar' && <BrandLogo label={t('app.name')} tone={sunTone(c)} />}
         {/* The cockpit keeps its title alone (14/11). */}
         {surface === 'sidebar' && /^\d/.test(version) && <span className="ver mono">v{version}</span>}
-        {surface === 'sidebar' && <span className="tag">{t('app.next')}</span>}
         {surface === 'sidebar' && (
           <span className="head-tools">
             {onNew !== undefined && (

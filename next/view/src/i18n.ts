@@ -6,7 +6,6 @@
 
 const en = {
   'app.name': 'Koh-Vibe',
-  'app.next': 'next',
   'live.wait': 'Waiting for the extension…',
   'count.waiting': 'waiting for you',
   'count.running': 'working',
@@ -304,7 +303,6 @@ export type Key = keyof typeof en;
 type Dict = Partial<Record<Key, string>>;
 
 const fr: Dict = {
-  'app.next': 'next',
   'live.wait': 'En attente de l’extension…',
   'count.waiting': 't’attendent',
   'count.running': 'travaillent',

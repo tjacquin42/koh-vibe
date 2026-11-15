@@ -74,7 +74,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .head { padding: 12px 10px 4px; }
 .title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; min-height: 28px; }
 .title h1 { font-weight: 700; font-size: 18px; }
-.tag { font-size: 10.5px; font-weight: 600; color: var(--link); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; }
 .ibtn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; display: flex; align-items: center; justify-content: center; padding: 0; color: var(--soft); }
 .ibtn:hover { background: var(--raised); }
 
@@ -657,7 +656,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .brand-logo.tone-run { color: var(--run); }
 .surface-sidebar .head { container: kvhead / inline-size; }
 @container kvhead (max-width: 290px) {
-  .title h1, .title .ver, .title .tag { display: none; }
+  .title h1, .title .ver { display: none; }
   .brand-logo { display: inline-flex; }
 }
 /* A setting with several answers: its name, then the choice under it. */
