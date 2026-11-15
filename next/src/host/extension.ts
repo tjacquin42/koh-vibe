@@ -255,6 +255,18 @@ function watchActiveTab(changed: () => void): vscode.Disposable[] {
   return tabGroups === undefined ? [] : [tabGroups.onDidChangeTabs(changed), tabGroups.onDidChangeTabGroups(changed)];
 }
 
+/** Whether this window has the focus; `undefined` where the editor does not say. */
+function windowFocused(): boolean | undefined {
+  const state = (vscode.window as { state?: vscode.WindowState }).state;
+  return state?.focused;
+}
+
+/** The window gaining or losing the focus — another window took a conversation forward. */
+function watchFocus(changed: () => void): vscode.Disposable[] {
+  const on = (vscode.window as { onDidChangeWindowState?: vscode.Event<vscode.WindowState> }).onDidChangeWindowState;
+  return on === undefined ? [] : [on(changed)];
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const home = kohVibeHome();
   const output = vscode.window.createOutputChannel('Koh-Vibe Next');
@@ -321,6 +333,7 @@ export function activate(context: vscode.ExtensionContext): void {
         titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
         ...(await activeTabExtra()),
         restored: await activeTab.restored(Date.now()),
+        ...(windowFocused() === undefined ? {} : { focused: windowFocused() }),
         hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
@@ -358,6 +371,7 @@ export function activate(context: vscode.ExtensionContext): void {
       activeTab.forget();
       void hub.refresh();
     }),
+    ...watchFocus(() => void hub.refresh()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
     }),

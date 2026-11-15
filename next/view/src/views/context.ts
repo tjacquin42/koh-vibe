@@ -20,8 +20,8 @@ export interface ViewCtx {
   /** Why the last click on that row brought nothing back, for a few seconds. */
   reopenNotice(sessionId: string): Exclude<ReopenOutcome, 'v1'> | undefined;
   reopen(sessionId: string): void;
-  /** A greyed row was clicked: it spins until its conversation is open again. */
-  awaitOpen(sessionId: string): void;
+  /** A row was clicked: it spins until its conversation is open again — with its tab in front, for `front`. */
+  awaitOpen(sessionId: string, until?: 'open' | 'front'): void;
   /** A change, answered by the host; a refusal is already shown when it resolves. */
   act(action: Action): Promise<ActionResult>;
   /** A short line at the bottom that goes away — for what worked and is worth saying. */

@@ -378,11 +378,11 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           type="button"
           className="srow-main"
           onClick={() => {
-            // A greyed row spins until its conversation is open again (15/11);
-            // a live one only needs a short beat of « on it » — V1 brings the
-            // tab forward and says nothing back.
-            if (s.endedAt !== undefined) ctx.awaitOpen(s.id);
-            else void ctx.track(s.id, Promise.resolve(), 900);
+            // The row spins until the click has had its whole effect (15/11):
+            // the conversation open, and its tab in front when it lives in the
+            // editor. Never less than a beat, even when it is in front already.
+            void ctx.track(s.id, Promise.resolve(), 600);
+            ctx.awaitOpen(s.id, s.origin === 'vscode' ? 'front' : 'open');
             ctx.bridge.post({ type: 'openSession', sessionId: s.id });
           }}
         >

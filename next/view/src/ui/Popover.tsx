@@ -24,7 +24,9 @@ export function Popover({ label, onClose, children }: { label: string; onClose()
     const below = h - anchor.bottom - GAP - MARGIN;
     const above = anchor.top - GAP - MARGIN;
     const height = el.scrollHeight;
-    const right = Math.max(MARGIN, window.innerWidth - anchor.right);
+    // Right-aligned on its button, but never past the window's left edge either (15/11).
+    const width = el.getBoundingClientRect().width;
+    const right = Math.min(Math.max(MARGIN, window.innerWidth - anchor.right), Math.max(MARGIN, window.innerWidth - MARGIN - width));
     setPlace(
       height <= below || below >= above
         ? { top: anchor.bottom + GAP, right, maxHeight: below }

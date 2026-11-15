@@ -229,6 +229,7 @@ export interface SnapshotExtras {
    * (claude/dormant.ts `shownSession`), not greyed.
    */
   restored?: ReadonlySet<string>;
+  focused?: boolean;
 }
 
 /**
@@ -294,6 +295,7 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   if (extras.tabNames !== undefined) snap.tabNames = extras.tabNames;
   if (extras.titleLines !== undefined) snap.titleLines = extras.titleLines;
   if (extras.activeTab !== undefined) snap.activeTab = extras.activeTab;
+  if (extras.focused !== undefined) snap.focused = extras.focused;
   if (extras.hooksInstalled !== undefined) snap.hooksInstalled = extras.hooksInstalled;
   if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
   if (extras.activity !== undefined) {

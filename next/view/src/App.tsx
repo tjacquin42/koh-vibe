@@ -6,7 +6,7 @@ import { sampleSheet, sampleSnapshot } from './fixture';
 import { countsOf } from './format';
 import { translator, type Translate } from './i18n';
 import { answered, expire, onSnapshot, startBusy, type Busy } from './busy';
-import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening } from './reopen';
+import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening, type WaitUntil } from './reopen';
 import { isEmpty, search } from './search';
 import { activeSessionId } from './sections';
 import { CockpitBody, CockpitTabs, CockpitTop } from './cockpit/Cockpit';
@@ -134,17 +134,20 @@ export function App({ bridge }: { bridge: Bridge }) {
   // A wait ends when the conversation is back, or when V1 lets go of it.
   const snapshotNow = state?.snapshot;
   useEffect(() => {
-    if (snapshotNow !== undefined) setReopening((r) => settleReopening(r, snapshotNow, Date.now()));
+    if (snapshotNow !== undefined) setReopening((r) => settleReopening(r, snapshotNow, Date.now(), activeSessionId(snapshotNow)));
   }, [snapshotNow, now]);
 
   // The colours chosen in the settings (ui/theme.ts), in every view.
   const tune = snapshotNow?.theme?.current;
   useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain, tune?.textures.join()]);
 
-  const awaitOpen = useCallback((sessionId: string) => {
-    setReopening((r) => startReopening(r, sessionId, Date.now()));
+  const awaitOpen = useCallback((sessionId: string, until: WaitUntil = 'open') => {
+    setReopening((r) => startReopening(r, sessionId, Date.now(), until));
     // The cap must not wait for the next snapshot to be noticed.
-    window.setTimeout(() => setReopening((r) => (r.has(sessionId) && Date.now() - (r.get(sessionId) ?? 0) >= REOPEN_WAIT_MS ? stopReopening(r, sessionId) : r)), REOPEN_WAIT_MS + 50);
+    window.setTimeout(
+      () => setReopening((r) => (r.has(sessionId) && Date.now() - (r.get(sessionId)?.since ?? 0) >= REOPEN_WAIT_MS ? stopReopening(r, sessionId) : r)),
+      REOPEN_WAIT_MS + 50,
+    );
   }, []);
 
   const reopen = useCallback(
@@ -237,7 +240,13 @@ export function App({ bridge }: { bridge: Bridge }) {
     languageChoice: context.languageChoice,
     dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
-    show: (id) => (context.surface === 'cockpit' ? setSheet(id) : bridge.post({ type: 'openSession', sessionId: id })),
+    show: (id) => {
+      if (context.surface === 'cockpit') return setSheet(id);
+      // The row of that conversation spins until its tab is in front, as after a click on it.
+      const origin = snapshot.sessions.find((s) => s.id === id)?.origin;
+      awaitOpen(id, origin === 'vscode' ? 'front' : 'open');
+      bridge.post({ type: 'openSession', sessionId: id });
+    },
   };
   if (context.surface === 'cockpit') {
     return (

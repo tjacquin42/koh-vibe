@@ -293,6 +293,12 @@ export interface Snapshot {
   titleLines?: 1 | 2;
   /** The conversation tab in front, if one is (host active-tab.ts). */
   activeTab?: ActiveTabView;
+  /**
+   * Whether this window has the focus. A click that brings forward a
+   * conversation living in another window ends when that window takes it
+   * (view/src/reopen.ts): no tab of this one ever comes to the front.
+   */
+  focused?: boolean;
   /** Whether Claude Code's settings hold Koh-Vibe's hooks: without them, nothing shows up. */
   hooksInstalled?: boolean;
 }

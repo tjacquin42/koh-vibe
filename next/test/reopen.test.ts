@@ -39,6 +39,30 @@ describe('reopening', () => {
     expect(settleReopening(r, open, NOW + 20_000).size).toBe(0);
   });
 
+  it('waits for the tab in front when asked to, not merely for the conversation to be open', () => {
+    const base = snap();
+    const row = base.sessions[0];
+    if (row === undefined) throw new Error('fixture has no session');
+    const open = snap({ sessions: [{ ...row, endedAt: undefined }] });
+    const r = startReopening(new Map(), row.id, NOW, 'front');
+    expect([...settleReopening(r, open, NOW + 1_000, 'someone-else').keys()]).toEqual([row.id]);
+    expect([...settleReopening(r, open, NOW + 1_000, undefined).keys()]).toEqual([row.id]);
+    expect(settleReopening(r, open, NOW + 1_000, row.id).size).toBe(0);
+    // In front but still greyed: not there yet.
+    const greyed = snap({ sessions: [{ ...row, endedAt: NOW - 1 }] });
+    expect(settleReopening(r, greyed, NOW + 1_000, row.id).size).toBe(1);
+    expect(settleReopening(r, open, NOW + REOPEN_WAIT_MS + 1, 'someone-else').size).toBe(0);
+  });
+
+  it('ends a wait for the front when another window takes the focus — the conversation lives there', () => {
+    const base = snap();
+    const row = base.sessions[0];
+    if (row === undefined) throw new Error('fixture has no session');
+    const r = startReopening(new Map(), row.id, NOW, 'front');
+    const elsewhere = snap({ sessions: [{ ...row, endedAt: undefined }], focused: false });
+    expect(settleReopening(r, elsewhere, NOW + 1_000, undefined).size).toBe(0);
+  });
+
   it('keeps the same map when nothing settled, so React does not re-render for nothing', () => {
     const r = startReopening(new Map(), closedId, NOW);
     expect(settleReopening(r, snap(), NOW + 1_000)).toBe(r);
