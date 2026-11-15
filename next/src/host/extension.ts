@@ -4,7 +4,7 @@ import { countKohEntries } from '../../../src/hooks/installer';
 import { realEngine, startEngine, type EngineDeps } from './engine';
 import { ActiveTab } from './active-tab';
 import { adapted, asCustomizations, type IdeBackup } from './ide-theme';
-import { DEFAULT_THEME, parseTheme } from '../shared/theme';
+import { DEFAULT_THEME, readStoredTheme, storedTheme } from '../shared/theme';
 import { readClosed } from '../../../src/closed/store';
 import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
@@ -315,7 +315,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return buildSnapshot(home, Date.now(), {
         editorTabs,
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
-        theme: parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
+        theme: readStoredTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
         ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
         tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
         titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
@@ -448,7 +448,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const original = backup !== undefined ? backup.value : asCustomizations(workbench.inspect('colorCustomizations')?.globalValue);
     if (backup === undefined) await context.globalState.update(IDE_BACKUP_KEY, { value: original } satisfies IdeBackup);
-    const tune = (parseTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME).current;
+    const tune = (readStoredTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME).current;
     await workbench.update('colorCustomizations', adapted(original, tune, workbench.get<string>('colorTheme')), vscode.ConfigurationTarget.Global);
   };
 
@@ -504,7 +504,7 @@ export function activate(context: vscode.ExtensionContext): void {
       setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
       setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
       // The editor's colours are not followed: they change on a click of « Adapt » only (14/11).
-      setTheme: (theme) => context.globalState.update(THEME_KEY, theme),
+      setTheme: (theme) => context.globalState.update(THEME_KEY, storedTheme(theme)),
       // As a folder rule (V1 groups/rules.ts): a conversation that starts with
       // a title, the skill and the file, left in the input unsent.
       tidyRules: async (mode) => {

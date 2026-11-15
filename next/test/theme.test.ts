@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { adapted, ideColors } from '../src/host/ide-theme';
 import { parseAction } from '../src/shared/actions';
-import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, KV_PALETTE, parseTheme, sameTune, themeFilter, tuneHex } from '../src/shared/theme';
+import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, KV_PALETTE, parseTheme, readStoredTheme, sameTune, storedTheme, themeFilter, tuneHex } from '../src/shared/theme';
 
 describe('the theme', () => {
   it('reads a whole state or nothing, values clamped', () => {
@@ -47,6 +47,17 @@ describe('the theme', () => {
     // What the view paints (ui/theme.ts) sets these tokens and nothing else: no filter left on the page.
     const paint = readFileSync(join(__dirname, '../view/src/ui/theme.ts'), 'utf8');
     expect(paint).not.toContain('style.filter');
+  });
+
+  it('doubles once the grain of a theme kept before 50 % became the new 100 %, so it looks the same', () => {
+    const old = { current: { ...DEFAULT_TUNE, grain: 50, textures: ['grain'] }, slots: [{ ...DEFAULT_TUNE, grain: 70 }, null, null, null] };
+    const read = readStoredTheme(old);
+    expect(read?.current.grain).toBe(100);
+    expect(read?.slots[0]?.grain).toBe(100);
+    // Written back with its scale, it is read as it is from then on.
+    const kept = storedTheme(read ?? parseTheme(old)!);
+    expect(readStoredTheme(JSON.parse(JSON.stringify(kept)))?.current.grain).toBe(100);
+    expect(readStoredTheme('nothing')).toBeUndefined();
   });
 
   it('keeps its palette in step with the view’s tokens', () => {

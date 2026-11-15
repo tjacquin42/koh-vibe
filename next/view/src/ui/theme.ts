@@ -1,4 +1,4 @@
-import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, sameTune, type ThemeTune } from '../../../src/shared/theme';
+import { DEFAULT_TUNE, GRAIN_FULL, GROUND_TOKENS, groundColours, sameTune, type ThemeTune } from '../../../src/shared/theme';
 import { textureLayers } from './textures';
 
 /**
@@ -29,7 +29,7 @@ function paint(): void {
   const root = document.documentElement.style;
   root.setProperty('--texture', layers.image);
   root.setProperty('--texture-size', layers.size);
-  root.setProperty('--grain', String(t.textures.length === 0 ? 0 : t.grain / 100));
+  root.setProperty('--grain', String(t.textures.length === 0 ? 0 : (t.grain / 100) * GRAIN_FULL));
 }
 
 export function showStoredTheme(t: ThemeTune | undefined): void {

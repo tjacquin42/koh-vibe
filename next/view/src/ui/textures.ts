@@ -10,12 +10,28 @@ import type { TextureId } from '../../../src/shared/theme';
 const svg = (w: number, h: number, body: string): string =>
   `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'>${body}</svg>`)}")`;
 
-/** Specks out of a noise: alpha from one channel, steep, so only its peaks show. */
-const specks = (id: string, seed: number, rgb: string, gain: number): string =>
-  `<filter id='${id}' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='${seed}' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 ${rgb} 0 0 0 0 ${rgb} 0 0 0 0 ${rgb} ${10 * gain} 0 0 0 ${-6.4 * gain}'/></filter><rect width='100%' height='100%' filter='url(#${id})'/>`;
+/**
+ * Specks out of a noise: alpha from one channel, steep, so only its peaks
+ * show. `cut` is where the peaks start: higher, fewer specks.
+ */
+const specks = (id: string, seed: number, rgb: string, gain: number, cut: number): string =>
+  `<filter id='${id}' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='${seed}' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 ${rgb} 0 0 0 0 ${rgb} 0 0 0 0 ${rgb} ${10 * gain} 0 0 0 ${-cut * gain}'/></filter><rect width='100%' height='100%' filter='url(#${id})'/>`;
+
+/**
+ * The grain, in four tiles whose sides share no factor (15/11): one tile
+ * repeated showed its pattern every 140 px, while these only line up again
+ * hundreds of tiles away. Each holds fewer specks, so the four together
+ * weigh what the single one did.
+ */
+const GRAIN_TILES: readonly (readonly [number, string])[] = [
+  [173, specks('l', 3, '1', 0.35, 6.8)],
+  [263, specks('m', 21, '1', 0.35, 6.8)],
+  [229, specks('d', 9, '0', 1, 6.8)],
+  [311, specks('e', 17, '0', 1, 6.8)],
+];
 
 export const TEXTURE: Record<TextureId, { image: string; size: string }> = {
-  grain: { image: svg(140, 140, specks('l', 3, '1', 0.35) + specks('d', 9, '0', 1)), size: '140px 140px' },
+  grain: { image: GRAIN_TILES.map(([side, body]) => svg(side, side, body)).join(', '), size: GRAIN_TILES.map(([side]) => `${side}px ${side}px`).join(', ') },
   lines: {
     image: svg(6, 6, "<rect width='6' height='1' fill='#fff' fill-opacity='.12'/><rect y='3' width='6' height='1' fill='#000' fill-opacity='.5'/>"),
     size: '6px 6px',

@@ -85,6 +85,33 @@ export function parseTheme(raw: unknown): ThemeState | undefined {
   return { current, slots: parsed as (ThemeTune | null)[] };
 }
 
+/**
+ * How strong the textures show at 100 % (15/11): what 50 % used to give, the
+ * old full strength being too much to be of use.
+ */
+export const GRAIN_FULL = 0.5;
+
+/** The scale a stored theme's grain is written in: 2 since GRAIN_FULL halved it. */
+const GRAIN_SCALE = 2;
+
+/**
+ * A theme as the editor kept it. One kept before GRAIN_FULL was halved has
+ * its grain doubled once, so it looks the same as before — its 50 % is the
+ * new 100 %.
+ */
+export function readStoredTheme(raw: unknown): ThemeState | undefined {
+  const state = parseTheme(raw);
+  if (state === undefined) return undefined;
+  if ((raw as Record<string, unknown>)['grainScale'] === GRAIN_SCALE) return state;
+  const rescale = (t: ThemeTune): ThemeTune => ({ ...t, grain: Math.min(THEME_RANGE.grain.max, t.grain * GRAIN_SCALE) });
+  return { current: rescale(state.current), slots: state.slots.map((s) => (s === null ? null : rescale(s))) };
+}
+
+/** A theme as the editor keeps it: with the scale its grain is written in. */
+export function storedTheme(state: ThemeState): ThemeState & { grainScale: number } {
+  return { ...state, grainScale: GRAIN_SCALE };
+}
+
 export function sameTune(a: ThemeTune, b: ThemeTune): boolean {
   return (
     a.hue === b.hue &&

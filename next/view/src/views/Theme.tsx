@@ -86,7 +86,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
         <div className="set-l">
           <b>{t('theme.grain')}</b>
         </div>
-        {/* Several at once; the first one picked starts at a fifth of the strength (14/11). */}
+        {/* Several at once; the first one picked starts at two fifths of the strength (15/11). */}
         <div className="ttex" role="group" aria-label={t('theme.grain')}>
           {TEXTURES.map((id) => {
             const on = draft.textures.includes(id);
@@ -186,7 +186,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
  */
 const BASE_HUE = 252;
 /** Where the strength starts when a first texture is picked, and goes back on a double-click. */
-const TEXTURE_START = 20;
+const TEXTURE_START = 40;
 const HUES = [-180, -120, -60, 0, 60, 120, 180].map((d) => `hsl(${BASE_HUE + d}deg 80% 68%)`).join(', ');
 
 /**
