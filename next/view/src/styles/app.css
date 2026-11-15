@@ -224,7 +224,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .bar { position: relative; height: 6px; border-radius: 3px; background: var(--raised); margin-top: 3px; }
 /* The pace mark (views/Usage.tsx): where the use should be at most by now.
    It glides over the 30 seconds between two ticks of the view's clock. */
-.pace { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); opacity: 0.85; transition: left 30s linear; pointer-events: auto; }
+.pace { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent); opacity: 1; transition: left 30s linear; pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .pace { transition: none; } }
 .fill { display: block; height: 100%; border-radius: 3px; background: var(--run); }
 .fill.tone-wait { background: var(--wait); }
@@ -252,16 +252,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .fchip[aria-checked="true"] { background: var(--raised); color: var(--text); border-color: var(--accent); }
 .fchip .icon { color: var(--muted); }
 .fchip[aria-checked="true"] .icon { color: var(--text); }
-.cockpit {
-  flex: 1; min-height: 0; display: grid;
-  grid-template-columns: minmax(0, 1fr) 0 var(--side-w, 300px);
-  grid-template-areas: 'main sidew side';
-}
-.ck-main { grid-area: main; }
-.ck-side { grid-area: side; }
-.sp-side-w { grid-area: sidew; }
-.sp-side-h { display: none; }
-.ck-side { min-height: 0; overflow: auto; padding: 4px 10px 16px; border-left: 1px solid var(--line); }
+.cockpit { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ck-main { flex: 1; }
 /* Never sideways: a line too long is cut with « … » inside its box, it does not widen the view. */
 .ck-main { min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 20px 24px; }
 .ck-title { font-size: 22px; font-weight: 700; margin: 8px 0 10px; }
@@ -356,20 +348,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 
 @media (max-width: 1100px) {
-  .cockpit {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 0 var(--side-h, 38%);
-    grid-template-areas: 'main' 'sideh' 'side';
-  }
-  .ck-side { border-left: 0; border-top: 1px solid var(--line); }
-  .sp-side-w { display: none; }
-  .sp-side-h { display: block; grid-area: sideh; }
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
   .cockpit { display: flex; flex-direction: column; overflow: auto; }
   .ck-main { flex: 1 0 auto; }
-  .ck-side { flex: none; height: var(--side-h, auto); }
   .board { grid-template-columns: minmax(0, 1fr); }
   .tl-axis { margin-left: 0; }
   .tl-lane { grid-template-columns: minmax(0, 1fr); }

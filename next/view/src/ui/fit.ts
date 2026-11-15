@@ -24,7 +24,19 @@ export function useIconsOnly(bar: RefObject<HTMLElement | null>, names: boolean)
     check();
     const ro = new ResizeObserver(check);
     ro.observe(el);
-    return () => ro.disconnect();
+    // The names widen without the bar changing size (15/11): the fonts load
+    // after the first measure, a language changes the words. Measured again
+    // then, or a name stayed cut — « Sessi… » — instead of the icons alone.
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    fonts?.addEventListener('loadingdone', check);
+    void fonts?.ready.then(check);
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      fonts?.removeEventListener('loadingdone', check);
+    };
   }, [bar, names]);
   return !names || narrow;
 }
