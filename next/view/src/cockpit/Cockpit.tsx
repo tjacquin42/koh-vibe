@@ -260,6 +260,12 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
 
 /* ---------- C. For you ---------- */
 
+/** To the conversation, from the sidebar or the cockpit alike; its row spins until it is in front. */
+function goTo(ctx: ViewCtx, s: SessionView): void {
+  ctx.awaitOpen(s.id, s.origin === 'vscode' ? 'front' : 'open');
+  ctx.bridge.post({ type: 'openSession', sessionId: s.id });
+}
+
 export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolean }) {
   const { t, now } = ctx;
   const all = inbox(ctx.snapshot);
@@ -273,28 +279,46 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
       </h2>
       {box.waiting.length === 0 && <p className="hint">{t('inbox.none')}</p>}
       {box.waiting.map((s) => (
-        <div key={s.id} className="ask">
+        // The whole card goes to the conversation (15/11); the × only closes it.
+        <div
+          key={s.id}
+          className="ask ask-go"
+          role="button"
+          tabIndex={0}
+          onClick={() => goTo(ctx, s)}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+            e.preventDefault();
+            goTo(ctx, s);
+          }}
+        >
           <div className="ask-h">
             {/* It turns as it does in the list (15/11): the same conversation, the same wait. */}
             <Dot tone="wait" animate={ctx.animate} />
             <span className="txt">
               <span className="ttl conv-ttl">
-          <SessionName s={s} t={t} animate={ctx.animate} />
-        </span>
+                <SessionName s={s} t={t} animate={ctx.animate} />
+              </span>
               <span className="muted small">{now - s.lastEventAt < 60_000 ? t('inbox.justNow') : t('inbox.since', { d: formatAge(now - s.lastEventAt, t) })}</span>
             </span>
-            <button type="button" className="tbtn ask-x" aria-label={t('inbox.dismiss')} onClick={() => ctx.dismiss(s.id, s.lastEventAt)}>
+            <button
+              type="button"
+              className="tbtn ask-x"
+              aria-label={t('inbox.dismiss')}
+              onClick={(e) => {
+                e.stopPropagation();
+                ctx.dismiss(s.id, s.lastEventAt);
+              }}
+            >
               <Icon name="close" />
             </button>
           </div>
-          {s.pendingPermission !== undefined && (
+          {/* What it waits on — but not a question's tool name, which says nothing the card does not (15/11). */}
+          {s.pendingPermission !== undefined && s.pendingPermission.tool !== 'AskUserQuestion' && (
             <span className="q mono">
               <b>{toolLabel(s.pendingPermission.tool)}</b> {s.pendingPermission.summary}
             </span>
           )}
-          <button type="button" className="btn primary" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
-            {t('inbox.answer')}
-          </button>
         </div>
       ))}
       {!compact && box.waiting.length > 0 && <p className="hint">{t('inbox.never')}</p>}

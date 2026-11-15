@@ -263,6 +263,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .inbox { display: flex; flex-direction: column; gap: 6px; }
 .ask { background: var(--wait-bg); border: 1px solid var(--wait-line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; margin: 0 4px 2px; }
 .ask-h { display: flex; gap: 9px; align-items: flex-start; }
+.ask-go { cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.ask-go:hover { border-color: var(--wait); }
+.ask-go:focus-visible { outline: 2px solid var(--wait); outline-offset: 2px; }
 .ask .q { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .ask .q b { color: var(--wait); font-weight: 600; margin-right: 4px; }
 .btn { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--soft); font-size: 12.5px; }
