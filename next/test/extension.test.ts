@@ -3,7 +3,7 @@
  * a sidebar that says it is ready, a file changing under it, the cockpit
  * opening. Only `vscode` is faked (test/stubs/vscode.ts).
  */
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -417,6 +417,19 @@ describe('activate', () => {
     // Already open: told at once.
     await view.webview.receive({ type: 'openCockpit', sessionId: 'a' });
     expect(panel.webview.posted).toContainEqual({ type: 'showSheet', sessionId: 'a' });
+  });
+
+  it('names the conversations in the very first list, never their folder for a moment (15/11)', async () => {
+    const transcript = join(home, 'no-transcripts', 'c.jsonl');
+    await mkdir(join(home, 'no-transcripts'), { recursive: true });
+    await writeFile(transcript, `${JSON.stringify({ type: 'custom-title', customTitle: 'Carnet' })}\n`);
+    const file = join(home, 'sessions', 'c.json');
+    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, 'utf8')), transcriptPath: transcript }));
+    start(ExtensionMode.Production);
+    const view = sidebar();
+    await view.webview.receive({ type: 'ready' });
+    const init = messages(view)[0];
+    expect(init?.type === 'init' && init.snapshot.sessions.find((x) => x.id === 'c')?.title).toBe('Carnet');
   });
 
   it('builds the sheet of the conversation the cockpit shows, from its transcript', async () => {

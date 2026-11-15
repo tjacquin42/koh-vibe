@@ -139,6 +139,9 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
+/** The longest the first list waits for the conversations' names. */
+const NAMES_WAIT_MS = 8_000;
+
 /** How often the routines are read again while one runs and their tab shows. */
 const RUN_POLL_MS = 30_000;
 
@@ -353,18 +356,25 @@ export function activate(context: vscode.ExtensionContext): void {
     return now === undefined ? {} : { spend: now };
   };
   // V1's incremental transcript readings: how a conversation gets its name.
-  // The first pass reads every transcript whole (2.4 s on a busy machine);
-  // it runs apart, so the list shows at once and the names follow.
+  // The first pass reads every transcript whole (2.4 s on a busy machine).
+  // The first build waits for it (15/11): a list shown before carried the
+  // folder's name on every conversation — « DEV » everywhere — until the
+  // names came. The view shows its loading screen meanwhile. Capped, so a
+  // slow disk never keeps the list away for good.
   const namesFromTranscripts = new Map<string, TranscriptStats>();
   let names: 'cold' | 'warming' | 'ready' = 'cold';
-  const warmNames = async (): Promise<void> => {
+  let warming: Promise<void> | undefined;
+  const warmNames = (): Promise<void> => {
     names = 'warming';
-    try {
-      await namesFrom(await readSessions(spoolDirs(home)), namesFromTranscripts);
-    } finally {
-      names = 'ready';
-      void hub.refresh();
-    }
+    warming ??= (async () => {
+      try {
+        await namesFrom(await readSessions(spoolDirs(home)), namesFromTranscripts);
+      } finally {
+        names = 'ready';
+        void hub.refresh();
+      }
+    })();
+    return warming;
   };
   // The conversation tab in front (active-tab.ts), through the editor's memento
   // in this workspace's storage — the same database V1 reads.
@@ -381,7 +391,7 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const what of ['artifacts', 'routines'] as const) {
         if ([...tabs.values()].includes(what)) void cloud.refresh(what, false);
       }
-      if (names === 'cold') void warmNames();
+      if (names !== 'ready') await Promise.race([warmNames(), new Promise((done) => setTimeout(done, NAMES_WAIT_MS))]);
       const editorTabs = parseTabsMode(editorConfig().get('showTabs'));
       return buildSnapshot(home, Date.now(), {
         editorTabs,
