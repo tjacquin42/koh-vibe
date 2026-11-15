@@ -1,7 +1,7 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildSnapshot, compareSessions, ordered } from '../src/host/snapshot';
+import { buildSnapshot, compareSessions, ordered, toRoutineView } from '../src/host/snapshot';
 import type { SessionView } from '../src/shared/protocol';
 import { fingerprint, makeHome, NOW } from './home';
 
@@ -31,6 +31,13 @@ describe('buildSnapshot', () => {
     expect(e?.status).toBe('idle');
     // A tab with no session behind it adds no row.
     expect(restored.sessions.map((s) => s.id).sort()).toEqual(['a', 'b', 'c', 'e']);
+  });
+
+  it('shows a routine running, but not one whose run never ended after half a day', () => {
+    const r = { id: 'r1', name: 'Veille', enabled: true, fired: false, repos: [] };
+    expect(toRoutineView({ ...r, runningSince: NOW - 60_000 }, NOW).runningSince).toBe(NOW - 60_000);
+    expect(toRoutineView({ ...r, runningSince: NOW - 13 * 3_600_000 }, NOW).runningSince).toBeUndefined();
+    expect(toRoutineView(r, NOW).runningSince).toBeUndefined();
   });
 
   it('lists visible sessions only, skipping hidden and unreadable files', async () => {

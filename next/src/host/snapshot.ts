@@ -183,8 +183,13 @@ export function toRoutineView(r: Routine, now: number): RoutineView {
   const v: RoutineView = { id: r.id, name: r.name, enabled: r.enabled, group: groupOf(r, now), repos: [...r.repos], spent: isSpent(r, now) };
   if (r.nextRunAt !== undefined) v.nextRunAt = r.nextRunAt;
   if (r.cron !== undefined) v.cron = r.cron;
+  // A run under way; one that never ended after half a day is not shown as running.
+  if (r.runningSince !== undefined && now - r.runningSince < RUN_STALE_MS) v.runningSince = r.runningSince;
   return v;
 }
+
+/** How long a run may stay unfinished before it no longer counts as running. */
+const RUN_STALE_MS = 12 * 3_600_000;
 
 /**
  * A temporary conversation — in no folder — leaves the list a day after its

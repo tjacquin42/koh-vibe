@@ -118,6 +118,8 @@ export interface RoutineView {
    * never resumed — that might run it at once, unasked.
    */
   spent: boolean;
+  /** When the run under way started, if one is (15/11). */
+  runningSince?: number;
 }
 
 export type ProcessKind = 'mcp' | 'shell' | 'work';

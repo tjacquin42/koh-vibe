@@ -85,7 +85,7 @@ export function sampleSnapshot(now: number): Snapshot {
     routines: {
       at: ago(3),
       items: [
-        { id: 'r1', name: 'Morning digest', enabled: true, nextRunAt: later(600), group: 'tomorrow', cron: '0 7 * * *', repos: ['me/digest'], spent: false },
+        { id: 'r1', name: 'Morning digest', enabled: true, nextRunAt: later(600), group: 'tomorrow', cron: '0 7 * * *', repos: ['me/digest'], spent: false, runningSince: ago(4) },
         { id: 'r2', name: 'Dependency check', enabled: false, group: 'paused', cron: '0 9 * * 1', repos: [], spent: false },
       ],
     },

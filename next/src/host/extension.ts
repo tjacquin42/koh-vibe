@@ -139,6 +139,9 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
+/** How often the routines are read again while one runs and their tab shows. */
+const RUN_POLL_MS = 30_000;
+
 /** How often the conversations' spending is read again while the Usage tab is open. */
 const SPEND_EVERY_MS = 30_000;
 
@@ -431,6 +434,16 @@ export function activate(context: vscode.ExtensionContext): void {
       void hub.refresh();
     }),
     ...watchFocus(() => void hub.refresh()),
+    // A routine running (15/11): its list is read again every 30 s while its
+    // tab shows, so the run's end shows soon after it happens. The cache file
+    // it writes is what rebuilds the views.
+    (() => {
+      const poll = setInterval(() => {
+        const running = hub.current?.routines?.items.some((r) => r.runningSince !== undefined) === true;
+        if (running && [...tabs.values()].includes('routines')) void cloud.refresh('routines', true);
+      }, RUN_POLL_MS);
+      return { dispose: () => clearInterval(poll) };
+    })(),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('workbench.editor.showTabs')) void hub.refresh();
     }),

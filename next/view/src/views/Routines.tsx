@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { RoutineView } from '../../../src/shared/protocol';
 import { routineSections } from '../sections';
-import { formatWhen } from '../format';
+import { formatAge, formatWhen } from '../format';
 import { Icon } from '../ui/icons';
 import { Confirm } from '../ui/Inline';
 import { Section } from '../ui/Section';
@@ -49,6 +49,13 @@ function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
     >
       <div className="card-l1">
         <span className="ttl">{r.name}</span>
+        {/* A run under way (15/11): it shows, and for how long. */}
+        {r.runningSince !== undefined && (
+          <span className="state running" title={t('routines.runningSince', { d: formatAge(Math.max(0, now - r.runningSince), t) })}>
+            <span className="spinner" aria-hidden="true" />
+            {t('routines.running')}
+          </span>
+        )}
         <span className={`state ${live ? 'on' : 'off'}`}>{t(live ? 'routines.on' : 'routines.off')}</span>
       </div>
       <span className="card-l2">

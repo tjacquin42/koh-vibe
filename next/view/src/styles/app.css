@@ -178,6 +178,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .state { font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 8px; border: 1px solid var(--line); }
 .state.on { color: var(--done); }
 .state.off { color: var(--muted); }
+.state.running { display: inline-flex; align-items: center; gap: 5px; color: var(--run); border-color: color-mix(in srgb, var(--run) 45%, transparent); }
+.state.running .spinner { width: 9px; height: 9px; margin: 0; border-width: 1.5px; border-color: color-mix(in srgb, var(--run) 25%, transparent); border-top-color: var(--run); }
 
 .proc { display: flex; gap: 8px; align-items: center; padding: 4px 8px; font-family: var(--font-mono); font-size: 11.5px; border-radius: 7px; }
 .proc:hover { background: var(--surface); }
