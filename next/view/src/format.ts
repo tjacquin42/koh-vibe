@@ -33,9 +33,18 @@ export function sessionTitle(s: SessionView, t: Translate): string {
 }
 
 /** The second line: what it is doing now, else where it lives. */
+/** Tools whose name the views never show: a question asked to you says nothing as « AskUserQuestion » (15/11). */
+const QUIET_TOOLS: ReadonlySet<string> = new Set(['AskUserQuestion']);
+
+/** Whether a tool's name is left out of the views. */
+export function isQuietTool(name: string): boolean {
+  return QUIET_TOOLS.has(name);
+}
+
 export function sessionDetail(s: SessionView): string {
-  if (s.pendingPermission !== undefined) return `${toolLabel(s.pendingPermission.tool)} · ${s.pendingPermission.summary}`;
-  if (s.status === 'running' && s.currentAction !== undefined) {
+  // A quiet tool's wait or action says nothing: the conversation's place instead.
+  if (s.pendingPermission !== undefined && !isQuietTool(s.pendingPermission.tool)) return `${toolLabel(s.pendingPermission.tool)} · ${s.pendingPermission.summary}`;
+  if (s.status === 'running' && s.currentAction !== undefined && !isQuietTool(s.currentAction.tool)) {
     const target = s.currentAction.target;
     return target !== undefined ? `${toolLabel(s.currentAction.tool)} ${target}` : toolLabel(s.currentAction.tool);
   }
@@ -113,6 +122,8 @@ export function countsOf(snap: Snapshot): Counts {
  * long enough to push the line out of its box (14/11).
  */
 export function toolLabel(name: string): string {
+  // A question asked to you is no tool to name (15/11): nowhere in the views.
+  if (QUIET_TOOLS.has(name)) return '';
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
   return m === null ? name : `${m[1]} › ${m[2]}`;
 }

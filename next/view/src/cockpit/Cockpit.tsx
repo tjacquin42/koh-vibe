@@ -1,5 +1,5 @@
 import type { ActivityItemView, ActivitySessionView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatWhen, isFiledIn, sessionDetail, sessionTitle, toneOf, toolLabel, type Tone } from '../format';
+import { formatAge, formatWhen, isFiledIn, isQuietTool, sessionDetail, sessionTitle, type Tone, toneOf, toolLabel } from '../format';
 import type { Translate } from '../i18n';
 import { boardColumns, folderIndex, hourTicks, inbox, SPANS_H, timelineLanes, type BoardColumns } from '../sections';
 import { Dot, Icon, type IconName } from '../ui/icons';
@@ -359,7 +359,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
             </button>
           </div>
           {/* What it waits on — but not a question's tool name, which says nothing the card does not (15/11). */}
-          {s.pendingPermission !== undefined && s.pendingPermission.tool !== 'AskUserQuestion' && (
+          {s.pendingPermission !== undefined && !isQuietTool(s.pendingPermission.tool) && (
             <span className="q mono">
               <b>{toolLabel(s.pendingPermission.tool)}</b> {s.pendingPermission.summary}
             </span>
@@ -417,10 +417,10 @@ function ItemLine({ ctx, i, withTime }: { ctx: ViewCtx; i: ActivityItemView; wit
   return (
     <span className={`it it-${i.kind}${i.subagent ? ' it-sub' : ''}`}>
       {withTime && <span className="at">{formatWhen(i.at, i.at, language)}</span>}
-      <span className="ik" role="img" aria-label={i.kind === 'tool' ? (i.tool ?? '') : t(`feed.${i.kind}`)}>
+      <span className="ik" role="img" aria-label={i.kind === 'tool' ? toolLabel(i.tool ?? '') : t(`feed.${i.kind}`)}>
         <Icon name={i.subagent ? 'bot' : KIND_ICON[i.kind]} size={12} />
       </span>
-      {i.kind === 'tool' && i.tool !== undefined && (
+      {i.kind === 'tool' && i.tool !== undefined && !isQuietTool(i.tool) && (
         <b className="tn" title={i.tool}>
           {toolLabel(i.tool)}
         </b>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, formatAge, formatTokens, sessionDetail, sessionTitle, toneOf } from '../view/src/format';
+import { countsOf, formatAge, formatTokens, sessionDetail, sessionTitle, toneOf, toolLabel } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { sampleSnapshot } from '../view/src/fixture';
 import type { SessionView } from '../src/shared/protocol';
@@ -45,6 +45,10 @@ describe('format', () => {
   it('details what a session is doing, the pending permission first', () => {
     expect(sessionDetail(s({ status: 'running', currentAction: { tool: 'Edit', target: 'a.ts' } }))).toBe('Edit a.ts');
     expect(sessionDetail(s({ status: 'waiting', pendingPermission: { tool: 'Bash', summary: 'ls' } }))).toBe('Bash · ls');
+    // A question asked to you is no tool to name, anywhere (15/11).
+    expect(sessionDetail(s({ status: 'waiting', pendingPermission: { tool: 'AskUserQuestion', summary: '' } }))).not.toContain('AskUserQuestion');
+    expect(sessionDetail(s({ status: 'running', currentAction: { tool: 'AskUserQuestion' } }))).not.toContain('AskUserQuestion');
+    expect(toolLabel('AskUserQuestion')).toBe('');
     expect(sessionDetail(s({ branch: 'main' }))).toBe('proj · main');
   });
 
