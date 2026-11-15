@@ -315,9 +315,6 @@ export function App({ bridge }: { bridge: Bridge }) {
           </button>
         </div>
       )}
-      <footer className="foot">
-        <span>{t('footer.readonly')}</span>
-      </footer>
     </div>
   );
 }

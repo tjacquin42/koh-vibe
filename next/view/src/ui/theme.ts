@@ -1,10 +1,12 @@
-import { DEFAULT_TUNE, sameTune, themeFilter, type ThemeTune } from '../../../src/shared/theme';
+import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, sameTune, type ThemeTune } from '../../../src/shared/theme';
 import { textureLayers } from './textures';
 
 /**
- * The tuning laid over the whole page (shared/theme.ts). On the root element:
- * a filter on any other would become the frame of every `position: fixed`
- * inside it — the popovers would follow it instead of the window.
+ * The tuning, on the background only (15/11): the four ground tokens are
+ * overridden on the root element, tuned from Koh-Vibe's palette — the
+ * buttons, the logo and the colours of the states keep theirs. With the
+ * editor's background, the tokens come from its theme instead (app.css,
+ * `html[data-ground="ide"]`), and the tuning has nothing to colour.
  *
  * While a slider moves, its value is shown here at once and the snapshots
  * that arrive meanwhile — still the old value — do not pull it back.
@@ -14,7 +16,14 @@ let stored: ThemeTune = DEFAULT_TUNE;
 
 function paint(): void {
   const t = preview ?? stored;
-  document.documentElement.style.filter = themeFilter(t);
+  const html = document.documentElement;
+  html.dataset['ground'] = t.ground;
+  const ground = groundColours(t);
+  const untouched = t.ground === 'ide' || (t.hue === 0 && t.saturation === 100 && t.brightness === 100);
+  for (const token of GROUND_TOKENS) {
+    if (untouched) html.style.removeProperty(`--${token}`);
+    else html.style.setProperty(`--${token}`, ground[token]);
+  }
   // The textures are no filter: patterns over the page (app.css body::after, ui/textures.ts).
   const layers = textureLayers(t.textures);
   const root = document.documentElement.style;
@@ -35,14 +44,3 @@ export function previewTheme(t: ThemeTune | undefined): void {
   paint();
 }
 
-/**
- * How a kept tuning looks on top of the current one, for its swatch: the
- * swatch sits under the page's filter already, so it gets the difference.
- * Hue adds up, saturation and brightness multiply — close enough for a swatch.
- */
-export function relativeFilter(slot: ThemeTune, current: ThemeTune): string {
-  if (sameTune(slot, current)) return 'none';
-  const s = slot.saturation / Math.max(current.saturation, 1);
-  const b = slot.brightness / Math.max(current.brightness, 1);
-  return `hue-rotate(${slot.hue - current.hue}deg) saturate(${s}) brightness(${b})`;
-}

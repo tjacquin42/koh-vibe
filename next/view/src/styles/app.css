@@ -25,6 +25,19 @@
 }
 
 * { box-sizing: border-box; }
+/* The editor's background in place of Koh-Vibe's (ui/theme.ts): the
+   sidebar's in the sidebar, the editor's in the cockpit; the raised grounds
+   and the lines drawn from it towards its own text colour, so a light theme
+   works as well as a dark one. */
+html[data-ground="ide"] {
+  --ide-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #14121f));
+  --ide-fg: var(--vscode-foreground, #eeeaf8);
+  --bg: var(--ide-bg);
+  --surface: color-mix(in srgb, var(--ide-bg) 94%, var(--ide-fg));
+  --raised: color-mix(in srgb, var(--ide-bg) 87%, var(--ide-fg));
+  --line: color-mix(in srgb, var(--ide-bg) 80%, var(--ide-fg));
+}
+html[data-ground="ide"]:has(.surface-cockpit) { --ide-bg: var(--vscode-editor-background, #14121f); }
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--soft); font-family: var(--font-body); font-size: 13px; line-height: 1.45; padding: 0; }
 h1, h2 { margin: 0; font-family: var(--font-display); color: var(--text); }
@@ -180,7 +193,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .fill { display: block; height: 100%; border-radius: 3px; background: var(--run); }
 .fill.tone-wait { background: var(--wait); }
 
-.foot { display: flex; justify-content: space-between; gap: 8px; padding: 6px 12px 8px; font-size: 10.5px; color: var(--muted); }
 
 /* ---------- cockpit (W2) ---------- */
 /* The cockpit's top lines up with the sidebar's (14/11): same title row, then
@@ -380,12 +392,10 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* The theme's kept tunings: a swatch each — the status colours and the accent — and its Save. */
 .tslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tslot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.tswatch { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding: 0 4px; }
-.tswatch i { width: 9px; height: 9px; border-radius: 50%; }
-.tswatch i.tone-wait { background: var(--wait); }
-.tswatch i.tone-run { background: var(--run); }
-.tswatch i.tone-done { background: var(--done); }
-.tswatch i.accent { background: var(--accent); }
+.tswatch { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--swatch-bg, var(--bg)); padding: 0 4px; }
+.tswatch i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--swatch-line, var(--line)); }
+.tswatch i.ground-surface { background: var(--swatch-surface, var(--surface)); }
+.tswatch i.ground-raised { background: var(--swatch-raised, var(--raised)); }
 .tswatch.empty { border-style: dashed; color: var(--muted); font-size: 11px; cursor: default; }
 .tswatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .tswatch:not(.empty):hover { border-color: var(--soft); }
@@ -400,6 +410,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .tpad { position: relative; height: 112px; border-radius: 12px; overflow: hidden; cursor: crosshair; touch-action: none; border: 1px solid var(--line); outline: none; }
 .tpad:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 .tpad-colours { position: absolute; inset: 0; }
+/* The editor's background takes no tuning: the pad and the brightness rest. */
+.set-row.off, .tslider:has(input:disabled) { opacity: 0.45; }
+.tpad[aria-disabled="true"] { cursor: default; }
 .tpad-knob { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--link); border: 3px solid #fff; box-shadow: 0 2px 8px rgb(0 0 0 / 0.45); pointer-events: none; }
 .set-row.tslider input.trange { width: 130px; }
 .trange { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 99px; border: 1px solid var(--line); cursor: pointer; }

@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { adapted, ideColors } from '../src/host/ide-theme';
 import { parseAction } from '../src/shared/actions';
-import { DEFAULT_TUNE, KV_PALETTE, parseTheme, themeFilter, tuneHex } from '../src/shared/theme';
+import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, KV_PALETTE, parseTheme, sameTune, themeFilter, tuneHex } from '../src/shared/theme';
 
 describe('the theme', () => {
   it('reads a whole state or nothing, values clamped', () => {
     const slots = [null, { hue: 400, saturation: -5, brightness: 120.4 }, null, null];
     // A slot kept before the grain existed reads with none.
-    expect(parseTheme({ current: DEFAULT_TUNE, slots })).toEqual({ current: DEFAULT_TUNE, slots: [null, { hue: 180, saturation: 0, brightness: 120, grain: 0, textures: [] }, null, null] });
+    expect(parseTheme({ current: DEFAULT_TUNE, slots })).toEqual({ current: DEFAULT_TUNE, slots: [null, { hue: 180, saturation: 0, brightness: 120, grain: 0, textures: [], ground: 'koh' }, null, null] });
     expect(parseTheme({ current: { ...DEFAULT_TUNE, grain: 140 }, slots: [null, null, null, null] })?.current.grain).toBe(100);
     // A grain kept before textures could be picked reads as the grain texture; unknown ids drop.
     expect(parseTheme({ current: { hue: 0, saturation: 100, brightness: 100, grain: 40 }, slots: [null, null, null, null] })?.current.textures).toEqual(['grain']);
@@ -23,11 +23,30 @@ describe('the theme', () => {
 
   it('filters nothing untouched, and colours as the browser filter does', () => {
     expect(themeFilter(DEFAULT_TUNE)).toBe('none');
-    expect(themeFilter({ hue: 30, saturation: 80, brightness: 110, grain: 0, textures: [] })).toBe('hue-rotate(30deg) saturate(80%) brightness(110%)');
+    expect(themeFilter({ hue: 30, saturation: 80, brightness: 110, grain: 0, textures: [], ground: 'koh' })).toBe('hue-rotate(30deg) saturate(80%) brightness(110%)');
     // The grain is no filter: a texture laid over the view (view/src/ui/theme.ts).
     expect(themeFilter({ ...DEFAULT_TUNE, grain: 40 })).toBe('none');
     expect(tuneHex('#ff9e5e', DEFAULT_TUNE)).toBe('#ff9e5e');
-    expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0, textures: [] })).toBe('#404040');
+    expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0, textures: [], ground: 'koh' })).toBe('#404040');
+  });
+
+  it('reads the background it was kept with, Koh-Vibe’s before there was a choice', () => {
+    const slots = [null, null, null, null];
+    expect(parseTheme({ current: { ...DEFAULT_TUNE, ground: 'ide' }, slots })?.current.ground).toBe('ide');
+    expect(parseTheme({ current: { hue: 0, saturation: 100, brightness: 100 }, slots })?.current.ground).toBe('koh');
+    expect(parseTheme({ current: { ...DEFAULT_TUNE, ground: 'paper' }, slots })?.current.ground).toBe('koh');
+    expect(sameTune(DEFAULT_TUNE, { ...DEFAULT_TUNE, ground: 'ide' })).toBe(false);
+  });
+
+  it('colours the background only — never the text, the accent or the states', () => {
+    expect(GROUND_TOKENS).toEqual(['bg', 'surface', 'raised', 'line']);
+    const dim = { ...DEFAULT_TUNE, brightness: 60 };
+    expect(groundColours(DEFAULT_TUNE)).toEqual({ bg: KV_PALETTE.bg, surface: KV_PALETTE.surface, raised: KV_PALETTE.raised, line: KV_PALETTE.line });
+    expect(groundColours(dim).bg).toBe(tuneHex(KV_PALETTE.bg, dim));
+    expect(groundColours(dim).bg).not.toBe(KV_PALETTE.bg);
+    // What the view paints (ui/theme.ts) sets these tokens and nothing else: no filter left on the page.
+    const paint = readFileSync(join(__dirname, '../view/src/ui/theme.ts'), 'utf8');
+    expect(paint).not.toContain('style.filter');
   });
 
   it('keeps its palette in step with the view’s tokens', () => {

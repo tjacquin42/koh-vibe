@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { DEFAULT_THEME, DEFAULT_TUNE, sameTune, TEXTURES, THEME_RANGE, type ThemeState, type ThemeTune } from '../../../src/shared/theme';
-import { Hint } from '../ui/Hint';
-import { previewTheme, relativeFilter } from '../ui/theme';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { DEFAULT_THEME, DEFAULT_TUNE, GROUNDS, groundColours, sameTune, TEXTURES, THEME_RANGE, type ThemeState, type ThemeTune } from '../../../src/shared/theme';
+import { previewTheme } from '../ui/theme';
 import { TEXTURE, textureLayers } from '../ui/textures';
 import type { ViewCtx } from './context';
 
 /**
  * Koh-Vibe's colours (14/11), à la Arc: a pad to pick the colour — hue
  * across, intensity up and down — a brightness, and a grain laid over the
- * whole view. Shown live while something moves, kept when it is let go; four
- * slots keep tunings to come back to. Every view follows: the state lives in
- * the editor.
+ * whole view. Only the background takes them (15/11): the buttons, the logo
+ * and the colours of the states keep theirs. The background can also be the
+ * editor's own, which the pad and the brightness leave alone. Shown live
+ * while something moves, kept when it is let go; four slots keep tunings to
+ * come back to. Every view follows: the state lives in the editor.
  */
 export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
   const { t } = ctx;
@@ -54,14 +55,28 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
     }
   };
 
+  const ide = draft.ground === 'ide';
   return (
     <>
       <div className="set-row set-choice">
+        <div className="set-l">
+          <b>{t('theme.ground')}</b>
+        </div>
+        <div className="ttex" role="group" aria-label={t('theme.ground')}>
+          {GROUNDS.map((ground) => (
+            <button key={ground} type="button" aria-pressed={draft.ground === ground} onClick={() => save({ ...theme, current: { ...live.current, ground } })}>
+              {t(`theme.ground.${ground}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className={`set-row set-choice${ide ? ' off' : ''}`} aria-disabled={ide}>
         <div className="set-l">
           <b>{t('theme.colour')}</b>
         </div>
         <ColorPad
           label={t('theme.colour')}
+          disabled={ide}
           tune={draft}
           onMove={move}
           onCommit={commit}
@@ -70,6 +85,7 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
       </div>
       <Slider
         label={t('theme.brightness')}
+        disabled={ide}
         value={draft.brightness}
         shown={`${draft.brightness} %`}
         range={THEME_RANGE.brightness}
@@ -130,17 +146,15 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
                   aria-pressed={on}
                   aria-label={slot === null ? t('theme.emptySlot', { n }) : t('theme.apply', { n })}
                   disabled={slot === null}
-                  style={slot === null ? undefined : { filter: relativeFilter(slot, draft), ...swatchTexture(slot) }}
+                  style={slot === null ? undefined : { ...swatchGround(slot), ...swatchTexture(slot) }}
                   onClick={() => slot !== null && save({ ...theme, current: slot })}
                 >
                   {slot === null ? (
                     <span>{t('theme.empty')}</span>
                   ) : (
                     <>
-                      <i className="tone-wait" />
-                      <i className="tone-run" />
-                      <i className="tone-done" />
-                      <i className="accent" />
+                      <i className="ground-surface" />
+                      <i className="ground-raised" />
                     </>
                   )}
                 </button>
@@ -163,7 +177,6 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
       <div className="set-row set-choice">
         <div className="set-l">
           <b>{t('theme.ide')}</b>
-          <Hint text={t('theme.ide.hint')} />
         </div>
         <div className="rule-btns">
           <button
@@ -202,18 +215,19 @@ const HUES = [-180, -120, -60, 0, 60, 120, 180].map((d) => `hsl(${BASE_HUE + d}d
  * (the middle); up and down, how intense it is — untouched halfway, grey at
  * the bottom. Drag the knob, or use the arrows; a double-click puts it back.
  *
- * The page is already under the chosen colours (ui/theme.ts), the pad too:
- * it is turned back the other way, so its colours stay where they are. The
- * knob is not — it shows the chosen accent as it now looks.
+ * Only the background takes the tuning (ui/theme.ts): the pad keeps its own
+ * colours. Off with the editor's background, which the tuning leaves alone.
  */
 function ColorPad({
   label,
+  disabled,
   tune,
   onMove,
   onCommit,
   onReset,
 }: {
   label: string;
+  disabled: boolean;
   tune: ThemeTune;
   onMove(change: Partial<ThemeTune>): void;
   onCommit(): void;
@@ -242,20 +256,20 @@ function ColorPad({
     e.preventDefault();
     onMove(change);
   };
-  const s = Math.max(tune.saturation, 5);
-  const counter = `brightness(${(100 / tune.brightness) * 100}%) saturate(${(100 / s) * 100}%) hue-rotate(${-tune.hue}deg)`;
   return (
     <div
       ref={pad}
       className="tpad"
       role="slider"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
       aria-label={label}
       aria-valuemin={-180}
       aria-valuemax={180}
       aria-valuenow={tune.hue}
       aria-valuetext={`${tune.hue > 0 ? '+' : ''}${tune.hue}° · ${tune.saturation} %`}
       onPointerDown={(e) => {
+        if (disabled) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         onMove(at(e));
       }}
@@ -263,13 +277,15 @@ function ColorPad({
         if (e.currentTarget.hasPointerCapture(e.pointerId)) onMove(at(e));
       }}
       onPointerUp={onCommit}
-      onKeyDown={key}
+      onKeyDown={(e) => {
+        if (!disabled) key(e);
+      }}
       onKeyUp={(e) => {
         if (e.key.startsWith('Arrow')) onCommit();
       }}
-      onDoubleClick={onReset}
+      onDoubleClick={disabled ? undefined : onReset}
     >
-      <div className="tpad-colours" style={{ backgroundImage: `linear-gradient(to bottom, transparent 0%, transparent 45%, #8a8794 100%), linear-gradient(to right, ${HUES})`, filter: counter }} />
+      <div className="tpad-colours" style={{ backgroundImage: `linear-gradient(to bottom, transparent 0%, transparent 45%, #8a8794 100%), linear-gradient(to right, ${HUES})` }} />
       <span className="tpad-knob" style={{ left: `${((tune.hue + 180) / 360) * 100}%`, top: `${(1 - tune.saturation / 200) * 100}%` }} />
     </div>
   );
@@ -278,6 +294,7 @@ function ColorPad({
 /** A tuning on a styled track; a double-click puts it back. */
 function Slider({
   label,
+  disabled = false,
   value,
   shown,
   range,
@@ -287,6 +304,7 @@ function Slider({
   onReset,
 }: {
   label: string;
+  disabled?: boolean;
   value: number;
   shown: string;
   range: { min: number; max: number };
@@ -307,6 +325,7 @@ function Slider({
         min={range.min}
         max={range.max}
         step={1}
+        disabled={disabled}
         value={value}
         onChange={(e) => onMove(Number(e.target.value))}
         onPointerUp={onCommit}
@@ -316,6 +335,22 @@ function Slider({
       />
     </label>
   );
+}
+
+/** A kept theme's background on its swatch: Koh-Vibe's tuned, or the editor's. */
+function swatchGround(slot: ThemeTune): CSSProperties {
+  if (slot.ground === 'ide') {
+    const bg = 'var(--vscode-sideBar-background, var(--vscode-editor-background, #14121f))';
+    const fg = 'var(--vscode-foreground, #eeeaf8)';
+    return {
+      '--swatch-bg': bg,
+      '--swatch-surface': `color-mix(in srgb, ${bg} 94%, ${fg})`,
+      '--swatch-raised': `color-mix(in srgb, ${bg} 87%, ${fg})`,
+      '--swatch-line': `color-mix(in srgb, ${bg} 80%, ${fg})`,
+    } as CSSProperties;
+  }
+  const g = groundColours(slot);
+  return { '--swatch-bg': g.bg, '--swatch-surface': g.surface, '--swatch-raised': g.raised, '--swatch-line': g.line } as CSSProperties;
 }
 
 /** A kept theme's textures on its swatch, at its strength. */

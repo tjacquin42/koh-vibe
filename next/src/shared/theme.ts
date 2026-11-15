@@ -17,7 +17,16 @@ export interface ThemeTune {
   grain: number;
   /** The textures laid over the view, several at once (view/src/ui/textures.ts). */
   textures: TextureId[];
+  /**
+   * What the background is (15/11): Koh-Vibe's own, tuned by the three values
+   * above, or the editor's — its theme's background, which the tuning leaves
+   * alone. Either way only the background: what sits on it keeps its colours.
+   */
+  ground: Ground;
 }
+
+export const GROUNDS = ['koh', 'ide'] as const;
+export type Ground = (typeof GROUNDS)[number];
 
 /** Fine patterns on a transparent ground, light and dark strokes alike: they do not change the brightness. */
 export const TEXTURES = ['grain', 'lines', 'diagonal', 'dots', 'grid'] as const;
@@ -37,7 +46,7 @@ export const THEME_RANGE = {
   grain: { min: 0, max: 100 },
 } as const;
 
-export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0, textures: [] };
+export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0, textures: [], ground: 'koh' };
 export const DEFAULT_THEME: ThemeState = { current: DEFAULT_TUNE, slots: Array.from({ length: THEME_SLOTS }, () => null) };
 
 function num(v: unknown, key: keyof typeof THEME_RANGE): number | undefined {
@@ -59,7 +68,9 @@ export function parseTune(raw: unknown): ThemeTune | undefined {
   // Kept before textures could be picked: the grain was the only one.
   const picked = r['textures'];
   const textures: TextureId[] = Array.isArray(picked) ? TEXTURES.filter((id) => picked.includes(id)) : grain > 0 ? ['grain'] : [];
-  return { hue, saturation, brightness, grain, textures };
+  // Kept before the editor's background could be picked: Koh-Vibe's.
+  const ground: Ground = r['ground'] === 'ide' ? 'ide' : 'koh';
+  return { hue, saturation, brightness, grain, textures, ground };
 }
 
 /** The whole state, or undefined when it cannot be read — never half of it. */
@@ -75,7 +86,23 @@ export function parseTheme(raw: unknown): ThemeState | undefined {
 }
 
 export function sameTune(a: ThemeTune, b: ThemeTune): boolean {
-  return a.hue === b.hue && a.saturation === b.saturation && a.brightness === b.brightness && a.grain === b.grain && a.textures.join() === b.textures.join();
+  return (
+    a.hue === b.hue &&
+    a.saturation === b.saturation &&
+    a.brightness === b.brightness &&
+    a.grain === b.grain &&
+    a.textures.join() === b.textures.join() &&
+    a.ground === b.ground
+  );
+}
+
+/** The background tokens the tuning colours — nothing that sits on them (15/11). */
+export const GROUND_TOKENS = ['bg', 'surface', 'raised', 'line'] as const;
+export type GroundToken = (typeof GROUND_TOKENS)[number];
+
+/** Koh-Vibe's background under a tuning, token by token. */
+export function groundColours(t: ThemeTune): Record<GroundToken, string> {
+  return { bg: tuneHex(KV_PALETTE.bg, t), surface: tuneHex(KV_PALETTE.surface, t), raised: tuneHex(KV_PALETTE.raised, t), line: tuneHex(KV_PALETTE.line, t) };
 }
 
 /** The CSS filter for a tuning; none when it changes nothing. */
