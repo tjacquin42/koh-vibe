@@ -439,7 +439,7 @@ function SessionInfo({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
       ))}
       <div className="info-acts">
         <button type="button" className="btn-ghost" onClick={() => ctx.bridge.post({ type: 'openCockpit', sessionId: s.id })}>
-          <Icon name="panel" /> {t('row.sheet')}
+          <Icon name="sheet" /> {t('row.sheet')}
         </button>
         <button type="button" className="btn-ghost" onClick={() => void ctx.act({ kind: 'session.copyId', id: s.id })}>
           <Icon name="copy" /> {t('row.copyId')}

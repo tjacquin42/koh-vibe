@@ -245,8 +245,9 @@ function Board({ ctx, cols }: { ctx: ViewCtx; cols: BoardColumns }) {
 
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
+  // A click goes to the conversation; its sheet is the card's own button (15/11).
   return (
-    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)} data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}>
+    <OpenCard ctx={ctx} id={s.id} className={`bcard tone-${toneOf(s)}`} context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}>
       <span className="l1">
         <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
@@ -254,7 +255,44 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
         <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
       </span>
       <span className="l2">{sessionDetail(s)}</span>
-    </button>
+    </OpenCard>
+  );
+}
+
+/**
+ * A conversation's card (15/11): a click, or Enter, goes to the conversation
+ * and the card loads until its tab is in front; the sheet — the conversation's
+ * details — is the card's own button, the index card, shown under the pointer.
+ */
+function OpenCard({ ctx, id, className, context, children }: { ctx: ViewCtx; id: string; className: string; context: string; children: ReactNode }) {
+  const opening = ctx.reopening.has(id);
+  return (
+    <div
+      className={`${className} open-card${opening ? ' opening' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-busy={opening}
+      data-vscode-context={context}
+      onClick={() => ctx.open(id)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        ctx.open(id);
+      }}
+    >
+      {children}
+      <button
+        type="button"
+        className="tbtn sheet-btn"
+        aria-label={ctx.t('row.sheet')}
+        onClick={(e) => {
+          e.stopPropagation();
+          ctx.show(id);
+        }}
+      >
+        <Icon name="sheet" />
+      </button>
+    </div>
   );
 }
 
@@ -395,12 +433,12 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
       {a.sessions.map((s) => {
         const listed = a.listed.get(s.id);
         return (
-          <button
+          <OpenCard
             key={s.id}
-            type="button"
+            ctx={ctx}
+            id={s.id}
             className="tile"
-            onClick={() => ctx.show(s.id)}
-            data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: listed?.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}
+            context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: listed?.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}
           >
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
@@ -417,7 +455,7 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
                 <ItemLine key={k} ctx={ctx} i={i} withTime={false} />
               ))}
             </span>
-          </button>
+          </OpenCard>
         );
       })}
     </div>

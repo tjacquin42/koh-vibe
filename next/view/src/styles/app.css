@@ -105,7 +105,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 .srow { border-radius: 10px; }
 .srow-line { display: flex; align-items: flex-start; }
-.srow.open { background: var(--surface); outline: 1px solid var(--line); }
+.srow.open { background: var(--surface); }
 /* The conversation whose tab is in front (14/11): a bar of accent at its left edge, a tint. */
 .srow.active { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 /* The selected row's mark (15/11): a bar of its own, over the row's hover
@@ -131,7 +131,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .tbtn { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; }
 .tbtn:hover { background: var(--raised); color: var(--text); }
 .tbtn[aria-pressed="true"] { color: var(--accent); }
-.info { margin: 0 8px 8px 33px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 3px; font-size: 11.5px; }
+.info { margin: 0 8px 8px 33px; padding: 8px 10px; border-radius: 10px; display: grid; gap: 3px; font-size: 11.5px;
+  /* No frame (15/11): a ground fading out at its edges, as the row's buttons sit on theirs. */
+  background: color-mix(in srgb, var(--bg) 70%, transparent); box-shadow: 0 0 10px 4px color-mix(in srgb, var(--bg) 70%, transparent); }
 .info div { display: flex; gap: 10px; }
 .info dt { flex: none; width: 92px; color: var(--muted); }
 .info dd { margin: 0; min-width: 0; color: var(--soft); overflow-wrap: anywhere; }
@@ -285,6 +287,14 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .col-h .n { font-family: var(--font-body); font-weight: 400; color: var(--muted); }
 .bcard { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); text-align: left; color: inherit; }
 .bcard:hover { border-color: var(--raised); background: var(--raised); }
+/* A conversation's card (Cockpit.tsx OpenCard): the card goes to it; the
+   index card in its corner, shown under the pointer, opens its sheet. */
+.open-card { position: relative; cursor: pointer; }
+.open-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px; }
+.open-card .sheet-btn { position: absolute; top: 4px; right: 4px; opacity: 0; background: var(--raised); box-shadow: -8px 0 8px var(--raised); transition: opacity 0.12s; }
+.open-card:hover .sheet-btn, .open-card:focus-within .sheet-btn { opacity: 1; }
+.tile.open-card .sheet-btn { background: var(--surface); box-shadow: -8px 0 8px var(--surface); }
+.bcard.tone-wait .sheet-btn { background: var(--wait-bg); box-shadow: -8px 0 8px var(--wait-bg); }
 .bcard.tone-wait { border-color: var(--wait-line); background: var(--wait-bg); }
 .bcard.tone-ended { opacity: .55; }
 

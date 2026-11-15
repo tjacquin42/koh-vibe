@@ -64,6 +64,15 @@ const PATHS = {
   ),
   chev: <path d="M5 6.5l3 3 3-3" />,
   chevR: <path d="M6.5 5l3 3-3 3" />,
+  // A conversation's sheet (15/11): an index card — the one mark, everywhere,
+  // of what leads to a conversation's details rather than to the conversation.
+  sheet: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="1.8" />
+      <circle cx="5.4" cy="6.6" r="1.25" />
+      <path d="M3.9 10.3c.4-.9 1-1.3 1.5-1.3s1.1.4 1.5 1.3M8.6 6h3.4M8.6 8.2h3.4M8.6 10.4h2.2" />
+    </>
+  ),
   // Unfold all, fold all (15/11): two chevrons parting, two closing in.
   unfoldAll: <path d="M5 6l3-3 3 3M5 10l3 3 3-3" />,
   foldAll: <path d="M5 3l3 3 3-3M5 13l3-3 3 3" />,
