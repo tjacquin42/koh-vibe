@@ -61,6 +61,20 @@ export interface Line {
   w: UsageWindowView;
 }
 
+/** How long each limit runs before it resets: five hours, else a week. */
+export const FIVE_HOURS_MS = 5 * 3_600_000;
+export const WEEK_MS = 7 * 24 * 3_600_000;
+
+/**
+ * Where the use should be at most by now, for a limit to last until it
+ * resets (15/11): the share of its window already gone. Reset in 2.5 hours
+ * on a 5-hour limit → 50 %. `undefined` without a reset to go by.
+ */
+export function pacePercent(resetsAt: number | undefined, span: number, now: number): number | undefined {
+  if (resetsAt === undefined || resetsAt <= now) return undefined;
+  return Math.min(100, Math.max(0, (1 - (resetsAt - now) / span) * 100));
+}
+
 export function usageLines(u: UsageView, t: Translate): Line[] {
   const lines: Line[] = [];
   if (u.fiveHour !== undefined) lines.push({ key: '5h', label: t('usage.fiveHour'), w: u.fiveHour });

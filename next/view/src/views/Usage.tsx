@@ -3,7 +3,7 @@ import type { SpendWindow, UsageWindowView } from '../../../src/shared/protocol'
 import { formatAge, formatWhen, toneOf } from '../format';
 import { Dot } from '../ui/icons';
 import { SessionName } from '../ui/SessionName';
-import { usageLines } from '../sections';
+import { FIVE_HOURS_MS, pacePercent, usageLines, WEEK_MS } from '../sections';
 import type { ViewCtx } from './context';
 
 /** The full tab: every limit, with the exact moment it resets. */
@@ -19,7 +19,7 @@ export function UsageTab({ ctx }: { ctx: ViewCtx }) {
           <h2 className="sec sec-label">{t('usage.limits')}</h2>
           <div className="meters">
             {usageLines(u, t).map((l) => (
-              <Gauge key={l.key} ctx={ctx} label={l.label} w={l.w} exact />
+              <Gauge key={l.key} ctx={ctx} label={l.label} w={l.w} span={l.key === '5h' ? FIVE_HOURS_MS : WEEK_MS} exact />
             ))}
           </div>
           <p className="hint pad">
@@ -112,15 +112,15 @@ export function UsageStrip({ ctx }: { ctx: ViewCtx }) {
         <span className="muted">{t('usage.none')}</span>
       ) : (
         <>
-          {u.fiveHour !== undefined && <LineGauge ctx={ctx} label={t('usage.fiveHourShort')} w={u.fiveHour} />}
-          {u.weekly !== undefined && <LineGauge ctx={ctx} label={t('usage.weeklyShort')} w={u.weekly} />}
+          {u.fiveHour !== undefined && <LineGauge ctx={ctx} label={t('usage.fiveHourShort')} w={u.fiveHour} span={FIVE_HOURS_MS} />}
+          {u.weekly !== undefined && <LineGauge ctx={ctx} label={t('usage.weeklyShort')} w={u.weekly} span={WEEK_MS} />}
         </>
       )}
     </section>
   );
 }
 
-function LineGauge({ ctx, label, w }: { ctx: ViewCtx; label: string; w: UsageWindowView }) {
+function LineGauge({ ctx, label, w, span }: { ctx: ViewCtx; label: string; w: UsageWindowView; span: number }) {
   const { t, now } = ctx;
   const p = Math.max(0, Math.min(100, Math.round(w.percent)));
   const tone = p >= 85 ? 'wait' : 'run';
@@ -130,6 +130,7 @@ function LineGauge({ ctx, label, w }: { ctx: ViewCtx; label: string; w: UsageWin
       <span className="lg-l">{label}</span>
       <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={label}>
         <span className={`fill tone-${tone}`} style={{ width: `${p}%` }} />
+        <Pace ctx={ctx} w={w} span={span} />
       </div>
       <span className="mono lg-p">{p} %</span>
       <span className="lg-r">{resets !== undefined ? formatAge(resets - now, t) : ''}</span>
@@ -137,7 +138,7 @@ function LineGauge({ ctx, label, w }: { ctx: ViewCtx; label: string; w: UsageWin
   );
 }
 
-function Gauge({ ctx, label, w, exact = false }: { ctx: ViewCtx; label: string; w: UsageWindowView; exact?: boolean }) {
+function Gauge({ ctx, label, w, span, exact = false }: { ctx: ViewCtx; label: string; w: UsageWindowView; span: number; exact?: boolean }) {
   const { t, now, language } = ctx;
   const p = Math.max(0, Math.min(100, Math.round(w.percent)));
   const tone = p >= 85 ? 'wait' : 'run';
@@ -150,6 +151,7 @@ function Gauge({ ctx, label, w, exact = false }: { ctx: ViewCtx; label: string; 
       </div>
       <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p} aria-label={label}>
         <span className={`fill tone-${tone}`} style={{ width: `${p}%` }} />
+        <Pace ctx={ctx} w={w} span={span} />
       </div>
       {resets !== undefined && (
         <span className="g-l2">
@@ -160,4 +162,15 @@ function Gauge({ ctx, label, w, exact = false }: { ctx: ViewCtx; label: string; 
       )}
     </div>
   );
+}
+
+/**
+ * The pace mark (15/11): a small upright line where the use should be at most
+ * by now, for the limit to last until it resets. The view's clock ticks every
+ * 30 seconds; the mark glides there over those 30 seconds, never jumps.
+ */
+function Pace({ ctx, w, span }: { ctx: ViewCtx; w: UsageWindowView; span: number }) {
+  const at = pacePercent(w.resetsAt, span, ctx.now);
+  if (at === undefined) return null;
+  return <span className="pace" style={{ left: `${at}%` }} title={ctx.t('usage.pace', { p: Math.round(at) })} />;
 }

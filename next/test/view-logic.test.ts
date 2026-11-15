@@ -6,7 +6,7 @@ import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { atLaunch, DEFAULT_UI, parseUiState, setFolds, setSize, toggleFold } from '../view/src/ui-state';
-import { activeSessionId } from '../view/src/sections';
+import { activeSessionId, FIVE_HOURS_MS, pacePercent, WEEK_MS } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
@@ -293,3 +293,15 @@ describe('the conversation in front', () => {
   });
 });
 
+describe('the pace mark (15/11)', () => {
+  it('stands where the use should be at most by now: the share of the window gone', () => {
+    const now = 1_000_000_000;
+    // A 5-hour limit reset in 2.5 hours: half way.
+    expect(pacePercent(now + 2.5 * 3_600_000, FIVE_HOURS_MS, now)).toBe(50);
+    // A week reset in a day: six sevenths gone.
+    expect(Math.round(pacePercent(now + 24 * 3_600_000, WEEK_MS, now) ?? 0)).toBe(86);
+    expect(pacePercent(now + 10 * 3_600_000, FIVE_HOURS_MS, now)).toBe(0);
+    expect(pacePercent(undefined, FIVE_HOURS_MS, now)).toBeUndefined();
+    expect(pacePercent(now - 1, FIVE_HOURS_MS, now)).toBeUndefined();
+  });
+});
