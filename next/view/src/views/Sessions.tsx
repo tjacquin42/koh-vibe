@@ -57,7 +57,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   return (
     <div ref={root} className="flip-root">
       {snapshot.hooksInstalled === false && <HooksMissing ctx={ctx} />}
-      <Inbox ctx={ctx} compact />
+      <Inbox ctx={ctx} />
       {snapshot.folders.map((f) => (
         <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
       ))}

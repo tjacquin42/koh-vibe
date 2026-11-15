@@ -18,7 +18,7 @@ import { bandNodes, brandParts, type BrandPart } from './ui/brand';
 import { TipLayer } from './ui/Tip';
 import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
-import { atLaunch, dismiss, parseUiState, setFolds, setSize, toggleFold, type UiState } from './ui-state';
+import { atLaunch, dismiss, parseUiState, setFolds, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
@@ -277,7 +277,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, view } }));
           }}
         />
-        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} sizes={ui.sizes} onSize={(key, px) => updateUi((prev) => setSize(prev, key, px))} />
+        <CockpitBody ctx={ctx} ui={ui.cockpit} setUi={(next) => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }))} sheet={sheet} onSheet={setSheet} />
       </div>
     );
   }

@@ -9,26 +9,19 @@ import { FOLDER_COLORS } from '../ui/colors';
 import { SessionSheet } from './Sheet';
 import { menuContext } from '../ui/menu-context';
 import { SessionName } from '../ui/SessionName';
-import { Splitter } from '../ui/Splitter';
 import { useFlip } from '../ui/flip';
 import { useReorder } from '../ui/reorder';
 import { useIconsOnly } from '../ui/fit';
 import { EdgeScroll } from '../ui/EdgeScroll';
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { UsageTab } from '../views/Usage';
 
 type Cockpit = UiState['cockpit'];
 
-/** Each remembered separator size, and the CSS variable that applies it (app.css). */
-const SIZE_VARS = new Map<string, string>([
-  ['ck.side.w', '--side-w'],
-  ['ck.side.h', '--side-h'],
-]);
-
 /**
  * W2: the cockpit in an editor tab (14/11): the folders, the counters and the
- * views across the top (CockpitTop, CockpitTabs), then the chosen view, and
- * what waits for you on the right — under it on a narrow screen.
+ * views across the top (CockpitTop, CockpitTabs), then the chosen view,
+ * across the whole width.
  */
 export function CockpitBody({
   ctx,
@@ -36,59 +29,21 @@ export function CockpitBody({
   setUi,
   sheet,
   onSheet,
-  sizes,
-  onSize,
 }: {
   ctx: ViewCtx;
   ui: Cockpit;
   setUi(next: Partial<Cockpit>): void;
-  /** The conversation whose sheet takes the middle column, if any. */
+  /** The conversation whose sheet takes the cockpit, if any. */
   sheet: string | undefined;
   onSheet(id: string | undefined): void;
-  /** Separator sizes the user dragged (ui-state.ts `sizes`), and where to remember a new one. */
-  sizes: Readonly<Record<string, number>>;
-  onSize(key: string, px: number | undefined): void;
 }) {
-  const { t } = ctx;
-  const box = useRef<HTMLDivElement>(null);
-  const side = useRef<HTMLElement>(null);
-  // Which handles show depends on the width (app.css): side by side they size
-  // widths, stacked they size heights — each remembered on its own.
-  const vars: Record<string, string> = {};
-  for (const [key, cssVar] of SIZE_VARS) {
-    const px = sizes[key];
-    if (px !== undefined) vars[cssVar] = `${px}px`;
-  }
-  const split = (key: string, axis: 'x' | 'y', target: typeof side, invert: boolean) => (
-    <Splitter
-      axis={axis}
-      target={target}
-      container={box}
-      cssVar={SIZE_VARS.get(key) ?? ''}
-      invert={invert}
-      min={axis === 'x' ? 150 : 80}
-      max={axis === 'x' ? 640 : 900}
-      label={t('cockpit.resize')}
-      className={`sp-${key.replace('ck.', '').replace('.', '-')}`}
-      onCommit={(px) => onSize(key, px)}
-    />
-  );
+  // The whole width for the view (15/11): the side panel of what waits for
+  // you is gone — the sidebar's « For you » already says it.
   return (
-    <div className="cockpit" ref={box} style={vars as CSSProperties}>
+    <div className="cockpit">
       <main className="ck-main">
-        {sheet !== undefined ? (
-          <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
-        ) : (
-          <>
-            <ViewBody ctx={ctx} ui={ui} setUi={setUi} />
-          </>
-        )}
+        {sheet !== undefined ? <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} /> : <ViewBody ctx={ctx} ui={ui} setUi={setUi} />}
       </main>
-      {split('ck.side.w', 'x', side, true)}
-      {split('ck.side.h', 'y', side, true)}
-      <aside className="ck-side" ref={side}>
-        <Inbox ctx={ctx} />
-      </aside>
     </div>
   );
 }
@@ -311,18 +266,17 @@ function goTo(ctx: ViewCtx, s: SessionView): void {
   ctx.open(s.id);
 }
 
-export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolean }) {
+export function Inbox({ ctx }: { ctx: ViewCtx }) {
   const { t, now } = ctx;
   const all = inbox(ctx.snapshot);
   // A card closed with its × stays closed until the conversation moves again.
   const box = { ...all, waiting: all.waiting.filter((s) => !ctx.isDismissed(s.id, s.lastEventAt)) };
-  if (compact && box.waiting.length === 0) return null;
+  if (box.waiting.length === 0) return null;
   return (
     <section className="inbox" aria-label={t('inbox.title')}>
       <h2 className="sec">
         {t('inbox.title')} <span className="n">{box.waiting.length}</span>
       </h2>
-      {box.waiting.length === 0 && <p className="hint">{t('inbox.none')}</p>}
       {box.waiting.map((s) => (
         // The whole card goes to the conversation (15/11); the × only closes it.
         <div
@@ -366,23 +320,6 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
           )}
         </div>
       ))}
-      {!compact && box.waiting.length > 0 && <p className="hint">{t('inbox.never')}</p>}
-      {!compact && box.toRead.length > 0 && (
-        <>
-          <h2 className="sec">
-            {t('inbox.toRead')} <span className="n">{box.toRead.length}</span>
-          </h2>
-          {box.toRead.map((s) => (
-            <button key={s.id} type="button" className={`row row-btn${ctx.reopening.has(s.id) ? ' opening' : ''}`} aria-busy={ctx.reopening.has(s.id)} onClick={() => ctx.open(s.id)}>
-              <Dot tone="done" animate={false} />
-              <span className="ttl conv-ttl">
-          <SessionName s={s} t={t} animate={ctx.animate} />
-        </span>
-              <span className="tm">{formatAge(now - s.lastEventAt, t)}</span>
-            </button>
-          ))}
-        </>
-      )}
     </section>
   );
 }
