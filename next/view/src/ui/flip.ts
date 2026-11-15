@@ -21,6 +21,16 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * headings still on screen — the folder's when folding it took the group's
  * heading away with it.
  *
+ * A heading can also name the rows it holds out of sight
+ * (`data-flip-holds`, space separated): the closed ones, folded or not. A row
+ * that leaves for it goes down into it, wherever it stood — not up into the
+ * folder it left (15/11) — and one that comes back from it comes out of it.
+ *
+ * A row already on its way when the order changes again — a click re-sorts by
+ * state, then the tab opening re-sorts once more — sets off from where it is
+ * on screen, never from where its slide was going: measured through its
+ * running slide, it would jump.
+ *
  * Off with the Animations setting, and with the system's reduced motion.
  * Rows out of sight are not animated; a burst of unrelated arrivals or
  * departures (a tab opened) just appears or vanishes.
@@ -30,8 +40,12 @@ const MOVE_MS = 320;
 const FOLD_MS = 240;
 
 interface Spot {
+  /** Where the layout puts it, its running slide taken out. */
   top: number;
   left: number;
+  /** Where its running slide shows it, from there. */
+  dx: number;
+  dy: number;
   width: number;
   height: number;
   el: HTMLElement;
@@ -42,6 +56,25 @@ interface Spot {
 interface Anchor {
   top: number;
   folded: boolean;
+  /** The rows it holds out of sight (`data-flip-holds`). */
+  holds: ReadonlySet<string>;
+}
+
+/** The slide each row is running, to read where it is and to replace it. */
+const slides = new WeakMap<HTMLElement, Animation>();
+
+/** How far a row's running slide shows it from its place. */
+function slideOffset(node: HTMLElement): { x: number; y: number } {
+  const slide = slides.get(node);
+  if (slide === undefined || slide.playState !== 'running') return { x: 0, y: 0 };
+  const t = getComputedStyle(node).transform;
+  if (t === '' || t === 'none' || typeof DOMMatrixReadOnly !== 'function') return { x: 0, y: 0 };
+  try {
+    const m = new DOMMatrixReadOnly(t);
+    return { x: m.m41, y: m.m42 };
+  } catch {
+    return { x: 0, y: 0 };
+  }
 }
 
 export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): void {
@@ -57,14 +90,16 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       const id = node.dataset['flip'];
       if (id === undefined) continue;
       const r = node.getBoundingClientRect();
+      const off = slideOffset(node);
       const parents = (node.dataset['flipParent'] ?? '').split(' ').filter((p) => p.length > 0);
-      rows.set(id, { top: topOf(r), left: r.left - base.left, width: r.width, height: r.height, el: node, parents });
+      rows.set(id, { top: topOf(r) - off.y, left: r.left - base.left - off.x, dx: off.x, dy: off.y, width: r.width, height: r.height, el: node, parents });
     }
     const anchors = new Map<string, Anchor>();
     for (const node of el.querySelectorAll<HTMLElement>('[data-flip-anchor]')) {
       const key = node.dataset['flipAnchor'];
       if (key === undefined) continue;
-      anchors.set(key, { top: topOf(node.getBoundingClientRect()), folded: node.dataset['flipFolded'] === 'true' });
+      const holds = new Set((node.dataset['flipHolds'] ?? '').split(' ').filter((h) => h.length > 0));
+      anchors.set(key, { top: topOf(node.getBoundingClientRect()), folded: node.dataset['flipFolded'] === 'true', holds });
     }
     const before = prev.current;
     prev.current = { rows, anchors };
@@ -103,10 +138,14 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     for (const [id, spot] of rows) {
       const was = before.rows.get(id);
       if (was === undefined) continue;
-      const dx = was.left - spot.left;
-      const dy = was.top - spot.top;
+      // Its place did not change: a slide under way goes on undisturbed.
+      if (Math.abs(was.left - spot.left) < 1 && Math.abs(was.top - spot.top) < 1) continue;
+      // From where it shows now: its old place, plus how far its slide had it.
+      const dx = was.left + spot.dx - spot.left;
+      const dy = was.top + spot.dy - spot.top;
+      slides.get(spot.el)?.cancel();
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
-      spot.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: MOVE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      slides.set(spot.el, spot.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: MOVE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' }));
     }
 
     // One motion for every coming and going (14/11): a row leaves by going up
@@ -115,10 +154,12 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
     // left (a folder deleted) folds where it stands.
     const arrived = [...rows].filter(([id]) => !before.rows.has(id));
     const loose = arrived.filter(([, s]) => !justOpened(s.parents));
-    for (const [, spot] of arrived) {
+    for (const [id, spot] of arrived) {
       if (!inSight(spot.top)) continue;
       if (!justOpened(spot.parents) && loose.length > BURST) continue;
-      const from = headingOf(spot.parents);
+      // Back from a heading that held it out of sight: out of that one.
+      const held = [...before.anchors].find(([, a]) => a.holds.has(id))?.[0];
+      const from = (held === undefined ? undefined : anchors.get(held)) ?? headingOf(spot.parents);
       const start = from === undefined ? 'scaleY(0.4)' : `translateY(${from.top - spot.top}px) scaleY(0.6)`;
       spot.el.animate([{ opacity: 0, transform: start, transformOrigin: 'top center' }, { opacity: 1, transform: 'none', transformOrigin: 'top center' }], {
         duration: FOLD_MS,
@@ -128,10 +169,13 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
 
     const gone = [...before.rows].filter(([id]) => !rows.has(id));
     const leaving = gone.filter(([, s]) => !justFolded(s.parents));
-    for (const [, was] of gone) {
+    for (const [id, was] of gone) {
       if (!inSight(was.top)) continue;
       if (!justFolded(was.parents) && leaving.length > BURST) continue;
-      const into = headingOf(was.parents);
+      // Gone into a heading that now holds it out of sight (the closed ones),
+      // unless it is its own section folding that took it.
+      const sink = justFolded(was.parents) ? undefined : [...anchors.values()].find((a) => a.holds.has(id));
+      const into = sink ?? headingOf(was.parents);
       // The old node is detached by now; a copy of it stands where it was, then goes.
       const ghost = was.el.cloneNode(true) as HTMLElement;
       ghost.removeAttribute('data-flip');

@@ -69,7 +69,9 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
         marker={<Icon name="archive" size={13} />}
         folded={ctx.isFolded('closed')}
         onToggle={() => ctx.toggle('closed')}
-        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('closed')) }}
+        // It holds every closed one, folded or not: a conversation leaving for it
+        // goes down into it, not up into the folder it left (15/11).
+        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('closed')), 'data-flip-holds': closed.map((c) => c.sessionId).join(' ') }}
       >
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
