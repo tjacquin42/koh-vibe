@@ -55,7 +55,8 @@ export const DEFAULT_UI: UiState = {
   sizes: {},
   showUsage: true,
   dismissed: {},
-  sort: 'manual',
+  // By state by default (15/11): what waits for you first.
+  sort: 'status',
   tabOrder: [...SIDEBAR_TABS],
   viewOrder: [...COCKPIT_VIEWS],
 };
