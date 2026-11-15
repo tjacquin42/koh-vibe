@@ -192,6 +192,8 @@ function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byI
               data-flip-parent={f.id}
               data-flip-anchor={endedKey}
               data-flip-folded={String(endedFolded)}
+              // It holds the sleeping ones, folded or not: one put to sleep goes down into it, not up into the folder (15/11).
+              data-flip-holds={ended.map((x) => x.id).join(' ')}
               aria-expanded={!endedFolded} aria-label={t('folder.ended', { n: ended.length })} onClick={() => ctx.toggle(endedKey)}>
               <Icon name={endedFolded ? 'chevR' : 'chev'} />
               <Dot tone="ended" animate={false} size={13} />
