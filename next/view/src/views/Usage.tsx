@@ -67,11 +67,18 @@ function Hungriest({ ctx }: { ctx: ViewCtx }) {
             const closed = snapshot.closed.find((c) => c.sessionId === e.sessionId);
             const p = Math.round(e.share * 100);
             const go = (): void => {
-              if (s !== undefined) ctx.show(e.sessionId);
+              if (s !== undefined) ctx.open(e.sessionId);
               else if (closed?.resumable === true) ctx.reopen(e.sessionId);
             };
             return (
-              <button key={e.sessionId} type="button" className="spend-row" onClick={go} disabled={s === undefined && closed?.resumable !== true}>
+              <button
+                key={e.sessionId}
+                type="button"
+                className={`spend-row${ctx.reopening.has(e.sessionId) ? ' opening' : ''}`}
+                aria-busy={ctx.reopening.has(e.sessionId)}
+                onClick={go}
+                disabled={s === undefined && closed?.resumable !== true}
+              >
                 <span className="spend-name">
                   {s !== undefined ? <Dot tone={toneOf(s)} animate={ctx.animate} size={9} /> : <Dot tone="ended" animate={false} size={9} />}
                   <span className="ttl">{s !== undefined ? <SessionName s={s} t={t} animate={false} /> : (closed?.title ?? e.title ?? e.sessionId.slice(0, 8))}</span>

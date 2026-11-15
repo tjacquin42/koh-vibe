@@ -45,7 +45,7 @@ export function SessionSheet({ ctx, id, onClose }: { ctx: ViewCtx; id: string; o
           </div>
           <p className="muted mono">{s !== undefined ? `${s.project}${s.branch !== undefined ? ` · ${s.branch}` : ''}` : row?.project}</p>
         </div>
-        <button type="button" className="btn-go sheet-go" title={t('sheet.goTo')} onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: id })}>
+        <button type="button" className={`btn-go sheet-go${ctx.reopening.has(id) ? ' opening' : ''}`} aria-busy={ctx.reopening.has(id)} title={t('sheet.goTo')} onClick={() => ctx.open(id)}>
           <Icon name="external" /> {t('sheet.goTo')}
         </button>
       </div>

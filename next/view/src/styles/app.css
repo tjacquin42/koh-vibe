@@ -191,6 +191,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .meters { display: flex; flex-direction: column; gap: 12px; padding: 4px 10px; }
 /* The hungriest conversations (views/Usage.tsx): a name and a share, a bar under it. */
 .spend { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 10px; }
+/* The window picker as wide as its buttons, not the column (15/11). */
+.spend .seg { align-self: flex-start; }
 .spend-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--soft); text-align: left; font: inherit; min-width: 0; }
 .spend-row:not(:disabled):hover { background: var(--surface); color: var(--text); }
 .spend-row:disabled { cursor: default; }
@@ -571,8 +573,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 .spinner { flex: none; width: 14px; height: 14px; margin: 1px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: spin 0.7s linear infinite; }
 
-.srow.busy .srow-main, .arow.busy .row, .card.busy, .proc.busy, .group.busy > .sec { position: relative; overflow: hidden; }
-.srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after {
+/* `.opening`: any button that opens a conversation, while its tab comes forward (15/11). */
+.srow.busy .srow-main, .arow.busy .row, .card.busy, .proc.busy, .group.busy > .sec, .opening { position: relative; overflow: hidden; }
+.srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after, .opening::after {
   content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; border-radius: 1px;
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
   animation: busy-sweep 1s ease-in-out infinite;
@@ -584,7 +587,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   .tbtn:active, .ibtn:active, .btn-ghost:active, .btn-go:active, .btn-danger:active, .fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .ended-head:active { transform: none; }
   .spinner, .ibtn.busy .icon { animation: none; }
   /* Still a mark, just a still one. */
-  .srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after { animation: none; width: 100%; opacity: 0.6; }
+  .srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after, .opening::after { animation: none; width: 100%; opacity: 0.6; }
 }
 
 /* « New »: a conversation with nothing written yet (14/11). Italic, rainbow;

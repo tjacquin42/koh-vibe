@@ -260,10 +260,9 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
 
 /* ---------- C. For you ---------- */
 
-/** To the conversation, from the sidebar or the cockpit alike; its row spins until it is in front. */
+/** To the conversation, from the sidebar or the cockpit alike; the card loads until it is in front. */
 function goTo(ctx: ViewCtx, s: SessionView): void {
-  ctx.awaitOpen(s.id, s.origin === 'vscode' ? 'front' : 'open');
-  ctx.bridge.post({ type: 'openSession', sessionId: s.id });
+  ctx.open(s.id);
 }
 
 export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolean }) {
@@ -282,7 +281,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
         // The whole card goes to the conversation (15/11); the × only closes it.
         <div
           key={s.id}
-          className="ask ask-go"
+          className={`ask ask-go${ctx.reopening.has(s.id) ? ' opening' : ''}`}
           role="button"
           tabIndex={0}
           onClick={() => goTo(ctx, s)}
@@ -328,7 +327,7 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
             {t('inbox.toRead')} <span className="n">{box.toRead.length}</span>
           </h2>
           {box.toRead.map((s) => (
-            <button key={s.id} type="button" className="row row-btn" onClick={() => ctx.bridge.post({ type: 'openSession', sessionId: s.id })}>
+            <button key={s.id} type="button" className={`row row-btn${ctx.reopening.has(s.id) ? ' opening' : ''}`} aria-busy={ctx.reopening.has(s.id)} onClick={() => ctx.open(s.id)}>
               <Dot tone="done" animate={false} />
               <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />

@@ -151,6 +151,16 @@ export function App({ bridge }: { bridge: Bridge }) {
     );
   }, []);
 
+  // Every button that opens a conversation: it loads until the tab is in front (15/11).
+  const openConversation = useCallback(
+    (id: string) => {
+      const origin = state?.snapshot.sessions.find((s) => s.id === id)?.origin;
+      awaitOpen(id, origin === 'vscode' ? 'front' : 'open');
+      bridge.post({ type: 'openSession', sessionId: id });
+    },
+    [awaitOpen, bridge, state?.snapshot],
+  );
+
   const reopen = useCallback(
     (sessionId: string) => {
       awaitOpen(sessionId);
@@ -242,13 +252,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     languageChoice: context.languageChoice,
     dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
-    show: (id) => {
-      if (context.surface === 'cockpit') return setSheet(id);
-      // The row of that conversation spins until its tab is in front, as after a click on it.
-      const origin = snapshot.sessions.find((s) => s.id === id)?.origin;
-      awaitOpen(id, origin === 'vscode' ? 'front' : 'open');
-      bridge.post({ type: 'openSession', sessionId: id });
-    },
+    show: (id) => (context.surface === 'cockpit' ? setSheet(id) : openConversation(id)),
+    open: (id) => openConversation(id),
   };
   if (context.surface === 'cockpit') {
     return (

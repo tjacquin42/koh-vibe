@@ -382,8 +382,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
             // the conversation open, and its tab in front when it lives in the
             // editor. Never less than a beat, even when it is in front already.
             void ctx.track(s.id, Promise.resolve(), 600);
-            ctx.awaitOpen(s.id, s.origin === 'vscode' ? 'front' : 'open');
-            ctx.bridge.post({ type: 'openSession', sessionId: s.id });
+            ctx.open(s.id);
           }}
         >
           {busy ? <span className="spinner" aria-hidden="true" /> : <Dot tone={tone} animate={ctx.animate} label={t(statusKey)} />}

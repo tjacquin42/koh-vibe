@@ -33,6 +33,12 @@ export interface ViewCtx {
    * sheet; in the sidebar, its tab.
    */
   show(sessionId: string): void;
+  /**
+   * Goes to a conversation, from anywhere (15/11): V1 brings its tab
+   * forward, and whatever was clicked shows it loading until it is in front
+   * (`reopening`) — any button that opens a conversation goes through here.
+   */
+  open(sessionId: string): void;
   /** The conversation whose tab is in front, when it can be told (sections.ts `activeSessionId`). */
   activeId: string | undefined;
   /** Whether the row keyed `key` has an action under way (busy.ts). */
