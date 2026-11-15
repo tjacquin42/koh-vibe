@@ -21,6 +21,18 @@ describe('buildSnapshot', () => {
     expect(await fingerprint(home)).toBe(before);
   });
 
+  it('keeps open a conversation the editor restored as a tab, though a reload marked it ended (15/11)', async () => {
+    // e has ended on disk; its tab came back with the window.
+    const plain = await buildSnapshot(home, NOW);
+    expect(plain.sessions.find((s) => s.id === 'e')?.endedAt).toBeDefined();
+    const restored = await buildSnapshot(home, NOW, { restored: new Set(['e', 'not-a-session']) });
+    const e = restored.sessions.find((s) => s.id === 'e');
+    expect(e?.endedAt).toBeUndefined();
+    expect(e?.status).toBe('idle');
+    // A tab with no session behind it adds no row.
+    expect(restored.sessions.map((s) => s.id).sort()).toEqual(['a', 'b', 'c', 'e']);
+  });
+
   it('lists visible sessions only, skipping hidden and unreadable files', async () => {
     const snap = await buildSnapshot(home, NOW);
     expect(snap.sessions.map((s) => s.id).sort()).toEqual(['a', 'b', 'c', 'e']);

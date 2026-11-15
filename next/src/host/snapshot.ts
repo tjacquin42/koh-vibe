@@ -21,6 +21,7 @@ import { readGroups } from '../../../src/groups/store';
 import { groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
 import { artifactProjectsFile, artifactsFile, closedFile, groupsFile, routinesFile, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
+import { shownSession } from '../../../src/claude/dormant';
 import { visibleSessions } from '../../../src/store/visible';
 import { readUsage, type UsageReading } from '../../../src/usage/reader';
 import type { UsageWindow } from '../../../src/usage/model';
@@ -221,6 +222,13 @@ export interface SnapshotExtras {
   titleLines?: 1 | 2;
   activeTab?: Snapshot['activeTab'];
   hooksInstalled?: boolean;
+  /**
+   * The conversations whose tab the editor restored in this window (15/11):
+   * a reload stops every process, so the hooks mark them all ended, while
+   * their tabs are still there. They show open, as V1 shows them
+   * (claude/dormant.ts `shownSession`), not greyed.
+   */
+  restored?: ReadonlySet<string>;
 }
 
 /**
@@ -251,6 +259,13 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   ]);
   // Read only: V1's own reader, which opens each transcript and writes nothing.
   if (extras.transcripts !== undefined) await namesFrom(all, extras.transcripts);
+  for (const id of extras.restored ?? []) {
+    const onDisk = all.get(id);
+    // Only a conversation known on disk: a tab with nothing behind it adds no row.
+    if (onDisk === undefined) continue;
+    const shown = shownSession(onDisk, { ...onDisk, dormant: true });
+    if (shown !== undefined) all.set(id, shown);
+  }
   const shown = [...visibleSessions(all).values()];
   const visible = shown.map(toSessionView).sort(compareSessions);
   const { folders, unfiled } = foldersOf(groups, visible);

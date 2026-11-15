@@ -320,6 +320,7 @@ export function activate(context: vscode.ExtensionContext): void {
         tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
         titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
         ...(await activeTabExtra()),
+        restored: await activeTab.restored(Date.now()),
         hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),

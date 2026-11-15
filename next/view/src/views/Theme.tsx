@@ -58,18 +58,6 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
   const ide = draft.ground === 'ide';
   return (
     <>
-      <div className="set-row set-choice">
-        <div className="set-l">
-          <b>{t('theme.ground')}</b>
-        </div>
-        <div className="ttex" role="group" aria-label={t('theme.ground')}>
-          {GROUNDS.map((ground) => (
-            <button key={ground} type="button" aria-pressed={draft.ground === ground} onClick={() => save({ ...theme, current: { ...live.current, ground } })}>
-              {t(`theme.ground.${ground}`)}
-            </button>
-          ))}
-        </div>
-      </div>
       <div className={`set-row set-choice${ide ? ' off' : ''}`} aria-disabled={ide}>
         <div className="set-l">
           <b>{t('theme.colour')}</b>
@@ -174,26 +162,17 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
           {t('theme.reset')}
         </button>
       </div>
+      {/* Where the editor's colours were (15/11): the background is what ties the two together now. */}
       <div className="set-row set-choice">
         <div className="set-l">
-          <b>{t('theme.ide')}</b>
+          <b>{t('theme.ground')}</b>
         </div>
-        <div className="rule-btns">
-          <button
-            type="button"
-            className={`btn-ghost${ctx.isBusy('ide-theme') ? ' busy' : ''}`}
-            onClick={() => void ctx.track('ide-theme', ctx.act({ kind: 'theme.ide', mode: 'adapt' }), 600)}
-          >
-            {t('theme.ide.adapt')}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={ctx.snapshot.ideThemed !== true}
-            onClick={() => void ctx.track('ide-theme', ctx.act({ kind: 'theme.ide', mode: 'restore' }), 600)}
-          >
-            {t('theme.ide.restore')}
-          </button>
+        <div className="ttex" role="group" aria-label={t('theme.ground')}>
+          {GROUNDS.map((ground) => (
+            <button key={ground} type="button" aria-pressed={draft.ground === ground} onClick={() => save({ ...theme, current: { ...live.current, ground } })}>
+              {t(`theme.ground.${ground}`)}
+            </button>
+          ))}
         </div>
       </div>
     </>
