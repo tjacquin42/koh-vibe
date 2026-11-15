@@ -71,6 +71,14 @@ export class FocusBroker {
      * without it, and its tests do without it too.
      */
     private readonly onOpened?: (sessionId: string) => void,
+    /**
+     * Whether a conversation has a transcript yet. Claude Code writes it on
+     * the first message, and lists nothing before: a fresh conversation is
+     * absent from every window's list, its own included, so the list cannot
+     * say which window holds it. Without the answer, every conversation is
+     * taken as written.
+     */
+    private readonly written: (s: Session) => Promise<boolean> = async () => true,
   ) {}
 
   private folders(): string[] {
@@ -98,7 +106,7 @@ export class FocusBroker {
    */
   private async postRequest(
     prefix: 'focus' | 'reopen' | 'close' | 'sleep',
-    s: { id: string; cwd: string; origin: unknown; label: string },
+    s: { id: string; cwd: string; origin: unknown; label: string; fresh?: boolean },
     onUnconsumed: () => void | Promise<void>,
   ): Promise<void> {
     const seq = (this.requestSeq += 1);
@@ -109,6 +117,7 @@ export class FocusBroker {
       cwd: s.cwd,
       label: s.label,
       origin: s.origin,
+      ...(s.fresh === true ? { fresh: true } : {}),
       at: Date.now(),
     });
     await writeFile(tmp, body, 'utf8');
@@ -132,13 +141,29 @@ export class FocusBroker {
 
   /** Asks for a session's focus, wherever it lives. */
   async request(s: Session): Promise<void> {
-    if (claims(this.folders(), s.cwd)) {
+    const claimed = claims(this.folders(), s.cwd);
+    // Claiming the folder is not enough to show the conversation: a window on
+    // the home folder claims every project under it, while its Claude Code
+    // lists only the conversations launched from the home folder itself — the
+    // reveal command would open a blank one there (15/11). A conversation no
+    // list holds yet, a fresh one, cannot be placed by the lists: the window
+    // that claims it keeps it, and the request says so to the others.
+    const editor = isEditorOrigin(s.origin);
+    const fresh = editor && !(await this.written(s));
+    if (claimed && (!editor || fresh || (await this.listed(s.id)))) {
       await this.focusSession(focusPlanFor(s), 'focus');
       return;
     }
-    // If nobody consumed it, no window holds this project: we open it.
-    await this.postRequest('focus', { ...s, label: sessionLabel(s) }, () => {
-      execFile('code', ['-r', s.cwd], () => undefined);
+    await this.postRequest('focus', { ...s, label: sessionLabel(s), fresh }, () => {
+      // If nobody consumed it and this window does not hold the project
+      // either, no window does: we open it. If this one does, a window is
+      // missing that could show the conversation — opening it here would only
+      // start a blank one, so we say so instead.
+      if (!claimed) execFile('code', ['-r', s.cwd], () => undefined);
+      else
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('Koh-Vibe: « {0} » is open in another window, which did not answer.', sessionLabel(s)),
+        );
     });
   }
 
@@ -359,11 +384,13 @@ export class FocusBroker {
         }
         const cwd = (parsed as { cwd?: unknown }).cwd;
         if (typeof cwd !== 'string' || !claims(folders, cwd)) continue;
-        await unlink(path);
         const rawLabel = (parsed as { label?: unknown }).label;
         const label = typeof rawLabel === 'string' && rawLabel.length > 0 ? rawLabel : 'session';
         const sessionId = (parsed as { sessionId?: unknown }).sessionId;
-        if (typeof sessionId !== 'string' || sessionId.length === 0) continue;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+          await unlink(path);
+          continue;
+        }
         // This window only has what the request carries, not the Session
         // object: the plan is rebuilt via `focusPlan`/`reopenPlan`, the same
         // rule as the local path, never a copy that could drift. `cwd` is
@@ -371,6 +398,7 @@ export class FocusBroker {
         // request would have been ignored before reaching here.
         const origin = (parsed as { origin?: unknown }).origin;
         if (name.startsWith('close-') || name.startsWith('sleep-')) {
+          await unlink(path);
           // Neither request should ever carry a non-editor origin: `closePlan`
           // turns those into a plain forget before any file is written.
           // Honouring one would close a tab in a window where the user asked
@@ -383,6 +411,13 @@ export class FocusBroker {
           continue;
         }
         const isReopen = name.startsWith('reopen-');
+        // A focus this window cannot show is left for the one that can — the
+        // window that wrote it, a window on the home folder, is one of them.
+        // Its fallback removes it when nobody takes it. A fresh conversation
+        // is in no list yet: the claim is all there is to go by.
+        const fresh = (parsed as { fresh?: unknown }).fresh === true;
+        if (!isReopen && isEditorOrigin(origin) && !fresh && !(await this.listed(sessionId))) continue;
+        await unlink(path);
         const plan = isReopen
           ? reopenPlan(origin, sessionId, cwd, label, await this.listed(sessionId))
           : focusPlan(sessionId, origin, label);

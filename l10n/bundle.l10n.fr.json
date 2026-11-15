@@ -268,5 +268,6 @@
   "Reload": "Recharger",
   "Koh-Vibe: the other interface shows once the window reloads.": "Koh-Vibe : l’autre interface s’affichera au rechargement de la fenêtre.",
   "Back to the classic interface": "Revenir à l’interface classique",
-  "Koh-Vibe 2: a new interface, the same sessions and folders. The classic one is still a setting away.": "Koh-Vibe 2 : une nouvelle interface, les mêmes conversations et les mêmes dossiers. La classique reste à un réglage près."
+  "Koh-Vibe 2: a new interface, the same sessions and folders. The classic one is still a setting away.": "Koh-Vibe 2 : une nouvelle interface, les mêmes conversations et les mêmes dossiers. La classique reste à un réglage près.",
+  "Koh-Vibe: « {0} » is open in another window, which did not answer.": "Koh-Vibe : « {0} » est ouverte dans une autre fenêtre, qui n’a pas répondu."
 }

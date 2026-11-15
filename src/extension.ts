@@ -1011,6 +1011,7 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
     },
     listed,
     (sessionId) => openedHere.opening(sessionId, Date.now()),
+    hasTranscript,
   );
 
   const watcher = new SpoolWatcher(
