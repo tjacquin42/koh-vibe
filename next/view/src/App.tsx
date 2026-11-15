@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import type { Action, ActionResult } from '../../src/shared/actions';
 import { type ReopenOutcome, type SidebarTab, type Snapshot, type ViewContext } from '../../src/shared/protocol';
 import type { Bridge } from './bridge';
@@ -14,7 +14,7 @@ import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
 import { useIconsOnly } from './ui/fit';
-import { bandNodes, brandParts, type BrandPart } from './ui/brand';
+import { brandName, type Brand } from './ui/brand';
 import { TipLayer } from './ui/Tip';
 import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
@@ -429,7 +429,7 @@ function Header({
  */
 function BrandName({ text, striped = false }: { text: string; striped?: boolean }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const parts: BrandPart[] = striped ? brandParts(text) : [{ kind: 'text', text }];
+  const word = useRef<HTMLSpanElement>(null);
   return (
     <button
       ref={ref}
@@ -439,33 +439,47 @@ function BrandName({ text, striped = false }: { text: string; striped?: boolean 
       onClick={() => {
         const el = ref.current;
         if (el === null || typeof el.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        // The same structure as the name — its text, and an empty box where
-        // the bar is — so the band's letters fall on the name's (ui/brand.ts).
+        // The same structure as the name, copied — its letters and boxes —
+        // so the band's letters fall on the name's (ui/brand.ts). The
+        // stylesheet switches the copy's own stripes and fixes off.
         const band = document.createElement('span');
         band.className = 'brand-band';
         band.setAttribute('aria-hidden', 'true');
-        for (const node of bandNodes(parts)) {
-          if ('text' in node) band.appendChild(document.createTextNode(node.text));
-          else {
-            const box = document.createElement('span');
-            box.className = node.className;
-            band.appendChild(box);
-          }
-        }
+        if (word.current !== null) band.appendChild(word.current.cloneNode(true));
+        else band.textContent = text;
         el.appendChild(band);
         const run = band.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
         run.onfinish = () => band.remove();
         run.oncancel = () => band.remove();
       }}
     >
-      {striped ? (
-        <span className="brand-name" aria-hidden="true">
-          {parts.map((p, i) => (p.kind === 'text' ? <Fragment key={i}>{p.text}</Fragment> : <span key={i} className="brand-dash" />))}
-        </span>
-      ) : (
-        text
-      )}
+      {striped ? <StripedName brand={brandName(text)} spanRef={word} /> : text}
     </button>
+  );
+}
+
+/**
+ * The striped name (ui/brand.ts): the body striped as one, the three letters
+ * with a fix of their own, and the final e striped apart.
+ */
+function StripedName({ brand, spanRef }: { brand: Brand; spanRef?: Ref<HTMLSpanElement> }) {
+  return (
+    <span ref={spanRef} className="brand-word" aria-hidden="true">
+      <span className="brand-name">
+        {brand.body.map((p, i) =>
+          p.kind === 'text' ? (
+            <Fragment key={i}>{p.text}</Fragment>
+          ) : p.kind === 'dash' ? (
+            <span key={i} className="brand-dash" />
+          ) : (
+            <span key={i} className={`brand-l brand-l-${p.fix}`}>
+              {p.text}
+            </span>
+          ),
+        )}
+      </span>
+      {brand.tail !== null && <span className="brand-e">{brand.tail}</span>}
+    </span>
   );
 }
 
@@ -476,15 +490,13 @@ function BrandName({ text, striped = false }: { text: string; striped?: boolean 
  * readers only.
  */
 function BootBrand({ label, name }: { label: string; name: string }) {
-  const parts = brandParts(name);
+  const brand = brandName(name);
   return (
     <div className="boot" role="status" aria-label={label}>
       <span className="brand brand-c2 boot-brand" aria-hidden="true">
-        <span className="brand-name">
-          {parts.map((p, i) => (p.kind === 'text' ? <Fragment key={i}>{p.text}</Fragment> : <span key={i} className="brand-dash" />))}
-        </span>
+        <StripedName brand={brand} />
         <span className="brand-band boot-band">
-          {bandNodes(parts).map((n, i) => ('text' in n ? <Fragment key={i}>{n.text}</Fragment> : <span key={i} className={n.className} />))}
+          <StripedName brand={brand} />
         </span>
       </span>
     </div>

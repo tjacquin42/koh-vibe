@@ -690,28 +690,62 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   -webkit-background-clip: text; background-clip: text;
 }
 .brand:focus-visible { outline-offset: 3px; }
-/* C2 (14/11): the sidebar's name striped with the logo's colours — coral, a
-   cut, a lagoon band, a cut, sea green — measured for Bricolage Grotesque 800
-   at opsz 96: the lagoon band lies exactly on the e's bar, never in its lower
-   part. The percentages assume a 1em line box: no padding, no other
-   line-height on the element that carries the gradient. */
+/* C2 (14/11, retouched 15/11): the sidebar's name striped with the logo's
+   colours — coral, a cut, a lagoon band, a cut, sea green — measured for
+   Bricolage Grotesque 800 at opsz 96. The lagoon lies in the lower part of the
+   letters (56.8–65.2 %), under the e's bar, which stays coral and closes the
+   e's eye; the cut above it is as tall as the cut below (4 %). The percentages
+   assume a 1em line box: no padding, no other line-height on the elements
+   that carry the gradients. */
 .brand-c2 { display: inline-block; vertical-align: middle; white-space: nowrap; font-size: 21px; font-weight: 800; font-variation-settings: 'opsz' 96; letter-spacing: -0.02em; line-height: 1; }
+.brand-word { display: inline-block; vertical-align: top; }
+.brand-name, .brand-e { display: inline-block; vertical-align: top; color: transparent; -webkit-background-clip: text; background-clip: text; }
 .brand-name {
-  display: inline-block; vertical-align: top; color: transparent;
   background-image: linear-gradient(to bottom,
-    var(--wait) 0, var(--wait) min(46.8%, calc(50.8% - 1.2px)),
-    transparent min(46.8%, calc(50.8% - 1.2px)), transparent 50.8%,
-    var(--run) 50.8%, var(--run) 59.7%,
-    transparent 59.7%, transparent max(63.7%, calc(59.7% + 1.2px)),
-    var(--done) max(63.7%, calc(59.7% + 1.2px)), var(--done) 100%);
-  -webkit-background-clip: text; background-clip: text;
+    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
+    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
+    var(--run) 56.8%, var(--run) 65.2%,
+    transparent 65.2%, transparent max(69.2%, calc(65.2% + 1.2px)),
+    var(--done) max(69.2%, calc(65.2% + 1.2px)), var(--done) 100%);
+}
+/* The final e, striped on its own (ui/brand.ts): on its right half the lagoon
+   stops above its tail's tip (63.5 %) — no lone sliver in the band — and the
+   band's lower edge curves up towards its right. Its ink runs past its
+   advance: the padding widens the painted box, the margin gives it back. */
+.brand-e {
+  padding-right: 0.08em; margin-right: -0.08em;
+  background-image: linear-gradient(to bottom,
+    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
+    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
+    var(--run) 56.8%, var(--run) 63%,
+    transparent 63%, transparent max(69%, calc(63% + 1.2px)),
+    var(--done) max(69%, calc(63% + 1.2px)), var(--done) 100%),
+    linear-gradient(to bottom,
+    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
+    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
+    var(--run) 56.8%, var(--run) 65.2%,
+    transparent 65.2%, transparent max(69.2%, calc(65.2% + 1.2px)),
+    var(--done) max(69.2%, calc(65.2% + 1.2px)), var(--done) 100%);
+  background-size: 45% 100%, 57% 100%; background-position: right top, left top; background-repeat: no-repeat;
+  clip-path: polygon(-20% -20%, 120% -20%, 120% 63.52%, 102.0% 63.52%, 98.4% 63.75%, 94.9% 63.97%, 91.3% 64.16%, 87.7% 64.34%, 84.1% 64.51%, 80.6% 64.65%, 77.0% 64.78%, 73.4% 64.89%, 69.9% 64.99%, 66.3% 65.06%, 62.7% 65.12%, 59.1% 65.17%, 55.6% 65.19%, 52.0% 65.20%, 52% 65.2%, 120% 65.2%, 120% 120%, -20% 120%);
 }
 /* The hyphen is no character: a lagoon bar as thick as the band, laid on it,
    short and centred to the eye between the h and the V. The negative right
    margin makes up for the gap the V's diagonal leaves at that height. */
-.brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.089em; margin: 0.508em -0.08em 0 0.034em; background: var(--run); }
-/* In the rainbow's layer, the same box, see-through. */
-.brand-dash-ghost { background: transparent; }
+.brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.084em; margin: 0.568em -0.08em 0 0.034em; background: var(--run); }
+/* Three letters with a fix (ui/brand.ts), measured on the glyphs: the dark
+   notch the K and the h leave inside the lagoon band is filled with lagoon;
+   the tip of the V's inner point, just under the green's start, with green. */
+.brand-l { position: relative; display: inline-block; }
+.brand-l::after { content: ''; position: absolute; }
+.brand-l-k::after { left: 0.04em; top: 0.568em; width: 0.465em; height: 0.084em; background: var(--run); }
+.brand-l-h::after { left: 0.036em; top: 0.568em; width: 0.164em; height: 0.084em; background: var(--run); }
+.brand-l-v::after { left: 0.3em; top: 0.692em; width: 0.035em; height: 0.01em; background: var(--done); }
+/* The rainbow's layer is a copy of the name (App.tsx BrandName): its own
+   stripes, clips and fixes are switched off, so only the rainbow shows. */
+.brand-band .brand-name, .brand-band .brand-e { background: none; clip-path: none; }
+.brand-band .brand-l::after { content: none; }
+.brand-band .brand-dash { background: transparent; }
 /* The logo alone, for a sidebar too narrow for the name, in the logo's own
    colours (App.tsx BrandLogo). No glow, no pulse. */
 .brand-logo { display: none; align-items: center; line-height: 0; }
