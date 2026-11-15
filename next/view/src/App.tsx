@@ -140,7 +140,8 @@ export function App({ bridge }: { bridge: Bridge }) {
 
   // The colours chosen in the settings (ui/theme.ts), in every view.
   const tune = snapshotNow?.theme?.current;
-  useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain, tune?.textures.join()]);
+  // Every field of the tuning, the background included (15/11): a field left out here kept the old one once the settings closed.
+  useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain, tune?.textures.join(), tune?.ground]);
 
   const awaitOpen = useCallback((sessionId: string, until: WaitUntil = 'open') => {
     setReopening((r) => startReopening(r, sessionId, Date.now(), until));
