@@ -25,7 +25,15 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
       {sessions.map((s) => {
         const list = procs.bySession[s.id] ?? [];
         return (
-          <Section key={s.id} title={<SessionName s={s} t={t} animate={ctx.animate} />} count={list.length} marker={<Dot tone={toneOf(s)} animate={ctx.animate} size={13} />}>
+          // Each conversation's processes fold under its heading (15/11), remembered like a folder's.
+          <Section
+            key={s.id}
+            title={<SessionName s={s} t={t} animate={ctx.animate} />}
+            count={list.length}
+            marker={<Dot tone={toneOf(s)} animate={ctx.animate} size={13} />}
+            folded={ctx.isFolded(`proc:${s.id}`)}
+            onToggle={() => ctx.toggle(`proc:${s.id}`)}
+          >
             {list.map((p) => (
               <ProcessRow key={p.pid} ctx={ctx} p={p} />
             ))}
@@ -37,7 +45,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
           <p className="hint">{t('processes.reading')}</p>
         </Section>
       ) : (
-        <Section title={t('processes.orphans')} count={procs.orphans.length}>
+        <Section title={t('processes.orphans')} count={procs.orphans.length} folded={ctx.isFolded('proc:orphans')} onToggle={() => ctx.toggle('proc:orphans')}>
           {procs.orphans.length === 0 && <p className="hint">{t('processes.orphansNone')}</p>}
           {procs.orphans.map((o) => (
             <div key={o.tree[0]?.pid ?? o.cwd} className="orphan">
