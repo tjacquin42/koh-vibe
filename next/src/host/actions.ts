@@ -27,6 +27,8 @@ import { killPlan, type KillPlan } from '../../../src/process/kill';
 import { routineUrl } from '../../../src/routines/model';
 import { isSpent } from '../../../src/routines/schedule';
 import { writeSettings } from '../../../src/settings/store';
+import { readGroups } from '../../../src/groups/store';
+import { isFiled } from '../../../src/groups/model';
 import type { Action, ActionResult, EditorTabs, LanguageChoice, SessionCommand } from '../shared/actions';
 import type { CloudActions } from './cloud';
 import type { Located } from './processes';
@@ -112,6 +114,10 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       await applyDrop(file, a.ids, a.folder, a.order);
       return OK;
     case 'session.command':
+      // Only a conversation in a folder sleeps (15/11): one in no folder has no
+      // row to keep greyed — closing it is what it offers. The view shows no
+      // moon there; a click that raced a move lands here.
+      if (a.command === 'sleep' && !isFiled(await readGroups(deps.groupsFile), a.id)) return { ok: false, error: 'stale' };
       return viaV1(deps, V1_COMMANDS[a.command], sessionNode(a.id));
     case 'session.new':
       return a.folder === undefined ? viaV1(deps, 'kohVibe.newSession') : viaV1(deps, 'kohVibe.newSessionInGroup', groupNode(a.folder));

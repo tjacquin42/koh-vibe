@@ -32,7 +32,7 @@ const c = (name: string): string => `kohVibeNext.ctx.${name}`;
 export const MENU_ITEMS: readonly MenuItem[] = [
   { command: c('session.open'), section: 'kvnSession', group: '1_open@1', en: 'Go to the conversation', fr: 'Aller à la conversation' },
   { command: c('session.sheet'), section: 'kvnSession', group: '1_open@2', en: 'Open its sheet', fr: 'Ouvrir sa fiche' },
-  { command: c('session.sleep'), section: 'kvnSession', when: '!kvnEnded', group: '2_state@1', en: 'Put to sleep', fr: 'Mettre en veille' },
+  { command: c('session.sleep'), section: 'kvnSession', when: '!kvnEnded && kvnFiled', group: '2_state@1', en: 'Put to sleep', fr: 'Mettre en veille' },
   { command: c('session.close'), section: 'kvnSession', group: '2_state@2', en: 'Close', fr: 'Fermer' },
   { command: c('session.copyId'), section: 'kvnSession', group: '9_copy@1', en: 'Copy the ID', fr: 'Copier l’ID' },
   { command: c('closed.reopen'), section: 'kvnClosed', when: 'kvnResumable', group: '1_open@1', en: 'Resume', fr: 'Reprendre' },

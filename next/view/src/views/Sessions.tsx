@@ -7,7 +7,7 @@ import { SessionName } from '../ui/SessionName';
 import { Confirm, NameInput } from '../ui/Inline';
 import { FOLDER_COLOR_IDS, MAX_NAME } from '../../../src/shared/actions';
 import type { ClosedView, FolderView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatTokens, formatWhen, toneOf, toolLabel } from '../format';
+import { formatAge, formatTokens, formatWhen, isFiledIn, toneOf, toolLabel } from '../format';
 import { Dot, Icon } from '../ui/icons';
 import { Section } from '../ui/Section';
 import { Inbox } from '../cockpit/Cockpit';
@@ -361,6 +361,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const tone = toneOf(s);
   const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
   const busy = ctx.isBusy(s.id);
+  const filed = isFiledIn(ctx.snapshot, s.id);
   // One line only (14/11): what it does and when it leaves are behind the (i).
   return (
     <div
@@ -368,7 +369,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
       aria-busy={busy}
       aria-current={ctx.activeId === s.id ? 'true' : undefined}
       data-session={s.id}
-      data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}
+      data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined, kvnFiled: filed })}
     >
       <div className="srow-line">
         <button
@@ -392,7 +393,8 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
         </button>
         <span className="tools">
           {/* V1 asks before putting to sleep or closing a conversation that still works. */}
-          {s.endedAt === undefined && (
+          {/* Only in a folder: one in no folder is closed, never put to sleep (15/11). */}
+          {s.endedAt === undefined && filed && (
             <button type="button" className="tbtn hover-only" aria-label={t('row.sleep')} onClick={() => void ctx.track(s.id, ctx.act({ kind: 'session.command', command: 'sleep', id: s.id }))}>
               <Icon name="moon" />
             </button>

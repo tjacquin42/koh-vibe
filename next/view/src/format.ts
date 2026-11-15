@@ -69,6 +69,11 @@ export function fold(s: string): string {
   return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
+/** Whether a folder holds the conversation — only those can be put to sleep (15/11). */
+export function isFiledIn(snap: Snapshot, sessionId: string): boolean {
+  return snap.folders.some((f) => f.sessionIds.includes(sessionId));
+}
+
 export type Tone = 'wait' | 'run' | 'done' | 'idle' | 'ended';
 
 export function toneOf(s: SessionView): Tone {

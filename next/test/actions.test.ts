@@ -171,6 +171,14 @@ describe('what goes through V1 commands', () => {
     ]);
   });
 
+  it('never puts to sleep a conversation in no folder: only a filed one has a row to keep', async () => {
+    // « c » is in no folder (test/home.ts); the view offers no moon there (15/11).
+    expect(await run({ kind: 'session.command', command: 'sleep', id: 'c' })).toEqual({ ok: false, error: 'stale' });
+    expect(calls).toEqual([]);
+    // Closing it is still fine.
+    expect(await run({ kind: 'session.command', command: 'close', id: 'c' })).toEqual({ ok: true });
+  });
+
   it('says V1 is missing rather than doing it behind its back', async () => {
     expect(await run({ kind: 'session.command', command: 'sleep', id: 'a' }, { hasCommand: async () => false })).toEqual({ ok: false, error: 'v1-missing' });
     expect(calls).toEqual([]);

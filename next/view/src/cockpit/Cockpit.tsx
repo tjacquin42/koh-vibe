@@ -1,5 +1,5 @@
 import type { ActivityItemView, ActivitySessionView, SessionView } from '../../../src/shared/protocol';
-import { formatAge, formatWhen, sessionDetail, sessionTitle, toneOf, toolLabel, type Tone } from '../format';
+import { formatAge, formatWhen, isFiledIn, sessionDetail, sessionTitle, toneOf, toolLabel, type Tone } from '../format';
 import type { Translate } from '../i18n';
 import { boardColumns, folderIndex, hourTicks, inbox, SPANS_H, timelineLanes, type BoardColumns } from '../sections';
 import { Dot, Icon, type IconName } from '../ui/icons';
@@ -246,7 +246,7 @@ function Board({ ctx, cols }: { ctx: ViewCtx; cols: BoardColumns }) {
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
   return (
-    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)} data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined })}>
+    <button type="button" className={`bcard tone-${toneOf(s)}`} onClick={() => ctx.show(s.id)} data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: s.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}>
       <span className="l1">
         <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />
@@ -376,7 +376,7 @@ function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
             type="button"
             className="tile"
             onClick={() => ctx.show(s.id)}
-            data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: listed?.endedAt !== undefined })}
+            data-vscode-context={menuContext('kvnSession', { kvnSessionId: s.id, kvnEnded: listed?.endedAt !== undefined, kvnFiled: isFiledIn(ctx.snapshot, s.id) })}
           >
             <span className="tile-h">
               <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />

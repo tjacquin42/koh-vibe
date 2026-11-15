@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { markSleeping, takeSleeping } from './store/sleeping';
 import { editorViews, type ViewHost } from './ui/view-host';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -1039,8 +1038,7 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
     // What `SessionEnd` does to the row, per the setting as last read.
     () => (sound.persistent ? 'keep' : 'remove'),
     hasTranscript,
-    // Kept like a filed one: a conversation put to sleep by hand (store/sleeping.ts).
-    async (id) => (await takeSleeping(home, id, Date.now())) || (await filedNow(id)),
+    filedNow,
   );
   watcher.start();
   broker.start();
@@ -1269,8 +1267,6 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
       ) {
         return;
       }
-      // The wish first: the end it brings must keep the row, folder or not.
-      await markSleeping(home, s.id, Date.now()).catch(() => undefined);
       await broker.requestSleep(s).catch(() => {
         void vscode.window.showErrorMessage(
           vscode.l10n.t('Koh-Vibe: could not put « {0} » to sleep.', sessionLabel(s)),

@@ -60,7 +60,7 @@
       "webview/context": [
         { "command": "kohVibeNext.ctx.session.open", "when": "webviewSection == 'kvnSession'", "group": "1_open@1" },
         { "command": "kohVibeNext.ctx.session.sheet", "when": "webviewSection == 'kvnSession'", "group": "1_open@2" },
-        { "command": "kohVibeNext.ctx.session.sleep", "when": "webviewSection == 'kvnSession' && !kvnEnded", "group": "2_state@1" },
+        { "command": "kohVibeNext.ctx.session.sleep", "when": "webviewSection == 'kvnSession' && !kvnEnded && kvnFiled", "group": "2_state@1" },
         { "command": "kohVibeNext.ctx.session.close", "when": "webviewSection == 'kvnSession'", "group": "2_state@2" },
         { "command": "kohVibeNext.ctx.session.copyId", "when": "webviewSection == 'kvnSession'", "group": "9_copy@1" },
         { "command": "kohVibeNext.ctx.closed.reopen", "when": "webviewSection == 'kvnClosed' && kvnResumable", "group": "1_open@1" },
