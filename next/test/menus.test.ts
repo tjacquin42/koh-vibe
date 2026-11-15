@@ -43,6 +43,7 @@ function deps(over: Partial<MenuDeps> = {}) {
     confirm: async () => true,
     t: (m) => m,
     report: () => undefined,
+    projectSlugs: (project) => (project === 'nti' ? ['a1', 'a2'] : []),
     ...over,
   };
   return { d, acts, calls };
@@ -54,6 +55,15 @@ describe('right-click commands', () => {
     expect(parseTarget({ webviewSection: 'treeItem' })).toBeUndefined();
     expect(parseTarget({ webviewSection: 'kvnProcess', kvnPid: 1 })).toEqual({ section: 'kvnProcess' });
     expect(parseTarget('nope')).toBeUndefined();
+  });
+
+  it('renames an artifact project folder, with what it shows, and leaves a name unchanged alone', async () => {
+    const { d, acts } = deps({ ask: async () => ' NTI tests ' });
+    await runMenu('kohVibeNext.ctx.artProject.rename', { webviewSection: 'kvnArtProject', kvnName: 'nti' }, d);
+    expect(acts).toEqual([{ kind: 'artifact.renameProject', from: 'nti', to: 'NTI tests', slugs: ['a1', 'a2'] }]);
+    const same = deps({ ask: async () => 'nti' });
+    await runMenu('kohVibeNext.ctx.artProject.rename', { webviewSection: 'kvnArtProject', kvnName: 'nti' }, same.d);
+    expect(same.acts).toEqual([]);
   });
 
   it('runs the row actions, asking first where the view would', async () => {

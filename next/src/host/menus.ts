@@ -13,7 +13,7 @@
 import { MAX_NAME, MAX_TITLE, type Action, type ActionResult, type FolderColor } from '../shared/actions';
 
 /** Prefixed: `webviewSection` is shared with every other extension's web views. */
-export const SECTIONS = ['kvnSession', 'kvnClosed', 'kvnFolder', 'kvnUnfiled', 'kvnArtifact', 'kvnRoutine', 'kvnProcess'] as const;
+export const SECTIONS = ['kvnSession', 'kvnClosed', 'kvnFolder', 'kvnUnfiled', 'kvnArtifact', 'kvnArtProject', 'kvnRoutine', 'kvnProcess'] as const;
 export type Section = (typeof SECTIONS)[number];
 
 export interface MenuItem {
@@ -50,6 +50,7 @@ export const MENU_ITEMS: readonly MenuItem[] = [
   { command: c('artifact.rename'), section: 'kvnArtifact', group: '2_edit@2', en: 'Rename…', fr: 'Renommer…' },
   { command: c('artifact.copyLink'), section: 'kvnArtifact', group: '8_copy@1', en: 'Copy the link', fr: 'Copier le lien' },
   { command: c('artifact.delete'), section: 'kvnArtifact', group: '9_delete@1', en: 'Delete…', fr: 'Supprimer…' },
+  { command: c('artProject.rename'), section: 'kvnArtProject', group: '1_edit@1', en: 'Rename…', fr: 'Renommer…' },
   { command: c('routine.run'), section: 'kvnRoutine', when: 'kvnCanRun', group: '1_run@1', en: 'Run now…', fr: 'Lancer maintenant…' },
   { command: c('routine.pause'), section: 'kvnRoutine', when: 'kvnEnabled', group: '1_run@2', en: 'Pause', fr: 'Mettre en pause' },
   { command: c('routine.resume'), section: 'kvnRoutine', when: 'kvnCanResume', group: '1_run@2', en: 'Resume', fr: 'Reprendre' },
@@ -119,6 +120,8 @@ export interface MenuDeps {
   t(message: string, ...args: (string | number)[]): string;
   /** A refusal from an action, said the way the view would say it. */
   report(result: ActionResult): void;
+  /** The artifacts a project folder shows right now, by the latest snapshot. */
+  projectSlugs(project: string): string[];
 }
 
 /** Runs a menu command on the row it was opened on. Never throws. */
@@ -187,6 +190,15 @@ export async function runMenu(command: string, arg: unknown, deps: MenuDeps): Pr
         if (slug === undefined) return;
         const next = (await deps.ask(deps.t('New title'), target.title ?? ''))?.trim();
         if (next !== undefined && next.length > 0 && next.length <= MAX_TITLE && next !== target.title) await act({ kind: 'artifact.rename', slug, title: next });
+        return;
+      }
+      case 'artProject.rename': {
+        const from = target.name;
+        if (from === undefined) return;
+        const next = (await deps.ask(deps.t('New folder name'), from))?.trim();
+        if (next !== undefined && next.length > 0 && next.length <= MAX_NAME && next !== from) {
+          await act({ kind: 'artifact.renameProject', from, to: next, slugs: deps.projectSlugs(from) });
+        }
         return;
       }
       case 'artifact.copyLink':

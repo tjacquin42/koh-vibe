@@ -10,7 +10,7 @@
  * each change.
  */
 import type { ThemeState } from '../shared/theme';
-import { fileArtifacts } from '../../../src/artifacts/projects';
+import { fileArtifacts, renameFolder } from '../../../src/artifacts/projects';
 import { updateArtifactProjects } from '../../../src/artifacts/projects-store';
 import { artifactUrl } from '../../../src/artifacts/model';
 import {
@@ -151,6 +151,11 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return viaCloud(deps, 'artifacts', () => deps.cloud.deleteArtifact(a.slug));
     case 'artifact.project':
       await updateArtifactProjects(deps.artifactProjectsFile, (s) => fileArtifacts(s, a.slugs, a.project));
+      return OK;
+    case 'artifact.renameProject':
+      // V1's rule (artifacts/projects.ts): what the folder shows is filed into
+      // it first, and the old name stays an alias of the new one.
+      await updateArtifactProjects(deps.artifactProjectsFile, (s) => renameFolder(s, a.from, a.slugs, a.to));
       return OK;
     case 'artifact.folder':
       await fileArtifactsCommand(file, [{ slug: a.slug, title: a.title }], a.folder);

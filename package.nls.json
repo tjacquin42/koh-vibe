@@ -79,6 +79,7 @@
   "command.kohVibeNext.ctx.artifact.pin.title": "Pin",
   "command.kohVibeNext.ctx.artifact.unpin.title": "Unpin",
   "command.kohVibeNext.ctx.artifact.rename.title": "Rename…",
+  "command.kohVibeNext.ctx.artProject.rename.title": "Rename…",
   "command.kohVibeNext.ctx.artifact.copyLink.title": "Copy the link",
   "command.kohVibeNext.ctx.artifact.delete.title": "Delete…",
   "command.kohVibeNext.ctx.routine.run.title": "Run now…",

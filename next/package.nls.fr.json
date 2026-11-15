@@ -21,6 +21,7 @@
   "command.kohVibeNext.ctx.artifact.pin.title": "Épingler",
   "command.kohVibeNext.ctx.artifact.unpin.title": "Désépingler",
   "command.kohVibeNext.ctx.artifact.rename.title": "Renommer…",
+  "command.kohVibeNext.ctx.artProject.rename.title": "Renommer…",
   "command.kohVibeNext.ctx.artifact.copyLink.title": "Copier le lien",
   "command.kohVibeNext.ctx.artifact.delete.title": "Supprimer…",
   "command.kohVibeNext.ctx.routine.run.title": "Lancer maintenant…",

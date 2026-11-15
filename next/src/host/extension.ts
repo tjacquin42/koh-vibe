@@ -425,6 +425,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     confirm: async (message, yes) => (await vscode.window.showWarningMessage(message, { modal: true }, yes)) === yes,
     t: (message, ...args) => vscode.l10n.t(message, ...args),
+    projectSlugs: (project) => (hub.current?.artifacts?.items ?? []).filter((x) => x.project === project).map((x) => x.slug),
     report: (r) => {
       if (r.ok) return;
       const text = {

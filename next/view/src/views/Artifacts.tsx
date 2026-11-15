@@ -52,7 +52,15 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
         // Projects start folded: the list is long and « Recent » already shows what is fresh.
         const folded = !ctx.isFolded(key);
         return (
-          <Section key={key} title={p.project ?? t('artifacts.other')} count={p.items.length} folded={folded} onToggle={() => ctx.toggle(key)}>
+          <Section
+            key={key}
+            title={p.project ?? t('artifacts.other')}
+            count={p.items.length}
+            folded={folded}
+            onToggle={() => ctx.toggle(key)}
+            // A named project renames from its right-click menu (15/11); « Other » is no project.
+            headProps={p.project === undefined ? undefined : { 'data-vscode-context': menuContext('kvnArtProject', { kvnName: p.project }) }}
+          >
             {p.items.map((a) => (
               <ArtifactRow key={a.slug} ctx={ctx} a={a} />
             ))}

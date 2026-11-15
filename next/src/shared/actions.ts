@@ -93,6 +93,8 @@ export type Action =
   | { kind: 'artifact.delete'; slug: string }
   /** Files pages under a project of the Artifacts tab — `null` is « Other ». Local file, shared with V1. */
   | { kind: 'artifact.project'; slugs: string[]; project: string | null }
+  /** A project folder renamed (15/11): `slugs` are the artifacts it shows, those there by their title included. */
+  | { kind: 'artifact.renameProject'; from: string; to: string; slugs: string[] }
   /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
   | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
   | { kind: 'artifact.copyLink'; slug: string }
@@ -252,6 +254,12 @@ export function parseAction(raw: unknown): Action | undefined {
       return isSlug(raw['slug']) && typeof raw['pinned'] === 'boolean' ? { kind: 'artifact.pin', slug: raw['slug'], pinned: raw['pinned'] } : undefined;
     case 'artifact.delete':
       return isSlug(raw['slug']) ? { kind: 'artifact.delete', slug: raw['slug'] } : undefined;
+    case 'artifact.renameProject': {
+      const list = slugs(raw['slugs']);
+      const from = cleanName(raw['from']);
+      const to = cleanName(raw['to']);
+      return list === undefined || from === undefined || to === undefined ? undefined : { kind: 'artifact.renameProject', from, to, slugs: list };
+    }
     case 'artifact.project': {
       const list = slugs(raw['slugs']);
       if (list === undefined) return undefined;
