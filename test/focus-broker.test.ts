@@ -402,6 +402,68 @@ describe('requestReopen', () => {
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
+  it('asks the other windows, rather than opening a terminal, when this one holds the folder only from above', async () => {
+    // A window on a parent folder claims the project, but its Claude Code
+    // lists only the parent's conversations: the one that can show it is a
+    // window on the project itself.
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const terminal = vi.spyOn(vscode.window, 'createTerminal');
+    await makeBroker().requestReopen(entry());
+    expect(terminal).not.toHaveBeenCalled();
+    expect(await readdir(dirs.requests)).toEqual(['reopen-s1.json']);
+  });
+
+  it('leaves a reopen request it can only answer with a terminal for a window on the project itself', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const terminal = vi.spyOn(vscode.window, 'createTerminal');
+    await writeFile(
+      join(dirs.requests, 'reopen-s9.json'),
+      JSON.stringify({ sessionId: 's9', cwd: '/Users/dev/projet', label: 'projet', origin: 'vscode', at: Date.now() }),
+      'utf8',
+    );
+    await (makeBroker() as unknown as { consume: () => Promise<void> }).consume();
+    expect(terminal).not.toHaveBeenCalled();
+    expect(await readdir(dirs.requests)).toEqual(['reopen-s9.json']);
+  });
+
+  it('opens a window on the project when no window takes the reopen, and leaves the request for it — never a terminal', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      setWorkspaceFolders([{ uri: { fsPath: '/Users/elsewhere' } }]);
+      const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+      vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
+      const terminal = vi.spyOn(vscode.window, 'createTerminal');
+      // A folder that exists: `home` is the test's own temporary directory.
+      await makeBroker().requestReopen(entry({ cwd: home }));
+
+      await vi.advanceTimersByTimeAsync(2_100);
+      await vi.waitFor(() => expect(run).toHaveBeenCalledWith('vscode.openFolder', vscode.Uri.file(home), { forceNewWindow: true }));
+      expect(terminal).not.toHaveBeenCalled();
+      expect(await readdir(dirs.requests)).toEqual(['reopen-s1.json']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back on a terminal when the project folder is gone, since no window can open on it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      setWorkspaceFolders([{ uri: { fsPath: '/Users/elsewhere' } }]);
+      const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+      const sendText = vi.fn();
+      vi.spyOn(vscode.window, 'createTerminal').mockReturnValue({ sendText, show: vi.fn() } as unknown as vscode.Terminal);
+      await makeBroker().requestReopen(entry({ cwd: join(home, 'gone') }));
+
+      await vi.advanceTimersByTimeAsync(2_100);
+      await vi.waitFor(() => expect(sendText).toHaveBeenCalledWith('claude --resume s1'));
+      expect(run).not.toHaveBeenCalledWith('vscode.openFolder', expect.anything(), expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('writes a request when another window holds the folder', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/autre' } }]);
     await makeBroker().requestReopen(entry());

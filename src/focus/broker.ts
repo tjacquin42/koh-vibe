@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from 'node:fs';
+import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -109,19 +109,7 @@ export class FocusBroker {
     s: { id: string; cwd: string; origin: unknown; label: string; fresh?: boolean },
     onUnconsumed: () => void | Promise<void>,
   ): Promise<void> {
-    const seq = (this.requestSeq += 1);
-    const name = join(this.dirs.requests, `${prefix}-${s.id}.json`);
-    const tmp = join(this.dirs.requests, `.tmp-${prefix}-${s.id}-${process.pid}-${seq}`);
-    const body = JSON.stringify({
-      sessionId: s.id,
-      cwd: s.cwd,
-      label: s.label,
-      origin: s.origin,
-      ...(s.fresh === true ? { fresh: true } : {}),
-      at: Date.now(),
-    });
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, name);
+    const name = await this.writeRequest(prefix, s);
 
     const existing = this.fallbacks.get(name);
     if (existing !== undefined) clearTimeout(existing);
@@ -137,6 +125,37 @@ export class FocusBroker {
       );
     }, 2_000);
     this.fallbacks.set(name, timer);
+  }
+
+  /** Writes one request file, without a fallback: see `postRequest`. */
+  private async writeRequest(
+    prefix: 'focus' | 'reopen' | 'close' | 'sleep',
+    s: { id: string; cwd: string; origin: unknown; label: string; fresh?: boolean },
+  ): Promise<string> {
+    const seq = (this.requestSeq += 1);
+    const name = join(this.dirs.requests, `${prefix}-${s.id}.json`);
+    const tmp = join(this.dirs.requests, `.tmp-${prefix}-${s.id}-${process.pid}-${seq}`);
+    const body = JSON.stringify({
+      sessionId: s.id,
+      cwd: s.cwd,
+      label: s.label,
+      origin: s.origin,
+      ...(s.fresh === true ? { fresh: true } : {}),
+      at: Date.now(),
+    });
+    await writeFile(tmp, body, 'utf8');
+    await rename(tmp, name);
+    return name;
+  }
+
+  /**
+   * Whether this window is on the conversation's own folder — the window
+   * whose Claude Code lists what was launched from it. When even this one
+   * does not list the id (the user hid it), no window will: the terminal is
+   * the only way back left.
+   */
+  private isOn(cwd: string): boolean {
+    return this.folders()[0] === cwd;
   }
 
   /** Asks for a session's focus, wherever it lives. */
@@ -198,22 +217,48 @@ export class FocusBroker {
     }
     if (claims(this.folders(), entry.cwd)) {
       // The editor command only when this window's list holds the id: it
-      // would otherwise open a blank conversation. A terminal resumes it
-      // from anywhere. Going through `focusSession` rather than calling
-      // `executeCommand` directly gives this local path the same one-time
-      // missing-command warning as the remote one below.
-      const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, await this.listed(entry.id));
-      if (local.kind === 'terminal') openResumeTerminal(local);
-      else await this.focusSession(local, 'reopen');
-      return;
+      // would otherwise open a blank conversation. Going through
+      // `focusSession` rather than calling `executeCommand` directly gives
+      // this local path the same one-time missing-command warning as the
+      // remote one below.
+      if (await this.listed(entry.id)) {
+        const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, true);
+        if (local.kind === 'terminal') openResumeTerminal(local);
+        else await this.focusSession(local, 'reopen');
+        return;
+      }
+      // On the project's own folder and still not listed: hidden from Claude
+      // Code's list, so no window will list it. Holding the project only
+      // from a parent folder is another matter — a window on the project
+      // itself lists it, and the request below finds it or opens it.
+      if (this.isOn(entry.cwd)) {
+        openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
+        return;
+      }
     }
-    // Fallback deliberately different from the focus one: NO `code -r`, which
-    // would lose the reopen itself. No window holds the project, so no tab
-    // can come back — but a terminal can, from here: `claude --resume` finds
-    // the conversation by its id whatever the folder.
-    await this.postRequest('reopen', { ...entry, label }, () => {
-      openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
-    });
+    // Nobody consumed it: no window can show the conversation. A tab is what
+    // the user expects of a conversation started in the editor (15/11), not a
+    // terminal — so a window opens on its project, and finds the request
+    // there. Fallback deliberately different from the focus one: NO
+    // `code -r`, which would replace the window the user is working in.
+    await this.postRequest('reopen', { ...entry, label }, () => this.openProjectWindow(entry, label));
+  }
+
+  /**
+   * Opens a new window of this editor on a closed conversation's project,
+   * and leaves it a fresh reopen request to find as it starts. Only a
+   * folder that is gone — a removed worktree — still goes to a terminal:
+   * `claude --resume` finds the conversation by its id whatever the folder.
+   */
+  private async openProjectWindow(entry: ClosedEntry, label: string): Promise<void> {
+    const terminal = (): void => openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
+    if (!existsSync(entry.cwd)) return terminal();
+    try {
+      await this.writeRequest('reopen', { ...entry, label });
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(entry.cwd), { forceNewWindow: true });
+    } catch {
+      terminal();
+    }
   }
 
   /**
@@ -417,7 +462,6 @@ export class FocusBroker {
         // is in no list yet: the claim is all there is to go by.
         const fresh = (parsed as { fresh?: unknown }).fresh === true;
         if (!isReopen && isEditorOrigin(origin) && !fresh && !(await this.listed(sessionId))) continue;
-        await unlink(path);
         const plan = isReopen
           ? reopenPlan(origin, sessionId, cwd, label, await this.listed(sessionId))
           : focusPlan(sessionId, origin, label);
@@ -426,12 +470,17 @@ export class FocusBroker {
           // handled where the click happened, without a file — and a request
           // that does is not honoured: it would open a terminal in a window
           // where the user asked for nothing. An EDITOR conversation this
-          // window's list does not hold is different: this window holds its
-          // project, the user asked for it back, and the terminal is the only
-          // way to bring it back without starting a blank one.
-          if (isReopen && isEditorOrigin(origin)) openResumeTerminal(plan);
+          // window's list does not hold is different only on the project's
+          // own folder: no window will list it, and the terminal is the only
+          // way back. From a parent folder, it is left for a window on the
+          // project, which the clicking window opens if none answers.
+          const editorReopen = isReopen && isEditorOrigin(origin);
+          if (editorReopen && !this.isOn(cwd)) continue;
+          await unlink(path);
+          if (editorReopen) openResumeTerminal(plan);
           continue;
         }
+        await unlink(path);
         // A single announcement, never two that would contradict each
         // other: "requested" (or "reopening") in front of a command that is
         // actually going to open something, `focusSession`'s explanation
