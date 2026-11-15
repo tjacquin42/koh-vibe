@@ -506,11 +506,22 @@ function Timeline({ ctx, folder, spanH, onSpan }: { ctx: ViewCtx; folder: string
 
 /* ---------- small parts ---------- */
 
-export function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange(v: T): void }) {
+export function Segmented<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  /** `disabled`: shown, greyed, not chosen — a place this editor cannot open (15/11). */
+  options: { value: T; label: string; disabled?: boolean }[];
+  value: T;
+  onChange(v: T): void;
+}) {
   return (
     <div className="seg" role="radiogroup" aria-label={label}>
       {options.map((o) => (
-        <button key={String(o.value)} type="button" role="radio" aria-checked={o.value === value} onClick={() => onChange(o.value)}>
+        <button key={String(o.value)} type="button" role="radio" aria-checked={o.value === value} disabled={o.disabled === true} onClick={() => onChange(o.value)}>
           {o.label}
         </button>
       ))}

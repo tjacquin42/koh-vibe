@@ -257,6 +257,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .seg button { height: 28px; padding: 0 12px; border: 0; background: transparent; color: var(--soft); font-size: 12px; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-checked="true"] { background: var(--raised); color: var(--text); }
+.seg button:disabled { opacity: 0.4; cursor: default; }
+.set-note { display: block; margin-top: 6px; color: var(--muted); font-size: 11.5px; font-weight: 400; }
 
 .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .col { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }

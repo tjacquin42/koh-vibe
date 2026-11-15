@@ -29,7 +29,7 @@ import { isSpent } from '../../../src/routines/schedule';
 import { writeSettings } from '../../../src/settings/store';
 import { readGroups } from '../../../src/groups/store';
 import { isFiled } from '../../../src/groups/model';
-import type { Action, ActionResult, EditorTabs, LanguageChoice, SessionCommand } from '../shared/actions';
+import type { Action, ActionResult, ArtifactOpen, EditorTabs, LanguageChoice, SessionCommand } from '../shared/actions';
 import type { CloudActions } from './cloud';
 import type { Located } from './processes';
 
@@ -68,6 +68,7 @@ export interface ActionDeps {
   setTheme(theme: ThemeState): Thenable<void>;
   setTabNames(on: boolean): Thenable<void>;
   setTitleLines(lines: 1 | 2): Thenable<void>;
+  setArtifactOpen(where: ArtifactOpen): Thenable<void>;
   ideTheme(mode: 'adapt' | 'restore'): Promise<void>;
 }
 
@@ -141,6 +142,9 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return OK;
     case 'setting.titleLines':
       await deps.setTitleLines(a.lines);
+      return OK;
+    case 'setting.artifactOpen':
+      await deps.setArtifactOpen(a.where);
       return OK;
 
     case 'artifact.rename':

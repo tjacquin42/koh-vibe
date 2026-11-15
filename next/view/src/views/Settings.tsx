@@ -7,6 +7,7 @@ import { Icon } from '../ui/icons';
 import { Hint } from '../ui/Hint';
 import { ThemeEditor } from './Theme';
 import type { ViewCtx } from './context';
+import { ARTIFACT_OPENS } from '../../../src/shared/actions';
 
 /**
  * The settings V1 and V2 share (settings.json), written through V1's store.
@@ -94,6 +95,18 @@ export function SettingsPanel({
             value={snapshot.titleLines ?? 1}
             onChange={(lines) => void ctx.act({ kind: 'setting.titleLines', lines })}
           />
+        </Choice>
+        {/* Where artifacts open (15/11): the editor's integrated browser where it has one, greyed where not. */}
+        <Choice label={t('settings.artifactOpen')} hint={t('settings.artifactOpen.hint')}>
+          <Segmented
+            label={t('settings.artifactOpen')}
+            options={ARTIFACT_OPENS.map((v) => ({ value: v, label: t(`settings.artifactOpen.${v}`), disabled: v !== 'browser' && snapshot.editor?.integratedBrowser !== true }))}
+            value={snapshot.editor?.integratedBrowser === true ? (snapshot.artifactOpen ?? 'browser') : 'browser'}
+            onChange={(where) => void ctx.act({ kind: 'setting.artifactOpen', where })}
+          />
+          {snapshot.editor !== undefined && !snapshot.editor.integratedBrowser && (
+            <span className="sub set-note">{t('settings.artifactOpen.none', { app: snapshot.editor.name })}</span>
+          )}
         </Choice>
         <Choice label={t('settings.sort')} hint={t('settings.sort.hint')}>
           <Segmented

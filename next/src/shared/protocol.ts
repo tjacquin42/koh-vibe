@@ -10,6 +10,7 @@
 
 import { isActionResult, parseAction, type Action, type ActionResult, type EditorTabs, type LanguageChoice } from './actions';
 import type { ThemeState } from './theme';
+import type { ArtifactOpen } from './actions';
 
 export type SessionStatus = 'running' | 'waiting' | 'done_unseen' | 'idle';
 export type SessionOrigin = 'vscode' | 'terminal' | 'desktop' | 'sdk' | 'unknown';
@@ -308,6 +309,15 @@ export interface Snapshot {
   tabNames?: boolean;
   /** Lines a conversation's title may take before « … » (1 by default). */
   titleLines?: 1 | 2;
+  /** Where an artifact opens (shared/actions.ts). */
+  artifactOpen?: ArtifactOpen;
+  /**
+   * The editor this runs in, by name, and whether it has an integrated
+   * browser — the one place the claude.ai page can open inside it: claude.ai
+   * refuses to show in a frame, so a web view or the Simple Browser gets a
+   * blank page.
+   */
+  editor?: { name: string; integratedBrowser: boolean };
   /** The conversation tab in front, if one is (host active-tab.ts). */
   activeTab?: ActiveTabView;
   /** The conversations that spent the most, by window (host spend.ts); only while the Usage tab is open. */

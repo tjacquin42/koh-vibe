@@ -62,6 +62,9 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     setTitleLines: async (lines) => {
       calls.push(['titleLines', lines]);
     },
+    setArtifactOpen: async (where) => {
+      calls.push(['artifactOpen', where]);
+    },
     ...over,
   };
 }
@@ -150,6 +153,13 @@ describe('settings, written through V1 store', () => {
     expect(s.volume).toBe(0.75);
     // Untouched fields survive.
     expect(s.waiting).toBe('Glass');
+  });
+
+  it('keeps where artifacts open, and reads only the three places there are (15/11)', async () => {
+    await run({ kind: 'setting.artifactOpen', where: 'cockpit' });
+    expect(calls).toContainEqual(['artifactOpen', 'cockpit']);
+    expect(parseAction({ kind: 'setting.artifactOpen', where: 'editor' })).toEqual({ kind: 'setting.artifactOpen', where: 'editor' });
+    expect(parseAction({ kind: 'setting.artifactOpen', where: 'tab' })).toBeUndefined();
   });
 });
 

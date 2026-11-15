@@ -272,5 +272,6 @@
   "Koh-Vibe: « {0} » is open in another window, which did not answer.": "Koh-Vibe : « {0} » est ouverte dans une autre fenêtre, qui n’a pas répondu.",
   "Koh-Vibe: « {0} » is hidden from Claude Code’s list here, so it cannot come back in a tab — resumed in a terminal.": "Koh-Vibe : « {0} » est masquée dans la liste de Claude Code ici, elle ne peut pas revenir dans un onglet — reprise dans un terminal.",
   "Koh-Vibe: the folder of « {0} » no longer exists, so it cannot come back in a tab — resumed in a terminal.": "Koh-Vibe : le dossier de « {0} » n’existe plus, elle ne peut pas revenir dans un onglet — reprise dans un terminal.",
-  "Koh-Vibe: no window could open on the folder of « {0} » — resumed in a terminal.": "Koh-Vibe : aucune fenêtre n’a pu s’ouvrir sur le dossier de « {0} » — reprise dans un terminal."
+  "Koh-Vibe: no window could open on the folder of « {0} » — resumed in a terminal.": "Koh-Vibe : aucune fenêtre n’a pu s’ouvrir sur le dossier de « {0} » — reprise dans un terminal.",
+  "Koh-Vibe: {0} has no integrated browser — the artifact opens in your browser.": "Koh-Vibe : {0} n’a pas de navigateur intégré — l’artifact s’ouvre dans ton navigateur."
 }

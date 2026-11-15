@@ -55,6 +55,8 @@ export function sampleSnapshot(now: number): Snapshot {
       weekly: { percent: 18, resetsAt: later(3 * 24 * 60) },
       models: [{ name: 'Opus', percent: 88, resetsAt: later(3 * 24 * 60) }],
     },
+    // As in Antigravity: no integrated browser, so artifacts open in the browser only.
+    editor: { name: 'Antigravity IDE', integratedBrowser: false },
     spend: {
       at: ago(1),
       windows: {

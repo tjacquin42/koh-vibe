@@ -38,6 +38,7 @@ function deps(over: Partial<MenuDeps> = {}) {
     sheet: (id) => calls.push(`sheet ${id}`),
     reopen: (id) => calls.push(`reopen ${id}`),
     openUrl: (u) => calls.push(`url ${u}`),
+    openArtifact: (slug) => calls.push(`artifact ${slug}`),
     ask: async () => 'Renamed',
     pickColor: async () => 'pink',
     confirm: async () => true,
@@ -64,6 +65,12 @@ describe('right-click commands', () => {
     const same = deps({ ask: async () => 'nti' });
     await runMenu('kohVibeNext.ctx.artProject.rename', { webviewSection: 'kvnArtProject', kvnName: 'nti' }, same.d);
     expect(same.acts).toEqual([]);
+  });
+
+  it('opens an artifact where the settings say, not always in the browser', async () => {
+    const { d, calls } = deps();
+    await runMenu('kohVibeNext.ctx.artifact.open', { webviewSection: 'kvnArtifact', kvnSlug: 'abc' }, d);
+    expect(calls).toEqual(['artifact abc']);
   });
 
   it('runs the row actions, asking first where the view would', async () => {

@@ -114,6 +114,8 @@ export interface MenuDeps {
   sheet(sessionId: string): void;
   reopen(sessionId: string): void;
   openUrl(url: string): void;
+  /** Where the settings say artifacts open (extension.ts `openArtifact`). */
+  openArtifact(slug: string): void;
   ask(prompt: string, value: string): Thenable<string | undefined>;
   pickColor(current: string | undefined): Thenable<FolderColor | null | undefined>;
   confirm(message: string, yes: string): Thenable<boolean>;
@@ -180,7 +182,7 @@ export async function runMenu(command: string, arg: unknown, deps: MenuDeps): Pr
         }
         return;
       case 'artifact.open':
-        if (slug !== undefined) deps.openUrl(`https://claude.ai/artifact/${slug}`);
+        if (slug !== undefined) deps.openArtifact(slug);
         return;
       case 'artifact.pin':
       case 'artifact.unpin':
