@@ -66,6 +66,21 @@ describe('reduce', () => {
     expect(b?.pendingPermission).toBeUndefined();
   });
 
+  it('leaves waiting as soon as the question is answered — the tool it waited on has run (15/11)', () => {
+    const a = reduce(undefined, ev('PreToolUse', { toolName: 'AskUserQuestion' }));
+    const b = reduce(a, ev('PermissionRequest', { toolName: 'AskUserQuestion' }));
+    const c = reduce(b, ev('PostToolUse', { toolName: 'AskUserQuestion' }));
+    expect(c?.status).toBe('running');
+    expect(c?.pendingPermission).toBeUndefined();
+  });
+
+  it('keeps waiting when another tool finishes meanwhile — the one asked about has not run', () => {
+    const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
+    const b = reduce(a, ev('PostToolUse', { toolName: 'Read' }));
+    expect(b?.status).toBe('waiting');
+    expect(b?.pendingPermission?.tool).toBe('Bash');
+  });
+
   it('finishes unread, then idle after acknowledgment', () => {
     const a = reduce(undefined, ev('UserPromptSubmit'));
     const b = reduce(a, ev('Stop'));

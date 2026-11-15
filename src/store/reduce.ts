@@ -81,6 +81,14 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (!late) {
         delete next.inFlightSince;
         delete next.currentAction;
+        // The tool it waited on has run: the question is answered, the
+        // permission given (15/11). Without this, the row and its « For you »
+        // card kept waiting until Claude's next tool, or the end of its turn.
+        // Only that tool: another one finishing alongside answers nothing.
+        if (base.status === 'waiting' && (base.pendingPermission === undefined || base.pendingPermission.tool === ev.toolName)) {
+          next.status = 'running';
+          delete next.pendingPermission;
+        }
       }
       break;
     case 'PermissionRequest':
