@@ -232,7 +232,7 @@ export class FocusBroker {
       // from a parent folder is another matter — a window on the project
       // itself lists it, and the request below finds it or opens it.
       if (this.isOn(entry.cwd)) {
-        openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
+        resumeInTerminal(entry.cwd, entry.id, label, 'hidden');
         return;
       }
     }
@@ -251,13 +251,12 @@ export class FocusBroker {
    * `claude --resume` finds the conversation by its id whatever the folder.
    */
   private async openProjectWindow(entry: ClosedEntry, label: string): Promise<void> {
-    const terminal = (): void => openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
-    if (!existsSync(entry.cwd)) return terminal();
+    if (!existsSync(entry.cwd)) return resumeInTerminal(entry.cwd, entry.id, label, 'gone');
     try {
       await this.writeRequest('reopen', { ...entry, label });
       await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(entry.cwd), { forceNewWindow: true });
     } catch {
-      terminal();
+      resumeInTerminal(entry.cwd, entry.id, label, 'noWindow');
     }
   }
 
@@ -477,7 +476,7 @@ export class FocusBroker {
           const editorReopen = isReopen && isEditorOrigin(origin);
           if (editorReopen && !this.isOn(cwd)) continue;
           await unlink(path);
-          if (editorReopen) openResumeTerminal(plan);
+          if (editorReopen) resumeInTerminal(cwd, sessionId, label, 'hidden');
           continue;
         }
         await unlink(path);
@@ -503,4 +502,24 @@ export class FocusBroker {
       }
     }
   }
+}
+
+/** Why an editor conversation could not come back in a tab. */
+type NoTab = 'hidden' | 'gone' | 'noWindow';
+
+/**
+ * The last resort for an editor conversation: `claude --resume` in a
+ * terminal, which finds it by its id whatever the folder. Never silent — a
+ * conversation started in the editor is expected back in a tab (15/11), so
+ * a terminal in its place says why.
+ */
+function resumeInTerminal(cwd: string, id: string, label: string, why: NoTab): void {
+  openResumeTerminal({ cwd, name: label, command: `claude --resume ${id}` });
+  void vscode.window.showWarningMessage(
+    why === 'hidden'
+      ? vscode.l10n.t('Koh-Vibe: « {0} » is hidden from Claude Code’s list here, so it cannot come back in a tab — resumed in a terminal.', label)
+      : why === 'gone'
+        ? vscode.l10n.t('Koh-Vibe: the folder of « {0} » no longer exists, so it cannot come back in a tab — resumed in a terminal.', label)
+        : vscode.l10n.t('Koh-Vibe: no window could open on the folder of « {0} » — resumed in a terminal.', label),
+  );
 }

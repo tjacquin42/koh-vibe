@@ -370,6 +370,7 @@ describe('requestReopen', () => {
   it('opens a terminal instead of the command when this window\'s session list does not hold the id — the command would start a blank conversation', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     listed = false;
+    const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
     const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
     const sendText = vi.fn();
     const terminal = vi
@@ -379,6 +380,8 @@ describe('requestReopen', () => {
     expect(run).not.toHaveBeenCalledWith('claude-vscode.editor.open', 's1');
     expect(terminal).toHaveBeenCalledWith({ cwd: '/Users/dev/projet', name: 'projet' });
     expect(sendText).toHaveBeenCalledWith('claude --resume s1');
+    // Never silent: a terminal in place of a tab says why.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('terminal'));
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
@@ -452,6 +455,7 @@ describe('requestReopen', () => {
     try {
       setWorkspaceFolders([{ uri: { fsPath: '/Users/elsewhere' } }]);
       const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+      const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
       const sendText = vi.fn();
       vi.spyOn(vscode.window, 'createTerminal').mockReturnValue({ sendText, show: vi.fn() } as unknown as vscode.Terminal);
       await makeBroker().requestReopen(entry({ cwd: join(home, 'gone') }));
@@ -459,6 +463,7 @@ describe('requestReopen', () => {
       await vi.advanceTimersByTimeAsync(2_100);
       await vi.waitFor(() => expect(sendText).toHaveBeenCalledWith('claude --resume s1'));
       expect(run).not.toHaveBeenCalledWith('vscode.openFolder', expect.anything(), expect.anything());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('no longer exists'));
     } finally {
       vi.useRealTimers();
     }
