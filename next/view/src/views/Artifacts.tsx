@@ -84,6 +84,7 @@ export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 
   const { t, now, snapshot } = ctx;
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [rules, setRules] = useState(false);
   const tidy = what === 'artifacts' ? snapshot.tidy : undefined;
   const refresh = (): void => {
     setBusy(true);
@@ -120,6 +121,31 @@ export function CloudBar({ ctx, what, at }: { ctx: ViewCtx; what: 'artifacts' | 
         >
           <Icon name={tidy !== undefined ? 'tidy' : 'resume'} /> {label}
         </button>
+        {/* The tidying rules, at hand where they serve (15/11) — no longer in the settings. */}
+        {tidy !== undefined && (
+          <button type="button" className="tbtn" aria-label={t('tidy.rulesTitle')} aria-expanded={rules} onClick={() => setRules((r) => !r)}>
+            <Icon name="doc" />
+          </button>
+        )}
+        {rules && tidy !== undefined && (
+          <Popover label={t('tidy.rulesTitle')} onClose={() => setRules(false)}>
+            <div className="pop-body">
+              <b className="pop-title">{t('tidy.rulesTitle')}</b>
+              <TidyRules
+                t={t}
+                rules={tidy.rules}
+                onAdd={() => {
+                  setRules(false);
+                  void ctx.act({ kind: 'tidy.rules', mode: 'add' });
+                }}
+                onOpen={() => {
+                  setRules(false);
+                  void ctx.act({ kind: 'tidy.rules', mode: 'open' });
+                }}
+              />
+            </div>
+          </Popover>
+        )}
         {asking && tidy !== undefined && (
           <Popover label={t('tidy.title')} onClose={() => setAsking(false)}>
             <TidyAsk

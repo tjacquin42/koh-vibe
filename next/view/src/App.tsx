@@ -208,8 +208,6 @@ export function App({ bridge }: { bridge: Bridge }) {
     (action: Action): Promise<ActionResult> => {
       if (!bridge.inEditor) {
         if (action.kind === 'theme.set') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, theme: action.theme } }));
-        if (action.kind === 'setting.titleLines') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, titleLines: action.lines } }));
-        if (action.kind === 'setting.tabNames') setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: { ...prev.snapshot, tabNames: action.on } }));
         return Promise.resolve({ ok: true });
       }
       const req = nextReq.current++;
@@ -258,7 +256,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   };
   if (context.surface === 'cockpit') {
     return (
-      <div className={`app surface-cockpit${snapshot.titleLines === 2 ? ' titles-two' : ''}`} data-vscode-context={NO_MENU}>
+      <div className="app surface-cockpit titles-two" data-vscode-context={NO_MENU}>
         <TipLayer />
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
@@ -280,7 +278,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
   const results = search(snapshot, query);
   return (
-    <div className={`app surface-${context.surface}${snapshot.titleLines === 2 ? ' titles-two' : ''}`} data-vscode-context={NO_MENU}>
+    // Titles on two lines, names beside the tabs' icons: always so since 15/11.
+    <div className={`app surface-${context.surface} titles-two`} data-vscode-context={NO_MENU}>
       <TipLayer />
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
       <Header
@@ -312,7 +311,7 @@ export function App({ bridge }: { bridge: Bridge }) {
               t={t}
               tab={ui.tab}
               order={ui.tabOrder}
-              names={snapshot.tabNames !== false}
+              names
               animate={ctx.animate}
               onTab={(tab) => updateUi((prev) => ({ ...prev, tab }))}
               onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}

@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
 import { Segmented } from '../cockpit/Cockpit';
-import { TidyRules } from '../ui/Rules';
 import { SESSION_SORTS, type SessionSort } from '../sections';
 import { Icon } from '../ui/icons';
 import { Hint } from '../ui/Hint';
@@ -76,26 +75,6 @@ export function SettingsPanel({
             <span />
           </button>
         </div>
-        <div className="set-row">
-          <div className="set-l">
-            <b id="set-tab-names">{t('settings.tabNames')}</b>
-            <Hint text={t('settings.tabNames.hint')} />
-          </div>
-          <button type="button" role="switch" aria-checked={snapshot.tabNames !== false} aria-labelledby="set-tab-names" className="switch" onClick={() => void ctx.act({ kind: 'setting.tabNames', on: snapshot.tabNames === false })}>
-            <span />
-          </button>
-        </div>
-        <Choice label={t('settings.titleLines')} hint={t('settings.titleLines.hint')}>
-          <Segmented
-            label={t('settings.titleLines')}
-            options={[
-              { value: 1 as const, label: t('settings.titleLines.one') },
-              { value: 2 as const, label: t('settings.titleLines.two') },
-            ]}
-            value={snapshot.titleLines ?? 1}
-            onChange={(lines) => void ctx.act({ kind: 'setting.titleLines', lines })}
-          />
-        </Choice>
         {/* Where artifacts open (15/11): the editor's integrated browser where it has one, greyed where not. */}
         <Choice label={t('settings.artifactOpen')} hint={t('settings.artifactOpen.hint')}>
           <Segmented
@@ -154,17 +133,6 @@ export function SettingsPanel({
             >
               <span />
             </button>
-          </div>
-          <div className="set-row set-choice">
-            <div className="set-l">
-              <b>{t('settings.tidyRules')}</b>
-            </div>
-            <TidyRules
-              t={t}
-              rules={snapshot.tidy.rules}
-              onAdd={() => void ctx.act({ kind: 'tidy.rules', mode: 'add' })}
-              onOpen={() => void ctx.act({ kind: 'tidy.rules', mode: 'open' })}
-            />
           </div>
         </section>
       )}

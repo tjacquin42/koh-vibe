@@ -223,8 +223,6 @@ export interface SnapshotExtras {
   tidy?: Snapshot['tidy'];
   theme?: Snapshot['theme'];
   ideThemed?: boolean;
-  tabNames?: boolean;
-  titleLines?: 1 | 2;
   artifactOpen?: Snapshot['artifactOpen'];
   editor?: Snapshot['editor'];
   activeTab?: Snapshot['activeTab'];
@@ -300,8 +298,6 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   if (extras.tidy !== undefined) snap.tidy = extras.tidy;
   if (extras.theme !== undefined) snap.theme = extras.theme;
   if (extras.ideThemed !== undefined) snap.ideThemed = extras.ideThemed;
-  if (extras.tabNames !== undefined) snap.tabNames = extras.tabNames;
-  if (extras.titleLines !== undefined) snap.titleLines = extras.titleLines;
   if (extras.artifactOpen !== undefined) snap.artifactOpen = extras.artifactOpen;
   if (extras.editor !== undefined) snap.editor = extras.editor;
   if (extras.activeTab !== undefined) snap.activeTab = extras.activeTab;

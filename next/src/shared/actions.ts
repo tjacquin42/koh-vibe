@@ -50,11 +50,10 @@ const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_IDS = 200;
 
 /**
- * Where an artifact opens (15/11): the usual browser, a tab of the editor's
- * integrated browser — the real claude.ai page, not a copy — or that same
- * browser over the cockpit, which closing it brings back.
+ * Where an artifact opens (15/11): the usual browser, or a tab of the
+ * editor's integrated browser — the real claude.ai page, not a copy.
  */
-export const ARTIFACT_OPENS = ['browser', 'editor', 'cockpit'] as const;
+export const ARTIFACT_OPENS = ['browser', 'editor'] as const;
 export type ArtifactOpen = (typeof ARTIFACT_OPENS)[number];
 
 export type Action =
@@ -91,9 +90,7 @@ export type Action =
   /** The V2's language, for its views; `auto` follows the editor's. */
   | { kind: 'setting.language'; choice: LanguageChoice }
   /** Tab and view names beside their icons, in the sidebar and the cockpit alike. */
-  | { kind: 'setting.tabNames'; on: boolean }
   /** A conversation's title cut on one line, or wrapped on two at most. */
-  | { kind: 'setting.titleLines'; lines: 1 | 2 }
   | { kind: 'setting.artifactOpen'; where: ArtifactOpen }
   // ── claude.ai, through V1's own API functions (the cloud has no V1 state to clash with)
   | { kind: 'artifact.rename'; slug: string; title: string }
@@ -251,12 +248,8 @@ export function parseAction(raw: unknown): Action | undefined {
       return oneOf(EDITOR_TABS, raw['mode']) ? { kind: 'setting.editorTabs', mode: raw['mode'] } : undefined;
     case 'setting.language':
       return oneOf(LANGUAGE_CHOICES, raw['choice']) ? { kind: 'setting.language', choice: raw['choice'] } : undefined;
-    case 'setting.tabNames':
-      return typeof raw['on'] === 'boolean' ? { kind: 'setting.tabNames', on: raw['on'] } : undefined;
     case 'setting.artifactOpen':
       return ARTIFACT_OPENS.some((w) => w === raw['where']) ? { kind: 'setting.artifactOpen', where: raw['where'] as ArtifactOpen } : undefined;
-    case 'setting.titleLines':
-      return raw['lines'] === 1 || raw['lines'] === 2 ? { kind: 'setting.titleLines', lines: raw['lines'] } : undefined;
     case 'artifact.rename': {
       const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';
       return isSlug(raw['slug']) && title.length > 0 && title.length <= MAX_TITLE ? { kind: 'artifact.rename', slug: raw['slug'], title } : undefined;

@@ -118,7 +118,7 @@ export function CockpitTabs({
   // Dragged into the order wanted, as the sidebar's tabs (ui/reorder.ts).
   const { shown, itemProps, barProps } = useReorder(order, onOrder);
   // As the sidebar's tabs: names when they fit and the settings allow (ui/fit.ts).
-  const iconsOnly = useIconsOnly(nav, ctx.snapshot.tabNames !== false);
+  const iconsOnly = useIconsOnly(nav, true);
   return (
     <nav ref={nav} className={`ck-tabs${iconsOnly ? ' icons-only' : ''}`} role="tablist" aria-label={t('cockpit.views')} {...barProps}>
       {shown.map((v) => (

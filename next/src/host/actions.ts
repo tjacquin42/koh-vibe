@@ -66,8 +66,6 @@ export interface ActionDeps {
   tidyRules(mode: 'add' | 'open'): Promise<void>;
   /** Keeps the colours where every view reads them. */
   setTheme(theme: ThemeState): Thenable<void>;
-  setTabNames(on: boolean): Thenable<void>;
-  setTitleLines(lines: 1 | 2): Thenable<void>;
   setArtifactOpen(where: ArtifactOpen): Thenable<void>;
   ideTheme(mode: 'adapt' | 'restore'): Promise<void>;
 }
@@ -136,12 +134,6 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return OK;
     case 'setting.language':
       await deps.setLanguage(a.choice);
-      return OK;
-    case 'setting.tabNames':
-      await deps.setTabNames(a.on);
-      return OK;
-    case 'setting.titleLines':
-      await deps.setTitleLines(a.lines);
       return OK;
     case 'setting.artifactOpen':
       await deps.setArtifactOpen(a.where);

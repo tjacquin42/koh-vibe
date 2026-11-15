@@ -56,12 +56,6 @@ function deps(over: Partial<ActionDeps> = {}): ActionDeps {
     ideTheme: async (mode) => {
       calls.push(['ideTheme', mode]);
     },
-    setTabNames: async (on) => {
-      calls.push(['tabNames', on]);
-    },
-    setTitleLines: async (lines) => {
-      calls.push(['titleLines', lines]);
-    },
     setArtifactOpen: async (where) => {
       calls.push(['artifactOpen', where]);
     },
@@ -155,11 +149,11 @@ describe('settings, written through V1 store', () => {
     expect(s.waiting).toBe('Glass');
   });
 
-  it('keeps where artifacts open, and reads only the three places there are (15/11)', async () => {
-    await run({ kind: 'setting.artifactOpen', where: 'cockpit' });
-    expect(calls).toContainEqual(['artifactOpen', 'cockpit']);
+  it('keeps where artifacts open, and reads only the two places there are (15/11)', async () => {
+    await run({ kind: 'setting.artifactOpen', where: 'editor' });
+    expect(calls).toContainEqual(['artifactOpen', 'editor']);
     expect(parseAction({ kind: 'setting.artifactOpen', where: 'editor' })).toEqual({ kind: 'setting.artifactOpen', where: 'editor' });
-    expect(parseAction({ kind: 'setting.artifactOpen', where: 'tab' })).toBeUndefined();
+    expect(parseAction({ kind: 'setting.artifactOpen', where: 'cockpit' })).toBeUndefined();
   });
 });
 

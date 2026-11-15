@@ -150,10 +150,6 @@ const SPEND_EVERY_MS = 30_000;
 
 /** Koh-Vibe's colours (shared/theme.ts), kept by the editor for every view. */
 const THEME_KEY = 'kohVibeNext.theme';
-/** Names beside the tab icons (default on), for the sidebar and the cockpit alike. */
-const TAB_NAMES_KEY = 'kohVibeNext.tabNames';
-/** Lines a conversation's title may take (1 or 2), for every view. */
-const TITLE_LINES_KEY = 'kohVibeNext.titleLines';
 /** Where artifacts open (shared/actions.ts ArtifactOpen), for every view. */
 const ARTIFACT_OPEN_KEY = 'kohVibeNext.artifactOpen';
 /**
@@ -316,7 +312,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // Where artifacts open (15/11): the browser, or the editor's integrated
   // browser — in a tab of its own, or over the cockpit, which closing it
   // brings back. An editor without one opens the browser, and says so once.
-  const artifactOpenNow = (): ArtifactOpen => ARTIFACT_OPENS.find((w) => w === context.globalState.get(ARTIFACT_OPEN_KEY)) ?? 'browser';
+  const artifactOpenNow = (): ArtifactOpen => {
+    const kept: unknown = context.globalState.get(ARTIFACT_OPEN_KEY);
+    // « Over the cockpit » is gone (15/11): it opened the same browser, in the editor.
+    return kept === 'cockpit' ? 'editor' : (ARTIFACT_OPENS.find((w) => w === kept) ?? 'browser');
+  };
   let integratedBrowser: boolean | undefined;
   const hasIntegratedBrowser = async (): Promise<boolean> => {
     integratedBrowser ??= (await vscode.commands.getCommands(true)).includes(INTEGRATED_BROWSER);
@@ -327,8 +327,6 @@ export function activate(context: vscode.ExtensionContext): void {
     const url = artifactUrl(slug);
     const where = artifactOpenNow();
     if (where !== 'browser' && (await hasIntegratedBrowser())) {
-      // Over the cockpit: its group comes forward first, and the browser opens in it.
-      if (where === 'cockpit' && cockpit !== undefined) cockpit.reveal(cockpit.viewColumn, false);
       try {
         await vscode.commands.executeCommand(INTEGRATED_BROWSER, { url });
         return;
@@ -398,8 +396,6 @@ export function activate(context: vscode.ExtensionContext): void {
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
         theme: readStoredTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
         ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
-        tabNames: context.globalState.get(TAB_NAMES_KEY) !== false,
-        titleLines: context.globalState.get(TITLE_LINES_KEY) === 2 ? 2 : 1,
         artifactOpen: artifactOpenNow(),
         editor: { name: vscode.env.appName, integratedBrowser: await hasIntegratedBrowser() },
         ...(await activeTabExtra()),
@@ -599,8 +595,6 @@ export function activate(context: vscode.ExtensionContext): void {
             : vscode.l10n.t('Koh-Vibe: the editor’s colours are back as they were.'),
         );
       },
-      setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
-      setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
       setArtifactOpen: (where) => context.globalState.update(ARTIFACT_OPEN_KEY, where),
       // The code editor wears Koh-Vibe's colours only once « Koh-Vibe's » was
       // picked for its background (15/11, Theme.tsx); from then on it follows
