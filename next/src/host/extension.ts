@@ -8,7 +8,7 @@ import { DEFAULT_THEME, readStoredTheme, storedTheme } from '../shared/theme';
 import { readClosed } from '../../../src/closed/store';
 import { artifactProjectsFile, claudeHome, claudeSessionsDir, closedFile, groupsFile, kohVibeHome, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
-import { parseViewMessage, type ActiveTabView, type HostMessage, type ReopenOutcome, type SidebarTab, type Surface, type ViewContext } from '../shared/protocol';
+import { parseViewMessage, type ActiveTabView, type HostMessage, type ReopenOutcome, type SidebarTab, type SpendView, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
@@ -32,6 +32,7 @@ import { COCKPIT_PANEL, SIDEBAR_VIEW } from './ids';
 import { openSession, reopenClosed } from './open-session';
 import { locateProcess, scanProcesses, systemProcessDeps, type ProcessDeps } from './processes';
 import { buildSnapshot, namesFrom } from './snapshot';
+import { Spend } from './spend';
 import { createStatusBar } from './status-bar';
 import { watchHome, type Disposable } from './watch';
 import { builtHtml, devHtml, makeNonce } from './webview-html';
@@ -135,6 +136,9 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   const v: unknown = context.globalState.get(LANGUAGE_KEY);
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
+
+/** How often the conversations' spending is read again while the Usage tab is open. */
+const SPEND_EVERY_MS = 30_000;
 
 /** Koh-Vibe's colours (shared/theme.ts), kept by the editor for every view. */
 const THEME_KEY = 'kohVibeNext.theme';
@@ -293,6 +297,19 @@ export function activate(context: vscode.ExtensionContext): void {
   // index is dropped with the last cockpit: reopened, it reads its window again.
   let activity: ActivityIndex | undefined;
   const transcripts = transcriptsRoot.current ?? join(claudeHome(), 'projects');
+  // Which conversations spent the most (spend.ts): read only while the Usage
+  // tab is open, at most every 30 seconds, and shown with the next build.
+  const spend = new Spend(transcripts);
+  let spendAt = 0;
+  const spendExtra = (): { spend?: SpendView } => {
+    if (![...tabs.values()].includes('usage')) return {};
+    if (Date.now() - spendAt > SPEND_EVERY_MS) {
+      spendAt = Date.now();
+      void spend.refresh(Date.now()).then(() => hub.refresh(), () => undefined);
+    }
+    const now = spend.current();
+    return now === undefined ? {} : { spend: now };
+  };
   // V1's incremental transcript readings: how a conversation gets its name.
   // The first pass reads every transcript whole (2.4 s on a busy machine);
   // it runs apart, so the list shows at once and the names follow.
@@ -334,6 +351,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ...(await activeTabExtra()),
         restored: await activeTab.restored(Date.now()),
         ...(windowFocused() === undefined ? {} : { focused: windowFocused() }),
+        ...spendExtra(),
         hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
         processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),

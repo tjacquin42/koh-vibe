@@ -55,6 +55,23 @@ export function sampleSnapshot(now: number): Snapshot {
       weekly: { percent: 18, resetsAt: later(3 * 24 * 60) },
       models: [{ name: 'Opus', percent: 88, resetsAt: later(3 * 24 * 60) }],
     },
+    spend: {
+      at: ago(1),
+      windows: {
+        '5h': [
+          { sessionId: 's1', share: 0.46 },
+          { sessionId: 's2', share: 0.31 },
+          { sessionId: 's3', share: 0.15 },
+          { sessionId: 'gone-1', share: 0.08, title: 'An old conversation' },
+        ],
+        '24h': [
+          { sessionId: 's2', share: 0.52 },
+          { sessionId: 's1', share: 0.3 },
+          { sessionId: 's5', share: 0.18 },
+        ],
+        '7d': [],
+      },
+    },
     artifacts: {
       at: ago(3),
       items: [

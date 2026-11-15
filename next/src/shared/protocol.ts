@@ -64,6 +64,23 @@ export interface ModelWindowView extends UsageWindowView {
   name: string;
 }
 
+/** The windows the spending of each conversation is ranked over. */
+export type SpendWindow = '5h' | '24h' | '7d';
+
+export interface SpendEntryView {
+  sessionId: string;
+  /** Its title, read from its transcript; the view prefers the list's own name. */
+  title?: string;
+  /** Its share of what was spent in the window, 0 to 1. */
+  share: number;
+}
+
+/** Which conversations spent the most (host spend.ts). */
+export interface SpendView {
+  at: number;
+  windows: Record<SpendWindow, SpendEntryView[]>;
+}
+
 export interface UsageView {
   at: number;
   source: 'api' | 'statusline';
@@ -293,6 +310,8 @@ export interface Snapshot {
   titleLines?: 1 | 2;
   /** The conversation tab in front, if one is (host active-tab.ts). */
   activeTab?: ActiveTabView;
+  /** The conversations that spent the most, by window (host spend.ts); only while the Usage tab is open. */
+  spend?: SpendView;
   /**
    * Whether this window has the focus. A click that brings forward a
    * conversation living in another window ends when that window takes it

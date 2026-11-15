@@ -275,7 +275,8 @@ export function Inbox({ ctx, compact = false }: { ctx: ViewCtx; compact?: boolea
       {box.waiting.map((s) => (
         <div key={s.id} className="ask">
           <div className="ask-h">
-            <Dot tone="wait" animate={false} />
+            {/* It turns as it does in the list (15/11): the same conversation, the same wait. */}
+            <Dot tone="wait" animate={ctx.animate} />
             <span className="txt">
               <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />

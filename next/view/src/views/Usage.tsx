@@ -1,5 +1,8 @@
-import type { UsageWindowView } from '../../../src/shared/protocol';
-import { formatAge, formatWhen } from '../format';
+import { useState } from 'react';
+import type { SpendWindow, UsageWindowView } from '../../../src/shared/protocol';
+import { formatAge, formatWhen, toneOf } from '../format';
+import { Dot } from '../ui/icons';
+import { SessionName } from '../ui/SessionName';
 import { usageLines } from '../sections';
 import type { ViewCtx } from './context';
 
@@ -7,18 +10,82 @@ import type { ViewCtx } from './context';
 export function UsageTab({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot, now } = ctx;
   const u = snapshot.usage;
-  if (u === undefined) return <p className="hint pad">{t('usage.none')}</p>;
   return (
     <>
-      <h2 className="sec sec-label">{t('usage.limits')}</h2>
-      <div className="meters">
-        {usageLines(u, t).map((l) => (
-          <Gauge key={l.key} ctx={ctx} label={l.label} w={l.w} exact />
-        ))}
+      {u === undefined ? (
+        <p className="hint pad">{t('usage.none')}</p>
+      ) : (
+        <>
+          <h2 className="sec sec-label">{t('usage.limits')}</h2>
+          <div className="meters">
+            {usageLines(u, t).map((l) => (
+              <Gauge key={l.key} ctx={ctx} label={l.label} w={l.w} exact />
+            ))}
+          </div>
+          <p className="hint pad">
+            {t('usage.read', { d: formatAge(Math.max(0, now - u.at), t) })} · {t(`usage.source.${u.source}`)}
+          </p>
+        </>
+      )}
+      <Hungriest ctx={ctx} />
+    </>
+  );
+}
+
+const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
+
+/**
+ * The conversations that spent the most (15/11), over 5 hours, 24 hours or 7
+ * days: the limits above say how much went, this says where. A share of the
+ * window, estimated from the transcripts (host spend.ts). A click goes to the
+ * conversation, as in the list.
+ */
+function Hungriest({ ctx }: { ctx: ViewCtx }) {
+  const { t, snapshot } = ctx;
+  const [w, setW] = useState<SpendWindow>('5h');
+  const spend = snapshot.spend;
+  const entries = spend?.windows[w] ?? [];
+  const top = entries[0]?.share ?? 0;
+  return (
+    <>
+      <h2 className="sec sec-label">{t('usage.top')}</h2>
+      <div className="spend">
+        <div className="seg" role="radiogroup" aria-label={t('usage.top')}>
+          {SPEND_WINDOWS.map((x) => (
+            <button key={x} type="button" role="radio" aria-checked={w === x} onClick={() => setW(x)}>
+              {t(`usage.top.${x}`)}
+            </button>
+          ))}
+        </div>
+        {spend === undefined ? (
+          <p className="hint">{t('usage.top.reading')}</p>
+        ) : entries.length === 0 ? (
+          <p className="hint">{t('usage.top.none')}</p>
+        ) : (
+          entries.map((e) => {
+            const s = snapshot.sessions.find((x) => x.id === e.sessionId);
+            const closed = snapshot.closed.find((c) => c.sessionId === e.sessionId);
+            const p = Math.round(e.share * 100);
+            const go = (): void => {
+              if (s !== undefined) ctx.show(e.sessionId);
+              else if (closed?.resumable === true) ctx.reopen(e.sessionId);
+            };
+            return (
+              <button key={e.sessionId} type="button" className="spend-row" onClick={go} disabled={s === undefined && closed?.resumable !== true}>
+                <span className="spend-name">
+                  {s !== undefined ? <Dot tone={toneOf(s)} animate={ctx.animate} size={9} /> : <Dot tone="ended" animate={false} size={9} />}
+                  <span className="ttl">{s !== undefined ? <SessionName s={s} t={t} animate={false} /> : (closed?.title ?? e.title ?? e.sessionId.slice(0, 8))}</span>
+                  <span className="mono spend-p">{p < 1 ? '< 1' : p} %</span>
+                </span>
+                <span className="bar" aria-hidden="true">
+                  <span className="fill tone-run" style={{ width: `${top === 0 ? 0 : (e.share / top) * 100}%` }} />
+                </span>
+              </button>
+            );
+          })
+        )}
+        <p className="hint">{t('usage.top.hint')}</p>
       </div>
-      <p className="hint pad">
-        {t('usage.read', { d: formatAge(Math.max(0, now - u.at), t) })} · {t(`usage.source.${u.source}`)}
-      </p>
     </>
   );
 }
