@@ -192,13 +192,15 @@ const STATUS_RANK: Record<SessionView['status'], number> = { waiting: 0, running
  * A folder's conversations in the order picked: `manual` keeps the order the
  * list arrives in (dragged by hand, else the host's), `recent` puts the last
  * active first, `status` what needs you first — the most recent first within
- * a status. Stable, never in place.
+ * a status, but the working ones, which keep their order. Stable, never in place.
  */
 export function sortSessions(list: readonly SessionView[], sort: SessionSort): SessionView[] {
   if (sort === 'manual') return [...list];
   const byRecent = (a: SessionView, b: SessionView): number => b.lastEventAt - a.lastEventAt;
   if (sort === 'recent') return [...list].sort(byRecent);
-  return [...list].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || byRecent(a, b));
+  // The ones working keep their order among themselves (15/11): each new
+  // action of one made it climb over the others, and the list never stood still.
+  return [...list].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || (a.status === 'running' ? 0 : byRecent(a, b)));
 }
 
 /** The title Claude Code gives a conversation that has none yet. */

@@ -246,6 +246,11 @@ describe('sortSessions', () => {
     expect(sortSessions(list, 'status').map((x) => x.id)).toEqual(['d', 'b', 'c', 'a']);
     expect(list.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
   });
+
+  it('keeps the working ones in their order whatever their last action (15/11)', () => {
+    const working = [s('x', 'running', 10), s('y', 'running', 90), s('z', 'running', 50), s('w', 'waiting', 5)];
+    expect(sortSessions(working, 'status').map((x) => x.id)).toEqual(['w', 'x', 'y', 'z']);
+  });
 });
 
 describe('tab and view order', () => {
