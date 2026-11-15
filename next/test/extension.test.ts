@@ -19,6 +19,7 @@ import { tableOf } from '../../src/process/scan';
 import type { HostMessage } from '../src/shared/protocol';
 import { ExtensionMode, FakePanel, FakeWebviewView, recorded, Uri } from './stubs/vscode';
 import { fingerprint, makeHome, session } from './home';
+import { DEFAULT_TUNE, KV_PALETTE, tuneHex } from '../src/shared/theme';
 
 let home: string;
 let subscriptions: { dispose(): unknown }[];
@@ -354,7 +355,7 @@ describe('activate', () => {
     await vi.waitFor(() => expect(recorded.config.get('workbench.editor.showTabs')).toBe('none'), { timeout: 1_000, interval: 10 });
   });
 
-  it('dresses the editor in Koh-Vibe colours on a click, not on a new tuning, then gives the original back whole', async () => {
+  it('dresses the code editor in Koh-Vibe colours once picked, follows the tuning, then gives the original back whole (15/11)', async () => {
     const mine = { 'editor.background': '#000000', 'statusBar.background': '#123456', '[Monokai]': { 'editor.background': '#111111' } };
     recorded.config.set('workbench.colorTheme', 'Monokai');
     recorded.config.set('workbench.colorCustomizations', mine);
@@ -362,15 +363,19 @@ describe('activate', () => {
     const view = sidebar();
     await view.webview.receive({ type: 'ready' });
     const colors = (): Record<string, unknown> => recorded.config.get('workbench.colorCustomizations') as Record<string, unknown>;
+    // A tuning alone, before Koh-Vibe's background was picked, leaves the editor as it is.
+    const untuned = { current: { hue: 30, saturation: 100, brightness: 100, ground: 'koh' }, slots: [null, null, null, null] };
+    await view.webview.receive({ type: 'act', req: 4, action: { kind: 'theme.set', theme: untuned } });
+    await vi.waitFor(() => expect(messages(view).some((m) => m.type === 'acted' && m.req === 4)).toBe(true), { timeout: 1_000, interval: 10 });
+    expect(colors()).toEqual(mine);
     await view.webview.receive({ type: 'act', req: 5, action: { kind: 'theme.ide', mode: 'adapt' } });
-    await vi.waitFor(() => expect(colors()['editor.background']).toBe('#14121f'), { timeout: 1_000, interval: 10 });
-    expect(colors()['[Monokai]']).toMatchObject({ 'editor.background': '#14121f' });
-    const theme = { current: { hue: 180, saturation: 100, brightness: 100 }, slots: [null, null, null, null] };
-    await view.webview.receive({ type: 'act', req: 6, action: { kind: 'theme.set', theme } });
-    await vi.waitFor(() => expect(messages(view).some((m) => m.type === 'acted' && m.req === 6)).toBe(true), { timeout: 1_000, interval: 10 });
-    expect(colors()['button.background']).toBe('#ff9e5e');
-    await view.webview.receive({ type: 'act', req: 8, action: { kind: 'theme.ide', mode: 'adapt' } });
-    await vi.waitFor(() => expect(colors()['button.background']).not.toBe('#ff9e5e'), { timeout: 1_000, interval: 10 });
+    // Dressed in Koh-Vibe's colours, as tuned: the accent turned by the hue.
+    await vi.waitFor(() => expect(colors()['button.background']).toBe(tuneHex(KV_PALETTE.accent, { ...DEFAULT_TUNE, hue: 30 })), { timeout: 1_000, interval: 10 });
+    expect(colors()['[Monokai]']).toHaveProperty('editor.background');
+    // Picked: the editor now follows the tuning.
+    const tuned = { current: { hue: 180, saturation: 100, brightness: 100, ground: 'koh' }, slots: [null, null, null, null] };
+    await view.webview.receive({ type: 'act', req: 6, action: { kind: 'theme.set', theme: tuned } });
+    await vi.waitFor(() => expect(colors()['button.background']).toBe(tuneHex(KV_PALETTE.accent, { ...DEFAULT_TUNE, hue: 180 })), { timeout: 1_000, interval: 10 });
     await view.webview.receive({ type: 'act', req: 7, action: { kind: 'theme.ide', mode: 'restore' } });
     await vi.waitFor(() => expect(recorded.config.get('workbench.colorCustomizations')).toEqual(mine), { timeout: 1_000, interval: 10 });
   });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { DEFAULT_THEME, DEFAULT_TUNE, GROUNDS, groundColours, sameTune, TEXTURES, THEME_RANGE, type ThemeState, type ThemeTune } from '../../../src/shared/theme';
+import { Hint } from '../ui/Hint';
 import { previewTheme } from '../ui/theme';
 import { TEXTURE, textureLayers } from '../ui/textures';
 import type { ViewCtx } from './context';
@@ -166,10 +167,21 @@ export function ThemeEditor({ ctx }: { ctx: ViewCtx }) {
       <div className="set-row set-choice">
         <div className="set-l">
           <b>{t('theme.ground')}</b>
+          <Hint text={t('theme.ground.hint')} />
         </div>
         <div className="ttex" role="group" aria-label={t('theme.ground')}>
           {GROUNDS.map((ground) => (
-            <button key={ground} type="button" aria-pressed={draft.ground === ground} onClick={() => save({ ...theme, current: { ...live.current, ground } })}>
+            <button
+              key={ground}
+              type="button"
+              aria-pressed={draft.ground === ground}
+              onClick={() => {
+                // The code editor's own background too (15/11): Koh-Vibe's colours
+                // laid on it, or its own given back — once the choice is saved.
+                save({ ...theme, current: { ...live.current, ground } });
+                void ctx.act({ kind: 'theme.ide', mode: ground === 'koh' ? 'adapt' : 'restore' });
+              }}
+            >
               {t(`theme.ground.${ground}`)}
             </button>
           ))}

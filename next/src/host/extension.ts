@@ -595,15 +595,20 @@ export function activate(context: vscode.ExtensionContext): void {
         await ideTheme(mode);
         void vscode.window.showInformationMessage(
           mode === 'adapt'
-            ? vscode.l10n.t('Koh-Vibe: the editor now wears Koh-Vibe’s colours. « Back to default » puts yours back.')
+            ? vscode.l10n.t('Koh-Vibe: the code editor now wears Koh-Vibe’s colours. « The editor’s » puts yours back.')
             : vscode.l10n.t('Koh-Vibe: the editor’s colours are back as they were.'),
         );
       },
       setTabNames: (on) => context.globalState.update(TAB_NAMES_KEY, on),
       setTitleLines: (lines) => context.globalState.update(TITLE_LINES_KEY, lines),
       setArtifactOpen: (where) => context.globalState.update(ARTIFACT_OPEN_KEY, where),
-      // The editor's colours are not followed: they change on a click of « Adapt » only (14/11).
-      setTheme: (theme) => context.globalState.update(THEME_KEY, storedTheme(theme)),
+      // The code editor wears Koh-Vibe's colours only once « Koh-Vibe's » was
+      // picked for its background (15/11, Theme.tsx); from then on it follows
+      // the tuning, until « The editor's » gives its own colours back.
+      setTheme: async (theme) => {
+        await context.globalState.update(THEME_KEY, storedTheme(theme));
+        if (theme.current.ground === 'koh' && context.globalState.get(IDE_BACKUP_KEY) !== undefined) await ideTheme('adapt');
+      },
       // As a folder rule (V1 groups/rules.ts): a conversation that starts with
       // a title, the skill and the file, left in the input unsent.
       tidyRules: async (mode) => {
