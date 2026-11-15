@@ -7,6 +7,7 @@ import { Hint } from '../ui/Hint';
 import { ThemeEditor } from './Theme';
 import type { ViewCtx } from './context';
 import { ARTIFACT_OPENS } from '../../../src/shared/actions';
+import { ARCHIVE_COUNTS, type ArchiveCount } from '../ui-state';
 
 /**
  * The settings V1 and V2 share (settings.json), written through V1's store.
@@ -19,12 +20,14 @@ export function SettingsPanel({
   showUsage,
   onShowUsage,
   onSort,
+  onArchives,
 }: {
   ctx: ViewCtx;
   onClose(): void;
   showUsage: boolean;
   onShowUsage(on: boolean): void;
   onSort(sort: SessionSort): void;
+  onArchives(count: ArchiveCount): void;
 }) {
   const { t, snapshot } = ctx;
   const s = snapshot.settings;
@@ -93,6 +96,14 @@ export function SettingsPanel({
             options={SESSION_SORTS.map((v) => ({ value: v, label: t(`settings.sort.${v}`) }))}
             value={ctx.sort}
             onChange={onSort}
+          />
+        </Choice>
+        <Choice label={t('settings.archives')} hint={t('settings.archives.hint')}>
+          <Segmented
+            label={t('settings.archives')}
+            options={ARCHIVE_COUNTS.map((v) => ({ value: v, label: String(v) }))}
+            value={ARCHIVE_COUNTS.find((v) => v === ctx.archives) ?? 10}
+            onChange={onArchives}
           />
         </Choice>
         <Choice label={t('settings.language')} hint={t('settings.language.hint')}>

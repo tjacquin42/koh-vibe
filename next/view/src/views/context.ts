@@ -53,6 +53,8 @@ export interface ViewCtx {
   dismiss(sessionId: string, lastEventAt: number): void;
   /** How a folder's conversations are ordered. */
   sort: SessionSort;
+  /** How many closed conversations the Archives show. */
+  archives: number;
   /** The language picked in the settings (`auto` follows the editor). */
   languageChoice: LanguageChoice;
 }

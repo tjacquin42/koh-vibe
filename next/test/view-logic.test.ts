@@ -58,9 +58,15 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'status', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'status', archives: 10, tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
+  });
+
+  it('shows 10, 20 or 50 archives, 10 by default and for anything else (15/11)', () => {
+    expect(parseUiState({}).archives).toBe(10);
+    expect(parseUiState({ archives: 50 }).archives).toBe(50);
+    expect(parseUiState({ archives: 30 }).archives).toBe(10);
   });
 
   it('toggles a fold', () => {

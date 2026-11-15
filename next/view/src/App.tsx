@@ -248,6 +248,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     activeId: activeSessionId(snapshot),
     isDismissed: (id, at) => ui.dismissed[id] === at,
     sort: ui.sort,
+    archives: ui.archives,
     languageChoice: context.languageChoice,
     dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
@@ -301,6 +302,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             showUsage={ui.showUsage}
             onShowUsage={(on) => updateUi((prev) => ({ ...prev, showUsage: on }))}
             onSort={(sort) => updateUi((prev) => ({ ...prev, sort }))}
+            onArchives={(archives) => updateUi((prev) => ({ ...prev, archives }))}
           />
         </main>
       ) : (

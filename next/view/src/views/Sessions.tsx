@@ -63,17 +63,15 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
       ))}
       <NewFolder ctx={ctx} />
       {/* The archives, then the conversations in no folder, at the very bottom (14/11). */}
+      {/* Always open, no count (15/11): the last conversations closed, as many as the settings say. */}
       <Section
         title={t('closed.title')}
-        count={closed.length}
         marker={<Icon name="archive" size={13} />}
-        folded={ctx.isFolded('closed')}
-        onToggle={() => ctx.toggle('closed')}
-        // It holds every closed one, folded or not: a conversation leaving for it
-        // goes down into it, not up into the folder it left (15/11).
-        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('closed')), 'data-flip-holds': closed.map((c) => c.sessionId).join(' ') }}
+        // It holds every closed one: a conversation leaving for it goes down
+        // into it, not up into the folder it left (15/11).
+        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': 'false', 'data-flip-holds': closed.map((c) => c.sessionId).join(' ') }}
       >
-        {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
+        {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.slice(0, ctx.archives).map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
       {(unfiled.sessionIds.length > 0 || drag?.kind === 'session') && <FolderSection ctx={ctx} f={unfiled} byId={byId} dnd={dnd} />}
     </div>

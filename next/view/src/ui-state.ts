@@ -11,6 +11,10 @@ export type CockpitView = (typeof COCKPIT_VIEWS)[number];
  * folded. A convenience only — lost state costs one click, so a bad or
  * missing value falls back to the default without complaint.
  */
+/** The choices for how many closed conversations the Archives show. */
+export const ARCHIVE_COUNTS = [10, 20, 50] as const;
+export type ArchiveCount = (typeof ARCHIVE_COUNTS)[number];
+
 export interface UiState {
   tab: SidebarTab;
   /** Section keys the user folded: a folder id, "unfiled", "closed", "proj:<name>"… */
@@ -39,6 +43,8 @@ export interface UiState {
   dismissed: Record<string, number>;
   /** How a folder's conversations are ordered (sections.ts sortSessions). */
   sort: SessionSort;
+  /** How many closed conversations the Archives show, the latest first (15/11). */
+  archives: ArchiveCount;
   /** The sidebar's tabs and the cockpit's views, in the order dragged (ui/reorder.ts). */
   tabOrder: SidebarTab[];
   viewOrder: CockpitView[];
@@ -57,6 +63,7 @@ export const DEFAULT_UI: UiState = {
   dismissed: {},
   // By state by default (15/11): what waits for you first.
   sort: 'status',
+  archives: 10,
   tabOrder: [...SIDEBAR_TABS],
   viewOrder: [...COCKPIT_VIEWS],
 };
@@ -100,6 +107,7 @@ export function parseUiState(raw: unknown): UiState {
     for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
   }
   const sort = SESSION_SORTS.find((x) => x === rec['sort']) ?? DEFAULT_UI.sort;
+  const archives = ARCHIVE_COUNTS.find((x) => x === rec['archives']) ?? DEFAULT_UI.archives;
   const out: UiState = {
     tab,
     folded,
@@ -108,6 +116,7 @@ export function parseUiState(raw: unknown): UiState {
     showUsage,
     dismissed,
     sort,
+    archives,
     tabOrder: normalizeOrder(rec['tabOrder'], SIDEBAR_TABS),
     viewOrder: normalizeOrder(rec['viewOrder'], COCKPIT_VIEWS),
   };
