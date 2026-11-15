@@ -113,10 +113,14 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (state?.context.surface === 'cockpit') bridge.post({ type: 'sheet', sessionId: sheet ?? null });
   }, [bridge, sheet, state?.context.surface]);
 
-  // The host scans for orphan processes only behind the Processes tab.
+  // The tab a view shows, for what the host reads only behind it — the
+  // conversations' spending behind Usage, in the sidebar or the cockpit.
+  const cockpitView = ui.cockpit.view;
   useEffect(() => {
-    bridge.post({ type: 'tab', tab: ui.tab });
-  }, [bridge, ui.tab]);
+    const surface = state?.context.surface;
+    if (surface === undefined) return;
+    bridge.post({ type: 'tab', tab: surface === 'cockpit' ? (cockpitView === 'usage' ? 'usage' : 'sessions') : ui.tab });
+  }, [bridge, ui.tab, cockpitView, state?.context.surface]);
 
   const updateUi = useCallback(
     (next: (prev: UiState) => UiState) => {

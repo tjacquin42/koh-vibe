@@ -3,7 +3,8 @@ import { SESSION_SORTS, SPANS_H, type SessionSort } from './sections';
 import { normalizeOrder } from './order';
 
 /** The usage left the cockpit (14/11): the sidebar shows it. */
-export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline'] as const;
+// Usage (15/11): the sidebar's own tab, the same, nothing more nor less.
+export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline', 'usage'] as const;
 export type CockpitView = (typeof COCKPIT_VIEWS)[number];
 
 /**

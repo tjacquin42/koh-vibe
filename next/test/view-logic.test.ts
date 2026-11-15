@@ -264,7 +264,7 @@ describe('tab and view order', () => {
     expect(normalizeOrder(['usage', 'nope', 'usage', 'sessions'], SIDEBAR_TABS)).toEqual(['usage', 'sessions', 'artifacts', 'routines', 'processes']);
     expect(normalizeOrder('broken', SIDEBAR_TABS)).toEqual([...SIDEBAR_TABS]);
     expect(parseUiState({ tabOrder: ['artifacts'] }).tabOrder[0]).toBe('artifacts');
-    expect(parseUiState({ viewOrder: ['usage', 'feed'] }).viewOrder).toEqual(['feed', 'board', 'wall', 'timeline']);
+    expect(parseUiState({ viewOrder: ['nope', 'feed'] }).viewOrder).toEqual(['feed', 'board', 'wall', 'timeline', 'usage']);
   });
 
   it('moves an item in front of another, or to the end', () => {

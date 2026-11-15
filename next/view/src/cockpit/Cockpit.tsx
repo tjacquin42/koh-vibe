@@ -15,6 +15,7 @@ import { useReorder } from '../ui/reorder';
 import { useIconsOnly } from '../ui/fit';
 import { EdgeScroll } from '../ui/EdgeScroll';
 import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { UsageTab } from '../views/Usage';
 
 type Cockpit = UiState['cockpit'];
 
@@ -141,7 +142,7 @@ export function CockpitTabs({
   );
 }
 
-const VIEW_ICON: Record<CockpitView, IconName> = { board: 'columns', wall: 'grid', feed: 'list', timeline: 'clock' };
+const VIEW_ICON: Record<CockpitView, IconName> = { board: 'columns', wall: 'grid', feed: 'list', timeline: 'clock', usage: 'bars' };
 
 function ViewBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; setUi(next: Partial<Cockpit>): void }) {
   switch (ui.view) {
@@ -153,6 +154,13 @@ function ViewBody({ ctx, ui, setUi }: { ctx: ViewCtx; ui: Cockpit; setUi(next: P
       return <Feed ctx={ctx} folder={ui.folder} />;
     case 'timeline':
       return <Timeline ctx={ctx} folder={ui.folder} spanH={ui.spanH} onSpan={(spanH) => setUi({ spanH })} />;
+    case 'usage':
+      // The sidebar's Usage tab as it is: limits, pace marks, the hungriest conversations.
+      return (
+        <div className="ck-usage">
+          <UsageTab ctx={ctx} />
+        </div>
+      );
   }
 }
 

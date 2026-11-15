@@ -687,6 +687,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 /* The cockpit's views, across the whole width (14/11). */
 /* No inner padding (15/11): the selected tab lines up with the filters and the tiles above it. */
+.ck-usage { max-width: 560px; padding: 4px 8px 16px; }
 .ck-tabs { display: flex; gap: 2px; margin: 0 18px 6px; padding: 0; background: var(--surface); border-radius: 9px; }
 .ck-tabs button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; }
 .ck-tabs button span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
