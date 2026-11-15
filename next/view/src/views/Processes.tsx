@@ -8,20 +8,30 @@ import type { ViewCtx } from './context';
 
 const KIND_ICON: Record<ProcessKind, IconName> = { mcp: 'plug', shell: 'term', work: 'gear' };
 
-/** The last directory of a path — enough to tell two projects apart on a row. */
-function base(path: string): string {
-  const parts = path.split('/').filter((p) => p.length > 0);
-  return parts[parts.length - 1] ?? path;
-}
-
 export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
   const procs = snapshot.processes;
   if (procs === undefined) return <p className="hint pad">{t('processes.reading')}</p>;
   const sessions = snapshot.sessions.filter((s): s is SessionView => (procs.bySession[s.id]?.length ?? 0) > 0);
+  const keys = sessions.map((s) => `proc:${s.id}`);
+  // Everything goes through a conversation (15/11): no section for the processes of none.
   return (
     <>
-      {sessions.length === 0 && <p className="hint pad">{t('processes.none')}</p>}
+      {sessions.length === 0 ? (
+        <p className="hint pad">{t('processes.none')}</p>
+      ) : (
+        <div className="cloudbar">
+          <span />
+          <span className="cloudbar-act">
+            <button type="button" className="tbtn" aria-label={t('processes.unfoldAll')} onClick={() => ctx.setFolded(keys, false)}>
+              <Icon name="unfoldAll" />
+            </button>
+            <button type="button" className="tbtn" aria-label={t('processes.foldAll')} onClick={() => ctx.setFolded(keys, true)}>
+              <Icon name="foldAll" />
+            </button>
+          </span>
+        </div>
+      )}
       {sessions.map((s) => {
         const list = procs.bySession[s.id] ?? [];
         return (
@@ -40,23 +50,6 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
           </Section>
         );
       })}
-      {procs.orphans === undefined ? (
-        <Section title={t('processes.orphans')}>
-          <p className="hint">{t('processes.reading')}</p>
-        </Section>
-      ) : (
-        <Section title={t('processes.orphans')} count={procs.orphans.length} folded={ctx.isFolded('proc:orphans')} onToggle={() => ctx.toggle('proc:orphans')}>
-          {procs.orphans.length === 0 && <p className="hint">{t('processes.orphansNone')}</p>}
-          {procs.orphans.map((o) => (
-            <div key={o.tree[0]?.pid ?? o.cwd} className="orphan">
-              <span className="orphan-cwd mono">{base(o.cwd)}</span>
-              {o.tree.map((p) => (
-                <ProcessRow key={p.pid} ctx={ctx} p={p} />
-              ))}
-            </div>
-          ))}
-        </Section>
-      )}
     </>
   );
 }

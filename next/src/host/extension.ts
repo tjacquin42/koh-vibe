@@ -291,7 +291,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // The tab each open view shows. Orphans cost an `lsof` over every adopted
   // dev server: looked for only while some view has the Processes tab open.
   const tabs = new Map<object, SidebarTab>();
-  const wantOrphans = (): boolean => [...tabs.values()].includes('processes');
   const workspaceRoots = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   // Transcripts are read only while a cockpit is open to show them, and the
   // index is dropped with the last cockpit: reopened, it reads its window again.
@@ -354,7 +353,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ...spendExtra(),
         hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
-        processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], wantOrphans(), Date.now()),
+        processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], false, Date.now()),
         activity: async (known) => {
           if (cockpit === undefined) {
             activity = undefined;
@@ -583,10 +582,11 @@ export function activate(context: vscode.ExtensionContext): void {
       openSession: focus,
       reopenClosed: reopen,
       showTab(tab) {
-        const before = wantOrphans();
+        const before = [...tabs.values()].includes('usage');
         if (tab === undefined) tabs.delete(key);
         else tabs.set(key, tab);
-        if (wantOrphans() && !before) void hub.refresh();
+        // The Usage tab just shown: read the conversations' spending now (spend.ts), not in 30 s.
+        if (tab === 'usage' && !before) void hub.refresh();
         // A cloud tab just shown: its list may be stale; refresh(false) asks
         // claude.ai only if the shared cache is older than five minutes.
         if (tab === 'artifacts' || tab === 'routines') void cloud.refresh(tab, false);

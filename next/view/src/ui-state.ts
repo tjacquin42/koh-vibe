@@ -132,6 +132,12 @@ export function dismiss(state: UiState, sessionId: string, lastEventAt: number, 
   return { ...state, dismissed: { ...kept, [sessionId]: lastEventAt } };
 }
 
+/** Folds, or unfolds, several sections at once — « fold all », « unfold all ». */
+export function setFolds(state: UiState, keys: readonly string[], folded: boolean): UiState {
+  const next = folded ? [...new Set([...state.folded, ...keys])] : state.folded.filter((k) => !keys.includes(k));
+  return next.length === state.folded.length && next.every((k, i) => k === state.folded[i]) ? state : { ...state, folded: next };
+}
+
 export function toggleFold(state: UiState, key: string): UiState {
   const has = state.folded.includes(key);
   return { ...state, folded: has ? state.folded.filter((k) => k !== key) : [...state.folded, key] };

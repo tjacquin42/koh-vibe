@@ -15,6 +15,8 @@ export interface ViewCtx {
   animate: boolean;
   isFolded(key: string): boolean;
   toggle(key: string): void;
+  /** Folds or unfolds several sections at once. */
+  setFolded(keys: readonly string[], folded: boolean): void;
   /** Conversations V1 is bringing back: their row spins until they are open again. */
   reopening: ReadonlySet<string>;
   /** Why the last click on that row brought nothing back, for a few seconds. */

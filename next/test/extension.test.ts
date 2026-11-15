@@ -214,22 +214,16 @@ describe('activate', () => {
     expect(new Set(sent).size).toBe(sent.length);
   });
 
-  it('shows what each conversation runs, and looks for orphans only behind the Processes tab', async () => {
+  it('shows what each conversation runs, and never looks for processes of no conversation (15/11)', async () => {
     start(ExtensionMode.Production);
     const view = sidebar();
     await view.webview.receive({ type: 'ready' });
     const init = messages(view)[0];
     expect(init?.type === 'init' && init.snapshot.processes?.bySession['a']?.map((p) => p.label)).toEqual(['node mcp.js']);
     expect(init?.type === 'init' && init.snapshot.processes?.orphans).toBeUndefined();
-    expect(fakeProcs.orphanScans).toBe(0);
     await view.webview.receive({ type: 'tab', tab: 'processes' });
-    await vi.waitFor(() => expect(fakeProcs.orphanScans).toBeGreaterThan(0), { timeout: 2_000, interval: 20 });
-    expect(fakeProcs.roots).toContain('/work/open-folder');
-    expect(fakeProcs.roots).toContain('/work/a');
-    const scans = fakeProcs.orphanScans;
-    await view.webview.receive({ type: 'tab', tab: 'sessions' });
     await view.webview.receive({ type: 'reload' });
-    expect(fakeProcs.orphanScans).toBe(scans);
+    expect(fakeProcs.orphanScans).toBe(0);
   });
 
   it('opens an artifact on claude.ai, and nothing for a slug that is not one', async () => {

@@ -64,6 +64,9 @@ const PATHS = {
   ),
   chev: <path d="M5 6.5l3 3 3-3" />,
   chevR: <path d="M6.5 5l3 3-3 3" />,
+  // Unfold all, fold all (15/11): two chevrons parting, two closing in.
+  unfoldAll: <path d="M5 6l3-3 3 3M5 10l3 3 3-3" />,
+  foldAll: <path d="M5 3l3 3 3-3M5 13l3-3 3 3" />,
   pin: <path d="M6 2.5h4l-.5 4 2 2H4.5l2-2zM8 8.5V14" />,
   doc: (
     <>

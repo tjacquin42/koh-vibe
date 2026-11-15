@@ -5,7 +5,7 @@ import { sampleSnapshot } from '../view/src/fixture';
 import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
-import { atLaunch, DEFAULT_UI, parseUiState, setSize, toggleFold } from '../view/src/ui-state';
+import { atLaunch, DEFAULT_UI, parseUiState, setFolds, setSize, toggleFold } from '../view/src/ui-state';
 import { activeSessionId } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
@@ -67,6 +67,14 @@ describe('ui state', () => {
     const s = toggleFold(DEFAULT_UI, 'f1');
     expect(s.folded).toContain('f1');
     expect(toggleFold(s, 'f1').folded).not.toContain('f1');
+  });
+
+  it('folds and unfolds several sections at once, leaving the others as they are', () => {
+    const base = { ...DEFAULT_UI, folded: ['closed', 'proc:a'] };
+    expect(setFolds(base, ['proc:a', 'proc:b'], true).folded).toEqual(['closed', 'proc:a', 'proc:b']);
+    expect(setFolds(base, ['proc:a', 'proc:b'], false).folded).toEqual(['closed']);
+    // Nothing to change: the same state, so nothing renders for nothing.
+    expect(setFolds(base, ['proc:a'], true)).toBe(base);
   });
 });
 

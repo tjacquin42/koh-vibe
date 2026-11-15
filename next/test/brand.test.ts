@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bandNodes, brandParts, sunTone } from '../view/src/ui/brand';
+import { bandNodes, brandParts } from '../view/src/ui/brand';
 
 describe('the sidebar name (C2)', () => {
   it('is Koh, a bar, Vibe — the hyphen no character', () => {
@@ -13,15 +13,5 @@ describe('the sidebar name (C2)', () => {
   it('gives the rainbow a layer of the same structure: the text, and an empty box where the bar is', () => {
     expect(bandNodes(brandParts('Koh-Vibe'))).toEqual([{ text: 'Koh' }, { className: 'brand-dash brand-dash-ghost' }, { text: 'Vibe' }]);
     expect(bandNodes(brandParts('Cockpit'))).toEqual([{ text: 'Cockpit' }]);
-  });
-});
-
-describe('the sun of the logo alone', () => {
-  it('is coral when a conversation waits, else lagoon when one works, else sea green', () => {
-    expect(sunTone({ waiting: 1, running: 3, done: 2 })).toBe('wait');
-    expect(sunTone({ waiting: 0, running: 1, done: 2 })).toBe('run');
-    expect(sunTone({ waiting: 0, running: 0, done: 2 })).toBe('done');
-    // No conversation at all: sea green too.
-    expect(sunTone({ waiting: 0, running: 0, done: 0 })).toBe('done');
   });
 });

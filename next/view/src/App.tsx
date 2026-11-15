@@ -14,11 +14,11 @@ import { Icon, type IconName } from './ui/icons';
 import { useFlip } from './ui/flip';
 import { useReorder } from './ui/reorder';
 import { useIconsOnly } from './ui/fit';
-import { bandNodes, brandParts, sunTone, type BrandPart, type SunTone } from './ui/brand';
+import { bandNodes, brandParts, type BrandPart } from './ui/brand';
 import { TipLayer } from './ui/Tip';
 import { showStoredTheme } from './ui/theme';
 import { Section } from './ui/Section';
-import { atLaunch, dismiss, parseUiState, setSize, toggleFold, type UiState } from './ui-state';
+import { atLaunch, dismiss, parseUiState, setFolds, setSize, toggleFold, type UiState } from './ui-state';
 import { ArtifactRow, ArtifactsTab } from './views/Artifacts';
 import type { ViewCtx } from './views/context';
 import { ProcessesTab } from './views/Processes';
@@ -214,7 +214,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   );
 
   if (state === undefined) {
-    return <div className="boot">{t('live.wait')}</div>;
+    return <BootBrand label={t('live.wait')} name={t('app.name')} />;
   }
   const { context } = state;
   // Outside the editor no host builds the sheet: the preview makes one up.
@@ -228,6 +228,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     animate: snapshot.settings.animate,
     isFolded: (key) => ui.folded.includes(key),
     toggle: (key) => updateUi((prev) => toggleFold(prev, key)),
+    setFolded: (keys, folded) => updateUi((prev) => setFolds(prev, keys, folded)),
     reopening: new Set(reopening.keys()),
     reopenNotice: (id) => notices.get(id),
     reopen,
@@ -374,7 +375,7 @@ function Header({
           {/* The sidebar's name is striped with the logo's colours (C2, 14/11); the cockpit's title stays as it was. */}
           <BrandName text={surface === 'cockpit' ? t('cockpit.title') : t('app.name')} striped={surface === 'sidebar'} />
         </h1>
-        {surface === 'sidebar' && <BrandLogo label={t('app.name')} tone={sunTone(c)} />}
+        {surface === 'sidebar' && <BrandLogo label={t('app.name')} />}
         {/* The cockpit keeps its title alone (14/11). */}
         {surface === 'sidebar' && /^\d/.test(version) && <span className="ver mono">v{version}</span>}
         {surface === 'sidebar' && (
@@ -458,15 +459,38 @@ function BrandName({ text, striped = false }: { text: string; striped?: boolean 
 }
 
 /**
- * The logo alone — a half sun over two strokes of sea — where the sidebar is
- * too narrow for the name (app.css container query). The sun takes the state's
- * colour; never a glow nor a pulse (refused, 14/11).
+ * While the view waits for the extension (15/11): the striped name, with the
+ * rainbow running through it again and again — the click's band, on a loop.
+ * Still under the system's reduced motion. The wait itself is said to screen
+ * readers only.
  */
-function BrandLogo({ label, tone }: { label: string; tone: SunTone }) {
+function BootBrand({ label, name }: { label: string; name: string }) {
+  const parts = brandParts(name);
   return (
-    <span className={`brand-logo tone-${tone}`} role="img" aria-label={label}>
+    <div className="boot" role="status" aria-label={label}>
+      <span className="brand brand-c2 boot-brand" aria-hidden="true">
+        <span className="brand-name">
+          {parts.map((p, i) => (p.kind === 'text' ? <Fragment key={i}>{p.text}</Fragment> : <span key={i} className="brand-dash" />))}
+        </span>
+        <span className="brand-band boot-band">
+          {bandNodes(parts).map((n, i) => ('text' in n ? <Fragment key={i}>{n.text}</Fragment> : <span key={i} className={n.className} />))}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The logo alone — a half sun over two strokes of sea — where the sidebar is
+ * too narrow for the name (app.css container query). In the logo's own
+ * colours, those the name is striped with (15/11): coral, lagoon, sea green.
+ * Never a glow nor a pulse (refused, 14/11).
+ */
+function BrandLogo({ label }: { label: string }) {
+  return (
+    <span className="brand-logo" role="img" aria-label={label}>
       <svg viewBox="36 56 184 176" width="26" height="25" aria-hidden="true">
-        <path d="M53 139A75 75 0 0 1 203 139Z" fill="currentColor" />
+        <path d="M53 139A75 75 0 0 1 203 139Z" fill="var(--wait)" />
         <path d="M43 181H149" fill="none" stroke="var(--run)" strokeWidth="21" strokeLinecap="round" />
         <path d="M107 219H213" fill="none" stroke="var(--done)" strokeWidth="21" strokeLinecap="round" />
       </svg>

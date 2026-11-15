@@ -1,5 +1,3 @@
-import type { Counts } from '../format';
-
 /**
  * The sidebar's name, « C2 » (14/11): the logo's colours in horizontal bands
  * through the letters, and the hyphen no character but a lagoon bar laid on
@@ -21,17 +19,4 @@ export function brandParts(name: string): BrandPart[] {
 /** The rainbow's layer, node by node: the text as it is, the bar as an empty box of the same size. */
 export function bandNodes(parts: readonly BrandPart[]): ({ text: string } | { className: string })[] {
   return parts.map((p) => (p.kind === 'text' ? { text: p.text } : { className: 'brand-dash brand-dash-ghost' }));
-}
-
-export type SunTone = 'wait' | 'run' | 'done';
-
-/**
- * The logo's sun, shown alone when the sidebar is too narrow for the name:
- * coral when a conversation waits for you, else lagoon when one works, else
- * sea green — the most pressing first. Never a glow nor a pulse (refused).
- */
-export function sunTone(c: Counts): SunTone {
-  if (c.waiting > 0) return 'wait';
-  if (c.running > 0) return 'run';
-  return 'done';
 }
