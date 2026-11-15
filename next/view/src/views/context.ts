@@ -15,11 +15,13 @@ export interface ViewCtx {
   animate: boolean;
   isFolded(key: string): boolean;
   toggle(key: string): void;
-  /** Closed conversations V1 is bringing back: their row spins. */
+  /** Conversations V1 is bringing back: their row spins until they are open again. */
   reopening: ReadonlySet<string>;
   /** Why the last click on that row brought nothing back, for a few seconds. */
   reopenNotice(sessionId: string): Exclude<ReopenOutcome, 'v1'> | undefined;
   reopen(sessionId: string): void;
+  /** A greyed row was clicked: it spins until its conversation is open again. */
+  awaitOpen(sessionId: string): void;
   /** A change, answered by the host; a refusal is already shown when it resolves. */
   act(action: Action): Promise<ActionResult>;
   /** A short line at the bottom that goes away — for what worked and is worth saying. */

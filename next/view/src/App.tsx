@@ -141,20 +141,24 @@ export function App({ bridge }: { bridge: Bridge }) {
   const tune = snapshotNow?.theme?.current;
   useEffect(() => showStoredTheme(tune), [tune?.hue, tune?.saturation, tune?.brightness, tune?.grain, tune?.textures.join()]);
 
+  const awaitOpen = useCallback((sessionId: string) => {
+    setReopening((r) => startReopening(r, sessionId, Date.now()));
+    // The cap must not wait for the next snapshot to be noticed.
+    window.setTimeout(() => setReopening((r) => (r.has(sessionId) && Date.now() - (r.get(sessionId) ?? 0) >= REOPEN_WAIT_MS ? stopReopening(r, sessionId) : r)), REOPEN_WAIT_MS + 50);
+  }, []);
+
   const reopen = useCallback(
     (sessionId: string) => {
-      setReopening((r) => startReopening(r, sessionId, Date.now()));
+      awaitOpen(sessionId);
       setNotices((n) => {
         if (!n.has(sessionId)) return n;
         const next = new Map(n);
         next.delete(sessionId);
         return next;
       });
-      // The 30 s cap must not wait for the next snapshot to be noticed.
-      window.setTimeout(() => setReopening((r) => (r.has(sessionId) && Date.now() - (r.get(sessionId) ?? 0) >= REOPEN_WAIT_MS ? stopReopening(r, sessionId) : r)), REOPEN_WAIT_MS + 50);
       bridge.post({ type: 'reopenClosed', sessionId });
     },
-    [bridge],
+    [bridge, awaitOpen],
   );
 
   // The caps of busy.ts need a clock only while something is busy.
@@ -223,6 +227,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     reopening: new Set(reopening.keys()),
     reopenNotice: (id) => notices.get(id),
     reopen,
+    awaitOpen,
     act,
     notify: showToast,
     isBusy: (key) => busy.has(key),

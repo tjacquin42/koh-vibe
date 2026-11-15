@@ -360,7 +360,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const [info, setInfo] = useState(false);
   const tone = toneOf(s);
   const statusKey = tone === 'ended' ? 'status.ended' : (`status.${s.status}` as const);
-  const busy = ctx.isBusy(s.id);
+  const busy = ctx.isBusy(s.id) || ctx.reopening.has(s.id);
   const filed = isFiledIn(ctx.snapshot, s.id);
   // One line only (14/11): what it does and when it leaves are behind the (i).
   return (
@@ -376,8 +376,11 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
           type="button"
           className="srow-main"
           onClick={() => {
-            // V1 brings the tab forward and says nothing back: a short beat of « on it ».
-            void ctx.track(s.id, Promise.resolve(), 900);
+            // A greyed row spins until its conversation is open again (15/11);
+            // a live one only needs a short beat of « on it » — V1 brings the
+            // tab forward and says nothing back.
+            if (s.endedAt !== undefined) ctx.awaitOpen(s.id);
+            else void ctx.track(s.id, Promise.resolve(), 900);
             ctx.bridge.post({ type: 'openSession', sessionId: s.id });
           }}
         >
