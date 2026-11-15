@@ -462,6 +462,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* Artifacts, routines, processes: actions. */
 .cloudbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 8px 2px; font-size: 11.5px; color: var(--muted); }
 .cloudbar .btn-ghost { padding: 2px 8px; font-size: 11.5px; }
+/* Processes (15/11): the fold buttons sit close above the first conversation. */
+.proc-bar { margin: 4px 8px 0; }
+.proc-bar + .group > .sec { margin-top: 0; }
 .btn-ghost:disabled { opacity: 0.6; cursor: progress; }
 .arow-line { position: relative; }
 .arow .tools { position: absolute; right: 4px; top: 3px; display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--surface); box-shadow: -10px 0 10px var(--surface); opacity: 0; pointer-events: none; }

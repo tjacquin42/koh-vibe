@@ -20,7 +20,7 @@ export function ProcessesTab({ ctx }: { ctx: ViewCtx }) {
       {sessions.length === 0 ? (
         <p className="hint pad">{t('processes.none')}</p>
       ) : (
-        <div className="cloudbar">
+        <div className="cloudbar proc-bar">
           <span />
           <span className="cloudbar-act">
             <button type="button" className="tbtn" aria-label={t('processes.unfoldAll')} onClick={() => ctx.setFolded(keys, false)}>
