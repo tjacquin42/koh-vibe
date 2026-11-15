@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { TEXT_MENU } from './menu-context';
 
 /**
  * A name typed in place: Enter keeps it, Escape gives up (`undefined`). An
@@ -30,6 +31,7 @@ export function NameInput({
   const kept = (): string | undefined => (value.trim() === '' && allowEmpty !== true ? undefined : value.trim());
   return (
     <input
+      data-vscode-context={TEXT_MENU}
       className="name-input"
       aria-label={label}
       value={value}

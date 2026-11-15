@@ -26,6 +26,7 @@ import { SettingsPanel } from './views/Settings';
 import { RoutinesTab } from './views/Routines';
 import { ClosedRow, SessionRow, SessionsTab } from './views/Sessions';
 import { UsageStrip, UsageTab } from './views/Usage';
+import { NO_MENU, TEXT_MENU } from './ui/menu-context';
 
 interface State {
   context: ViewContext;
@@ -250,7 +251,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   };
   if (context.surface === 'cockpit') {
     return (
-      <div className={`app surface-cockpit${snapshot.titleLines === 2 ? ' titles-two' : ''}`}>
+      <div className={`app surface-cockpit${snapshot.titleLines === 2 ? ' titles-two' : ''}`} data-vscode-context={NO_MENU}>
         <TipLayer />
         {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
         <Header t={t} snapshot={snapshot} surface={context.surface} version={context.version} onCockpit={() => undefined} />
@@ -272,7 +273,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
   const results = search(snapshot, query);
   return (
-    <div className={`app surface-${context.surface}${snapshot.titleLines === 2 ? ' titles-two' : ''}`}>
+    <div className={`app surface-${context.surface}${snapshot.titleLines === 2 ? ' titles-two' : ''}`} data-vscode-context={NO_MENU}>
       <TipLayer />
       {!bridge.inEditor && <div className="preview">{t('preview.banner')}</div>}
       <Header
@@ -487,6 +488,7 @@ function SearchBox({ t, query, onChange }: { t: Translate; query: string; onChan
     <div className="search">
       <Icon name="search" />
       <input
+        data-vscode-context={TEXT_MENU}
         type="search"
         value={query}
         placeholder={t('search.placeholder')}
