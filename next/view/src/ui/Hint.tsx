@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
+import { Icon } from './icons';
 
 /**
- * A setting's explanation (14/11): sentences, and a bullet per option where
+ * A setting's explanation (14/11), behind an (i) since 15/11: sentences, and a bullet per option where
  * its lines start with « - », in the order written. « Name: what it does »
  * (« Nom : … ») sets the name in bold, so the eye finds each option.
  */
@@ -14,8 +15,13 @@ export function Hint({ text }: { text: string }) {
     if (last !== undefined && last.list === list) last.lines.push(list ? line.slice(2) : line);
     else blocks.push({ list, lines: [list ? line.slice(2) : line] });
   }
+  // An (i) beside the setting's name, the explanation in a bubble while the
+  // pointer rests on it, or while it has the keyboard's focus (15/11): read
+  // when wanted, not in the way of the list of settings.
   return (
-    <div className="sub hint-text">
+    <div className="hint-i" tabIndex={0} aria-label={text.replace(/\n- /g, ' ').replace(/\n/g, ' ')}>
+      <Icon name="info" size={13} />
+      <div className="sub hint-text hint-pop" role="tooltip" aria-hidden="true">
       {blocks.map((b, i) =>
         b.list ? (
           <ul key={i}>
@@ -27,6 +33,7 @@ export function Hint({ text }: { text: string }) {
           <p key={i}>{b.lines.join(' ')}</p>
         ),
       )}
+      </div>
     </div>
   );
 }

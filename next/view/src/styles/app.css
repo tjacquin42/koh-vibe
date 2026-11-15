@@ -414,10 +414,21 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .set-group h3 { margin: 0 4px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--soft); font-weight: 700; }
 .set-row { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 9px; }
 .set-row:hover { background: var(--surface); }
-.set-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-l { position: relative; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; }
 .set-l b { font-weight: 600; font-size: 12.5px; }
 .set-l .sub { font-size: 11.5px; color: var(--muted); }
 .hint-text p { margin: 0; }
+/* The (i) of a setting (ui/Hint.tsx): the explanation opens in a bubble just
+   under the setting's name, as wide as it, so it never leaves the sidebar. */
+.hint-i { display: inline-flex; color: var(--muted); cursor: help; border-radius: 50%; outline: none; }
+.hint-i:hover, .hint-i:focus-visible { color: var(--text); }
+.hint-i:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.hint-pop {
+  display: none; position: absolute; z-index: 40; top: calc(100% + 4px); left: -4px; right: -4px;
+  padding: 8px 10px; border-radius: 9px; background: var(--raised); border: 1px solid var(--line);
+  color: var(--soft); box-shadow: 0 8px 20px rgb(0 0 0 / 0.4); pointer-events: none; cursor: default;
+}
+.hint-i:hover .hint-pop, .hint-i:focus-visible .hint-pop { display: block; }
 /* The theme's kept tunings: a swatch each — the status colours and the accent — and its Save. */
 .tslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tslot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
