@@ -441,7 +441,9 @@ function Feed({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
           <button type="button" className="feed-row" onClick={() => ctx.show(i.sessionId)}>
             <Dot tone={toneFor(i.sessionId, a.listed)} animate={false} size={12} />
             <span className="who">{titles.get(i.sessionId) ?? i.sessionId}</span>
-            <ItemLine ctx={ctx} i={i} withTime />
+            <span className="feed-box">
+              <ItemLine ctx={ctx} i={i} withTime />
+            </span>
           </button>
         </li>
       ))}
