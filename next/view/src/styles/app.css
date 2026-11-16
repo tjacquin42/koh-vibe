@@ -756,12 +756,12 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    large drawing's (16/11): the green from 14.5 px — it was under-sized, 17 %
    of the letters' height against 21 % — and a 2 px lagoon band, widened half
    a pixel upwards into the coral, the cuts above and below still 1 px each.
-   That high, the green meets the e's own hollow (0.6 px deep there): no clip
-   is needed. */
+   The e's hollow is cut half a pixel deep into the top of its green, as on a
+   standard screen. */
 @media (min-resolution: 2dppx) {
   .head .brand-c2 { font-size: 21px; }
   .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); }
-  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 12.5px, transparent 12.5px 14.5px, var(--done) 14.5px 100%), linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); clip-path: none; }
+  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 12.5px, transparent 12.5px 14.5px, var(--done) 14.5px 100%), linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); clip-path: polygon(evenodd, -20% -20%, 120% -20%, 120% 120%, -20% 120%, -20% -20%, 33.2% 14.5px, 33.2% 14.50px, 34.3% 14.69px, 37.4% 14.85px, 42.2% 14.96px, 47.7% 15.00px, 53.2% 14.96px, 58.0% 14.85px, 61.1% 14.69px, 62.2% 14.50px, 62.2% 14.5px, 33.2% 14.5px, -20% -20%); }
   .head .brand-dash { margin-top: 11.5px; height: 2px; }
   .head .brand-fix-k::after, .head .brand-fix-h::after { top: 11.5px; height: 2px; }
 }
