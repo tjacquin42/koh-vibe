@@ -746,6 +746,26 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .brand-fix-k::after { left: -0.563em; top: 0.568em; width: 0.465em; height: 0.084em; background: var(--run); }
 .brand-fix-h::after { left: -0.506em; top: 0.568em; width: 0.164em; height: 0.084em; background: var(--run); }
 .brand-fix-v::after { left: -0.312em; top: 0.692em; width: 0.035em; height: 0.01em; background: var(--done); }
+/* In the sidebar's header the name is small, and the stripes above, laid in
+   percentages, fell between pixels: a lagoon band of 1.8 px and cuts of
+   0.8 px came out blurred (16/11). There they are laid on whole pixels —
+   coral, a 1 px cut, a 2 px lagoon band, a 1 px cut, green — at 24 px on a
+   standard screen and 21 px on a Retina one, the two Thomas chose. The fixes
+   smaller than a pixel (the e's curve, the V's tip) are dropped; the e keeps
+   its lagoon one pixel shorter on its right half. */
+.head .brand-c2 { font-size: 24px; }
+.head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); }
+.head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 15px, transparent 15px 17px, var(--done) 17px 100%), linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); clip-path: none; }
+.head .brand-dash { margin-top: 14px; height: 2px; }
+.head .brand-fix-k::after, .head .brand-fix-h::after { top: 14px; height: 2px; }
+.head .brand-fix-v::after { content: none; }
+@media (min-resolution: 2dppx) {
+  .head .brand-c2 { font-size: 21px; }
+  .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 14px, transparent 14px 15px, var(--done) 15px 100%); }
+  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13px, transparent 13px 15px, var(--done) 15px 100%), linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 14px, transparent 14px 15px, var(--done) 15px 100%); }
+  .head .brand-dash { margin-top: 12px; height: 2px; }
+  .head .brand-fix-k::after, .head .brand-fix-h::after { top: 12px; height: 2px; }
+}
 /* The rainbow's layer is a copy of the name (App.tsx BrandName): its own
    stripes, clips and fixes are switched off, so only the rainbow shows. */
 .brand-band .brand-name, .brand-band .brand-e { background: none; clip-path: none; }
