@@ -72,6 +72,15 @@ export function App({ bridge }: { bridge: Bridge }) {
   // Rows whose action is under way (busy.ts).
   const [busy, setBusy] = useState<Busy>(() => new Map());
 
+  // The snapshot last received, for what happens between two of them.
+  const latest = useRef<Snapshot | undefined>(state?.snapshot);
+  latest.current = state?.snapshot;
+  // A wait ends when the conversation is back, or when V1 lets go of it (reopen.ts).
+  const settle = useCallback((): void => {
+    const snap = latest.current;
+    if (snap !== undefined) setReopening((r) => settleReopening(r, snap, Date.now(), activeSessionId(snap)));
+  }, []);
+
   useEffect(() => {
     const off = bridge.listen((m) => {
       switch (m.type) {
@@ -91,8 +100,11 @@ export function App({ bridge }: { bridge: Bridge }) {
           setBusy(onSnapshot);
           return;
         case 'steady':
-          // A build that found nothing new: what an action changed, if anything, is on screen.
+          // A build that found nothing new: what an action changed, if anything,
+          // is on screen — and a conversation asked for may be in front already,
+          // with no snapshot to come and say so.
           setBusy(onSnapshot);
+          settle();
           return;
         case 'showSheet':
           setSheet(m.sessionId);
@@ -114,7 +126,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     });
     bridge.post({ type: 'ready' });
     return off;
-  }, [bridge]);
+  }, [bridge, settle]);
 
   const surface = state?.context.surface;
 
@@ -156,10 +168,8 @@ export function App({ bridge }: { bridge: Bridge }) {
   const where = useMemo(() => (snapshot === undefined ? new Map<string, string>() : folderIndex(snapshot)), [snapshot]);
   const activeId = useMemo(() => (snapshot === undefined ? undefined : activeSessionId(snapshot)), [snapshot]);
 
-  // A wait ends when the conversation is back, or when V1 lets go of it.
-  useEffect(() => {
-    if (received !== undefined) setReopening((r) => settleReopening(r, received, Date.now(), activeSessionId(received)));
-  }, [received, now]);
+  // At each snapshot, and at each tick of the clock for the wait that never ends.
+  useEffect(settle, [settle, received, now]);
 
   // The colours chosen in the settings (lib/theme.ts), in every view.
   const tune = snapshot?.theme?.current;
@@ -176,12 +186,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   }, []);
 
   // Every button that opens a conversation: it loads until the tab is in front (15/11).
-  // Read at the click, through a ref: the function stays the same from one snapshot to the next.
-  const sessions = useRef(received?.sessions);
-  sessions.current = received?.sessions;
+  // The snapshot is read at the click: the function stays the same from one to the next.
   const openConversation = useCallback(
     (id: string) => {
-      const origin = sessions.current?.find((s) => s.id === id)?.origin;
+      const origin = latest.current?.sessions.find((s) => s.id === id)?.origin;
       awaitOpen(id, origin === 'vscode' ? 'front' : 'open');
       bridge.post({ type: 'openSession', sessionId: id });
     },
