@@ -108,18 +108,16 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .srow.open { background: var(--surface); }
 /* The conversation whose tab is in front (14/11): a bar of accent at its left edge, a tint. */
 .srow.active { background: color-mix(in srgb, var(--accent) 9%, transparent); }
-/* The selected row's mark (15/11): a bar of its own, over the row's hover
-   ground — the inset shadow it was got covered there, all but a corner. A
-   little shorter under the pointer, eased between the two. */
+/* The selected row's mark (16/11): the row's own left edge in the accent,
+   following its rounded corners — a border on a box of the row's shape, over
+   the row's hover ground, faded in and out. */
 .srow { position: relative; }
 .srow::before {
-  content: ''; position: absolute; z-index: 1; left: 0; top: 50%; width: 4px; height: calc(100% - 6px);
-  border-radius: 999px; background: var(--accent); pointer-events: none;
-  transform: translateY(-50%) scaleY(0); opacity: 0;
-  transition: transform 0.22s cubic-bezier(.4, 0, .2, 1), opacity 0.22s ease, height 0.22s cubic-bezier(.4, 0, .2, 1);
+  content: ''; position: absolute; z-index: 1; inset: 0; border-radius: inherit;
+  border-left: 3px solid var(--accent); pointer-events: none;
+  opacity: 0; transition: opacity 0.22s ease;
 }
-.srow.active::before { transform: translateY(-50%) scaleY(1); opacity: 1; }
-.srow.active:hover::before { height: calc(70% - 4px); }
+.srow.active::before { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .srow::before { transition: none; } }
 .srow.active.open { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
 .srow .tools { display: flex; padding: 6px 4px 0 0; opacity: 0; }
