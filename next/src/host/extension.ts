@@ -11,8 +11,8 @@ import { readSessions } from '../../../src/spool/persist';
 import { parseViewMessage, type ActiveTabView, type HostMessage, type ReopenOutcome, type SidebarTab, type SpendView, type Surface, type ViewContext } from '../shared/protocol';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
-import { ARTIFACT_OPENS, FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type ArtifactOpen, type FolderColor, type LanguageChoice } from '../shared/actions';
-import { artifactUrl } from '../../../src/artifacts/model';
+import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
+import { artifactOpener } from './artifact-open';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
 import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
 import { applyMoves, ensureTidyRulesFile, parseMoves, readTidyRules, runClaude, tidyPrompt, tidyRulesFile, type TidyItem } from './tidy';
@@ -152,13 +152,6 @@ const SPEND_EVERY_MS = 30_000;
 const THEME_KEY = 'kohVibeNext.theme';
 /** Where artifacts open (shared/actions.ts ArtifactOpen), for every view. */
 const ARTIFACT_OPEN_KEY = 'kohVibeNext.artifactOpen';
-/**
- * The editor's integrated browser (VS Code, recent): a real browser in an
- * editor tab, the only place inside the editor where the claude.ai page can
- * open — it refuses to show in a frame (frame-ancestors), which is all a web
- * view or the Simple Browser has.
- */
-const INTEGRATED_BROWSER = 'workbench.action.browser.open';
 /** The editor's colour customizations as they were before « Adapt to the IDE » (ide-theme.ts). */
 const IDE_BACKUP_KEY = 'kohVibeNext.ideColorsBackup';
 /** Whether Tidy asks before running the agent (default yes), kept by the editor. */
@@ -312,37 +305,14 @@ export function activate(context: vscode.ExtensionContext): void {
   // index is dropped with the last cockpit: reopened, it reads its window again.
   let activity: ActivityIndex | undefined;
   const transcripts = transcriptsRoot.current ?? join(claudeHome(), 'projects');
-  // Where artifacts open (15/11): the browser, or the editor's integrated
-  // browser — in a tab of its own, or over the cockpit, which closing it
-  // brings back. An editor without one opens the browser, and says so once.
-  const artifactOpenNow = (): ArtifactOpen => {
-    const kept: unknown = context.globalState.get(ARTIFACT_OPEN_KEY);
-    // « Over the cockpit » is gone (15/11): it opened the same browser, in the editor.
-    return kept === 'cockpit' ? 'editor' : (ARTIFACT_OPENS.find((w) => w === kept) ?? 'browser');
-  };
-  let integratedBrowser: boolean | undefined;
-  const hasIntegratedBrowser = async (): Promise<boolean> => {
-    integratedBrowser ??= (await vscode.commands.getCommands(true)).includes(INTEGRATED_BROWSER);
-    return integratedBrowser;
-  };
-  let saidNoBrowser = false;
-  const openArtifact = async (slug: string): Promise<void> => {
-    const url = artifactUrl(slug);
-    const where = artifactOpenNow();
-    if (where !== 'browser' && (await hasIntegratedBrowser())) {
-      try {
-        await vscode.commands.executeCommand(INTEGRATED_BROWSER, { url });
-        return;
-      } catch {
-        // On to the browser.
-      }
-    }
-    if (where !== 'browser' && !saidNoBrowser) {
-      saidNoBrowser = true;
-      void vscode.window.showInformationMessage(vscode.l10n.t('Koh-Vibe: {0} has no integrated browser — the artifact opens in your browser.', vscode.env.appName));
-    }
-    void vscode.env.openExternal(vscode.Uri.parse(url));
-  };
+  // Where artifacts open (artifact-open.ts): the browser, or the editor's integrated browser.
+  const artifacts = artifactOpener({
+    kept: () => context.globalState.get(ARTIFACT_OPEN_KEY),
+    commands: () => vscode.commands.getCommands(true),
+    run: (command, arg) => vscode.commands.executeCommand(command, arg),
+    openExternal: (url) => void vscode.env.openExternal(vscode.Uri.parse(url)),
+    sayNoBrowser: () => void vscode.window.showInformationMessage(vscode.l10n.t('Koh-Vibe: {0} has no integrated browser — the artifact opens in your browser.', vscode.env.appName)),
+  });
   // Which conversations spent the most (spend.ts): read only while the Usage
   // tab is open, at most every 30 seconds, and shown with the next build.
   const spend = new Spend(transcripts);
@@ -398,8 +368,8 @@ export function activate(context: vscode.ExtensionContext): void {
         editorTabs,
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
         theme: readStoredTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
-        artifactOpen: artifactOpenNow(),
-        editor: { name: vscode.env.appName, integratedBrowser: await hasIntegratedBrowser() },
+        artifactOpen: artifacts.where(),
+        editor: { name: vscode.env.appName, integratedBrowser: await artifacts.hasBrowser() },
         ...(await activeTabExtra()),
         restored: await activeTab.restored(Date.now()),
         ...focusedExtra(),
@@ -474,7 +444,7 @@ export function activate(context: vscode.ExtensionContext): void {
     sheet: (id) => openCockpit(id),
     reopen: (id) => void reopen(id),
     openUrl: (url) => void vscode.env.openExternal(vscode.Uri.parse(url)),
-    openArtifact: (slug) => void openArtifact(slug),
+    openArtifact: (slug) => void artifacts.open(slug),
     ask: (prompt, value) => vscode.window.showInputBox({ prompt, value }),
     pickColor: async (current) => {
       const none = vscode.l10n.t('No color');
@@ -650,7 +620,7 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       openSession: focus,
       reopenClosed: reopen,
-      openArtifact: (slug) => void openArtifact(slug),
+      openArtifact: (slug) => void artifacts.open(slug),
       showTab(tab) {
         const shown = tab !== undefined && showing(tab);
         if (tab === undefined) tabs.delete(key);

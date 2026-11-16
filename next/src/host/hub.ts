@@ -15,6 +15,20 @@ export interface HubDeps {
 }
 
 /**
+ * What a snapshot says, but for the moments its parts were read at: two
+ * builds that read the same thing compare equal. No view shows those moments.
+ */
+export function contentKey(snap: Snapshot): string {
+  return JSON.stringify({
+    ...snap,
+    at: 0,
+    ...(snap.activity === undefined ? {} : { activity: { ...snap.activity, at: 0, since: 0 } }),
+    ...(snap.processes === undefined ? {} : { processes: { ...snap.processes, at: 0 } }),
+    ...(snap.sheet === undefined ? {} : { sheet: { ...snap.sheet, since: 0 } }),
+  });
+}
+
+/**
  * Keeps every open view on the same snapshot.
  *
  * A build that found nothing new is not sent again (16/11): the watcher's
@@ -95,7 +109,7 @@ export class Hub implements Disposable {
       try {
         const snap = await this.deps.build();
         if (this.disposed) return;
-        const key = JSON.stringify({ ...snap, at: 0 });
+        const key = contentKey(snap);
         const same = key === this.latestKey;
         this.latest = snap;
         this.latestKey = key;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Hub, type Client } from '../src/host/hub';
+import { contentKey, Hub, type Client } from '../src/host/hub';
 import type { HostMessage, Snapshot } from '../src/shared/protocol';
 
 const snap = (at: number): Snapshot => ({ at, sessions: [], folders: [], unfiled: [], artifacts: undefined, routines: undefined, closed: [], settings: { animate: true, persistent: true, expireTemporary: true, volume: 50 } });
@@ -125,5 +125,19 @@ describe('Hub', () => {
     const late = client();
     await h.attach(late);
     expect(late.got.map((m) => (m.type === 'init' ? m.snapshot.at : m.type))).toEqual([4]);
+  });
+
+  it('takes two builds for the same when only the moments they were read at differ', () => {
+    const tokens = { input: 1, output: 1, cacheWrite: 0, cacheRead: 0 };
+    const row = { id: 'a', project: 'p', tokens, subagentTokens: tokens, subagents: 0, busy: [], tail: [], lastAt: 5 };
+    const built = (at: number, lastAt = 5): Snapshot => ({
+      ...snap(at),
+      activity: { at, since: at - 1_000, sessions: [{ ...row, lastAt }], feed: [] },
+      processes: { at, bySession: { a: [{ pid: 7, label: 'vite', kind: 'work', elapsed: 30, rss: 1, depth: 0 }] } },
+    });
+    expect(contentKey(built(1))).toBe(contentKey(built(2)));
+    // What a view shows did change: not the same.
+    expect(contentKey(built(1))).not.toBe(contentKey(built(1, 6)));
+    expect(contentKey(built(1))).not.toBe(contentKey({ ...built(1), processes: { at: 1, bySession: {} } }));
   });
 });
