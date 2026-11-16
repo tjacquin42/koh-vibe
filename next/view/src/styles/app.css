@@ -735,16 +735,21 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.084em; margin: 0.568em -0.08em 0 0.034em; background: var(--run); }
 /* Three letters with a fix (ui/brand.ts), measured on the glyphs: the dark
    notch the K and the h leave inside the lagoon band is filled with lagoon;
-   the tip of the V's inner point, just under the green's start, with green. */
-.brand-l { position: relative; display: inline-block; }
-.brand-l::after { content: ''; position: absolute; }
-.brand-l-k::after { left: 0.04em; top: 0.568em; width: 0.465em; height: 0.084em; background: var(--run); }
-.brand-l-h::after { left: 0.036em; top: 0.568em; width: 0.164em; height: 0.084em; background: var(--run); }
-.brand-l-v::after { left: 0.3em; top: 0.692em; width: 0.035em; height: 0.01em; background: var(--done); }
+   the tip of the V's inner point, just under the green's start, with green.
+   The letters stay plain text: a letter inside a positioned box is left out
+   of the name's text clip by the editor's engine (it vanished, 16/11). The
+   fix hangs on an empty marker right after the letter, so its offsets count
+   back from the letter's end: its advance plus the letter-spacing
+   (K 0.603em, h 0.542em, V 0.612em). */
+.brand-fix { position: relative; display: inline-block; vertical-align: top; width: 0; height: 1em; }
+.brand-fix::after { content: ''; position: absolute; }
+.brand-fix-k::after { left: -0.563em; top: 0.568em; width: 0.465em; height: 0.084em; background: var(--run); }
+.brand-fix-h::after { left: -0.506em; top: 0.568em; width: 0.164em; height: 0.084em; background: var(--run); }
+.brand-fix-v::after { left: -0.312em; top: 0.692em; width: 0.035em; height: 0.01em; background: var(--done); }
 /* The rainbow's layer is a copy of the name (App.tsx BrandName): its own
    stripes, clips and fixes are switched off, so only the rainbow shows. */
 .brand-band .brand-name, .brand-band .brand-e { background: none; clip-path: none; }
-.brand-band .brand-l::after { content: none; }
+.brand-band .brand-fix::after { content: none; }
 .brand-band .brand-dash { background: transparent; }
 /* The logo alone, for a sidebar too narrow for the name, in the logo's own
    colours (App.tsx BrandLogo). No glow, no pulse. */

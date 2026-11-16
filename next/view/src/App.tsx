@@ -472,9 +472,12 @@ function StripedName({ brand, spanRef }: { brand: Brand; spanRef?: Ref<HTMLSpanE
           ) : p.kind === 'dash' ? (
             <span key={i} className="brand-dash" />
           ) : (
-            <span key={i} className={`brand-l brand-l-${p.fix}`}>
+            // The letter stays plain text, painted by the name's stripes; the
+            // empty marker after it carries its fix (app.css .brand-fix-*).
+            <Fragment key={i}>
               {p.text}
-            </span>
+              <span className={`brand-fix brand-fix-${p.fix}`} />
+            </Fragment>
           ),
         )}
       </span>

@@ -3,7 +3,7 @@
  * horizontal bands through the letters, and the hyphen no character but a
  * lagoon bar laid on the lagoon band (app.css .brand-name, .brand-dash).
  *
- * Three letters carry a small fix drawn by the stylesheet (app.css .brand-l-*):
+ * Three letters carry a small fix drawn by the stylesheet (app.css .brand-fix-*):
  * the K and the h get their dark notch inside the lagoon band filled, the V
  * the tip of its inner point at the top of the green. The final e is drawn
  * apart, with stripes of its own (app.css .brand-e): its tail keeps out of the
