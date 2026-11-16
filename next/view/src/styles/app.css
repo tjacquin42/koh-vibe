@@ -729,17 +729,21 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    coral, a 1 px cut, a 2 px lagoon band, a 1 px cut, green — at 24 px on a
    standard screen and 21 px on a Retina one, the two Thomas chose. The fixes
    smaller than a pixel (the e's curve, the V's tip) are dropped; the e keeps
-   its lagoon one pixel shorter on its right half. */
+   its lagoon one pixel shorter on its right half. The dark hollow inside the
+   e, which bites into the top of its green on the large drawing, is under a
+   tenth of a pixel here and the e's foot came out as a plain green block: it
+   is cut back in, 1.5 px deep, by the clip-path (evenodd: the outer box, then
+   the hollow, a half-ellipse hanging from the green's top). */
 .head .brand-c2 { font-size: 24px; }
 .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); }
-.head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 15px, transparent 15px 17px, var(--done) 17px 100%), linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); clip-path: none; }
+.head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 15px, transparent 15px 17px, var(--done) 17px 100%), linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); clip-path: polygon(evenodd, -20% -20%, 120% -20%, 120% 120%, -20% 120%, -20% -20%, 33.2% 17px, 33.2% 17.00px, 34.3% 17.57px, 37.4% 18.06px, 42.2% 18.39px, 47.7% 18.50px, 53.2% 18.39px, 58.0% 18.06px, 61.1% 17.57px, 62.2% 17.00px, 62.2% 17px, 33.2% 17px, -20% -20%); }
 .head .brand-dash { margin-top: 14px; height: 2px; }
 .head .brand-fix-k::after, .head .brand-fix-h::after { top: 14px; height: 2px; }
 .head .brand-fix-v::after { content: none; }
 @media (min-resolution: 2dppx) {
   .head .brand-c2 { font-size: 21px; }
   .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 14px, transparent 14px 15px, var(--done) 15px 100%); }
-  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13px, transparent 13px 15px, var(--done) 15px 100%), linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 14px, transparent 14px 15px, var(--done) 15px 100%); }
+  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13px, transparent 13px 15px, var(--done) 15px 100%), linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 14px, transparent 14px 15px, var(--done) 15px 100%); clip-path: polygon(evenodd, -20% -20%, 120% -20%, 120% 120%, -20% 120%, -20% -20%, 33.2% 15px, 33.2% 15.00px, 34.3% 15.57px, 37.4% 16.06px, 42.2% 16.39px, 47.7% 16.50px, 53.2% 16.39px, 58.0% 16.06px, 61.1% 15.57px, 62.2% 15.00px, 62.2% 15px, 33.2% 15px, -20% -20%); }
   .head .brand-dash { margin-top: 12px; height: 2px; }
   .head .brand-fix-k::after, .head .brand-fix-h::after { top: 12px; height: 2px; }
 }
