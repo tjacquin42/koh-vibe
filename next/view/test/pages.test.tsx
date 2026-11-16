@@ -105,6 +105,20 @@ describe('the cockpit', () => {
     expect(out).toContain('class="ck-main"');
   });
 
+  it('names the board’s columns in English in every language, as every state is (16/11)', () => {
+    const out = html(<CockpitPage ctx={testCtx({ language: 'fr' })} version="1" ui={DEFAULT_UI} updateUi={noop} sheet={undefined} onSheet={noop} />);
+    for (const name of ['Waiting for you', 'Working', 'Finished', 'Idle and ended']) expect(out).toContain(`aria-label="${name}"`);
+    expect(out).not.toContain('Travaillent');
+  });
+
+  it('shows a conversation’s name and age on its card, and nothing under them (16/11)', () => {
+    const out = draw(DEFAULT_UI);
+    expect(out).toContain('class="bcard');
+    // Neither where it lives nor the command it runs.
+    expect(out).not.toContain('class="l2"');
+    expect(out).not.toContain('src/dates.ts');
+  });
+
   it('counts the chosen folder only', () => {
     const counts = (folder: string | null): string[] => [...draw({ ...DEFAULT_UI, cockpit: { ...DEFAULT_UI.cockpit, folder } }).matchAll(/class="count tone-\w+"><b>(\d+)<\/b>/g)].map((m) => m[1] ?? '');
     expect(counts(null)).toEqual(['1', '1', '1']);

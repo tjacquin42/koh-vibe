@@ -144,7 +144,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* A conversation's title, on two lines at most (15/11). */
 .conv-ttl { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .tm { flex: none; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.l2 { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .dot { flex: none; margin-top: 1px; color: var(--idle); }
 .dot.tone-wait { color: var(--wait); }

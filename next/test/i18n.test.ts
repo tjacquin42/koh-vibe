@@ -20,8 +20,30 @@ const placeholders = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)
 describe('the view’s strings', () => {
   const others = Object.entries(DICTIONARIES).filter(([language]) => language !== 'en');
 
-  /** Said in English in every language, on purpose: the product's name, the counts and the cockpit's views (14/11, 16/11). */
-  const ENGLISH_ONLY = ['app.name', 'cockpit.count.done', 'cockpit.count.running', 'cockpit.count.waiting', 'cockpit.view.board', 'cockpit.view.feed', 'cockpit.view.timeline', 'cockpit.view.wall'];
+  /**
+   * Said in English in every language, on purpose: the product's name, the
+   * cockpit's views, and everything that names a conversation's state — the
+   * counts, the board's columns, the dot's own label (14/11, 16/11).
+   */
+  const ENGLISH_ONLY = [
+    'app.name',
+    'board.done',
+    'board.rest',
+    'board.run',
+    'board.wait',
+    'cockpit.count.done',
+    'cockpit.count.running',
+    'cockpit.count.waiting',
+    'cockpit.view.board',
+    'cockpit.view.feed',
+    'cockpit.view.timeline',
+    'cockpit.view.wall',
+    'status.done_unseen',
+    'status.ended',
+    'status.idle',
+    'status.running',
+    'status.waiting',
+  ];
 
   it.each(others)('%s says everything English says — but what stays in English on purpose — and nothing else', (_language, dict) => {
     const said = new Set(Object.keys(dict));

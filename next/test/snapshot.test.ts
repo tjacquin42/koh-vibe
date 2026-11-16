@@ -164,6 +164,22 @@ describe('ordering', () => {
     expect(list.sort(compareSessions).map((s) => s.id)).toEqual(['wait', 'run', 'done', 'idle', 'ended']);
   });
 
+  it('leaves the working ones in a steady order: no climbing over each other at each action (16/11)', () => {
+    // Each sorted by when it started, the latest first — whatever it last did, and when.
+    const early = v('early', { status: 'running', startedAt: 10, lastEventAt: 999 });
+    const late = v('late', { status: 'running', startedAt: 20, lastEventAt: 1 });
+    expect([early, late].sort(compareSessions).map((s) => s.id)).toEqual(['late', 'early']);
+    expect([{ ...early, lastEventAt: 0 }, { ...late, lastEventAt: 5_000 }].sort(compareSessions).map((s) => s.id)).toEqual(['late', 'early']);
+    // No start known: by their id, which never moves either.
+    const a = v('a', { status: 'running', lastEventAt: 1 });
+    const b = v('b', { status: 'running', lastEventAt: 2 });
+    expect([b, a].sort(compareSessions).map((s) => s.id)).toEqual(['a', 'b']);
+    expect([{ ...a, lastEventAt: 9 }, b].sort(compareSessions).map((s) => s.id)).toEqual(['a', 'b']);
+    // The others still show the latest active first.
+    const idle = [v('old', { status: 'idle', lastEventAt: 1 }), v('new', { status: 'idle', lastEventAt: 2 })];
+    expect(idle.sort(compareSessions).map((s) => s.id)).toEqual(['new', 'old']);
+  });
+
   it('keeps a hand-picked order and appends the rest sorted', () => {
     const byId = new Map([v('x', { lastEventAt: 1 }), v('y', { lastEventAt: 3 }), v('z', { lastEventAt: 2 })].map((s) => [s.id, s]));
     expect(ordered(['x', 'y', 'z'], ['z', 'gone'], byId)).toEqual(['z', 'y', 'x']);

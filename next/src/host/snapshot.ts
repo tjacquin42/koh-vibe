@@ -54,15 +54,18 @@ const STATUS_ORDER: Record<Status, number> = { waiting: 0, running: 1, done_unse
  * V1's dashboard order (ui/tree.ts `compareSessions`), restated here rather
  * than imported: that module drags the whole VSCode tree with it. Open
  * sessions first, by status then recency; ended ones last, latest ended first.
+ *
+ * But the working ones (16/11): each action of one made it the most recent,
+ * so they kept climbing over each other, in the list and on the cockpit's
+ * board. They are ordered by what never moves — the latest started first,
+ * then their id.
  */
 export function compareSessions(a: SessionView, b: SessionView): number {
   const tier = (s: SessionView): number => (s.endedAt === undefined ? 0 : 1);
-  return (
-    tier(a) - tier(b) ||
-    (b.endedAt ?? 0) - (a.endedAt ?? 0) ||
-    STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
-    b.lastEventAt - a.lastEventAt
-  );
+  const head = tier(a) - tier(b) || (b.endedAt ?? 0) - (a.endedAt ?? 0) || STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+  if (head !== 0) return head;
+  if (a.status === 'running' && a.endedAt === undefined) return (b.startedAt ?? 0) - (a.startedAt ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return b.lastEventAt - a.lastEventAt;
 }
 
 /** A hand-picked order rules; the sessions it does not name follow, in the default order. */

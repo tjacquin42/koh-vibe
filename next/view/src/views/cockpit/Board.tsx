@@ -1,6 +1,6 @@
 import type { SessionView } from '../../../../src/shared/protocol';
 import type { ViewCtx } from '../../context';
-import { formatAge, sessionDetail, toneOf, type Tone } from '../../format';
+import { formatAge, toneOf, type Tone } from '../../format';
 import { boardColumns, type BoardColumns } from '../../sections';
 import { Dot } from '../../components/atoms/Icon';
 import { SessionName } from '../../components/atoms/SessionName';
@@ -36,7 +36,11 @@ export function Board({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) 
   );
 }
 
-/** A click goes to the conversation; its sheet is the card's own button (15/11). */
+/**
+ * A click goes to the conversation; its sheet is the card's own button (15/11).
+ * Its name and its age, nothing under them (16/11): where it lives and what
+ * it runs are on its sheet.
+ */
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
   return (
@@ -47,7 +51,6 @@ function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
         </span>
         <span className="tm">{formatAge(now - (s.endedAt ?? s.lastEventAt), t)}</span>
       </span>
-      <span className="l2">{sessionDetail(s)}</span>
     </OpenCard>
   );
 }
