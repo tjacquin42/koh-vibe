@@ -166,7 +166,6 @@ export function sampleSnapshot(now: number): Snapshot {
           { pid: 4390, label: 'vitest', kind: 'work', elapsed: 298, rss: 240_000, depth: 1 },
         ],
       },
-      orphans: [{ cwd: '/work/shop-front', tree: [{ pid: 3001, label: 'vite --port 5173', kind: 'work', elapsed: 7200, rss: 150_000, depth: 0 }] }],
     },
   };
 }

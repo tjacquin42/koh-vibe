@@ -89,6 +89,8 @@ export function App({ bridge }: { bridge: Bridge }) {
         setState((prev) => (prev === undefined ? prev : { ...prev, snapshot: m.snapshot }));
         setBusy(onSnapshot);
       }
+      // A build that found nothing new: what an action changed, if anything, is on screen.
+      else if (m.type === 'steady') setBusy(onSnapshot);
       else if (m.type === 'showSheet') setSheet(m.sessionId);
       else if (m.type === 'acted') {
         pending.current.get(m.req)?.(m.result);

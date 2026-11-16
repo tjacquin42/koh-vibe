@@ -17,6 +17,12 @@ export interface HubDeps {
 /**
  * Keeps every open view on the same snapshot.
  *
+ * A build that found nothing new is not sent again (16/11): the watcher's
+ * slow timer rebuilds every few seconds, and a whole list posted to every
+ * view each time made each of them draw itself again for nothing. The views
+ * are only told a build ended (`steady`) — a row waiting for « the next
+ * snapshot » to stop spinning must still hear of it.
+ *
  * Builds are serialised and coalesced: while one is running, any number of
  * change notifications collapse into a single rebuild after it. Without this,
  * a burst of file events would run overlapping reads and could post an older
@@ -27,6 +33,8 @@ export class Hub implements Disposable {
   private readonly clients = new Map<Client, boolean>();
   private readonly listeners = new Set<(snap: Snapshot) => void>();
   private latest: Snapshot | undefined;
+  /** What `latest` says, but for the moment it was built: two builds that read the same thing compare equal. */
+  private latestKey: string | undefined;
   private running: Promise<void> | undefined;
   private again = false;
   private readonly watcher: Disposable;
@@ -72,9 +80,9 @@ export class Hub implements Disposable {
     return this.running;
   }
 
-  private send(client: Client, snap: Snapshot): void {
+  private send(client: Client, snap: Snapshot, same = false): void {
     if (this.clients.get(client) === true) {
-      client.post({ type: 'snapshot', snapshot: snap });
+      client.post(same ? { type: 'steady' } : { type: 'snapshot', snapshot: snap });
     } else {
       this.clients.set(client, true);
       client.post({ type: 'init', context: client.context, snapshot: snap });
@@ -87,9 +95,12 @@ export class Hub implements Disposable {
       try {
         const snap = await this.deps.build();
         if (this.disposed) return;
+        const key = JSON.stringify({ ...snap, at: 0 });
+        const same = key === this.latestKey;
         this.latest = snap;
-        for (const c of [...this.clients.keys()]) this.send(c, snap);
-        for (const l of [...this.listeners]) l(snap);
+        this.latestKey = key;
+        for (const c of [...this.clients.keys()]) this.send(c, snap, same);
+        if (!same) for (const l of [...this.listeners]) l(snap);
       } catch (err) {
         this.deps.log(`snapshot failed: ${err instanceof Error ? err.message : String(err)}`);
       }

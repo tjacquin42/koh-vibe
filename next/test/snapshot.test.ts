@@ -107,16 +107,11 @@ describe('buildSnapshot', () => {
     expect(snap.sessions.some((s) => s.expiresAt !== undefined)).toBe(false);
   });
 
-  it('asks for the processes with every listed conversation directory', async () => {
-    let asked: readonly string[] = [];
-    const snap = await buildSnapshot(home, NOW, {
-      processes: async (cwds) => {
-        asked = cwds;
-        return { at: NOW, bySession: {} };
-      },
-    });
-    expect([...asked].sort()).toEqual(['/work/a', '/work/b', '/work/c', '/work/e']);
-    expect(snap.processes).toEqual({ at: NOW, bySession: {} });
+  it('carries the processes when they are read, and nothing when no view shows them', async () => {
+    const read = await buildSnapshot(home, NOW, { processes: async () => ({ at: NOW, bySession: {} }) });
+    expect(read.processes).toEqual({ at: NOW, bySession: {} });
+    const unread = await buildSnapshot(home, NOW, { processes: async () => undefined });
+    expect('processes' in unread).toBe(false);
   });
 
   it('renders an empty snapshot from a directory that does not exist', async () => {

@@ -56,22 +56,20 @@ function sidebar(): FakeWebviewView {
   return view;
 }
 
-/** Never the machine's own `ps`: a fixed table, and a count of the `lsof` calls. */
-const fakeProcs = { orphanScans: 0, roots: [] as readonly string[] };
+/** Never the machine's own `ps`: a fixed table, and a count of the times it is read. */
+const fakeProcs = { scans: 0 };
 const deps: ProcessDeps = {
-  table: async () => tableOf([{ pid: 100, ppid: 1, elapsed: 60, rss: 2048, command: 'claude' }, { pid: 101, ppid: 100, elapsed: 50, rss: 4096, command: 'node mcp.js' }]),
-  live: async () => new Map([['a', { pid: 100, sessionId: 'a', cwd: '/work/a', entrypoint: 'cli' }]]),
-  orphans: async (_table, roots) => {
-    fakeProcs.orphanScans++;
-    fakeProcs.roots = roots;
-    return [];
+  table: async () => {
+    fakeProcs.scans++;
+    return tableOf([{ pid: 100, ppid: 1, elapsed: 60, rss: 2048, command: 'claude' }, { pid: 101, ppid: 100, elapsed: 50, rss: 4096, command: 'node mcp.js' }]);
   },
+  live: async () => new Map([['a', { pid: 100, sessionId: 'a', cwd: '/work/a', entrypoint: 'cli' }]]),
 };
 
 beforeEach(async () => {
   recorded.reset();
   globalState.clear();
-  fakeProcs.orphanScans = 0;
+  fakeProcs.scans = 0;
   processDeps.current = deps;
   home = await makeHome();
   // Never the machine's own transcripts: an empty projects directory inside the fake home.
@@ -215,16 +213,26 @@ describe('activate', () => {
     expect(new Set(sent).size).toBe(sent.length);
   });
 
-  it('shows what each conversation runs, and never looks for processes of no conversation (15/11)', async () => {
+  it('reads what each conversation runs only while a view shows the Processes tab (16/11)', async () => {
     start(ExtensionMode.Production);
     const view = sidebar();
     await view.webview.receive({ type: 'ready' });
+    await view.webview.receive({ type: 'reload' });
     const init = messages(view)[0];
-    expect(init?.type === 'init' && init.snapshot.processes?.bySession['a']?.map((p) => p.label)).toEqual(['node mcp.js']);
-    expect(init?.type === 'init' && init.snapshot.processes?.orphans).toBeUndefined();
+    // Nobody looks at the processes: no `ps`, however many builds.
+    expect(init?.type === 'init' && init.snapshot.processes).toBeUndefined();
+    expect(fakeProcs.scans).toBe(0);
     await view.webview.receive({ type: 'tab', tab: 'processes' });
     await view.webview.receive({ type: 'reload' });
-    expect(fakeProcs.orphanScans).toBe(0);
+    const last = messages(view).filter((m) => m.type === 'snapshot').at(-1);
+    expect(last?.type === 'snapshot' && last.snapshot.processes?.bySession['a']?.map((p) => p.label)).toEqual(['node mcp.js']);
+    // Back on another tab: read no more, and gone from what the views are sent.
+    const scans = fakeProcs.scans;
+    await view.webview.receive({ type: 'tab', tab: 'sessions' });
+    await view.webview.receive({ type: 'reload' });
+    expect(fakeProcs.scans).toBe(scans);
+    const after = messages(view).filter((m) => m.type === 'snapshot').at(-1);
+    expect(after?.type === 'snapshot' && after.snapshot.processes).toBeUndefined();
   });
 
   it('opens an artifact on claude.ai, and nothing for a slug that is not one', async () => {

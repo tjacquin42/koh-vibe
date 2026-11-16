@@ -27,7 +27,7 @@ function hub(build: () => Promise<Snapshot>) {
 describe('Hub', () => {
   it('sends init first, then snapshots', async () => {
     let n = 0;
-    const { h } = hub(async () => snap(++n));
+    const { h } = hub(async () => ({ ...snap(++n), unfiled: [String(n)] }));
     const c = client();
     await h.attach(c);
     await h.refresh();
@@ -102,5 +102,28 @@ describe('Hub', () => {
     expect(c.got).toHaveLength(1);
     h.dispose();
     expect(isWatcherDisposed()).toBe(true);
+  });
+
+  it('does not send again a build that found nothing new: the views are only told it ended (16/11)', async () => {
+    let n = 0;
+    let said = 'a';
+    const { h } = hub(async () => ({ ...snap(++n), unfiled: [said] }));
+    const c = client();
+    const heard: number[] = [];
+    await h.attach(c);
+    h.subscribe((s) => heard.push(s.at));
+    // The same list, built at another moment: nothing to draw again.
+    await h.refresh();
+    await h.refresh();
+    expect(c.got.map((m) => m.type)).toEqual(['init', 'steady', 'steady']);
+    expect(heard).toEqual([1]);
+    said = 'b';
+    await h.refresh();
+    expect(c.got.map((m) => m.type)).toEqual(['init', 'steady', 'steady', 'snapshot']);
+    expect(heard).toEqual([1, 4]);
+    // A view that arrives now still gets the whole of it, and the latest.
+    const late = client();
+    await h.attach(late);
+    expect(late.got.map((m) => (m.type === 'init' ? m.snapshot.at : m.type))).toEqual([4]);
   });
 });

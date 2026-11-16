@@ -203,8 +203,12 @@ export function withExpiry(sessions: readonly SessionView[], unfiled: readonly s
 }
 
 export interface SnapshotExtras {
-  /** What the live conversations are running. Left out by tests: it reads the process table. */
-  processes?: (cwds: readonly string[]) => Promise<ProcessesView>;
+  /**
+   * What the live conversations are running — `undefined` while no view shows
+   * it (the Processes tab, a sheet): it costs a `ps`. Left out by tests: it
+   * reads the process table.
+   */
+  processes?: () => Promise<ProcessesView | undefined>;
   /** What the transcripts say; `undefined` while no cockpit is open to show it. */
   activity?: (known: ReadonlyMap<string, KnownSession>) => Promise<ActivityView | undefined>;
   /** The sheet of the conversation the cockpit shows, built after the activity it reads from. */
@@ -222,7 +226,6 @@ export interface SnapshotExtras {
   editorTabs?: Snapshot['editorTabs'];
   tidy?: Snapshot['tidy'];
   theme?: Snapshot['theme'];
-  ideThemed?: boolean;
   artifactOpen?: Snapshot['artifactOpen'];
   editor?: Snapshot['editor'];
   activeTab?: Snapshot['activeTab'];
@@ -297,14 +300,16 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   if (extras.editorTabs !== undefined) snap.editorTabs = extras.editorTabs;
   if (extras.tidy !== undefined) snap.tidy = extras.tidy;
   if (extras.theme !== undefined) snap.theme = extras.theme;
-  if (extras.ideThemed !== undefined) snap.ideThemed = extras.ideThemed;
   if (extras.artifactOpen !== undefined) snap.artifactOpen = extras.artifactOpen;
   if (extras.editor !== undefined) snap.editor = extras.editor;
   if (extras.activeTab !== undefined) snap.activeTab = extras.activeTab;
   if (extras.focused !== undefined) snap.focused = extras.focused;
   if (extras.spend !== undefined) snap.spend = extras.spend;
   if (extras.hooksInstalled !== undefined) snap.hooksInstalled = extras.hooksInstalled;
-  if (extras.processes !== undefined) snap.processes = await extras.processes([...new Set(shown.map((s) => s.cwd))]);
+  if (extras.processes !== undefined) {
+    const processes = await extras.processes();
+    if (processes !== undefined) snap.processes = processes;
+  }
   if (extras.activity !== undefined) {
     const known = new Map(sessions.map((s): [string, KnownSession] => [s.id, s.title === undefined ? { project: s.project } : { project: s.project, title: s.title }]));
     const activity = await extras.activity(known);

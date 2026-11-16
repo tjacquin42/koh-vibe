@@ -137,21 +137,10 @@ export interface ProcessView {
   depth: number;
 }
 
-export interface OrphanView {
-  /** The adopted process and everything under it, root first. */
-  tree: ProcessView[];
-  cwd: string;
-}
-
 export interface ProcessesView {
   at: number;
   /** What each live conversation is running, keyed by session id. Absent = nothing. */
   bySession: Record<string, ProcessView[]>;
-  /**
-   * Development servers no conversation carries any more. Only looked for
-   * while a view shows the Processes tab — it costs an `lsof`.
-   */
-  orphans?: OrphanView[];
 }
 
 /** Tokens as the API counts them. `cacheRead` is most of the volume; V1 never saw it. */
@@ -305,8 +294,6 @@ export interface Snapshot {
   tidy?: { ask: boolean; rules: string[] };
   /** Koh-Vibe's colours (theme.ts), the same in every view. */
   theme?: ThemeState;
-  /** Whether the editor wears Koh-Vibe's colours (« Back to default » then undoes it). */
-  ideThemed?: boolean;
   /** Where an artifact opens (shared/actions.ts). */
   artifactOpen?: ArtifactOpen;
   /**
@@ -374,6 +361,8 @@ export type ReopenOutcome = (typeof REOPEN_OUTCOMES)[number];
 export type HostMessage =
   | { type: 'init'; context: ViewContext; snapshot: Snapshot }
   | { type: 'snapshot'; snapshot: Snapshot }
+  /** A build ended and found nothing new: the snapshot the view holds still stands (host hub.ts). */
+  | { type: 'steady' }
   | { type: 'reopen'; sessionId: string; outcome: ReopenOutcome }
   /** The answer to the view's `act` of the same `req`. */
   | { type: 'acted'; req: number; result: ActionResult }
@@ -385,7 +374,7 @@ export type ViewMessage =
   | { type: 'ready' }
   | { type: 'openCockpit'; sessionId?: string }
   | { type: 'reload' }
-  /** The tab the view now shows: the host scans for orphan processes only behind the Processes one. */
+  /** The tab the view now shows: the host reads only behind it what only it shows — the processes, the spending, the cloud lists. */
   | { type: 'tab'; tab: SidebarTab }
   /**
    * Brings a conversation to the front. While V1 is installed the host hands
@@ -459,6 +448,7 @@ export function isHostMessage(raw: unknown): raw is HostMessage {
   if (!isRecord(raw)) return false;
   const t = raw['type'];
   if (t === 'snapshot') return isRecord(raw['snapshot']);
+  if (t === 'steady') return true;
   if (t === 'init') return isRecord(raw['snapshot']) && isRecord(raw['context']);
   if (t === 'showSheet') return typeof raw['sessionId'] === 'string';
   if (t === 'acted') return typeof raw['req'] === 'number' && isActionResult(raw['result']);

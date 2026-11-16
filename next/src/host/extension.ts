@@ -272,10 +272,10 @@ function watchActiveTab(changed: () => void): vscode.Disposable[] {
   return tabGroups === undefined ? [] : [tabGroups.onDidChangeTabs(changed), tabGroups.onDidChangeTabGroups(changed)];
 }
 
-/** Whether this window has the focus; `undefined` where the editor does not say. */
-function windowFocused(): boolean | undefined {
-  const state = (vscode.window as { state?: vscode.WindowState }).state;
-  return state?.focused;
+/** Whether this window has the focus; nothing where the editor does not say. */
+function focusedExtra(): { focused?: boolean } {
+  const focused = (vscode.window as { state?: vscode.WindowState }).state?.focused;
+  return focused === undefined ? {} : { focused };
 }
 
 /** The window gaining or losing the focus — another window took a conversation forward. */
@@ -301,10 +301,13 @@ export function activate(context: vscode.ExtensionContext): void {
   // claude.ai, as V1 calls it: a failed call is written to the output channel
   // (V1's cloud/log.ts) — never the token, never the body.
   const cloud = cloudActions(home, cloudDeps.current ?? { send: logged(send, (line) => output.appendLine(line)), credentials: () => readCredentials() });
-  // The tab each open view shows. Orphans cost an `lsof` over every adopted
-  // dev server: looked for only while some view has the Processes tab open.
+  // The tab each open view shows: what only one tab shows is read only while
+  // a view has it open — the processes (a `ps`), the conversations' spending
+  // (the transcripts), the lists of claude.ai (a request).
   const tabs = new Map<object, SidebarTab>();
-  const workspaceRoots = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  const showing = (tab: SidebarTab): boolean => [...tabs.values()].includes(tab);
+  // Asked at each click, never kept: V1's commands appear when V1 has started, which may be later.
+  const hasCommand = async (command: string): Promise<boolean> => (await vscode.commands.getCommands(true)).includes(command);
   // Transcripts are read only while a cockpit is open to show them, and the
   // index is dropped with the last cockpit: reopened, it reads its window again.
   let activity: ActivityIndex | undefined;
@@ -345,7 +348,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const spend = new Spend(transcripts);
   let spendAt = 0;
   const spendExtra = (): { spend?: SpendView } => {
-    if (![...tabs.values()].includes('usage')) return {};
+    if (!showing('usage')) return {};
     if (Date.now() - spendAt > SPEND_EVERY_MS) {
       spendAt = Date.now();
       void spend.refresh(Date.now()).then(() => hub.refresh(), () => undefined);
@@ -387,7 +390,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // most every five minutes (Feed): a write lands in the cache file,
       // which the watcher turns into the next build.
       for (const what of ['artifacts', 'routines'] as const) {
-        if ([...tabs.values()].includes(what)) void cloud.refresh(what, false);
+        if (showing(what)) void cloud.refresh(what, false);
       }
       if (names !== 'ready') await Promise.race([warmNames(), new Promise((done) => setTimeout(done, NAMES_WAIT_MS))]);
       const editorTabs = parseTabsMode(editorConfig().get('showTabs'));
@@ -395,16 +398,16 @@ export function activate(context: vscode.ExtensionContext): void {
         editorTabs,
         tidy: { ask: context.globalState.get(TIDY_ASK_KEY) !== false, rules: await readTidyRules(rulesFile) },
         theme: readStoredTheme(context.globalState.get(THEME_KEY)) ?? DEFAULT_THEME,
-        ideThemed: context.globalState.get(IDE_BACKUP_KEY) !== undefined,
         artifactOpen: artifactOpenNow(),
         editor: { name: vscode.env.appName, integratedBrowser: await hasIntegratedBrowser() },
         ...(await activeTabExtra()),
         restored: await activeTab.restored(Date.now()),
-        ...(windowFocused() === undefined ? {} : { focused: windowFocused() }),
+        ...focusedExtra(),
         ...spendExtra(),
         hooksInstalled: await hooksInstalledNow(),
         ...(names === 'ready' ? { transcripts: namesFromTranscripts } : {}),
-        processes: (cwds) => scanProcesses(procs, [...workspaceRoots(), ...cwds], false, Date.now()),
+        // Shown by the Processes tab and by a conversation's sheet, and read for them only (16/11).
+        processes: async () => (showing('processes') || sheetFor !== undefined ? scanProcesses(procs, Date.now()) : undefined),
         activity: async (known) => {
           if (cockpit === undefined) {
             activity = undefined;
@@ -446,7 +449,7 @@ export function activate(context: vscode.ExtensionContext): void {
     (() => {
       const poll = setInterval(() => {
         const running = hub.current?.routines?.items.some((r) => r.runningSince !== undefined) === true;
-        if (running && [...tabs.values()].includes('routines')) void cloud.refresh('routines', true);
+        if (running && showing('routines')) void cloud.refresh('routines', true);
       }, RUN_POLL_MS);
       return { dispose: () => clearInterval(poll) };
     })(),
@@ -455,11 +458,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  /** One tab tracker per view; a switch to Processes rebuilds at once rather than at the next poll. */
   const focus = (sessionId: string): void => {
     void openSession(sessionId, {
       read: async (id) => (await readSessions(spoolDirs(home))).get(id),
-      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      hasCommand,
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
       runById: (cmd, id) => vscode.commands.executeCommand(cmd, id),
       fallback: (id) => openCockpit(id),
@@ -524,7 +526,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const reopen = (sessionId: string): Promise<ReopenOutcome> =>
     reopenClosed(sessionId, {
       read: async (id) => (await readClosed(closedFile(home))).closed.find((e) => e.id === id),
-      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      hasCommand,
       run: (cmd, arg) => vscode.commands.executeCommand(cmd, arg),
     });
 
@@ -554,7 +556,7 @@ export function activate(context: vscode.ExtensionContext): void {
       groupsFile: groupsFile(home),
       settingsFile: settingsFile(home),
       newId: () => randomUUID(),
-      hasCommand: async (cmd) => (await vscode.commands.getCommands(true)).includes(cmd),
+      hasCommand,
       run: (cmd, ...args) => vscode.commands.executeCommand(cmd, ...args),
       artifactProjectsFile: artifactProjectsFile(home),
       copy: async (text, what) => {
@@ -563,7 +565,7 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       open: (url) => void vscode.env.openExternal(vscode.Uri.parse(url)),
       cloud,
-      locate: (pid) => locateProcess(procs, workspaceRoots(), pid),
+      locate: (pid) => locateProcess(procs, pid),
       confirmKill: async (plan) => {
         const confirm = vscode.l10n.t('Terminate');
         const answer = await vscode.window.showWarningMessage(plan.message, { modal: true, ...(plan.detail === undefined ? {} : { detail: plan.detail }) }, confirm);
@@ -631,6 +633,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let sheetFor: string | undefined;
   let pendingSheet: string | undefined;
 
+  /** One tab tracker per view. */
   const tabTracker = (surface: Surface): ViewActions => {
     const key = {};
     return {
@@ -649,11 +652,12 @@ export function activate(context: vscode.ExtensionContext): void {
       reopenClosed: reopen,
       openArtifact: (slug) => void openArtifact(slug),
       showTab(tab) {
-        const before = [...tabs.values()].includes('usage');
+        const shown = tab !== undefined && showing(tab);
         if (tab === undefined) tabs.delete(key);
         else tabs.set(key, tab);
-        // The Usage tab just shown: read the conversations' spending now (spend.ts), not in 30 s.
-        if (tab === 'usage' && !before) void hub.refresh();
+        // A tab no view showed yet, with a reading of its own: the processes,
+        // the conversations' spending (spend.ts) — read now, not at the next build.
+        if ((tab === 'usage' || tab === 'processes') && !shown) void hub.refresh();
         // A cloud tab just shown: its list may be stale; refresh(false) asks
         // claude.ai only if the shared cache is older than five minutes.
         if (tab === 'artifacts' || tab === 'routines') void cloud.refresh(tab, false);

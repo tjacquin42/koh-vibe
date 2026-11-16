@@ -4,9 +4,13 @@
  * session », read with V1's own helpers.
  *
  * The editor's memento is the only table that ties a tab to a conversation
- * (V1 claude/reveal.ts): read again at most every two seconds. A tab it does
- * not know yet — a conversation just opened — comes with its title alone, and
- * the view matches it (sections.ts `activeSessionId`).
+ * (V1 claude/reveal.ts). Reading it starts a `sqlite3`: it is read again at
+ * most every two seconds while the tabs are moving — the editor writes it a
+ * little after a tab opens — and once a minute when they are still (16/11):
+ * every build asked for it, one every few seconds, in every window, for a
+ * table that only changes with the tabs. A tab it does not know yet — a
+ * conversation just opened — comes with its title alone, and the view matches
+ * it (sections.ts `activeSessionId`).
  */
 import * as vscode from 'vscode';
 import { parseEditorMemento, readEditorMemento, type ClaudeTab } from '../../../src/claude/dormant';
@@ -15,10 +19,15 @@ import { claudeTabsOf } from '../../../src/close/tabs';
 import type { ActiveTabView } from '../shared/protocol';
 
 const MEMENTO_TTL_MS = 2_000;
+/** How long after the tabs last moved the memento is still read that often. */
+const SETTLING_MS = 20_000;
+const STILL_TTL_MS = 60_000;
 
 export class ActiveTab {
   private memento: readonly ClaudeTab[] = [];
   private readAt = 0;
+  /** When the tabs last moved; none yet at the start, where the editor may still be restoring them. */
+  private movedAt: number | undefined;
 
   constructor(private readonly stateDb: string | undefined) {}
 
@@ -52,14 +61,18 @@ export class ActiveTab {
   }
 
   private async read(now: number): Promise<void> {
-    if (this.stateDb === undefined || now - this.readAt <= MEMENTO_TTL_MS) return;
+    if (this.stateDb === undefined) return;
+    this.movedAt ??= now;
+    const ttl = now - this.movedAt <= SETTLING_MS ? MEMENTO_TTL_MS : STILL_TTL_MS;
+    if (this.readAt !== 0 && now - this.readAt <= ttl) return;
     const raw = await readEditorMemento(this.stateDb);
     this.memento = raw === undefined ? [] : parseEditorMemento(raw);
     this.readAt = now;
   }
 
   /** The tab in front changed: what the memento said may be stale for it. */
-  forget(): void {
+  forget(now: number = Date.now()): void {
     this.readAt = 0;
+    this.movedAt = now;
   }
 }
