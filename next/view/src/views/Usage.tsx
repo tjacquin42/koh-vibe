@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { SpendWindow, UsageWindowView } from '../../../src/shared/protocol';
+import type { UsageWindowView } from '../../../src/shared/protocol';
+import { SPEND_WINDOWS } from '../ui-state';
 import { formatAge, formatWhen, toneOf } from '../format';
 import { Dot } from '../ui/icons';
 import { SessionName } from '../ui/SessionName';
@@ -32,7 +32,6 @@ export function UsageTab({ ctx }: { ctx: ViewCtx }) {
   );
 }
 
-const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
 
 /**
  * The conversations that spent the most (15/11), over 5 hours, 24 hours or 7
@@ -42,7 +41,9 @@ const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
  */
 function Hungriest({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
-  const [w, setW] = useState<SpendWindow>('5h');
+  // Kept as last picked (16/11): coming back to the tab finds the same window.
+  const w = ctx.spendWindow;
+  const setW = ctx.setSpendWindow;
   const spend = snapshot.spend;
   const entries = spend?.windows[w] ?? [];
   const top = entries[0]?.share ?? 0;

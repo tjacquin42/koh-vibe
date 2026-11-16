@@ -47,26 +47,9 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
         ))}
       </Section>
       <h2 className="sec sec-label">{t('artifacts.byProject')}</h2>
-      {s.projects.map((p) => {
-        const key = `proj:${p.project ?? ''}`;
-        // Projects start folded: the list is long and « Recent » already shows what is fresh.
-        const folded = !ctx.isFolded(key);
-        return (
-          <Section
-            key={key}
-            title={p.project ?? t('artifacts.other')}
-            count={p.items.length}
-            folded={folded}
-            onToggle={() => ctx.toggle(key)}
-            // A named project renames from its right-click menu (15/11); « Other » is no project.
-            headProps={p.project === undefined ? undefined : { 'data-vscode-context': menuContext('kvnArtProject', { kvnName: p.project }) }}
-          >
-            {p.items.map((a) => (
-              <ArtifactRow key={a.slug} ctx={ctx} a={a} />
-            ))}
-          </Section>
-        );
-      })}
+      {s.projects.map((p) => (
+        <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} />
+      ))}
       <datalist id="artifact-projects">
         {[...new Set(items.map((a) => a.project).filter((p): p is string => p !== undefined))].sort().map((p) => (
           <option key={p} value={p} />
@@ -378,5 +361,65 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * A project's folder of artifacts. Projects start folded: the list is long
+ * and « Recent » already shows what is fresh. A named one has, as a Sessions
+ * folder does, a « ⋯ » at its right under the pointer (16/11), and its menu
+ * renames it in place; « Other » is no project and has none.
+ */
+function ProjectSection({ ctx, project, items }: { ctx: ViewCtx; project: string | undefined; items: readonly ArtifactView[] }) {
+  const { t } = ctx;
+  const key = `proj:${project ?? ''}`;
+  const folded = !ctx.isFolded(key);
+  const [menu, setMenu] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const rename = (to: string | undefined): void => {
+    setRenaming(false);
+    if (project === undefined || to === undefined || to === project) return;
+    void ctx.act({ kind: 'artifact.renameProject', from: project, to, slugs: items.map((a) => a.slug) });
+  };
+  const title =
+    project === undefined ? t('artifacts.other') : renaming ? <NameInput initial={project} max={MAX_NAME} label={t('folder.rename')} onDone={rename} /> : project;
+  const tools =
+    project === undefined ? undefined : (
+      <>
+        <button type="button" className="tbtn" aria-label={t('folder.menu', { name: project })} aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <Icon name="more" />
+        </button>
+        {menu && (
+          <Popover label={t('folder.menu', { name: project })} onClose={() => setMenu(false)}>
+            <div className="fmenu" role="group" aria-label={t('folder.menu', { name: project })}>
+              <button
+                type="button"
+                className="fm-btn"
+                onClick={() => {
+                  setMenu(false);
+                  setRenaming(true);
+                }}
+              >
+                <Icon name="edit" /> {t('folder.rename')}
+              </button>
+            </div>
+          </Popover>
+        )}
+      </>
+    );
+  return (
+    <Section
+      title={title}
+      count={items.length}
+      folded={folded && !renaming}
+      {...(renaming ? {} : { onToggle: () => ctx.toggle(key) })}
+      tools={tools}
+      // A named project renames from its right-click menu too (15/11).
+      headProps={project === undefined ? undefined : { 'data-vscode-context': menuContext('kvnArtProject', { kvnName: project }) }}
+    >
+      {items.map((a) => (
+        <ArtifactRow key={a.slug} ctx={ctx} a={a} />
+      ))}
+    </Section>
   );
 }

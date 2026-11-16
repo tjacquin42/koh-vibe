@@ -253,6 +253,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     isDismissed: (id, at) => ui.dismissed[id] === at,
     sort: ui.sort,
     archives: ui.archives,
+    spendWindow: ui.spendWindow,
+    setSpendWindow: (spendWindow) => updateUi((prev) => ({ ...prev, spendWindow })),
     languageChoice: context.languageChoice,
     dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
     track,
@@ -594,6 +596,7 @@ function Tabs({
           type="button"
           role="tab"
           data-flip={`tab:${id}`}
+          data-name={t(`tab.${id}`)}
           aria-selected={tab === id}
           aria-controls="panel"
           aria-label={iconsOnly ? t(`tab.${id}`) : undefined}

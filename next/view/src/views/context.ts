@@ -3,6 +3,7 @@ import type { ReopenOutcome, Snapshot } from '../../../src/shared/protocol';
 import type { SessionSort } from '../sections';
 import type { Bridge } from '../bridge';
 import type { Translate } from '../i18n';
+import type { SpendWindow } from '../../../src/shared/protocol';
 
 /** What every tab needs, passed down once rather than prop by prop. */
 export interface ViewCtx {
@@ -55,6 +56,9 @@ export interface ViewCtx {
   sort: SessionSort;
   /** How many closed conversations the Archives show. */
   archives: number;
+  /** The window « Hungriest conversations » shows, and how to change it — kept between visits (16/11). */
+  spendWindow: SpendWindow;
+  setSpendWindow(w: SpendWindow): void;
   /** The language picked in the settings (`auto` follows the editor). */
   languageChoice: LanguageChoice;
 }

@@ -83,6 +83,7 @@ export function CockpitTabs({
           type="button"
           role="tab"
           data-flip={`view:${v}`}
+          data-name={t(`cockpit.view.${v}`)}
           aria-selected={view === v && sheet === undefined}
           aria-label={iconsOnly ? t(`cockpit.view.${v}`) : undefined}
           data-tip={iconsOnly ? t(`cockpit.view.${v}`) : undefined}

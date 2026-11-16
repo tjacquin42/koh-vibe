@@ -1,6 +1,7 @@
 import { isSidebarTab, SIDEBAR_TABS, type SidebarTab } from '../../src/shared/protocol';
 import { SESSION_SORTS, SPANS_H, type SessionSort } from './sections';
 import { normalizeOrder } from './order';
+import type { SpendWindow } from '../../src/shared/protocol';
 
 /** The usage left the cockpit (14/11): the sidebar shows it. */
 // Usage (15/11): the sidebar's own tab, the same, nothing more nor less.
@@ -12,6 +13,9 @@ export type CockpitView = (typeof COCKPIT_VIEWS)[number];
  * folded. A convenience only — lost state costs one click, so a bad or
  * missing value falls back to the default without complaint.
  */
+/** The windows « Hungriest conversations » can show. */
+export const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
+
 /** The choices for how many closed conversations the Archives show. */
 export const ARCHIVE_COUNTS = [10, 20, 50] as const;
 export type ArchiveCount = (typeof ARCHIVE_COUNTS)[number];
@@ -46,6 +50,8 @@ export interface UiState {
   sort: SessionSort;
   /** How many closed conversations the Archives show, the latest first (15/11). */
   archives: ArchiveCount;
+  /** The window « Hungriest conversations » shows, kept as last picked (16/11). */
+  spendWindow: SpendWindow;
   /** The sidebar's tabs and the cockpit's views, in the order dragged (ui/reorder.ts). */
   tabOrder: SidebarTab[];
   viewOrder: CockpitView[];
@@ -65,6 +71,7 @@ export const DEFAULT_UI: UiState = {
   // By state by default (15/11): what waits for you first.
   sort: 'status',
   archives: 10,
+  spendWindow: '5h',
   tabOrder: [...SIDEBAR_TABS],
   viewOrder: [...COCKPIT_VIEWS],
 };
@@ -109,6 +116,7 @@ export function parseUiState(raw: unknown): UiState {
   }
   const sort = SESSION_SORTS.find((x) => x === rec['sort']) ?? DEFAULT_UI.sort;
   const archives = ARCHIVE_COUNTS.find((x) => x === rec['archives']) ?? DEFAULT_UI.archives;
+  const spendWindow = SPEND_WINDOWS.find((x) => x === rec['spendWindow']) ?? DEFAULT_UI.spendWindow;
   const out: UiState = {
     tab,
     folded,
@@ -118,6 +126,7 @@ export function parseUiState(raw: unknown): UiState {
     dismissed,
     sort,
     archives,
+    spendWindow,
     tabOrder: normalizeOrder(rec['tabOrder'], SIDEBAR_TABS),
     viewOrder: normalizeOrder(rec['viewOrder'], COCKPIT_VIEWS),
   };

@@ -58,9 +58,15 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'status', archives: 10, tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'status', archives: 10, spendWindow: '5h', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
+  });
+
+  it('keeps the window of the hungriest conversations as last picked (16/11)', () => {
+    expect(parseUiState({}).spendWindow).toBe('5h');
+    expect(parseUiState({ spendWindow: '7d' }).spendWindow).toBe('7d');
+    expect(parseUiState({ spendWindow: '1y' }).spendWindow).toBe('5h');
   });
 
   it('shows 10, 20 or 50 archives, 10 by default and for anything else (15/11)', () => {

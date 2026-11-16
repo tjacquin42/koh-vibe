@@ -113,8 +113,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    little shorter under the pointer, eased between the two. */
 .srow { position: relative; }
 .srow::before {
-  content: ''; position: absolute; z-index: 1; left: 0; top: 50%; width: 3px; height: calc(100% - 6px);
-  border-radius: 2px; background: var(--accent); pointer-events: none;
+  content: ''; position: absolute; z-index: 1; left: 0; top: 50%; width: 4px; height: calc(100% - 6px);
+  border-radius: 999px; background: var(--accent); pointer-events: none;
   transform: translateY(-50%) scaleY(0); opacity: 0;
   transition: transform 0.22s cubic-bezier(.4, 0, .2, 1), opacity 0.22s ease, height 0.22s cubic-bezier(.4, 0, .2, 1);
 }
@@ -765,7 +765,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .set-choice .seg button { flex: 1; }
 
 /* The tidying agent: its question under Tidy, its rules. */
-.cloudbar-act { position: relative; display: inline-flex; }
+.cloudbar-act { position: relative; display: inline-flex; align-items: center; gap: 6px; }
 .tidy-ask { width: min(320px, calc(100vw - 28px)); }
 .tidy-ask p { margin: 0 0 8px; }
 .rules ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
