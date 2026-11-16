@@ -690,6 +690,11 @@ export function activate(context: vscode.ExtensionContext): void {
           views.splice(views.indexOf(entry), 1);
         });
       },
+    }, {
+      // Kept alive while another view container is shown, as the cockpit is:
+      // destroyed on the way out and rebuilt on the way back, it came back
+      // blank (16/11). It also comes back at once, scrolled where it was.
+      webviewOptions: { retainContextWhenHidden: true },
     }),
     // The cockpit left open is put back where it was when the editor reloads.
     vscode.window.registerWebviewPanelSerializer(COCKPIT_PANEL, {

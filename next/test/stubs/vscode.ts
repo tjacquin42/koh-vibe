@@ -118,6 +118,7 @@ interface PanelSerializer {
 
 export const recorded = {
   providers: new Map<string, ViewProvider>(),
+  providerOptions: new Map<string, { webviewOptions?: { retainContextWhenHidden?: boolean } } | undefined>(),
   serializers: new Map<string, PanelSerializer>(),
   commands: new Map<string, (...args: unknown[]) => unknown>(),
   panels: [] as FakePanel[],
@@ -128,6 +129,7 @@ export const recorded = {
   statusMessages: [] as string[],
   config: new Map<string, unknown>(),
   reset(): void {
+    this.providerOptions.clear();
     this.config.clear();
     this.clipboard.length = 0;
     this.statusMessages.length = 0;
@@ -149,8 +151,9 @@ export const window = {
   createOutputChannel(_name: string) {
     return { appendLine: (line: string) => recorded.output.push(line), dispose: () => undefined };
   },
-  registerWebviewViewProvider(id: string, provider: ViewProvider) {
+  registerWebviewViewProvider(id: string, provider: ViewProvider, options?: { webviewOptions?: { retainContextWhenHidden?: boolean } }) {
     recorded.providers.set(id, provider);
+    recorded.providerOptions.set(id, options);
     return { dispose: () => recorded.providers.delete(id) };
   },
   createStatusBarItem(alignment: StatusBarAlignment, priority: number) {

@@ -103,6 +103,13 @@ describe('activate', () => {
     expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload', ...MENU_ITEMS.map((m) => m.command)].sort());
   });
 
+  it('keeps the sidebar alive while another view container is shown', () => {
+    // Without it the editor destroys the view on the way out and rebuilds it on
+    // the way back — and it came back blank (16/11). The cockpit keeps its own too.
+    start(ExtensionMode.Production);
+    expect(recorded.providerOptions.get(SIDEBAR_VIEW)?.webviewOptions?.retainContextWhenHidden).toBe(true);
+  });
+
   it('serves the built bundle outside a development host', () => {
     start(ExtensionMode.Production);
     const html = sidebar().webview.html;
