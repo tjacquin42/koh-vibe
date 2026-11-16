@@ -102,6 +102,19 @@ describe('artifact sections', () => {
     expect(s.projects.map((p) => p.project)).toEqual(['alpha', 'Beta', 'zed', undefined]);
   });
 
+  it('shows a folder made by hand though it holds nothing, in its place among the projects (16/11)', () => {
+    const items = [a('r1', { project: 'alpha' }), a('r2'), a('r3', { project: 'zed' })];
+    const s = artifactSections(items, ['Beta', 'alpha']);
+    expect(s.projects.map((p) => [p.project, p.items.length])).toEqual([
+      ['alpha', 1],
+      ['Beta', 0],
+      ['zed', 1],
+      [undefined, 1],
+    ]);
+    // With nothing at all on claude.ai's list, the folders still show.
+    expect(artifactSections([], ['Veille']).projects).toEqual([{ project: 'Veille', items: [] }]);
+  });
+
   it('caps the recent list', () => {
     const many = Array.from({ length: RECENT_COUNT + 3 }, (_, i) => a(`x${i}`));
     expect(artifactSections(many).recent).toHaveLength(RECENT_COUNT);

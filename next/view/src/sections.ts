@@ -27,12 +27,17 @@ export interface ArtifactSections {
   projects: { project: string | undefined; items: ArtifactView[] }[];
 }
 
-/** The items arrive sorted by the host (pinned first, then most recent). */
-export function artifactSections(items: readonly ArtifactView[]): ArtifactSections {
+/**
+ * The items arrive sorted by the host (pinned first, then most recent).
+ * `folders`: the folders made by hand, which show among the projects even
+ * while they hold nothing (16/11).
+ */
+export function artifactSections(items: readonly ArtifactView[], folders: readonly string[] = []): ArtifactSections {
   const pinned = items.filter((a) => a.pinned);
   const recent = items.filter((a) => !a.pinned).slice(0, RECENT_COUNT);
   const byProject = new Map<string | undefined, ArtifactView[]>();
   for (const a of items) byProject.set(a.project, [...(byProject.get(a.project) ?? []), a]);
+  for (const folder of folders) if (!byProject.has(folder)) byProject.set(folder, []);
   const named = [...byProject.entries()]
     .filter((e): e is [string, ArtifactView[]] => e[0] !== undefined)
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }))

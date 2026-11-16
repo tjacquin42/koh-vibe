@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MAX_TITLE, type Action } from '../../../../src/shared/actions';
 import type { ArtifactView } from '../../../../src/shared/protocol';
 import type { ViewCtx } from '../../context';
@@ -7,12 +7,16 @@ import { cx } from '../../lib/cx';
 import { menuContext } from '../../lib/menu-context';
 import { Icon } from '../atoms/Icon';
 import { IconButton } from '../atoms/IconButton';
+import { ArtifactLine } from '../molecules/ArtifactLine';
 import { Confirm, NameInput } from '../molecules/Inline';
 import { Menu, MenuItem } from '../molecules/Menu';
 import { Popover } from '../molecules/Popover';
 import type { ArtifactDnd } from './artifact-dnd';
 
 type Panel = 'menu' | 'rename' | 'folder' | 'delete';
+
+/** How long a row says where it was just filed. */
+const FILED_MS = 2_200;
 
 /**
  * An artifact: a click opens it; its pin, and a « ⋯ » for the rest. With
@@ -29,6 +33,18 @@ export function ArtifactRow({ ctx, a, dnd, landed = false }: { ctx: ViewCtx; a: 
   const run = (action: Action) => {
     close();
     return ctx.track(a.slug, ctx.act(action));
+  };
+  // The folder of conversations it was just filed in, said on the row for a moment (16/11).
+  const [filedIn, setFiledIn] = useState<string | undefined>();
+  const filedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(filedTimer.current), []);
+  const fileIn = (folder: { id: string; name: string }): void => {
+    void run({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: folder.id }).then((r) => {
+      if (!r.ok) return;
+      setFiledIn(folder.name);
+      window.clearTimeout(filedTimer.current);
+      filedTimer.current = window.setTimeout(() => setFiledIn(undefined), FILED_MS);
+    });
   };
   return (
     <div
@@ -64,11 +80,14 @@ export function ArtifactRow({ ctx, a, dnd, landed = false }: { ctx: ViewCtx; a: 
             />
           </span>
         ) : (
-          <button type="button" className="row row-btn" onClick={() => ctx.bridge.post({ type: 'openArtifact', slug: a.slug })} aria-label={`${name} — ${t('artifacts.open')}`}>
-            <Icon name="doc" />
-            <span className="ttl">{name}</span>
-            {a.updatedAt !== undefined && <span className="tm">{formatAge(now - a.updatedAt, t)}</span>}
-          </button>
+          <ArtifactLine
+            name={name}
+            openLabel={`${name} — ${t('artifacts.open')}`}
+            onOpen={() => ctx.bridge.post({ type: 'openArtifact', slug: a.slug })}
+            age={a.updatedAt === undefined ? undefined : formatAge(now - a.updatedAt, t)}
+            filedIn={filedIn === undefined ? undefined : t('artifacts.filedIn', { name: filedIn })}
+            moving={ctx.animate}
+          />
         )}
         {/* While renaming, the field takes the whole row: no tools over its end. */}
         {panel !== 'rename' && (
@@ -101,7 +120,7 @@ export function ArtifactRow({ ctx, a, dnd, landed = false }: { ctx: ViewCtx; a: 
             {panel === 'folder' && (
               <Menu label={t('artifacts.toFolder')}>
                 {snapshot.folders.map((f) => (
-                  <MenuItem key={f.id} icon="list" onClick={() => void run({ kind: 'artifact.folder', slug: a.slug, title: a.title, folder: f.id })}>
+                  <MenuItem key={f.id} icon="list" onClick={() => fileIn(f)}>
                     {f.name}
                   </MenuItem>
                 ))}

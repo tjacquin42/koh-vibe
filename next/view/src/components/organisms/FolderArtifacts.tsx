@@ -4,6 +4,7 @@ import { cx } from '../../lib/cx';
 import { menuContext } from '../../lib/menu-context';
 import { Icon } from '../atoms/Icon';
 import { IconButton } from '../atoms/IconButton';
+import { ArtifactLine } from '../molecules/ArtifactLine';
 import { SubGroup } from '../molecules/SubGroup';
 import type { Dnd } from './folder-dnd';
 
@@ -31,7 +32,7 @@ export function FolderArtifacts({ ctx, folder, artifacts, dnd }: { ctx: ViewCtx;
         return (
           <div
             key={a.slug}
-            className={cx('arow', busy && 'busy', drag?.kind === 'artifact' && drag.slug === a.slug && 'dragging')}
+            className={cx('arow', busy && 'busy', drag?.kind === 'artifact' && drag.slug === a.slug && 'dragging', dnd.landed === a.slug && 'landed')}
             aria-busy={busy}
             data-vscode-context={listed === undefined ? undefined : menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: listed.title, kvnPinned: listed.pinned })}
             draggable
@@ -43,10 +44,7 @@ export function FolderArtifacts({ ctx, folder, artifacts, dnd }: { ctx: ViewCtx;
             onDragEnd={() => setDrag(undefined)}
           >
             <div className="arow-line">
-              <button type="button" className="row row-btn" onClick={() => ctx.bridge.post({ type: 'openArtifact', slug: a.slug })} aria-label={`${name} — ${t('artifacts.open')}`}>
-                <Icon name="doc" />
-                <span className="ttl">{name}</span>
-              </button>
+              <ArtifactLine name={name} openLabel={`${name} — ${t('artifacts.open')}`} onOpen={() => ctx.bridge.post({ type: 'openArtifact', slug: a.slug })} />
               <span className="tools">
                 <IconButton icon="close" label={t('folder.artifactOut')} onClick={() => void ctx.track(a.slug, ctx.act({ kind: 'artifact.folder', slug: a.slug, title: a.title }))} />
               </span>

@@ -76,6 +76,8 @@ export function sampleSnapshot(now: number): Snapshot {
     },
     artifacts: {
       at: ago(3),
+      // A folder made by hand, still empty.
+      folders: ['Veille'],
       items: [
         { slug: 'a1', title: 'Release plan', pinned: true, updatedAt: ago(40), project: 'shop-front' },
         { slug: 'a2', title: 'API error budget', pinned: false, updatedAt: ago(90), project: 'api' },

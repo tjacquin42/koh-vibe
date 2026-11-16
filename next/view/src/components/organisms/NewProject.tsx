@@ -7,14 +7,16 @@ import { NameInput } from '../molecules/Inline';
 import type { ArtifactDnd, ArtifactDrag } from './artifact-dnd';
 
 /**
- * « New project », at the foot of the projects while an artifact is carried
- * (16/11): a project exists only through what is filed in it, so a new one is
- * made by dropping its first artifact here — then naming it, in place.
- * Escape, or an empty name, leaves the artifact where it was.
+ * « New folder », at the foot of the artifacts' projects, as the
+ * conversations have theirs (16/11): a click turns it into the field that
+ * names it, and the folder exists though nothing is filed in it yet. An
+ * artifact dropped on it goes straight into the folder it then names.
+ * Escape, or an empty name, changes nothing.
  */
 export function NewProject({ ctx, dnd }: { ctx: ViewCtx; dnd: ArtifactDnd }) {
   const { t } = ctx;
-  const [naming, setNaming] = useState<ArtifactDrag | undefined>();
+  /** Naming a folder: for the artifact dropped here, or — `'empty'` — for none. */
+  const [naming, setNaming] = useState<ArtifactDrag | 'empty' | undefined>();
   const [over, setOver] = useState(false);
   const { drag } = dnd;
   useEffect(() => {
@@ -30,29 +32,34 @@ export function NewProject({ ctx, dnd }: { ctx: ViewCtx; dnd: ArtifactDnd }) {
           label={t('artifacts.newProject')}
           onDone={(name) => {
             setNaming(undefined);
-            if (name !== undefined) dnd.file(naming, name);
+            if (name === undefined) return;
+            if (naming === 'empty') void ctx.act({ kind: 'artifact.newProject', name });
+            else dnd.file(naming, name);
           }}
         />
       </div>
     );
   }
-  if (drag === undefined) return null;
   return (
-    <div
-      className={cx('new-folder drop-zone', over && 'drop-in')}
+    <button
+      type="button"
+      className={cx('new-folder', over && 'drop-in')}
+      onClick={() => setNaming('empty')}
       onDragOver={(e) => {
+        if (drag === undefined) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (!over) setOver(true);
       }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {
+        if (drag === undefined) return;
         e.preventDefault();
         setNaming(drag);
         dnd.setDrag(undefined);
       }}
     >
       <Icon name="plus" /> {t('artifacts.newProject')}
-    </div>
+    </button>
   );
 }

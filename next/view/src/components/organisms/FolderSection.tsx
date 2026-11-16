@@ -66,7 +66,10 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
       if (!accepts || drag === undefined) return;
       e.preventDefault();
       if (drag.kind === 'session') fileHere(drag.id);
-      else if (drag.kind === 'artifact') void ctx.track(drag.slug, ctx.act({ kind: 'artifact.folder', slug: drag.slug, title: drag.title, folder: f.id }));
+      else if (drag.kind === 'artifact') {
+        dnd.land(drag.slug);
+        void ctx.track(drag.slug, ctx.act({ kind: 'artifact.folder', slug: drag.slug, title: drag.title, folder: f.id }));
+      }
       else void ctx.act({ kind: 'folder.move', ids: [drag.id], before: f.id });
       end();
     },

@@ -11,6 +11,7 @@ import { Pressable } from '../src/components/atoms/Pressable';
 import { Segmented } from '../src/components/atoms/Segmented';
 import { SessionName } from '../src/components/atoms/SessionName';
 import { Switch } from '../src/components/atoms/Switch';
+import { ArtifactLine } from '../src/components/molecules/ArtifactLine';
 import { Gauge, LineGauge } from '../src/components/molecules/Gauge';
 import { Menu, MenuItem } from '../src/components/molecules/Menu';
 import { Section } from '../src/components/molecules/Section';
@@ -159,6 +160,19 @@ describe('molecules', () => {
     expect(out).toContain('<span>Sessions</span>');
     expect(out).not.toContain('…');
     expect(bar(undefined)).not.toContain('aria-selected="true"');
+  });
+
+  it('ArtifactLine: the page and its age — and, just filed in a folder, a tick and where it went (16/11)', () => {
+    const plain = html(<ArtifactLine name="Release plan" openLabel="Release plan — Open" age="40 min" onOpen={noop} />);
+    expect(plain).toContain('aria-label="Release plan — Open"');
+    expect(plain).toContain('<span class="tm">40 min</span>');
+    expect(plain).not.toContain('filed-in');
+    const filed = html(<ArtifactLine name="Release plan" openLabel="Release plan — Open" age="40 min" filedIn="→ Shop" onOpen={noop} />);
+    // Where it went takes the place of its age for a moment, said to a screen reader too.
+    expect(filed).toContain('<span class="tm filed-in" role="status">→ Shop</span>');
+    expect(filed).not.toContain('40 min');
+    // No age to show, none shown: the line of a folder's artifact.
+    expect(html(<ArtifactLine name="Notes" openLabel="Notes — Open" onOpen={noop} />)).not.toContain('class="tm');
   });
 
   it('Gauge: the whole percentage within 0–100, amber from 85 %, a reset only while it is ahead', () => {

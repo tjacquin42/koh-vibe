@@ -4,4 +4,7 @@ export type Drag = { kind: 'session'; id: string } | { kind: 'folder'; id: strin
 export interface Dnd {
   drag: Drag | undefined;
   setDrag(d: Drag | undefined): void;
+  /** The artifact just dropped on another folder, by slug, for the little motion that shows where it landed; `undefined` once shown, or with animations off. */
+  landed: string | undefined;
+  land(slug: string): void;
 }

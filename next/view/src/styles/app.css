@@ -400,13 +400,24 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    what lands shows where for a moment — the row fades in, its heading glows. */
 .arow.dragging { opacity: 0.4; }
 .group.drop-in, .new-folder.drop-in { transition: background-color 0.12s ease-out; }
-.new-folder.drop-zone { cursor: default; }
 .new-folder.drop-in { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .arow.landed { animation: landed-row 0.28s ease-out; }
 .group.landed > .sec { border-radius: 8px; animation: landed-head 0.9s ease-out; }
 @keyframes landed-row { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes landed-head { from { background-color: color-mix(in srgb, var(--accent) 16%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .arow.landed, .group.landed > .sec { animation: none; } }
+/* An artifact just filed in a folder of conversations (16/11): the folder is
+   on another tab, so the row says it worked — a tick in the colour of what
+   is done, and where it went in place of its age, for a moment. */
+.row.filed .icon, .row .filed-in { color: var(--done); }
+.row .filed-in { font-weight: 600; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.filed.moving { animation: filed-row 1.1s ease-out; }
+.row.filed.moving .icon { animation: filed-tick 0.32s cubic-bezier(.2,1.5,.4,1); }
+.row.filed.moving .filed-in { animation: filed-in 0.24s ease-out; }
+@keyframes filed-row { from { background-color: color-mix(in srgb, var(--done) 16%, transparent); } }
+@keyframes filed-tick { from { transform: scale(0.3); opacity: 0; } }
+@keyframes filed-in { from { opacity: 0; transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .row.filed.moving, .row.filed.moving .icon, .row.filed.moving .filed-in { animation: none; } }
 
 .info-acts { display: flex; gap: 6px; padding-top: 4px; }
 

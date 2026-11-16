@@ -21,6 +21,16 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const byId = useMemo(() => new Map(snapshot.sessions.map((s) => [s.id, s])), [snapshot.sessions]);
   const closed = snapshot.closed.filter((c) => !byId.has(c.sessionId));
   const [drag, setDrag] = useState<Drag | undefined>();
+  // An artifact dropped on another folder shows where it landed, a moment (16/11).
+  const [landed, setLanded] = useState<string | undefined>();
+  const landedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(landedTimer.current), []);
+  const land = (slug: string): void => {
+    if (!ctx.animate) return;
+    setLanded(slug);
+    window.clearTimeout(landedTimer.current);
+    landedTimer.current = window.setTimeout(() => setLanded(undefined), 1_500);
+  };
   // Rows slide to where they now belong (hooks/useFlip.ts) — under the Animations setting.
   const root = useRef<HTMLDivElement>(null);
   useFlip(root, ctx.animate);
@@ -47,7 +57,7 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
     );
   }
   const unfiled: FolderView = { id: UNFILED, name: t('folder.temporary'), sessionIds: snapshot.unfiled };
-  const dnd: Dnd = { drag, setDrag };
+  const dnd: Dnd = { drag, setDrag, landed, land };
   const archivesFolded = ctx.isFolded(ARCHIVES);
   return (
     <div ref={root} className="flip-root">

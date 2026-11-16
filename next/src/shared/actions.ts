@@ -101,6 +101,9 @@ export type Action =
   | { kind: 'artifact.project'; slugs: string[]; project: string | null }
   /** A project folder renamed (15/11): `slugs` are the artifacts it shows, those there by their title included. */
   | { kind: 'artifact.renameProject'; from: string; to: string; slugs: string[] }
+  /** An artifacts folder made by hand, which exists before anything is filed in it (16/11) — and its removal, which files nothing. */
+  | { kind: 'artifact.newProject'; name: string }
+  | { kind: 'artifact.deleteProject'; name: string }
   /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
   | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
   | { kind: 'artifact.copyLink'; slug: string }
@@ -258,8 +261,14 @@ export function parseAction(raw: unknown): Action | undefined {
       return isSlug(raw['slug']) && typeof raw['pinned'] === 'boolean' ? { kind: 'artifact.pin', slug: raw['slug'], pinned: raw['pinned'] } : undefined;
     case 'artifact.delete':
       return isSlug(raw['slug']) ? { kind: 'artifact.delete', slug: raw['slug'] } : undefined;
+    case 'artifact.newProject':
+    case 'artifact.deleteProject': {
+      const name = cleanName(raw['name']);
+      return name === undefined ? undefined : { kind: raw['kind'], name };
+    }
     case 'artifact.renameProject': {
-      const list = slugs(raw['slugs']);
+      // None at all for a folder made by hand that holds nothing yet.
+      const list = Array.isArray(raw['slugs']) && raw['slugs'].length === 0 ? [] : slugs(raw['slugs']);
       const from = cleanName(raw['from']);
       const to = cleanName(raw['to']);
       return list === undefined || from === undefined || to === undefined ? undefined : { kind: 'artifact.renameProject', from, to, slugs: list };

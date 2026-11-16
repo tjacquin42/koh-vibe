@@ -224,6 +224,21 @@ describe('claude.ai, through V1 API functions', () => {
     expect(cloudLog.filter((l) => !l.startsWith('refresh'))).toEqual(['run r1', 'enabled r1 false']);
   });
 
+  it('makes an artifacts folder by hand, renames it empty, and deletes it — filing nothing (16/11)', async () => {
+    const file = join(home, 'artifact-projects.json');
+    expect(await run({ kind: 'artifact.newProject', name: 'Veille' })).toEqual({ ok: true });
+    expect((await readArtifactProjects(file)).folders).toEqual(['Veille']);
+    // Empty, it has no artifact to carry its new name: the name alone moves.
+    await run({ kind: 'artifact.renameProject', from: 'Veille', to: 'Watch', slugs: [] });
+    expect((await readArtifactProjects(file)).folders).toEqual(['Watch']);
+    await run({ kind: 'artifact.project', slugs: ['x'], project: 'watch' });
+    await run({ kind: 'artifact.deleteProject', name: 'Watch' });
+    const after = await readArtifactProjects(file);
+    expect(after.folders).toBeUndefined();
+    // What was filed in it stays filed: the project lasts as long as it holds something.
+    expect(after.filed).toMatchObject({ x: 'Watch' });
+  });
+
   it('files pages in a project and in a Sessions folder, both shared with V1', async () => {
     await run({ kind: 'artifact.project', slugs: ['x', 'y'], project: 'Koh' });
     const projects = await readArtifactProjects(join(home, 'artifact-projects.json'));

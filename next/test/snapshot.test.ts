@@ -76,6 +76,12 @@ describe('buildSnapshot', () => {
     expect(snap.folders[1]).not.toHaveProperty('artifacts');
   });
 
+  it('lists the artifacts folders made by hand, which show even while they hold nothing (16/11)', async () => {
+    expect((await buildSnapshot(home, NOW)).artifacts).not.toHaveProperty('folders');
+    await writeFile(join(home, 'artifact-projects.json'), JSON.stringify({ version: 1, filed: { y: 'koh' }, aliases: {}, folders: ['Veille'] }));
+    expect((await buildSnapshot(home, NOW)).artifacts?.folders).toEqual(['Veille']);
+  });
+
   it('maps usage, cloud caches and closed conversations', async () => {
     const snap = await buildSnapshot(home, NOW);
     expect(snap.usage?.fiveHour?.percent).toBe(42);

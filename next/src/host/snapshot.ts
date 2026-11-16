@@ -296,7 +296,10 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
     sessions,
     folders,
     unfiled,
-    artifacts: artifacts === undefined ? undefined : { at: artifacts.at, items: toArtifactViews(artifacts.items, filing) },
+    artifacts:
+      artifacts === undefined
+        ? undefined
+        : { at: artifacts.at, items: toArtifactViews(artifacts.items, filing), ...(filing.folders === undefined || filing.folders.length === 0 ? {} : { folders: [...filing.folders] }) },
     routines: routines === undefined ? undefined : { at: routines.at, items: routines.items.map((r) => toRoutineView(r, now)) },
     closed: closed.closed.map((e) => {
       const c = { sessionId: e.id, project: e.project, closedAt: e.closedAt, resumable: isEditorOrigin(e.origin) || e.origin === 'terminal' };

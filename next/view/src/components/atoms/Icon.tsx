@@ -104,6 +104,7 @@ const PATHS = {
     </>
   ),
   close: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
+  check: <path d="M3.5 8.5l3 3 6-7" />,
   panel: (
     <>
       <rect x="2" y="3" width="12" height="10" rx="2" />

@@ -253,8 +253,26 @@ describe('the artifacts, by project (16/11)', () => {
     expect(out).not.toContain('list="');
   });
 
-  it('offer « New project » only while an artifact is carried', () => {
-    expect(tab()).not.toContain(t('artifacts.newProject'));
+  it('offer « New folder » at their foot, as the conversations do', () => {
+    expect(tab()).toContain(t('artifacts.newProject'));
+  });
+
+  it('show a folder made by hand though it is empty, and offer to delete it only then', () => {
+    const snap = sample();
+    const artifacts = snap.artifacts === undefined ? undefined : { ...snap.artifacts, folders: ['Veille', 'api'] };
+    const open = testCtx({ snapshot: { ...snap, artifacts }, isFolded: (key: string) => key.startsWith('proj:') });
+    const out = html(<ArtifactsTab ctx={open} />);
+    const veille = out.slice(out.indexOf('>Veille<'));
+    expect(veille).toContain(t('artifacts.emptyProject'));
+    // Asked in a menu the test cannot open: the row only says the menu is there, for both.
+    expect(out).toContain(`aria-label="${t('folder.menu', { name: 'Veille' })}"`);
+  });
+
+  it('keep the folders made by hand on screen when claude.ai lists no artifact at all', () => {
+    const none = testCtx({ snapshot: { ...sample(), artifacts: { at: NOW, items: [], folders: ['Veille'] } } });
+    const out = html(<ArtifactsTab ctx={none} />);
+    expect(out).toContain('>Veille<');
+    expect(out).toContain(t('artifacts.newProject'));
   });
 
   it('are not picked up from the search’s results, which have nowhere to drop them', () => {

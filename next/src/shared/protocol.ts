@@ -289,7 +289,8 @@ export interface Snapshot {
   /** Ids of the sessions in no folder, in display order. */
   unfiled: string[];
   usage?: UsageView;
-  artifacts: { at: number; items: ArtifactView[] } | undefined;
+  /** `folders`: the artifacts folders made by hand, which show even while they hold nothing; absent when there is none. */
+  artifacts: { at: number; items: ArtifactView[]; folders?: string[] } | undefined;
   routines: { at: number; items: RoutineView[] } | undefined;
   closed: ClosedView[];
   settings: SettingsView;

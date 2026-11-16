@@ -44,15 +44,21 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
     [drag, landed, ctx],
   );
   const bar = <CloudBar ctx={ctx} what="artifacts" at={snapshot.artifacts?.at} />;
+  // The folders made by hand show though they hold nothing — and though the list is empty.
+  const made = snapshot.artifacts?.folders ?? [];
+  const s = artifactSections(items, made);
   if (items.length === 0) {
     return (
-      <>
+      <div ref={root}>
         {bar}
         <p className="hint pad">{t('artifacts.none')}</p>
-      </>
+        {s.projects.map((p) => (
+          <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} made />
+        ))}
+        <NewProject ctx={ctx} dnd={dnd} />
+      </div>
     );
   }
-  const s = artifactSections(items);
   return (
     <div ref={root}>
       {bar}
@@ -71,7 +77,7 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
       </Section>
       <h2 className="sec sec-label">{t('artifacts.byProject')}</h2>
       {s.projects.map((p) => (
-        <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} />
+        <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} made={p.project !== undefined && made.includes(p.project)} />
       ))}
       {/* « Other » only shows while it holds something: carried, an artifact still needs it to leave its project. */}
       {drag !== undefined && drag.project !== undefined && !s.projects.some((p) => p.project === undefined) && <ProjectSection ctx={ctx} project={undefined} items={[]} dnd={dnd} />}

@@ -21,8 +21,12 @@ import { ArtifactRow } from './ArtifactRow';
  *
  * An artifact dragged onto it — its heading or its rows, folded or not — is
  * filed in it (16/11); onto « Other », it leaves its project.
+ *
+ * `made`: a folder made by hand (« New folder »), which shows though it holds
+ * nothing — and, while it holds nothing, can be deleted from its menu. Any
+ * other project goes away by itself with its last artifact.
  */
-export function ProjectSection({ ctx, project, items, dnd }: { ctx: ViewCtx; project: string | undefined; items: readonly ArtifactView[]; dnd: ArtifactDnd }) {
+export function ProjectSection({ ctx, project, items, dnd, made = false }: { ctx: ViewCtx; project: string | undefined; items: readonly ArtifactView[]; dnd: ArtifactDnd; made?: boolean }) {
   const { t } = ctx;
   const key = `proj:${project ?? ''}`;
   // Folded unless opened: the fold list holds the projects that are open.
@@ -75,6 +79,18 @@ export function ProjectSection({ ctx, project, items, dnd }: { ctx: ViewCtx; pro
               >
                 {t('folder.rename')}
               </MenuItem>
+              {made && items.length === 0 && (
+                <MenuItem
+                  icon="trash"
+                  danger
+                  onClick={() => {
+                    setMenu(false);
+                    void ctx.act({ kind: 'artifact.deleteProject', name: project });
+                  }}
+                >
+                  {t('artifacts.deleteProject')}
+                </MenuItem>
+              )}
             </Menu>
           </Popover>
         )}
@@ -94,6 +110,7 @@ export function ProjectSection({ ctx, project, items, dnd }: { ctx: ViewCtx; pro
       // A named project renames from its right-click menu too (15/11).
       headProps={project === undefined ? undefined : { 'data-vscode-context': menuContext('kvnArtProject', { kvnName: project }) }}
     >
+      {items.length === 0 && <p className="hint drop-hint">{t('artifacts.emptyProject')}</p>}
       {items.map((a) => (
         <ArtifactRow key={a.slug} ctx={ctx} a={a} dnd={dnd} landed={here && dnd.landed?.slug === a.slug} />
       ))}

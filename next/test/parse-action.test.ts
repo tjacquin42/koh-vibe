@@ -49,7 +49,13 @@ const GOOD: { [K in Action['kind']]: Extract<Action, { kind: K }>[] } = {
     { kind: 'artifact.project', slugs: ['abc-123'], project: 'Koh-Vibe' },
     { kind: 'artifact.project', slugs: ['abc-123'], project: null },
   ],
-  'artifact.renameProject': [{ kind: 'artifact.renameProject', from: 'Old', to: 'New', slugs: ['abc-123'] }],
+  'artifact.renameProject': [
+    { kind: 'artifact.renameProject', from: 'Old', to: 'New', slugs: ['abc-123'] },
+    // A folder made by hand, renamed while it holds nothing yet.
+    { kind: 'artifact.renameProject', from: 'Old', to: 'New', slugs: [] },
+  ],
+  'artifact.newProject': [{ kind: 'artifact.newProject', name: 'Veille' }],
+  'artifact.deleteProject': [{ kind: 'artifact.deleteProject', name: 'Veille' }],
   'artifact.folder': [
     { kind: 'artifact.folder', slug: 'abc-123', title: '' },
     { kind: 'artifact.folder', slug: 'abc-123', title: 'Notes', folder: 'g1' },
@@ -154,7 +160,12 @@ describe('parseAction, action by action', () => {
     { kind: 'artifact.project', slugs: ['a'], project: '  ' },
     { kind: 'artifact.project', slugs: ['a'] },
     { kind: 'artifact.renameProject', from: 'Old', to: '', slugs: ['a'] },
-    { kind: 'artifact.renameProject', from: 'Old', to: 'New', slugs: [] },
+    { kind: 'artifact.renameProject', from: 'Old', to: 'New', slugs: ['../x'] },
+    { kind: 'artifact.renameProject', from: 'Old', to: 'New' },
+    { kind: 'artifact.newProject', name: '   ' },
+    { kind: 'artifact.newProject', name: long(MAX_NAME + 1) },
+    { kind: 'artifact.newProject' },
+    { kind: 'artifact.deleteProject', name: 7 },
     { kind: 'artifact.folder', slug: 'a', title: 5 },
     { kind: 'artifact.folder', slug: 'a', title: 'T', folder: '../x' },
     { kind: 'artifact.copyLink', slug: 'a/b' },
