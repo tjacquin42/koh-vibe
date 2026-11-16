@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { SIDEBAR_TABS, type ArtifactView, type RoutineView } from '../src/shared/protocol';
 import { moveBefore, normalizeOrder } from '../view/src/order';
 import { sampleSnapshot } from '../view/src/fixture';
-import { fold, formatWhen, megabytes } from '../view/src/format';
+import { countsOf, fold, folderIndex, formatWhen, isFiled, megabytes, UNFILED } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { atLaunch, DEFAULT_UI, parseUiState, setFolds, toggleFold } from '../view/src/ui-state';
-import { activeSessionId, FIVE_HOURS_MS, pacePercent, WEEK_MS } from '../view/src/sections';
+import { activeSessionId, FIVE_HOURS_MS, gaugeOf, pacePercent, WEEK_MS } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
@@ -299,5 +299,63 @@ describe('the pace mark (15/11)', () => {
     expect(pacePercent(now + 10 * 3_600_000, FIVE_HOURS_MS, now)).toBe(0);
     expect(pacePercent(undefined, FIVE_HOURS_MS, now)).toBeUndefined();
     expect(pacePercent(now - 1, FIVE_HOURS_MS, now)).toBeUndefined();
+  });
+});
+
+describe('a limit as its bar shows it', () => {
+  const now = 1_000_000_000;
+  it('rounds the percentage and keeps it within the bar', () => {
+    expect(gaugeOf({ percent: 41.6 }, now).percent).toBe(42);
+    expect(gaugeOf({ percent: 140 }, now).percent).toBe(100);
+    expect(gaugeOf({ percent: -3 }, now).percent).toBe(0);
+  });
+
+  it('turns amber from 85 %', () => {
+    expect(gaugeOf({ percent: 84.4 }, now).tone).toBe('run');
+    expect(gaugeOf({ percent: 84.5 }, now).tone).toBe('wait');
+  });
+
+  it('gives a reset only while it is still ahead', () => {
+    expect(gaugeOf({ percent: 10, resetsAt: now + 1 }, now).resetsAt).toBe(now + 1);
+    expect(gaugeOf({ percent: 10, resetsAt: now }, now).resetsAt).toBeUndefined();
+    expect(gaugeOf({ percent: 10 }, now).resetsAt).toBeUndefined();
+  });
+});
+
+describe('where each conversation is filed', () => {
+  const snap = sampleSnapshot(0);
+  const where = folderIndex(snap);
+
+  it('names the folder of every listed conversation, and the unfiled list for the rest', () => {
+    expect(where.get('s1')).toBe('f1');
+    expect(where.get('s2')).toBe('f2');
+    expect(where.get('s4')).toBe(UNFILED);
+    expect(where.get('nowhere')).toBeUndefined();
+    expect(where.size).toBe(snap.sessions.length);
+  });
+
+  it('counts as filed only what a folder holds — only those can be put to sleep', () => {
+    expect(isFiled(where, 's1')).toBe(true);
+    expect(isFiled(where, 's4')).toBe(false);
+    expect(isFiled(where, 'nowhere')).toBe(false);
+  });
+
+  it('counts a folder’s open conversations by state, as the cockpit does for the one chosen', () => {
+    const inFolder = (folder: string) => snap.sessions.filter((s) => where.get(s.id) === folder);
+    expect(countsOf(inFolder('f1'))).toEqual({ waiting: 1, running: 0, done: 1 });
+    // Backend holds one that works and one asleep, which counts for nothing.
+    expect(countsOf(inFolder('f2'))).toEqual({ waiting: 0, running: 1, done: 0 });
+    expect(countsOf(inFolder(UNFILED))).toEqual({ waiting: 0, running: 0, done: 0 });
+    expect(countsOf([])).toEqual({ waiting: 0, running: 0, done: 0 });
+  });
+});
+
+describe('a state kept by an older version', () => {
+  it('is read without what the view no longer keeps — the separators’ sizes, the old fold of the archives', () => {
+    const old = parseUiState({ tab: 'artifacts', folded: ['closed', 'f1'], sizes: { 'ck.side': 320 }, titleLines: 1, tabNames: false });
+    expect(old).toEqual({ ...DEFAULT_UI, tab: 'artifacts', folded: ['closed', 'f1'] });
+    expect('sizes' in old).toBe(false);
+    // Nothing is folded to begin with: the archives open, under their own key.
+    expect(DEFAULT_UI.folded).toEqual([]);
   });
 });

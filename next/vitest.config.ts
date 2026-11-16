@@ -3,11 +3,14 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['test/**/*.test.ts'],
+    // The view's components are drawn to a string (view/test): no browser, so no effect runs — what they say is what is checked.
+    include: ['test/**/*.test.ts', 'view/test/**/*.test.tsx'],
     environment: 'node',
+    setupFiles: ['view/test/setup.ts'],
     // `pnpm test:coverage`: the V2's own code, host and view — not the V1 modules it reads through.
     coverage: { provider: 'v8', include: ['src/**', 'view/src/**'], reporter: ['text-summary', 'html'] },
   },
+  esbuild: { jsx: 'automatic' },
   resolve: {
     // `vscode` only exists inside the extension host. The V1 modules the host
     // reads through (groups/model) import it too, so the alias covers them.
