@@ -15,6 +15,7 @@ import { useIconsOnly } from '../ui/fit';
 import { EdgeScroll } from '../ui/EdgeScroll';
 import { useRef, type ReactNode } from 'react';
 import { UsageTab } from '../views/Usage';
+import { StatusCounts } from '../ui/StatusCounts';
 
 type Cockpit = UiState['cockpit'];
 
@@ -160,20 +161,7 @@ export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: st
           </>,
         )}
       </EdgeScroll>
-      <div className="counts">
-        <CountBox n={counts.waiting} label={t('cockpit.count.waiting')} tone="wait" />
-        <CountBox n={counts.running} label={t('cockpit.count.running')} tone="run" />
-        <CountBox n={counts.done} label={t('cockpit.count.done')} tone="done" />
-      </div>
-    </div>
-  );
-}
-
-function CountBox({ n, label, tone }: { n: number; label: string; tone: string }) {
-  return (
-    <div className={`count tone-${tone}`}>
-      <b>{n}</b>
-      <span>{label}</span>
+      <StatusCounts counts={counts} t={t} />
     </div>
   );
 }

@@ -7,9 +7,6 @@
 const en = {
   'app.name': 'Koh-Vibe',
   'live.wait': 'Waiting for the extension…',
-  'count.waiting': 'waiting for you',
-  'count.running': 'working',
-  'count.done': 'finished',
   'folder.unfiled': 'Unfiled',
   'empty.title': 'No conversation yet',
   'empty.body': 'Start Claude Code anywhere: it shows up here.',
@@ -317,9 +314,6 @@ type Dict = Partial<Record<Key, string>>;
 
 const fr: Dict = {
   'live.wait': 'En attente de l’extension…',
-  'count.waiting': 't’attendent',
-  'count.running': 'travaillent',
-  'count.done': 'finies',
   'folder.unfiled': 'Sans dossier',
   'empty.title': 'Aucune conversation pour l’instant',
   'empty.body': 'Lance une conversation Claude Code, où que ce soit : elle apparaîtra ici.',

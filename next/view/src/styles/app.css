@@ -83,9 +83,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ibtn:hover { background: var(--raised); }
 
 .counts { display: flex; gap: 6px; }
-.count { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px; display: flex; flex-direction: column; }
-.count b { font-family: var(--font-display); font-size: 20px; line-height: 1.1; }
-.count span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The three counts (ui/StatusCounts.tsx): number and name on one line, small;
+   the name goes under its number on a bar too narrow, never cut (16/11). */
+.count { flex: 1 1 auto; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 4px 9px; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 5px; }
+.count b { font-family: var(--font-display); font-size: 15px; line-height: 1.2; }
+.count span { font-size: 11px; color: var(--muted); }
 .count.tone-wait b { color: var(--wait); }
 .count.tone-run b { color: var(--run); }
 .count.tone-done b { color: var(--done); }

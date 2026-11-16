@@ -27,6 +27,7 @@ import { RoutinesTab } from './views/Routines';
 import { ClosedRow, SessionRow, SessionsTab } from './views/Sessions';
 import { UsageStrip, UsageTab } from './views/Usage';
 import { NO_MENU, TEXT_MENU } from './ui/menu-context';
+import { StatusCounts } from './ui/StatusCounts';
 
 interface State {
   context: ViewContext;
@@ -412,11 +413,7 @@ function Header({
       {/* The cockpit counts its chosen folder, under its folders (Cockpit.tsx CockpitTop). */}
       {/* Not over the settings either: they are not about the conversations (14/11). */}
       {surface === 'sidebar' && settingsOpen !== true && (
-        <div className="counts">
-          <Count n={c.waiting} label={t('count.waiting')} tone="wait" />
-          <Count n={c.running} label={t('count.running')} tone="run" />
-          <Count n={c.done} label={t('count.done')} tone="done" />
-        </div>
+        <StatusCounts counts={c} t={t} />
       )}
     </header>
   );
@@ -523,15 +520,6 @@ function BrandLogo({ label }: { label: string }) {
         <path d="M107 219H213" fill="none" stroke="var(--done)" strokeWidth="21" strokeLinecap="round" />
       </svg>
     </span>
-  );
-}
-
-function Count({ n, label, tone }: { n: number; label: string; tone: string }) {
-  return (
-    <div className={`count tone-${tone}`}>
-      <b>{n}</b>
-      <span>{label}</span>
-    </div>
   );
 }
 
