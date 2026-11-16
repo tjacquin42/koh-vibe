@@ -1,87 +1,59 @@
-import { Fragment, useRef, type Ref } from 'react';
-import { brandName, type Brand } from '../../lib/brand';
+import { useRef, type CSSProperties } from 'react';
+import { WORDMARK } from '../../assets/wordmark';
+
+/**
+ * The image's own shape, for the rainbow: the band is masked by it, so the
+ * colours run through the letters' stripes and nowhere else.
+ */
+const MASK: CSSProperties & Record<'--brand-mask', string> = { '--brand-mask': `url("${WORDMARK}")` };
 
 /**
  * The name, and a rainbow that runs through it on each click (14/11). Every
  * click adds its own band on top of those still running — click fast and
- * several cross the letters at once. Each band is a layer of the same text,
- * transparent but for the band, laid over the name and gone when it is
- * through. Still under the system's reduced motion.
+ * several cross the letters at once. The sidebar's name is the large drawing
+ * as an image (16/11, assets/wordmark.ts); its band is a layer cut to the
+ * image's shape. The cockpit's title stays text, its band a layer of the same
+ * text. Still under the system's reduced motion.
  */
 export function BrandName({ text, striped = false }: { text: string; striped?: boolean }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const word = useRef<HTMLSpanElement>(null);
   return (
     <button
       ref={ref}
       type="button"
       className={`brand${striped ? ' brand-c2' : ''}`}
+      style={striped ? MASK : undefined}
       aria-label={striped ? text : undefined}
       onClick={() => {
         const el = ref.current;
         if (el === null || typeof el.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        // The same structure as the name, copied — its letters and boxes —
-        // so the band's letters fall on the name's (lib/brand.ts). The
-        // stylesheet switches the copy's own stripes and fixes off.
         const band = document.createElement('span');
-        band.className = 'brand-band';
+        band.className = striped ? 'brand-band brand-band-mask' : 'brand-band';
         band.setAttribute('aria-hidden', 'true');
-        if (word.current !== null) band.appendChild(word.current.cloneNode(true));
-        else band.textContent = text;
+        if (!striped) band.textContent = text;
         el.appendChild(band);
         const run = band.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 750, easing: 'cubic-bezier(.4,0,.2,1)' });
         run.onfinish = () => band.remove();
         run.oncancel = () => band.remove();
       }}
     >
-      {striped ? <StripedName brand={brandName(text)} spanRef={word} /> : text}
+      {striped ? <img className="brand-img" src={WORDMARK} alt="" draggable={false} /> : text}
     </button>
   );
 }
 
 /**
- * The striped name (lib/brand.ts): the body striped as one, the three letters
- * with a fix of their own, and the final e striped apart.
+ * While the view waits for the extension (15/11): the name, with the rainbow
+ * running through it again and again — the click's band, on a loop. Still
+ * under the system's reduced motion. The wait itself is said to screen readers
+ * only.
  */
-function StripedName({ brand, spanRef }: { brand: Brand; spanRef?: Ref<HTMLSpanElement> }) {
-  return (
-    <span ref={spanRef} className="brand-word" aria-hidden="true">
-      <span className="brand-name">
-        {brand.body.map((p, i) =>
-          p.kind === 'text' ? (
-            <Fragment key={i}>{p.text}</Fragment>
-          ) : p.kind === 'dash' ? (
-            <span key={i} className="brand-dash" />
-          ) : (
-            // The letter stays plain text, painted by the name's stripes; the
-            // empty marker after it carries its fix (app.css .brand-fix-*).
-            <Fragment key={i}>
-              {p.text}
-              <span className={`brand-fix brand-fix-${p.fix}`} />
-            </Fragment>
-          ),
-        )}
-      </span>
-      {brand.tail !== null && <span className="brand-e">{brand.tail}</span>}
-    </span>
-  );
-}
-
-/**
- * While the view waits for the extension (15/11): the striped name, with the
- * rainbow running through it again and again — the click's band, on a loop.
- * Still under the system's reduced motion. The wait itself is said to screen
- * readers only.
- */
-export function BootBrand({ label, name }: { label: string; name: string }) {
-  const brand = brandName(name);
+export function BootBrand({ label }: { label: string }) {
   return (
     <div className="boot" role="status" aria-label={label}>
-      <span className="brand brand-c2 boot-brand" aria-hidden="true">
-        <StripedName brand={brand} />
-        <span className="brand-band boot-band">
-          <StripedName brand={brand} />
-        </span>
+      <span className="brand brand-c2 boot-brand" style={MASK} aria-hidden="true">
+        <img className="brand-img" src={WORDMARK} alt="" draggable={false} />
+        <span className="brand-band brand-band-mask boot-band" />
       </span>
     </div>
   );

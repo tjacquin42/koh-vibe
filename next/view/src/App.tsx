@@ -290,7 +290,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   }, [t, language, now, snapshot, where, bridge, folded, opening, notices, busy, activeId, ui.dismissed, ui.sort, ui.archives, ui.spendWindow, languageChoice, surface, updateUi, reopen, act, showToast, track, openConversation]);
 
   if (state === undefined || ctx === undefined || surface === undefined) {
-    return <BootBrand label={t('live.wait')} name={t('app.name')} />;
+    return <BootBrand label={t('live.wait')} />;
   }
   const { version } = state.context;
   return (

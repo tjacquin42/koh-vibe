@@ -679,97 +679,23 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   -webkit-background-clip: text; background-clip: text;
 }
 .brand:focus-visible { outline-offset: 3px; }
-/* C2 (14/11, retouched 15/11): the sidebar's name striped with the logo's
-   colours — coral, a cut, a lagoon band, a cut, sea green — measured for
-   Bricolage Grotesque 800 at opsz 96. The lagoon lies in the lower part of the
-   letters (56.8–65.2 %), under the e's bar, which stays coral and closes the
-   e's eye; the cut above it is as tall as the cut below (4 %). The percentages
-   assume a 1em line box: no padding, no other line-height on the elements
-   that carry the gradients. */
-.brand-c2 { display: inline-block; vertical-align: middle; white-space: nowrap; font-size: 21px; font-weight: 800; font-variation-settings: 'opsz' 96; letter-spacing: -0.02em; line-height: 1; }
-.brand-word { display: inline-block; vertical-align: top; }
-.brand-name, .brand-e { display: inline-block; vertical-align: top; color: transparent; -webkit-background-clip: text; background-clip: text; }
-.brand-name {
-  background-image: linear-gradient(to bottom,
-    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
-    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
-    var(--run) 56.8%, var(--run) 65.2%,
-    transparent 65.2%, transparent max(69.2%, calc(65.2% + 1.2px)),
-    var(--done) max(69.2%, calc(65.2% + 1.2px)), var(--done) 100%);
+/* C2, the sidebar's name (validated 15/11): the large drawing as one image,
+   shrunk (16/11, components/organisms/Brand.tsx, assets/wordmark.ts) — the
+   same drawing everywhere: the header, the loading screen, the showcase.
+   Redrawn in CSS at each size, its stripes fell between pixels and always
+   left something wrong. Its height follows the font size: 0.735 em is the
+   drawing's ink at the size it was measured (21 px in the header, 34 px while
+   loading). */
+.brand-c2 { display: inline-block; vertical-align: middle; font-size: 21px; line-height: 0; }
+/* Width from the image's proportions (758 × 150), not from the image once
+   decoded: the loading screen centres the box before the image is read. */
+.brand-img { display: block; height: 0.735em; width: 3.714em; -webkit-user-drag: none; }
+/* The rainbow over the image: the band's gradient is not clipped to text but
+   masked by the image itself, so it runs through the stripes only. */
+.brand-band-mask {
+  -webkit-background-clip: border-box; background-clip: border-box;
+  -webkit-mask: var(--brand-mask) center / 100% 100% no-repeat; mask: var(--brand-mask) center / 100% 100% no-repeat;
 }
-/* The final e, striped on its own (lib/brand.ts): on its right half the lagoon
-   stops above its tail's tip (63.5 %) — no lone sliver in the band — and the
-   band's lower edge curves up towards its right. Its ink runs past its
-   advance: the padding widens the painted box, the margin gives it back. */
-.brand-e {
-  padding-right: 0.08em; margin-right: -0.08em;
-  background-image: linear-gradient(to bottom,
-    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
-    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
-    var(--run) 56.8%, var(--run) 63%,
-    transparent 63%, transparent max(69%, calc(63% + 1.2px)),
-    var(--done) max(69%, calc(63% + 1.2px)), var(--done) 100%),
-    linear-gradient(to bottom,
-    var(--wait) 0, var(--wait) min(52.8%, calc(56.8% - 1.2px)),
-    transparent min(52.8%, calc(56.8% - 1.2px)), transparent 56.8%,
-    var(--run) 56.8%, var(--run) 65.2%,
-    transparent 65.2%, transparent max(69.2%, calc(65.2% + 1.2px)),
-    var(--done) max(69.2%, calc(65.2% + 1.2px)), var(--done) 100%);
-  background-size: 45% 100%, 57% 100%; background-position: right top, left top; background-repeat: no-repeat;
-  clip-path: polygon(-20% -20%, 120% -20%, 120% 63.52%, 102.0% 63.52%, 98.4% 63.75%, 94.9% 63.97%, 91.3% 64.16%, 87.7% 64.34%, 84.1% 64.51%, 80.6% 64.65%, 77.0% 64.78%, 73.4% 64.89%, 69.9% 64.99%, 66.3% 65.06%, 62.7% 65.12%, 59.1% 65.17%, 55.6% 65.19%, 52.0% 65.20%, 52% 65.2%, 120% 65.2%, 120% 120%, -20% 120%);
-}
-/* The hyphen is no character: a lagoon bar as thick as the band, laid on it,
-   short and centred to the eye between the h and the V. The negative right
-   margin makes up for the gap the V's diagonal leaves at that height. */
-.brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.084em; margin: 0.568em -0.08em 0 0.034em; background: var(--run); }
-/* Three letters with a fix (lib/brand.ts), measured on the glyphs: the dark
-   notch the K and the h leave inside the lagoon band is filled with lagoon;
-   the tip of the V's inner point, just under the green's start, with green.
-   The letters stay plain text: a letter inside a positioned box is left out
-   of the name's text clip by the editor's engine (it vanished, 16/11). The
-   fix hangs on an empty marker right after the letter, so its offsets count
-   back from the letter's end: its advance plus the letter-spacing
-   (K 0.603em, h 0.542em, V 0.612em). */
-.brand-fix { position: relative; display: inline-block; vertical-align: top; width: 0; height: 1em; }
-.brand-fix::after { content: ''; position: absolute; }
-.brand-fix-k::after { left: -0.563em; top: 0.568em; width: 0.465em; height: 0.084em; background: var(--run); }
-.brand-fix-h::after { left: -0.506em; top: 0.568em; width: 0.164em; height: 0.084em; background: var(--run); }
-.brand-fix-v::after { left: -0.312em; top: 0.692em; width: 0.035em; height: 0.01em; background: var(--done); }
-/* In the sidebar's header the name is small, and the stripes above, laid in
-   percentages, fell between pixels: a lagoon band of 1.8 px and cuts of
-   0.8 px came out blurred (16/11). There they are laid on whole pixels —
-   coral, a 1 px cut, a 2 px lagoon band, a 1 px cut, green — at 24 px on a
-   standard screen and 21 px on a Retina one, the two Thomas chose. The fixes
-   smaller than a pixel (the e's curve, the V's tip) are dropped; the e keeps
-   its lagoon one pixel shorter on its right half. The dark hollow inside the
-   e, which bites into the top of its green on the large drawing, is under a
-   tenth of a pixel here and the e's foot came out as a plain green block: it
-   is cut back in, half a pixel deep, by the clip-path (evenodd: the outer box, then
-   the hollow, a half-ellipse hanging from the green's top). */
-.head .brand-c2 { font-size: 24px; }
-.head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); }
-.head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 15px, transparent 15px 17px, var(--done) 17px 100%), linear-gradient(to bottom, var(--wait) 0 13px, transparent 13px 14px, var(--run) 14px 16px, transparent 16px 17px, var(--done) 17px 100%); clip-path: polygon(evenodd, -20% -20%, 120% -20%, 120% 120%, -20% 120%, -20% -20%, 33.2% 17px, 33.2% 17.00px, 34.3% 17.19px, 37.4% 17.35px, 42.2% 17.46px, 47.7% 17.50px, 53.2% 17.46px, 58.0% 17.35px, 61.1% 17.19px, 62.2% 17.00px, 62.2% 17px, 33.2% 17px, -20% -20%); }
-.head .brand-dash { margin-top: 14px; height: 2px; }
-.head .brand-fix-k::after, .head .brand-fix-h::after { top: 14px; height: 2px; }
-.head .brand-fix-v::after { content: none; }
-/* A Retina screen has half pixels, and they bring the proportions back to the
-   large drawing's (16/11): the green from 14.5 px — it was under-sized, 17 %
-   of the letters' height against 21 % — and a 2 px lagoon band, widened half
-   a pixel upwards into the coral, the cuts above and below still 1 px each.
-   The e's hollow is cut half a pixel deep into the top of its green, as on a
-   standard screen. */
-@media (min-resolution: 2dppx) {
-  .head .brand-c2 { font-size: 21px; }
-  .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); }
-  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 12.5px, transparent 12.5px 14.5px, var(--done) 14.5px 100%), linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); clip-path: polygon(evenodd, -20% -20%, 120% -20%, 120% 120%, -20% 120%, -20% -20%, 33.2% 14.5px, 33.2% 14.50px, 34.3% 14.69px, 37.4% 14.85px, 42.2% 14.96px, 47.7% 15.00px, 53.2% 14.96px, 58.0% 14.85px, 61.1% 14.69px, 62.2% 14.50px, 62.2% 14.5px, 33.2% 14.5px, -20% -20%); }
-  .head .brand-dash { margin-top: 11.5px; height: 2px; }
-  .head .brand-fix-k::after, .head .brand-fix-h::after { top: 11.5px; height: 2px; }
-}
-/* The rainbow's layer is a copy of the name (App.tsx BrandName): its own
-   stripes, clips and fixes are switched off, so only the rainbow shows. */
-.brand-band .brand-name, .brand-band .brand-e { background: none; clip-path: none; }
-.brand-band .brand-fix::after { content: none; }
-.brand-band .brand-dash { background: transparent; }
 /* The logo alone, for a sidebar too narrow for the name, in the logo's own
    colours (App.tsx BrandLogo). No glow, no pulse. */
 .brand-logo { display: none; align-items: center; line-height: 0; }

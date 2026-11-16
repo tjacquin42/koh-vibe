@@ -5,6 +5,8 @@ import type { SessionView } from '../../src/shared/protocol';
 import { Hint } from '../src/components/atoms/Hint';
 import { IconButton } from '../src/components/atoms/IconButton';
 import { Meter } from '../src/components/atoms/Meter';
+import { BootBrand, BrandName } from '../src/components/organisms/Brand';
+import { WORDMARK } from '../src/assets/wordmark';
 import { Pressable } from '../src/components/atoms/Pressable';
 import { Segmented } from '../src/components/atoms/Segmented';
 import { SessionName } from '../src/components/atoms/SessionName';
@@ -176,5 +178,34 @@ describe('molecules', () => {
     const line = html(<LineGauge ctx={ctx} label="5 h" w={{ percent: 85 }} span={5 * hour} />);
     expect(line).toContain('fill tone-wait');
     expect(line).toContain('<span class="lg-r"></span>');
+  });
+});
+
+describe('the name (C2)', () => {
+  it('is the large drawing as one image in the sidebar, named for screen readers by its button', () => {
+    const out = html(<BrandName text="Koh-Vibe" striped />);
+    expect(out).toContain('aria-label="Koh-Vibe"');
+    expect(out).toContain('class="brand-img"');
+    expect(out).toContain('alt=""');
+    expect(out).toContain(WORDMARK.slice(0, 40));
+    // The rainbow's mask is the same image.
+    expect(out).toContain('--brand-mask');
+  });
+
+  it('stays text in the cockpit', () => {
+    const out = html(<BrandName text="Cockpit" />);
+    expect(out).toContain('>Cockpit</button>');
+    expect(out).not.toContain('brand-img');
+  });
+
+  it('shows the same image while loading, with its rainbow cut to the image', () => {
+    const out = html(<BootBrand label="Waiting" />);
+    expect(out).toContain('role="status"');
+    expect(out).toContain('class="brand-img"');
+    expect(out).toContain('brand-band brand-band-mask boot-band');
+  });
+
+  it('is a PNG image', () => {
+    expect(WORDMARK.startsWith('data:image/png;base64,')).toBe(true);
   });
 });
