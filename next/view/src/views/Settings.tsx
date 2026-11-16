@@ -1,18 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES, type SettingToggle } from '../../../src/shared/actions';
-import { Segmented } from '../cockpit/Cockpit';
+import { useEffect, useState } from 'react';
+import { ARTIFACT_OPENS, EDITOR_TABS, LANGUAGE_CHOICES, SETTING_TOGGLES } from '../../../src/shared/actions';
+import type { ViewCtx } from '../context';
 import { SESSION_SORTS, type SessionSort } from '../sections';
-import { Icon } from '../ui/icons';
-import { Hint } from '../ui/Hint';
-import { ThemeEditor } from './Theme';
-import type { ViewCtx } from './context';
-import { ARTIFACT_OPENS } from '../../../src/shared/actions';
 import { ARCHIVE_COUNTS, type ArchiveCount } from '../ui-state';
+import { IconButton } from '../components/atoms/IconButton';
+import { Segmented } from '../components/atoms/Segmented';
+import { Choice, SwitchRow } from '../components/molecules/SettingRow';
+import { ThemeEditor } from '../components/organisms/ThemeEditor';
 
 /**
- * The settings V1 and V2 share (settings.json), written through V1's store.
- * The two sounds are fixed — Attente when a conversation waits, Fin when it is
- * done (triage, 14/11): only their volume is set here.
+ * The settings V1 and V2 share (settings.json), written through V1's store,
+ * and those the view keeps for itself. The two sounds are fixed — Attente
+ * when a conversation waits, Fin when it is done (triage, 14/11): only their
+ * volume is set here.
  */
 export function SettingsPanel({
   ctx,
@@ -31,6 +31,9 @@ export function SettingsPanel({
 }) {
   const { t, snapshot } = ctx;
   const s = snapshot.settings;
+  const tidy = snapshot.tidy;
+  // Where artifacts open (15/11): the editor's integrated browser where it has one, greyed where not.
+  const inEditor = snapshot.editor?.integratedBrowser === true;
   // The slider moves freely; the file is written once, when it is let go.
   const [volume, setVolume] = useState(s.volume);
   useEffect(() => setVolume(s.volume), [s.volume]);
@@ -41,9 +44,7 @@ export function SettingsPanel({
     <div className="settings">
       <div className="settings-head">
         <h2>{t('settings.title')}</h2>
-        <button type="button" className="tbtn" aria-label={t('settings.close')} onClick={onClose}>
-          <Icon name="close" />
-        </button>
+        <IconButton icon="close" label={t('settings.close')} onClick={onClose} />
       </div>
 
       <section className="set-group">
@@ -53,58 +54,27 @@ export function SettingsPanel({
             <b>{t('settings.volume')}</b>
             <span className="sub mono">{volume} %</span>
           </span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            onPointerUp={commitVolume}
-            onKeyUp={commitVolume}
-            onBlur={commitVolume}
-          />
+          <input type="range" min={0} max={100} step={5} value={volume} onChange={(e) => setVolume(Number(e.target.value))} onPointerUp={commitVolume} onKeyUp={commitVolume} onBlur={commitVolume} />
         </label>
       </section>
 
       <section className="set-group">
         <h3>{t('settings.display')}</h3>
-        <div className="set-row">
-          <div className="set-l">
-            <b id="set-show-usage">{t('settings.showUsage')}</b>
-            <Hint text={t('settings.showUsage.hint')} />
-          </div>
-          <button type="button" role="switch" aria-checked={showUsage} aria-labelledby="set-show-usage" className="switch" onClick={() => onShowUsage(!showUsage)}>
-            <span />
-          </button>
-        </div>
-        {/* Where artifacts open (15/11): the editor's integrated browser where it has one, greyed where not. */}
+        <SwitchRow id="set-show-usage" label={t('settings.showUsage')} hint={t('settings.showUsage.hint')} on={showUsage} onChange={onShowUsage} />
         <Choice label={t('settings.artifactOpen')} hint={t('settings.artifactOpen.hint')}>
           <Segmented
             label={t('settings.artifactOpen')}
-            options={ARTIFACT_OPENS.map((v) => ({ value: v, label: t(`settings.artifactOpen.${v}`), disabled: v !== 'browser' && snapshot.editor?.integratedBrowser !== true }))}
-            value={snapshot.editor?.integratedBrowser === true ? (snapshot.artifactOpen ?? 'browser') : 'browser'}
+            options={ARTIFACT_OPENS.map((v) => ({ value: v, label: t(`settings.artifactOpen.${v}`), disabled: v !== 'browser' && !inEditor }))}
+            value={inEditor ? (snapshot.artifactOpen ?? 'browser') : 'browser'}
             onChange={(where) => void ctx.act({ kind: 'setting.artifactOpen', where })}
           />
-          {snapshot.editor !== undefined && !snapshot.editor.integratedBrowser && (
-            <span className="sub set-note">{t('settings.artifactOpen.none', { app: snapshot.editor.name })}</span>
-          )}
+          {snapshot.editor !== undefined && !inEditor && <span className="sub set-note">{t('settings.artifactOpen.none', { app: snapshot.editor.name })}</span>}
         </Choice>
         <Choice label={t('settings.sort')} hint={t('settings.sort.hint')}>
-          <Segmented
-            label={t('settings.sort')}
-            options={SESSION_SORTS.map((v) => ({ value: v, label: t(`settings.sort.${v}`) }))}
-            value={ctx.sort}
-            onChange={onSort}
-          />
+          <Segmented label={t('settings.sort')} options={SESSION_SORTS.map((v) => ({ value: v, label: t(`settings.sort.${v}`) }))} value={ctx.sort} onChange={onSort} />
         </Choice>
         <Choice label={t('settings.archives')} hint={t('settings.archives.hint')}>
-          <Segmented
-            label={t('settings.archives')}
-            options={ARCHIVE_COUNTS.map((v) => ({ value: v, label: String(v) }))}
-            value={ARCHIVE_COUNTS.find((v) => v === ctx.archives) ?? 10}
-            onChange={onArchives}
-          />
+          <Segmented label={t('settings.archives')} options={ARCHIVE_COUNTS.map((v) => ({ value: v, label: String(v) }))} value={ctx.archives} onChange={onArchives} />
         </Choice>
         <Choice label={t('settings.language')} hint={t('settings.language.hint')}>
           <Segmented
@@ -119,39 +89,24 @@ export function SettingsPanel({
             <Segmented
               label={t('settings.editorTabs')}
               options={EDITOR_TABS.map((v) => ({ value: v, label: t(`settings.editorTabs.${v}`) }))}
-              value={snapshot.editorTabs ?? 'multiple'}
+              value={snapshot.editorTabs}
               onChange={(mode) => void ctx.act({ kind: 'setting.editorTabs', mode })}
             />
           </Choice>
         )}
       </section>
 
-      {snapshot.tidy !== undefined && (
+      {tidy !== undefined && (
         <section className="set-group">
           <h3>{t('settings.tidy')}</h3>
-          <div className="set-row">
-            <div className="set-l">
-              <b id="set-tidy-ask">{t('settings.tidyAsk')}</b>
-              <Hint text={t('settings.tidyAsk.hint')} />
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={snapshot.tidy.ask}
-              aria-labelledby="set-tidy-ask"
-              className="switch"
-              onClick={() => void ctx.act({ kind: 'tidy.settings', ask: !(snapshot.tidy?.ask ?? true) })}
-            >
-              <span />
-            </button>
-          </div>
+          <SwitchRow id="set-tidy-ask" label={t('settings.tidyAsk')} hint={t('settings.tidyAsk.hint')} on={tidy.ask} onChange={(ask) => void ctx.act({ kind: 'tidy.settings', ask })} />
         </section>
       )}
 
       <section className="set-group">
         <h3>{t('settings.behaviour')}</h3>
         {SETTING_TOGGLES.map((key) => (
-          <Toggle key={key} ctx={ctx} k={key} on={s[key]} />
+          <SwitchRow key={key} id={`set-${key}`} label={t(`settings.${key}`)} hint={t(`settings.${key}.hint`)} on={s[key]} onChange={(on) => void ctx.act({ kind: 'setting.toggle', key, on })} />
         ))}
       </section>
       <section className="set-group">
@@ -159,34 +114,6 @@ export function SettingsPanel({
         <ThemeEditor ctx={ctx} />
       </section>
       <p className="hint pad">{t('settings.shared')}</p>
-    </div>
-  );
-}
-
-/** A setting with several answers: its name and what it does, the choice under them. */
-function Choice({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
-  return (
-    <div className="set-row set-choice">
-      <div className="set-l">
-        <b>{label}</b>
-        <Hint text={hint} />
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Toggle({ ctx, k, on }: { ctx: ViewCtx; k: SettingToggle; on: boolean }) {
-  const { t } = ctx;
-  return (
-    <div className="set-row">
-      <div className="set-l">
-        <b id={`set-${k}`}>{t(`settings.${k}`)}</b>
-        <Hint text={t(`settings.${k}.hint`)} />
-      </div>
-      <button type="button" role="switch" aria-checked={on} aria-labelledby={`set-${k}`} className="switch" onClick={() => void ctx.act({ kind: 'setting.toggle', key: k, on: !on })}>
-        <span />
-      </button>
     </div>
   );
 }

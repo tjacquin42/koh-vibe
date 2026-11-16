@@ -3,16 +3,10 @@ import { SESSION_SORTS, SPANS_H, type SessionSort } from './sections';
 import { normalizeOrder } from './order';
 import type { SpendWindow } from '../../src/shared/protocol';
 
-/** The usage left the cockpit (14/11): the sidebar shows it. */
-// Usage (15/11): the sidebar's own tab, the same, nothing more nor less.
+/** The cockpit's views; Usage (15/11) is the sidebar's own tab, the same, nothing more nor less. */
 export const COCKPIT_VIEWS = ['board', 'wall', 'feed', 'timeline', 'usage'] as const;
 export type CockpitView = (typeof COCKPIT_VIEWS)[number];
 
-/**
- * What the view remembers between reloads: the tab, and which sections are
- * folded. A convenience only — lost state costs one click, so a bad or
- * missing value falls back to the default without complaint.
- */
 /** The windows « Hungriest conversations » can show. */
 export const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
 
@@ -20,9 +14,14 @@ export const SPEND_WINDOWS: readonly SpendWindow[] = ['5h', '24h', '7d'];
 export const ARCHIVE_COUNTS = [10, 20, 50] as const;
 export type ArchiveCount = (typeof ARCHIVE_COUNTS)[number];
 
+/**
+ * What the view remembers between reloads: the tab, and which sections are
+ * folded. A convenience only — lost state costs one click, so a bad or
+ * missing value falls back to the default without complaint.
+ */
 export interface UiState {
   tab: SidebarTab;
-  /** Section keys the user folded: a folder id, "unfiled", "closed", "proj:<name>"… */
+  /** Section keys the user folded: a folder id, "unfiled", "archives", "proj:<name>"… */
   folded: string[];
   cockpit: {
     view: CockpitView;
@@ -31,12 +30,6 @@ export interface UiState {
     /** The timeline's span, in hours. */
     spanH: number;
   };
-  /**
-   * Sizes the user dragged a separator to, in pixels, by separator: absent
-   * means the layout's own size (a double-click on the separator brings it
-   * back).
-   */
-  sizes: Record<string, number>;
   /** The usage at the foot of the sidebar; off from the settings. */
   showUsage: boolean;
   /** The extension start this state was last seen under (ViewContext.launch). */
@@ -52,20 +45,15 @@ export interface UiState {
   archives: ArchiveCount;
   /** The window « Hungriest conversations » shows, kept as last picked (16/11). */
   spendWindow: SpendWindow;
-  /** The sidebar's tabs and the cockpit's views, in the order dragged (ui/reorder.ts). */
+  /** The sidebar's tabs and the cockpit's views, in the order dragged (hooks/useReorder.ts). */
   tabOrder: SidebarTab[];
   viewOrder: CockpitView[];
 }
 
-/** A dragged size outside this is a stale value from another screen: dropped, not clamped. */
-const SIZE_MIN = 40;
-const SIZE_MAX = 4000;
-
 export const DEFAULT_UI: UiState = {
   tab: 'sessions',
-  folded: ['closed'],
+  folded: [],
   cockpit: { view: 'board', folder: null, spanH: 8 },
-  sizes: {},
   showUsage: true,
   dismissed: {},
   // By state by default (15/11): what waits for you first.
@@ -75,22 +63,6 @@ export const DEFAULT_UI: UiState = {
   tabOrder: [...SIDEBAR_TABS],
   viewOrder: [...COCKPIT_VIEWS],
 };
-
-function parseSizes(raw: unknown): Record<string, number> {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof v === 'number' && Number.isFinite(v) && v >= SIZE_MIN && v <= SIZE_MAX) out[k] = Math.round(v);
-  }
-  return out;
-}
-
-export function setSize(state: UiState, key: string, px: number | undefined): UiState {
-  const sizes = { ...state.sizes };
-  if (px === undefined) delete sizes[key];
-  else sizes[key] = Math.round(px);
-  return { ...state, sizes };
-}
 
 function parseCockpit(raw: unknown): UiState['cockpit'] {
   const d = DEFAULT_UI.cockpit;
@@ -121,7 +93,6 @@ export function parseUiState(raw: unknown): UiState {
     tab,
     folded,
     cockpit: parseCockpit(rec['cockpit']),
-    sizes: parseSizes(rec['sizes']),
     showUsage,
     dismissed,
     sort,

@@ -5,7 +5,7 @@ import { sampleSnapshot } from '../view/src/fixture';
 import { fold, formatWhen, megabytes } from '../view/src/format';
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
-import { atLaunch, DEFAULT_UI, parseUiState, setFolds, setSize, toggleFold } from '../view/src/ui-state';
+import { atLaunch, DEFAULT_UI, parseUiState, setFolds, toggleFold } from '../view/src/ui-state';
 import { activeSessionId, FIVE_HOURS_MS, pacePercent, WEEK_MS } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
@@ -15,11 +15,11 @@ import {
   dropOrder,
   sortSessions,
   hourTicks,
-  inbox,
   RECENT_COUNT,
   routineSections,
   timelineLanes,
   usageLines,
+  waitingForYou,
 } from '../view/src/sections';
 
 describe('search', () => {
@@ -58,7 +58,7 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, sizes: {}, showUsage: true, dismissed: {}, sort: 'status', archives: 10, spendWindow: '5h', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, showUsage: true, dismissed: {}, sort: 'status', archives: 10, spendWindow: '5h', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
@@ -164,11 +164,10 @@ describe('cockpit sections', () => {
     expect(boardColumns(snap, 'unfiled').rest.map((s) => s.id)).toEqual(['s4']);
   });
 
-  it('C: longest waiting first, then what finished unread', () => {
-    const two = { ...snap, sessions: [...snap.sessions, { ...snap.sessions[0]!, id: 'older', lastEventAt: -1e9 }] };
-    const box = inbox(two);
-    expect(box.waiting.map((s) => s.id)).toEqual(['older', 's1']);
-    expect(box.toRead.map((s) => s.id)).toEqual(['s3']);
+  it('C: what waits for you, the longest waiting first — never a closed one', () => {
+    const first = snap.sessions[0]!;
+    const two = { ...snap, sessions: [...snap.sessions, { ...first, id: 'older', lastEventAt: -1e9 }, { ...first, id: 'gone', endedAt: 5 }] };
+    expect(waitingForYou(two).map((s) => s.id)).toEqual(['older', 's1']);
   });
 
   it('counts tokens three ways', () => {
@@ -207,15 +206,6 @@ describe('dropOrder', () => {
   it('lands a drop on itself or on an unknown id at the end rather than losing it', () => {
     expect(dropOrder(['a', 'b'], ['a'], 'a')).toEqual(['b', 'a']);
     expect(dropOrder(['a', 'b'], ['x'], 'zz')).toEqual(['a', 'b', 'x']);
-  });
-});
-
-describe('separator sizes', () => {
-  it('keeps sane sizes, drops the rest, and resets one on demand', () => {
-    const ui = parseUiState({ sizes: { 'ck.nav': 260.4, 'ck.side': 'wide', 'strip': 12, 'huge': 99_999 } });
-    expect(ui.sizes).toEqual({ 'ck.nav': 260 });
-    expect(setSize(ui, 'strip', 120).sizes).toEqual({ 'ck.nav': 260, strip: 120 });
-    expect(setSize(ui, 'ck.nav', undefined).sizes).toEqual({});
   });
 });
 

@@ -23,6 +23,11 @@ const MEMENTO_TTL_MS = 2_000;
 const SETTLING_MS = 20_000;
 const STILL_TTL_MS = 60_000;
 
+/** How stale the memento may be, `sinceMoved` ms after the tabs last moved. */
+export function mementoTtl(sinceMoved: number): number {
+  return sinceMoved <= SETTLING_MS ? MEMENTO_TTL_MS : STILL_TTL_MS;
+}
+
 export class ActiveTab {
   private memento: readonly ClaudeTab[] = [];
   private readAt = 0;
@@ -63,8 +68,7 @@ export class ActiveTab {
   private async read(now: number): Promise<void> {
     if (this.stateDb === undefined) return;
     this.movedAt ??= now;
-    const ttl = now - this.movedAt <= SETTLING_MS ? MEMENTO_TTL_MS : STILL_TTL_MS;
-    if (this.readAt !== 0 && now - this.readAt <= ttl) return;
+    if (this.readAt !== 0 && now - this.readAt <= mementoTtl(now - this.movedAt)) return;
     const raw = await readEditorMemento(this.stateDb);
     this.memento = raw === undefined ? [] : parseEditorMemento(raw);
     this.readAt = now;

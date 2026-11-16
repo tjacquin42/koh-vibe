@@ -15,7 +15,7 @@ export interface ThemeTune {
    * has no texture to take. (Named `grain` since the first texture was one.)
    */
   grain: number;
-  /** The textures laid over the view, several at once (view/src/ui/textures.ts). */
+  /** The textures laid over the view, several at once (view/src/lib/textures.ts). */
   textures: TextureId[];
   /**
    * What the background is (15/11): Koh-Vibe's own, tuned by the three values
@@ -130,12 +130,6 @@ export type GroundToken = (typeof GROUND_TOKENS)[number];
 /** Koh-Vibe's background under a tuning, token by token. */
 export function groundColours(t: ThemeTune): Record<GroundToken, string> {
   return { bg: tuneHex(KV_PALETTE.bg, t), surface: tuneHex(KV_PALETTE.surface, t), raised: tuneHex(KV_PALETTE.raised, t), line: tuneHex(KV_PALETTE.line, t) };
-}
-
-/** The CSS filter for a tuning; none when it changes nothing. */
-export function themeFilter(t: ThemeTune): string {
-  if (t.hue === 0 && t.saturation === 100 && t.brightness === 100) return 'none';
-  return `hue-rotate(${t.hue}deg) saturate(${t.saturation}%) brightness(${t.brightness}%)`;
 }
 
 /**

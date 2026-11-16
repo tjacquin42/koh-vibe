@@ -25,7 +25,7 @@
 }
 
 * { box-sizing: border-box; }
-/* The editor's background in place of Koh-Vibe's (ui/theme.ts): the
+/* The editor's background in place of Koh-Vibe's (lib/theme.ts): the
    sidebar's in the sidebar, the editor's in the cockpit; the raised grounds
    and the lines drawn from it towards its own text colour, so a light theme
    works as well as a dark one. */
@@ -51,7 +51,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--muted); }
 
-/* The theme's textures (ui/theme.ts sets --texture and --grain): fine patterns
+/* The theme's textures (lib/theme.ts sets --texture and --grain): fine patterns
    on a transparent ground, between the background and everything on it — they
    never cover the text (14/11); brightness untouched, clicks pass through. */
 body::after { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: var(--texture, none); background-size: var(--texture-size, auto); opacity: var(--grain, 0); }
@@ -83,7 +83,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ibtn:hover { background: var(--raised); }
 
 .counts { display: flex; gap: 6px; }
-/* The three counts (ui/StatusCounts.tsx): number and name on one line, small;
+/* The three counts (molecules/StatusCounts.tsx): number and name on one line, small;
    the name goes under its number on a bar too narrow, never cut (16/11). */
 .count { flex: 1 1 auto; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 4px 9px; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 5px; }
 .count b { font-family: var(--font-display); font-size: 15px; line-height: 1.2; }
@@ -141,7 +141,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .l1 { display: flex; gap: 8px; }
 .ttl { flex: 1; min-width: 0; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* « On two lines » (settings): a conversation's title wraps once, then « … ». */
-.titles-two .conv-ttl { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+/* A conversation's title, on two lines at most (15/11). */
+.conv-ttl { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .tm { flex: none; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .l2 { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -149,7 +150,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .dot.tone-wait { color: var(--wait); }
 .dot.tone-run { color: var(--run); }
 .dot.tone-done { color: var(--done); }
-.spin { transform-origin: 8px 8px; animation: spin 1.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* The status rings, as V1 turns them: waiting in and out, working steadily; still, the opening at the top. */
 .dot .turn-wait, .dot .turn-run, .dot .still { transform-box: view-box; transform-origin: 8px 8px; transform: rotate(-90deg); }
@@ -171,7 +171,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .tabs button span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tabs button .icon { flex: none; }
 .tabs.icons-only button .icon { width: 16px; height: 16px; }
-/* What an icon is, on hover (ui/Tip.tsx). */
+/* What an icon is, on hover (atoms/Tip.tsx). */
 .tip { position: fixed; z-index: 50; max-width: calc(100vw - 12px); box-sizing: border-box; padding: 4px 8px; border-radius: 6px; background: var(--raised); border: 1px solid var(--line); color: var(--text); font-size: 11.5px; width: max-content; pointer-events: none; box-shadow: 0 4px 14px rgb(0 0 0 / 0.35); animation: tip-in 0.12s ease-out; }
 @keyframes tip-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tip { animation: none; } }
@@ -202,11 +202,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .proc .cmd { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--soft); }
 .proc .tm { font-family: var(--font-body); }
 .proc .pid { color: var(--muted); font-size: 10.5px; }
-.orphan { margin-bottom: 6px; }
-.orphan-cwd { display: block; margin: 2px 10px; font-size: 11px; color: var(--link); }
 
 .meters { display: flex; flex-direction: column; gap: 12px; padding: 4px 10px; }
-/* The hungriest conversations (views/Usage.tsx): a name and a share, a bar under it. */
+/* The hungriest conversations (organisms/Hungriest.tsx): a name and a share, a bar under it. */
 .spend { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 10px; }
 /* The window picker as wide as its buttons, not the column (15/11). */
 .spend .seg { align-self: flex-start; }
@@ -222,7 +220,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .g-l1 { display: flex; justify-content: space-between; font-size: 12px; color: var(--soft); }
 .g-l2 { font-size: 11px; color: var(--muted); }
 .bar { position: relative; height: 6px; border-radius: 3px; background: var(--raised); margin-top: 3px; }
-/* The pace mark (views/Usage.tsx): where the use should be at most by now.
+/* The pace mark (atoms/Meter.tsx): where the use should be at most by now.
    It glides over the 30 seconds between two ticks of the view's clock. */
 .pace { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent); opacity: 1; transition: left 30s linear; pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .pace { transition: none; } }
@@ -256,14 +254,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ck-main { flex: 1; }
 /* Never sideways: a line too long is cut with « … » inside its box, it does not widen the view. */
 .ck-main { min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 20px 24px; }
-.ck-title { font-size: 22px; font-weight: 700; margin: 8px 0 10px; }
-.nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--soft); text-align: left; }
-.nav-btn:hover { background: var(--surface); }
-.nav-btn[aria-current="page"] { background: var(--raised); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
-.nav-btn .icon { color: var(--muted); }
-.chip { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--soft); text-align: left; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip:hover { background: var(--surface); }
-.chip[aria-checked="true"] { background: var(--raised); color: var(--text); }
 .small { font-size: 11.5px; }
 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 2px 0 8px; }
@@ -279,7 +269,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .col-h .n { font-family: var(--font-body); font-weight: 400; color: var(--muted); }
 .bcard { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); text-align: left; color: inherit; }
 .bcard:hover { border-color: var(--raised); background: var(--raised); }
-/* A conversation's card (Cockpit.tsx OpenCard): the card goes to it; the
+/* A conversation's card (molecules/OpenCard.tsx): the card goes to it; the
    index card in its corner, shown under the pointer, opens its sheet. */
 .open-card { position: relative; cursor: pointer; }
 .open-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px; }
@@ -298,10 +288,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ask-go:focus-visible { outline: 2px solid var(--wait); outline-offset: 2px; }
 .ask .q { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .ask .q b { color: var(--wait); font-weight: 600; margin-right: 4px; }
-.btn { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--soft); font-size: 12.5px; }
-.btn:hover { background: var(--raised); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.btn.primary:hover { filter: brightness(1.08); }
 .app:not(.surface-cockpit) .inbox { margin-top: 6px; }
 
 .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
@@ -359,7 +345,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin, .dot .turn-wait, .dot .turn-run { animation: none; }
+  .dot .turn-wait, .dot .turn-run { animation: none; }
 }
 
 /* « Recently closed »: a click resumes through V1, the row spins meanwhile. */
@@ -432,7 +418,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .set-l b { font-weight: 600; font-size: 12.5px; }
 .set-l .sub { font-size: 11.5px; color: var(--muted); }
 .hint-text p { margin: 0; }
-/* The (i) of a setting (ui/Hint.tsx): the explanation opens in a bubble just
+/* The (i) of a setting (atoms/Hint.tsx): the explanation opens in a bubble just
    under the setting's name, as wide as it, so it never leaves the sidebar. */
 .hint-i { display: inline-flex; color: var(--muted); cursor: help; border-radius: 50%; outline: none; }
 .hint-i:hover, .hint-i:focus-visible { color: var(--text); }
@@ -460,7 +446,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .hint-text li::marker { color: var(--line); }
 .hint-text li b { color: var(--soft); font-weight: 600; font-size: inherit; }
 .set-row input[type="range"] { width: 110px; accent-color: var(--accent); }
-/* The theme (views/Theme.tsx): a colour pad à la Arc, tracks that show what they set, a grain. */
+/* The theme (organisms/ThemeEditor.tsx): a colour pad à la Arc, tracks that show what they set, a grain. */
 .tpad { position: relative; height: 112px; border-radius: 12px; overflow: hidden; cursor: crosshair; touch-action: none; border: 1px solid var(--line); outline: none; }
 .tpad:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 .tpad-colours { position: absolute; inset: 0; }
@@ -587,17 +573,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .lg-p { text-align: right; }
 .lg-r { color: var(--muted); font-size: 10.5px; text-align: right; }
 
-/* Separators (Splitter.tsx): a hairline that widens under the pointer. Zero
-   width in the grid, so they take no room; the grab area overlaps both sides. */
-.splitter { position: relative; z-index: 2; touch-action: none; }
-.splitter::after { content: ''; position: absolute; background: transparent; transition: background 0.12s; }
-.splitter-x { cursor: col-resize; }
-.splitter-x::after { top: 0; bottom: 0; left: -3px; width: 6px; }
-.splitter-y { cursor: row-resize; height: 0; }
-.splitter-y::after { left: 0; right: 0; top: -3px; height: 6px; }
-.splitter:hover::after, .splitter:focus-visible::after, .splitter:active::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
-.splitter:focus-visible { outline: none; }
-@media (prefers-reduced-motion: reduce) { .splitter::after { transition: none; } }
 /* Inside the open « New folder » box the box is the frame: the field draws none of its own (14/11). */
 .new-folder .name-input, .new-folder .name-input:focus, .new-folder .name-input:focus-visible { border: 0; outline: none; box-shadow: none; background: transparent; padding: 0; }
 /* The version, small, right after the name (14/11). */
@@ -667,6 +642,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .toast { display: flex; align-items: flex-start; gap: 8px; }
 .toast > span { flex: 1; min-width: 0; padding-top: 2px; }
 .toast .tbtn { flex: none; margin: -3px -5px -3px 0; }
+/* In the cockpit, over the view's bottom corner: nothing there to push up. */
+.surface-cockpit .toast { position: fixed; right: 16px; bottom: 16px; max-width: 420px; margin: 0; z-index: 30; }
 
 /* The cockpit's views, across the whole width (14/11). */
 /* No inner padding (15/11): the selected tab lines up with the filters and the tiles above it. */
@@ -708,7 +685,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
     transparent 65.2%, transparent max(69.2%, calc(65.2% + 1.2px)),
     var(--done) max(69.2%, calc(65.2% + 1.2px)), var(--done) 100%);
 }
-/* The final e, striped on its own (ui/brand.ts): on its right half the lagoon
+/* The final e, striped on its own (lib/brand.ts): on its right half the lagoon
    stops above its tail's tip (63.5 %) — no lone sliver in the band — and the
    band's lower edge curves up towards its right. Its ink runs past its
    advance: the padding widens the painted box, the margin gives it back. */
@@ -733,7 +710,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    short and centred to the eye between the h and the V. The negative right
    margin makes up for the gap the V's diagonal leaves at that height. */
 .brand-dash { display: inline-block; vertical-align: top; width: 0.21em; height: 0.084em; margin: 0.568em -0.08em 0 0.034em; background: var(--run); }
-/* Three letters with a fix (ui/brand.ts), measured on the glyphs: the dark
+/* Three letters with a fix (lib/brand.ts), measured on the glyphs: the dark
    notch the K and the h leave inside the lagoon band is filled with lagoon;
    the tip of the V's inner point, just under the green's start, with green.
    The letters stay plain text: a letter inside a positioned box is left out

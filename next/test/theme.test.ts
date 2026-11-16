@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { adapted, ideColors } from '../src/host/ide-theme';
 import { parseAction } from '../src/shared/actions';
-import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, KV_PALETTE, parseTheme, readStoredTheme, sameTune, storedTheme, themeFilter, tuneHex } from '../src/shared/theme';
+import { DEFAULT_TUNE, GROUND_TOKENS, groundColours, KV_PALETTE, parseTheme, readStoredTheme, sameTune, storedTheme, tuneHex } from '../src/shared/theme';
 
 describe('the theme', () => {
   it('reads a whole state or nothing, values clamped', () => {
@@ -21,11 +21,7 @@ describe('the theme', () => {
     expect(parseAction({ kind: 'theme.ide', mode: 'paint' })).toBeUndefined();
   });
 
-  it('filters nothing untouched, and colours as the browser filter does', () => {
-    expect(themeFilter(DEFAULT_TUNE)).toBe('none');
-    expect(themeFilter({ hue: 30, saturation: 80, brightness: 110, grain: 0, textures: [], ground: 'koh' })).toBe('hue-rotate(30deg) saturate(80%) brightness(110%)');
-    // The grain is no filter: a texture laid over the view (view/src/ui/theme.ts).
-    expect(themeFilter({ ...DEFAULT_TUNE, grain: 40 })).toBe('none');
+  it('leaves a colour untouched by the default tuning, and tunes it as the browser filter would', () => {
     expect(tuneHex('#ff9e5e', DEFAULT_TUNE)).toBe('#ff9e5e');
     expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0, textures: [], ground: 'koh' })).toBe('#404040');
   });
@@ -44,8 +40,8 @@ describe('the theme', () => {
     expect(groundColours(DEFAULT_TUNE)).toEqual({ bg: KV_PALETTE.bg, surface: KV_PALETTE.surface, raised: KV_PALETTE.raised, line: KV_PALETTE.line });
     expect(groundColours(dim).bg).toBe(tuneHex(KV_PALETTE.bg, dim));
     expect(groundColours(dim).bg).not.toBe(KV_PALETTE.bg);
-    // What the view paints (ui/theme.ts) sets these tokens and nothing else: no filter left on the page.
-    const paint = readFileSync(join(__dirname, '../view/src/ui/theme.ts'), 'utf8');
+    // What the view paints (lib/theme.ts) sets these tokens and nothing else: no filter left on the page.
+    const paint = readFileSync(join(__dirname, '../view/src/lib/theme.ts'), 'utf8');
     expect(paint).not.toContain('style.filter');
   });
 

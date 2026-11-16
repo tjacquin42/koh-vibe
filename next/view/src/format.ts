@@ -27,12 +27,11 @@ export function formatTokens(n: number): string {
 export function sessionTitle(s: SessionView, t: Translate): string {
   const title = s.title?.trim();
   if (title !== undefined && title.length > 0) return title;
-  // Nothing written yet (SessionView.fresh): plain « New » where only text fits; ui/SessionName.tsx dresses it.
+  // Nothing written yet (SessionView.fresh): plain « New » where only text fits; atoms/SessionName.tsx dresses it.
   if (s.fresh === true) return 'New';
   return s.branch !== undefined ? `${s.project} · ${s.branch}` : s.project || t('session.untitled');
 }
 
-/** The second line: what it is doing now, else where it lives. */
 /** Tools whose name the views never show: a question asked to you says nothing as « AskUserQuestion » (15/11). */
 const QUIET_TOOLS: ReadonlySet<string> = new Set(['AskUserQuestion']);
 
@@ -41,6 +40,7 @@ export function isQuietTool(name: string): boolean {
   return QUIET_TOOLS.has(name);
 }
 
+/** The second line: what it is doing now, else where it lives. */
 export function sessionDetail(s: SessionView): string {
   // A quiet tool's wait or action says nothing: the conversation's place instead.
   if (s.pendingPermission !== undefined && !isQuietTool(s.pendingPermission.tool)) return `${toolLabel(s.pendingPermission.tool)} · ${s.pendingPermission.summary}`;
@@ -78,9 +78,21 @@ export function fold(s: string): string {
   return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
+/** The unfiled list's key, wherever a folder id is expected — never a folder id itself (V1 writes UUIDs). */
+export const UNFILED = 'unfiled';
+
+/** Every listed conversation's folder id; `UNFILED` for the temporary ones. */
+export function folderIndex(snap: Snapshot): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const f of snap.folders) for (const id of f.sessionIds) out.set(id, f.id);
+  for (const id of snap.unfiled) out.set(id, UNFILED);
+  return out;
+}
+
 /** Whether a folder holds the conversation — only those can be put to sleep (15/11). */
-export function isFiledIn(snap: Snapshot, sessionId: string): boolean {
-  return snap.folders.some((f) => f.sessionIds.includes(sessionId));
+export function isFiled(where: ReadonlyMap<string, string>, sessionId: string): boolean {
+  const folder = where.get(sessionId);
+  return folder !== undefined && folder !== UNFILED;
 }
 
 export type Tone = 'wait' | 'run' | 'done' | 'idle' | 'ended';
@@ -105,9 +117,10 @@ export interface Counts {
   done: number;
 }
 
-export function countsOf(snap: Snapshot): Counts {
+/** The open conversations by state — the closed ones count for nothing. */
+export function countsOf(sessions: Iterable<SessionView>): Counts {
   const c: Counts = { waiting: 0, running: 0, done: 0 };
-  for (const s of snap.sessions) {
+  for (const s of sessions) {
     if (s.endedAt !== undefined) continue;
     if (s.status === 'waiting') c.waiting++;
     else if (s.status === 'running') c.running++;

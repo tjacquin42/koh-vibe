@@ -599,7 +599,7 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       setArtifactOpen: (where) => context.globalState.update(ARTIFACT_OPEN_KEY, where),
       // The code editor wears Koh-Vibe's colours only once « Koh-Vibe's » was
-      // picked for its background (15/11, Theme.tsx); from then on it follows
+      // picked for its background (15/11, organisms/ThemeEditor.tsx); from then on it follows
       // the tuning, until « The editor's » gives its own colours back.
       setTheme: async (theme) => {
         await context.globalState.update(THEME_KEY, storedTheme(theme));

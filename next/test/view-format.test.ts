@@ -11,15 +11,15 @@ const s = (extra: Partial<SessionView>): SessionView => ({ id: 'i', project: 'pr
 
 describe('translator', () => {
   it('follows the language and falls back to English', () => {
-    expect(fr('folder.unfiled')).toBe('Sans dossier');
-    expect(translator('fr-CA')('folder.unfiled')).toBe('Sans dossier');
-    expect(translator('de')('folder.unfiled')).toBe('Unfiled');
+    expect(fr('folder.temporary')).toBe('Hors dossier');
+    expect(translator('fr-CA')('folder.temporary')).toBe('Hors dossier');
+    expect(translator('de')('folder.temporary')).toBe('No folder');
     expect(fr('app.name')).toBe('Koh-Vibe');
   });
 
   it('fills parameters', () => {
     expect(fr('age.min', { n: 3 })).toBe('3 min');
-    expect(en('usage.resets', { d: '2 h' })).toBe('resets in 2 h');
+    expect(en('cloud.age', { age: '2 h' })).toContain('2 h');
   });
 });
 
@@ -55,7 +55,7 @@ describe('format', () => {
   it('tones and counts open sessions only', () => {
     expect(toneOf(s({ status: 'waiting', endedAt: 1 }))).toBe('ended');
     expect(toneOf(s({ status: 'running' }))).toBe('run');
-    expect(countsOf(sampleSnapshot(0))).toEqual({ waiting: 1, running: 1, done: 1 });
+    expect(countsOf(sampleSnapshot(0).sessions)).toEqual({ waiting: 1, running: 1, done: 1 });
   });
 });
 

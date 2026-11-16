@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brandName } from '../view/src/ui/brand';
+import { brandName } from '../view/src/lib/brand';
 
 describe('the sidebar name (C2)', () => {
   it('is K, o, h, a bar, V, ib — and the final e apart', () => {

@@ -14,6 +14,7 @@ import type {
   UsageView,
   UsageWindowView,
 } from '../../src/shared/protocol';
+import { folderIndex } from './format';
 import type { Translate } from './i18n';
 
 /** How many unpinned artifacts « Recent » shows; the rest are under their project. */
@@ -84,15 +85,13 @@ export function usageLines(u: UsageView, t: Translate): Line[] {
 }
 
 
-/* ---------- cockpit ---------- */
-
-/** Every listed conversation's folder id; « unfiled » for the temporary ones. */
-export function folderIndex(snap: Snapshot): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const f of snap.folders) for (const id of f.sessionIds) out.set(id, f.id);
-  for (const id of snap.unfiled) out.set(id, 'unfiled');
-  return out;
+/** A limit as its bar shows it: the whole percentage, its colour, and when it resets if that is still ahead. */
+export function gaugeOf(w: UsageWindowView, now: number): { percent: number; tone: 'wait' | 'run'; resetsAt: number | undefined } {
+  const percent = Math.max(0, Math.min(100, Math.round(w.percent)));
+  return { percent, tone: percent >= 85 ? 'wait' : 'run', resetsAt: w.resetsAt !== undefined && w.resetsAt > now ? w.resetsAt : undefined };
 }
+
+/* ---------- cockpit ---------- */
 
 export interface BoardColumns {
   wait: SessionView[];
@@ -103,8 +102,7 @@ export interface BoardColumns {
 }
 
 /** A: one column per status, filtered to a folder when one is chosen. */
-export function boardColumns(snap: Snapshot, folder: string | undefined): BoardColumns {
-  const where = folderIndex(snap);
+export function boardColumns(snap: Snapshot, folder: string | undefined, where: ReadonlyMap<string, string> = folderIndex(snap)): BoardColumns {
   const cols: BoardColumns = { wait: [], run: [], done: [], rest: [] };
   for (const s of snap.sessions) {
     if (folder !== undefined && where.get(s.id) !== folder) continue;
@@ -116,16 +114,9 @@ export function boardColumns(snap: Snapshot, folder: string | undefined): BoardC
   return cols;
 }
 
-/**
- * C: what is waiting for you — the longest-waiting first, since it has
- * waited longest — then what finished and was not read yet.
- */
-export function inbox(snap: Snapshot): { waiting: SessionView[]; toRead: SessionView[] } {
-  const open = snap.sessions.filter((s) => s.endedAt === undefined);
-  return {
-    waiting: open.filter((s) => s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt),
-    toRead: open.filter((s) => s.status === 'done_unseen').sort((a, b) => b.lastEventAt - a.lastEventAt),
-  };
+/** C: what is waiting for you — the longest-waiting first, since it has waited longest. */
+export function waitingForYou(snap: Snapshot): SessionView[] {
+  return snap.sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt);
 }
 
 export type CountMode = 'fresh' | 'all' | 'weighted';
