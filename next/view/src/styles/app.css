@@ -395,6 +395,18 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .group.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 10px; outline: 1px dashed var(--accent); outline-offset: -1px; }
 .group.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .drop-hint { font-style: italic; }
+/* Artifacts carried from a project to another (16/11). Little motion in this
+   tab, on purpose: the row carried dims, the project under it lights up, and
+   what lands shows where for a moment — the row fades in, its heading glows. */
+.arow.dragging { opacity: 0.4; }
+.group.drop-in, .new-folder.drop-in { transition: background-color 0.12s ease-out; }
+.new-folder.drop-zone { cursor: default; }
+.new-folder.drop-in { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.arow.landed { animation: landed-row 0.28s ease-out; }
+.group.landed > .sec { border-radius: 8px; animation: landed-head 0.9s ease-out; }
+@keyframes landed-row { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes landed-head { from { background-color: color-mix(in srgb, var(--accent) 16%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .arow.landed, .group.landed > .sec { animation: none; } }
 
 .info-acts { display: flex; gap: 6px; padding-top: 4px; }
 

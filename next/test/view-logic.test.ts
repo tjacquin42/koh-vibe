@@ -18,6 +18,7 @@ import {
   RECENT_COUNT,
   routineSections,
   timelineLanes,
+  dropsInto,
   usageLines,
   waitingForYou,
 } from '../view/src/sections';
@@ -357,5 +358,16 @@ describe('a state kept by an older version', () => {
     expect('sizes' in old).toBe(false);
     // Nothing is folded to begin with: the archives open, under their own key.
     expect(DEFAULT_UI.folded).toEqual([]);
+  });
+});
+
+describe('an artifact dropped on a project (16/11)', () => {
+  it('moves only when the project is another one — « Other » being the project of those that have none', () => {
+    expect(dropsInto('api', 'shop-front')).toBe(true);
+    expect(dropsInto('api', undefined)).toBe(true);
+    expect(dropsInto(undefined, 'api')).toBe(true);
+    // Dropped where it already is: nothing to write.
+    expect(dropsInto('api', 'api')).toBe(false);
+    expect(dropsInto(undefined, undefined)).toBe(false);
   });
 });

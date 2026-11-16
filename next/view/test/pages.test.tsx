@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { SIDEBAR_TABS, type ActivityItemView, type SessionSheetView, type Snapshot } from '../../src/shared/protocol';
+import { ArtifactRow } from '../src/components/organisms/ArtifactRow';
 import { Header } from '../src/components/organisms/Header';
 import { Hungriest } from '../src/components/organisms/Hungriest';
 import { Inbox } from '../src/components/organisms/Inbox';
@@ -11,6 +12,7 @@ import { Shell } from '../src/components/templates/Shell';
 import { sampleSheet, sampleSnapshot } from '../src/fixture';
 import { translator } from '../src/i18n';
 import { COCKPIT_VIEWS, DEFAULT_UI, type UiState } from '../src/ui-state';
+import { ArtifactsTab } from '../src/views/Artifacts';
 import { CockpitPage } from '../src/views/CockpitPage';
 import { SessionsTab } from '../src/views/Sessions';
 import { SettingsPanel } from '../src/views/Settings';
@@ -231,6 +233,36 @@ describe('the artifacts of a folder (16/11)', () => {
     const backend = out.slice(out.indexOf('data-flip-anchor="f2"'), out.indexOf('data-flip-anchor="f3"'));
     expect(backend).toContain('API error budget');
     expect(backend).not.toContain(t('folder.empty'));
+  });
+});
+
+describe('the artifacts, by project (16/11)', () => {
+  const t = translator('en');
+  const tab = (): string => html(<ArtifactsTab ctx={testCtx()} />);
+
+  it('are moved between projects by dragging them: every row can be picked up', () => {
+    const out = tab();
+    const rows = [...out.matchAll(/<div class="arow(?: [^"]*)?"[^>]*>/g)].map((m) => m[0]);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row).toContain('draggable="true"');
+  });
+
+  it('have no field to type a project in any more: no list of the browser’s own', () => {
+    const out = tab();
+    expect(out).not.toContain('<datalist');
+    expect(out).not.toContain('list="');
+  });
+
+  it('offer « New project » only while an artifact is carried', () => {
+    expect(tab()).not.toContain(t('artifacts.newProject'));
+  });
+
+  it('are not picked up from the search’s results, which have nowhere to drop them', () => {
+    const out = html(<SidebarPage ctx={testCtx()} version="1" ui={DEFAULT_UI} updateUi={noop} />);
+    // The sessions tab: its own rows drag, an artifact's row from the Artifacts tab is not there.
+    expect(out).not.toContain('class="arow" draggable');
+    const found = html(<ArtifactRow ctx={testCtx()} a={{ slug: 'a1', title: 'Release plan', pinned: true }} />);
+    expect(found).not.toContain('draggable="true"');
   });
 });
 

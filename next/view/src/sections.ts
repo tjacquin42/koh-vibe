@@ -41,6 +41,15 @@ export function artifactSections(items: readonly ArtifactView[]): ArtifactSectio
   return { pinned, recent, projects: other === undefined ? named : [...named, { project: undefined, items: other }] };
 }
 
+/**
+ * Whether an artifact carried out of the project `from` moves when dropped on
+ * `to` — `undefined` is « Other », the project of those that have none.
+ * Dropped where it already is, there is nothing to write.
+ */
+export function dropsInto(from: string | undefined, to: string | undefined): boolean {
+  return from !== to;
+}
+
 const ORDER: readonly RoutineGroup[] = ['today', 'tomorrow', 'week', 'later', 'paused'];
 
 /** V1's order: by next run inside each group, by name among the paused. */

@@ -1,14 +1,48 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ViewCtx } from '../context';
+import { useDragScroll } from '../hooks/useDragScroll';
 import { artifactSections } from '../sections';
 import { Icon } from '../components/atoms/Icon';
 import { Section } from '../components/molecules/Section';
-import { ArtifactRow, PROJECTS_LIST } from '../components/organisms/ArtifactRow';
+import type { ArtifactDnd, ArtifactDrag } from '../components/organisms/artifact-dnd';
+import { ArtifactRow } from '../components/organisms/ArtifactRow';
 import { CloudBar } from '../components/organisms/CloudBar';
+import { NewProject } from '../components/organisms/NewProject';
 import { ProjectSection } from '../components/organisms/ProjectSection';
+
+/** How long what just landed is marked: the time for the list to come back with it, and for its motion to play. */
+const LANDED_MS = 1_500;
 
 export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
   const { t, snapshot } = ctx;
   const items = snapshot.artifacts?.items ?? [];
+  // Artifacts move between projects by being dragged there (16/11) — onto a
+  // project, onto « Other » to leave theirs, or onto « New project ».
+  const [drag, setDrag] = useState<ArtifactDrag | undefined>();
+  const [landed, setLanded] = useState<ArtifactDrag | undefined>();
+  const landedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(landedTimer.current), []);
+  // Dragging near the list's top or bottom edge scrolls it: the projects are many (hooks/useDragScroll.ts).
+  const root = useRef<HTMLDivElement>(null);
+  useDragScroll(root, drag !== undefined);
+  const dnd = useMemo<ArtifactDnd>(
+    () => ({
+      drag,
+      setDrag,
+      landed,
+      file: (d, project) => {
+        setDrag(undefined);
+        // Little motion in this tab, on purpose: only where it landed shows, a moment — and nothing with animations off.
+        if (ctx.animate) {
+          setLanded({ slug: d.slug, project: project ?? undefined });
+          window.clearTimeout(landedTimer.current);
+          landedTimer.current = window.setTimeout(() => setLanded(undefined), LANDED_MS);
+        }
+        void ctx.track(d.slug, ctx.act({ kind: 'artifact.project', slugs: [d.slug], project }));
+      },
+    }),
+    [drag, landed, ctx],
+  );
   const bar = <CloudBar ctx={ctx} what="artifacts" at={snapshot.artifacts?.at} />;
   if (items.length === 0) {
     return (
@@ -20,28 +54,28 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
   }
   const s = artifactSections(items);
   return (
-    <>
+    <div ref={root}>
       {bar}
       {/* Pinned and Recent stay on top, open by default; they fold away when they take too much room (14/11). */}
       {s.pinned.length > 0 && (
         <Section title={t('artifacts.pinned')} count={s.pinned.length} marker={<Icon name="pin" size={13} />} folded={ctx.isFolded('art:pinned')} onToggle={() => ctx.toggle('art:pinned')}>
           {s.pinned.map((a) => (
-            <ArtifactRow key={a.slug} ctx={ctx} a={a} />
+            <ArtifactRow key={a.slug} ctx={ctx} a={a} dnd={dnd} />
           ))}
         </Section>
       )}
       <Section title={t('artifacts.recent')} count={s.recent.length} folded={ctx.isFolded('art:recent')} onToggle={() => ctx.toggle('art:recent')}>
         {s.recent.map((a) => (
-          <ArtifactRow key={a.slug} ctx={ctx} a={a} />
+          <ArtifactRow key={a.slug} ctx={ctx} a={a} dnd={dnd} />
         ))}
       </Section>
       <h2 className="sec sec-label">{t('artifacts.byProject')}</h2>
       {s.projects.map((p) => (
-        <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} />
+        <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} />
       ))}
-      <datalist id={PROJECTS_LIST}>
-        {s.projects.flatMap((p) => (p.project === undefined ? [] : [<option key={p.project} value={p.project} />]))}
-      </datalist>
-    </>
+      {/* « Other » only shows while it holds something: carried, an artifact still needs it to leave its project. */}
+      {drag !== undefined && drag.project !== undefined && !s.projects.some((p) => p.project === undefined) && <ProjectSection ctx={ctx} project={undefined} items={[]} dnd={dnd} />}
+      <NewProject ctx={ctx} dnd={dnd} />
+    </div>
   );
 }

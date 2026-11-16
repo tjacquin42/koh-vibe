@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MAX_NAME, MAX_TITLE, type Action } from '../../../../src/shared/actions';
+import { MAX_TITLE, type Action } from '../../../../src/shared/actions';
 import type { ArtifactView } from '../../../../src/shared/protocol';
 import type { ViewCtx } from '../../context';
 import { formatAge } from '../../format';
@@ -10,14 +10,16 @@ import { IconButton } from '../atoms/IconButton';
 import { Confirm, NameInput } from '../molecules/Inline';
 import { Menu, MenuItem } from '../molecules/Menu';
 import { Popover } from '../molecules/Popover';
+import type { ArtifactDnd } from './artifact-dnd';
 
-/** The `<datalist>` of the projects already named, which the « to a project » field suggests (ArtifactsTab holds it). */
-export const PROJECTS_LIST = 'artifact-projects';
+type Panel = 'menu' | 'rename' | 'folder' | 'delete';
 
-type Panel = 'menu' | 'rename' | 'project' | 'folder' | 'delete';
-
-/** An artifact: a click opens it; its pin, and a « ⋯ » for the rest. */
-export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
+/**
+ * An artifact: a click opens it; its pin, and a « ⋯ » for the rest. With
+ * `dnd` — in the Artifacts tab — it is carried to another project by
+ * dragging it (16/11); `landed` marks the row that just arrived there.
+ */
+export function ArtifactRow({ ctx, a, dnd, landed = false }: { ctx: ViewCtx; a: ArtifactView; dnd?: ArtifactDnd; landed?: boolean }) {
   const { t, now, snapshot } = ctx;
   const [panel, setPanel] = useState<Panel | undefined>();
   const name = a.title || t('artifacts.untitled');
@@ -29,7 +31,24 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
     return ctx.track(a.slug, ctx.act(action));
   };
   return (
-    <div className={cx('arow', panel !== undefined && 'open', busy && 'busy')} aria-busy={busy} data-vscode-context={menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: a.title, kvnPinned: a.pinned })}>
+    <div
+      className={cx('arow', panel !== undefined && 'open', busy && 'busy', dnd?.drag?.slug === a.slug && 'dragging', landed && 'landed')}
+      aria-busy={busy}
+      data-vscode-context={menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: a.title, kvnPinned: a.pinned })}
+      // Not while its name is being typed: the field's own selection must not start a drag.
+      draggable={dnd !== undefined && panel !== 'rename' ? true : undefined}
+      onDragStart={
+        dnd === undefined
+          ? undefined
+          : (e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', name);
+              close();
+              dnd.setDrag({ slug: a.slug, project: a.project });
+            }
+      }
+      onDragEnd={dnd === undefined ? undefined : () => dnd.setDrag(undefined)}
+    >
       <div className="arow-line">
         {panel === 'rename' ? (
           <span className="row">
@@ -66,9 +85,6 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
                 <MenuItem icon="edit" onClick={() => setPanel('rename')}>
                   {t('artifacts.rename')}
                 </MenuItem>
-                <MenuItem icon="columns" onClick={() => setPanel('project')}>
-                  {t('artifacts.toProject')}
-                </MenuItem>
                 {snapshot.folders.length > 0 && (
                   <MenuItem icon="list" onClick={() => setPanel('folder')}>
                     {t('artifacts.toFolder')}
@@ -81,27 +97,6 @@ export function ArtifactRow({ ctx, a }: { ctx: ViewCtx; a: ArtifactView }) {
                   {t('artifacts.delete')}
                 </MenuItem>
               </Menu>
-            )}
-            {panel === 'project' && (
-              <div className="fmenu">
-                <label className="field">
-                  <span>{t('artifacts.projectLabel')}</span>
-                  <NameInput
-                    initial={a.project ?? ''}
-                    label={t('artifacts.projectLabel')}
-                    max={MAX_NAME}
-                    list={PROJECTS_LIST}
-                    allowEmpty
-                    onDone={(project) => {
-                      close();
-                      // undefined: Escape. '': emptied on purpose — « Other ».
-                      if (project === undefined || project === (a.project ?? '')) return;
-                      void ctx.track(a.slug, ctx.act({ kind: 'artifact.project', slugs: [a.slug], project: project === '' ? null : project }));
-                    }}
-                  />
-                </label>
-                <p className="hint">{t('artifacts.projectHint')}</p>
-              </div>
             )}
             {panel === 'folder' && (
               <Menu label={t('artifacts.toFolder')}>
