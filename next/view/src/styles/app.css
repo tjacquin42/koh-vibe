@@ -753,15 +753,17 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .head .brand-fix-k::after, .head .brand-fix-h::after { top: 14px; height: 2px; }
 .head .brand-fix-v::after { content: none; }
 /* A Retina screen has half pixels, and they bring the proportions back to the
-   large drawing's (16/11): a 1.5 px lagoon band, and the green from 14.5 px —
-   it was under-sized, 17 % of the letters' height against 21 %. That high, the
-   green meets the e's own hollow (0.6 px deep there): no clip is needed. */
+   large drawing's (16/11): the green from 14.5 px — it was under-sized, 17 %
+   of the letters' height against 21 % — and a 2 px lagoon band, widened half
+   a pixel upwards into the coral, the cuts above and below still 1 px each.
+   That high, the green meets the e's own hollow (0.6 px deep there): no clip
+   is needed. */
 @media (min-resolution: 2dppx) {
   .head .brand-c2 { font-size: 21px; }
-  .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); }
-  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13px, transparent 13px 14.5px, var(--done) 14.5px 100%), linear-gradient(to bottom, var(--wait) 0 11px, transparent 11px 12px, var(--run) 12px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); clip-path: none; }
-  .head .brand-dash { margin-top: 12px; height: 1.5px; }
-  .head .brand-fix-k::after, .head .brand-fix-h::after { top: 12px; height: 1.5px; }
+  .head .brand-name { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); }
+  .head .brand-e { background-image: linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 12.5px, transparent 12.5px 14.5px, var(--done) 14.5px 100%), linear-gradient(to bottom, var(--wait) 0 10.5px, transparent 10.5px 11.5px, var(--run) 11.5px 13.5px, transparent 13.5px 14.5px, var(--done) 14.5px 100%); clip-path: none; }
+  .head .brand-dash { margin-top: 11.5px; height: 2px; }
+  .head .brand-fix-k::after, .head .brand-fix-h::after { top: 11.5px; height: 2px; }
 }
 /* The rainbow's layer is a copy of the name (App.tsx BrandName): its own
    stripes, clips and fixes are switched off, so only the rainbow shows. */
