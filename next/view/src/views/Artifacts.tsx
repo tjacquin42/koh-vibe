@@ -52,10 +52,10 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
       <div ref={root}>
         {bar}
         <p className="hint pad">{t('artifacts.none')}</p>
+        <NewProject ctx={ctx} dnd={dnd} />
         {s.projects.map((p) => (
           <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} made />
         ))}
-        <NewProject ctx={ctx} dnd={dnd} />
       </div>
     );
   }
@@ -76,12 +76,13 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
         ))}
       </Section>
       <h2 className="sec sec-label">{t('artifacts.byProject')}</h2>
+      {/* Right under the heading (16/11), where it is seen without scrolling past every project. */}
+      <NewProject ctx={ctx} dnd={dnd} />
       {s.projects.map((p) => (
         <ProjectSection key={`proj:${p.project ?? ''}`} ctx={ctx} project={p.project} items={p.items} dnd={dnd} made={p.project !== undefined && made.includes(p.project)} />
       ))}
       {/* « Other » only shows while it holds something: carried, an artifact still needs it to leave its project. */}
       {drag !== undefined && drag.project !== undefined && !s.projects.some((p) => p.project === undefined) && <ProjectSection ctx={ctx} project={undefined} items={[]} dnd={dnd} />}
-      <NewProject ctx={ctx} dnd={dnd} />
     </div>
   );
 }

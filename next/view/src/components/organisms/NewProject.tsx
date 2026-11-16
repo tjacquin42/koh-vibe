@@ -7,7 +7,7 @@ import { NameInput } from '../molecules/Inline';
 import type { ArtifactDnd, ArtifactDrag } from './artifact-dnd';
 
 /**
- * « New folder », at the foot of the artifacts' projects, as the
+ * « New folder », right under the « By project » heading, as the
  * conversations have theirs (16/11): a click turns it into the field that
  * names it, and the folder exists though nothing is filed in it yet. An
  * artifact dropped on it goes straight into the folder it then names.

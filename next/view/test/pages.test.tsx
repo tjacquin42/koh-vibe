@@ -267,8 +267,14 @@ describe('the artifacts, by project (16/11)', () => {
     expect(out).not.toContain('list="');
   });
 
-  it('offer « New folder » at their foot, as the conversations do', () => {
-    expect(tab()).toContain(t('artifacts.newProject'));
+  it('offer « New folder » right under « By project », above the projects (16/11)', () => {
+    const out = tab();
+    const heading = out.indexOf(t('artifacts.byProject'));
+    const button = out.indexOf(t('artifacts.newProject'));
+    const first = out.indexOf('>api<');
+    expect(heading).toBeGreaterThan(-1);
+    expect(heading).toBeLessThan(button);
+    expect(button).toBeLessThan(first);
   });
 
   it('show a folder made by hand though it is empty, and offer to delete it only then', () => {

@@ -385,6 +385,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .new-folder:hover { color: var(--text); border-color: var(--muted); }
 .new-folder.open { border-style: solid; border-color: var(--accent); }
 .empty .new-folder { width: auto; margin: 14px 0 0; }
+/* Right under a heading — the artifacts' « By project »: close to it, and a breath before the first project. */
+.sec-label + .new-folder { margin-top: 2px; margin-bottom: 8px; }
 
 /* Drag and drop: the section that takes a drop, the line a row lands on. */
 .drag-row { position: relative; }
