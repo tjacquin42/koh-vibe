@@ -7,21 +7,16 @@ import { cx } from '../../lib/cx';
 import { FOLDER_COLORS } from '../../lib/colors';
 import { menuContext } from '../../lib/menu-context';
 import { dropOrder, sortSessions } from '../../sections';
-import { Dot, Icon } from '../atoms/Icon';
+import { Dot } from '../atoms/Icon';
 import { IconButton } from '../atoms/IconButton';
 import { Confirm, NameInput } from '../molecules/Inline';
 import { Menu, MenuItem } from '../molecules/Menu';
 import { Popover } from '../molecules/Popover';
 import { Section } from '../molecules/Section';
+import { SubGroup } from '../molecules/SubGroup';
+import { FolderArtifacts } from './FolderArtifacts';
+import type { Dnd } from './folder-dnd';
 import { SessionRow } from './SessionRow';
-
-/** What is being dragged in the Sessions tab. */
-export type Drag = { kind: 'session'; id: string } | { kind: 'folder'; id: string };
-
-export interface Dnd {
-  drag: Drag | undefined;
-  setDrag(d: Drag | undefined): void;
-}
 
 /**
  * One folder — or the unfiled list — with its menu and its drop targets.
@@ -29,7 +24,11 @@ export interface Dnd {
  * A conversation dropped on a row lands in front of it, dropped anywhere
  * else in the section it lands at the end; dropped on the unfiled list it
  * leaves its folder. A folder dragged by its heading lands in front of the
- * folder it is dropped on. Each drop is one write (actions.ts).
+ * folder it is dropped on; an artifact dragged out of a folder moves to the
+ * one it is dropped on. Each drop is one write (actions.ts).
+ *
+ * Inside: its conversations, its artifacts (16/11), then its closed
+ * conversations — the last two each under a small heading that folds them.
  */
 export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderView; byId: ReadonlyMap<string, SessionView>; dnd: Dnd }) {
   const { t } = ctx;
@@ -49,7 +48,7 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
     const order = dropOrder(f.sessionIds, [id], before);
     void ctx.act(real ? { kind: 'session.file', ids: [id], folder: f.id, order } : { kind: 'session.file', ids: [id], order });
   };
-  const accepts = drag !== undefined && (drag.kind === 'session' || (real && drag.id !== f.id));
+  const accepts = drag !== undefined && (drag.kind === 'session' || (real && (drag.kind === 'artifact' ? drag.from : drag.id) !== f.id));
   const end = (): void => {
     setDrag(undefined);
     setOver(undefined);
@@ -67,12 +66,14 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
       if (!accepts || drag === undefined) return;
       e.preventDefault();
       if (drag.kind === 'session') fileHere(drag.id);
+      else if (drag.kind === 'artifact') void ctx.track(drag.slug, ctx.act({ kind: 'artifact.folder', slug: drag.slug, title: drag.title, folder: f.id }));
       else void ctx.act({ kind: 'folder.move', ids: [drag.id], before: f.id });
       end();
     },
   };
   const live = sessions.filter((x) => x.endedAt === undefined);
   const ended = sessions.filter((x) => x.endedAt !== undefined);
+  const artifacts = f.artifacts ?? [];
   const endedKey = `${f.id}:ended`;
   const endedFolded = ctx.isFolded(endedKey);
   // Opening a folder that holds only sleeping conversations opens them too:
@@ -115,30 +116,29 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
   );
   const body = (
     <>
-      {sessions.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
+      {sessions.length === 0 && artifacts.length === 0 && <p className="hint drop-hint">{t('folder.empty')}</p>}
       {live.map(row(f.id))}
+      {artifacts.length > 0 && <FolderArtifacts ctx={ctx} folder={f.id} artifacts={artifacts} dnd={dnd} />}
       {ended.length > 0 && (
         // The closed ones, under the others: one icon and a count, no words, set a little to the right.
-        <div className="ended-group">
-          <button
-            type="button"
-            className="ended-head"
-            data-flip={`head:${endedKey}`}
-            data-flip-parent={f.id}
-            data-flip-anchor={endedKey}
-            data-flip-folded={String(endedFolded)}
+        <SubGroup
+          foldKey={endedKey}
+          folded={endedFolded}
+          onToggle={() => ctx.toggle(endedKey)}
+          label={t('folder.ended', { n: ended.length })}
+          marker={<Dot tone="ended" animate={false} size={13} />}
+          count={ended.length}
+          headProps={{
+            'data-flip': `head:${endedKey}`,
+            'data-flip-parent': f.id,
+            'data-flip-anchor': endedKey,
+            'data-flip-folded': String(endedFolded),
             // It holds the sleeping ones, folded or not: one put to sleep goes down into it, not up into the folder (15/11).
-            data-flip-holds={ended.map((x) => x.id).join(' ')}
-            aria-expanded={!endedFolded}
-            aria-label={t('folder.ended', { n: ended.length })}
-            onClick={() => ctx.toggle(endedKey)}
-          >
-            <Icon name={endedFolded ? 'chevR' : 'chev'} />
-            <Dot tone="ended" animate={false} size={13} />
-            <span className="n">{ended.length}</span>
-          </button>
-          {!endedFolded && ended.map(row(`${endedKey} ${f.id}`))}
-        </div>
+            'data-flip-holds': ended.map((x) => x.id).join(' '),
+          }}
+        >
+          {ended.map(row(`${endedKey} ${f.id}`))}
+        </SubGroup>
       )}
     </>
   );

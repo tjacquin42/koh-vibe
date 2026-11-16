@@ -1,4 +1,4 @@
-import { rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildSnapshot, compareSessions, ordered, toRoutineView } from '../src/host/snapshot';
@@ -60,6 +60,20 @@ describe('buildSnapshot', () => {
     expect(snap.folders[0]?.color).toBe('blue');
     expect(snap.folders[1]?.sessionIds).toEqual(['e']);
     expect(snap.unfiled).toEqual(['c']);
+  });
+
+  it('shows the artifacts filed in a folder, under the freshest title known (16/11)', async () => {
+    const groups = JSON.parse(await readFile(join(home, 'groups.json'), 'utf8')) as Record<string, unknown>;
+    // x is on claude.ai's list, renamed since it was filed; « gone » left the list, its row stays.
+    groups['artifacts'] = { x: { group: 'g1', title: 'Old plan' }, gone: { group: 'g1', title: 'Kept as filed' } };
+    await writeFile(join(home, 'groups.json'), JSON.stringify(groups));
+    const snap = await buildSnapshot(home, NOW);
+    expect(snap.folders[0]?.artifacts).toEqual([
+      { slug: 'x', title: 'Plan' },
+      { slug: 'gone', title: 'Kept as filed' },
+    ]);
+    // A folder that holds none says nothing of them.
+    expect(snap.folders[1]).not.toHaveProperty('artifacts');
   });
 
   it('maps usage, cloud caches and closed conversations', async () => {

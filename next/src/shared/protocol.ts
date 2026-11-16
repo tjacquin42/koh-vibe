@@ -44,6 +44,13 @@ export interface SessionView {
   expiresAt?: number;
 }
 
+/** A claude.ai artifact filed in a folder, beside its conversations: its page, and the title to read. */
+export interface FolderArtifactView {
+  slug: string;
+  /** The freshest title known: claude.ai's while its list holds the page, else the one it was filed under. */
+  title: string;
+}
+
 export interface FolderView {
   id: string;
   name: string;
@@ -51,6 +58,8 @@ export interface FolderView {
   color?: string;
   /** Session ids filed here, in display order. */
   sessionIds: string[];
+  /** The artifacts filed here, in the order they were; absent when there is none. */
+  artifacts?: FolderArtifactView[];
 }
 
 export interface UsageWindowView {

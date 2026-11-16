@@ -44,7 +44,7 @@ export function sampleSnapshot(now: number): Snapshot {
     ],
     folders: [
       { id: 'f1', name: 'Shop', color: 'orange', sessionIds: ['s1', 's3'] },
-      { id: 'f2', name: 'Backend', color: 'blue', sessionIds: ['s2', 's5'] },
+      { id: 'f2', name: 'Backend', color: 'blue', sessionIds: ['s2', 's5'], artifacts: [{ slug: 'a2', title: 'API error budget' }] },
       { id: 'f3', name: 'Docs', color: 'purple', sessionIds: ['s6', 's7'] },
     ],
     unfiled: ['s4'],

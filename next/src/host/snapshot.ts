@@ -18,7 +18,7 @@ import type { TranscriptStats } from '../../../src/transcript/reader';
 import { withTokens } from '../../../src/transcript/tokens';
 import { isEditorOrigin } from '../../../src/events/origin';
 import { readGroups } from '../../../src/groups/store';
-import { groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
+import { artifactsOfGroup, groupIdOf, sessionOrderOf, type GroupsState } from '../../../src/groups/model';
 import { artifactProjectsFile, artifactsFile, closedFile, groupsFile, routinesFile, settingsFile, spoolDirs } from '../../../src/paths';
 import { readSessions } from '../../../src/spool/persist';
 import { shownSession } from '../../../src/claude/dormant';
@@ -98,7 +98,13 @@ export function toSessionView(s: Session): SessionView {
   return v;
 }
 
-export function foldersOf(groups: GroupsState, sessions: readonly SessionView[]): { folders: FolderView[]; unfiled: string[] } {
+/**
+ * @param titles claude.ai's own title of each artifact on its list, by slug:
+ *   an artifact filed in a folder reads under it, renamed since or not — and
+ *   under the title it was filed with once the list no longer holds it (V1's
+ *   rule, ui/tree.ts `folderArtifacts`).
+ */
+export function foldersOf(groups: GroupsState, sessions: readonly SessionView[], titles: ReadonlyMap<string, string> = new Map()): { folders: FolderView[]; unfiled: string[] } {
   const byId = new Map(sessions.map((s) => [s.id, s]));
   const members = new Map<string, string[]>();
   const loose: string[] = [];
@@ -122,6 +128,8 @@ export function foldersOf(groups: GroupsState, sessions: readonly SessionView[])
         sessionIds: ordered(members.get(g.id) ?? [], sessionOrderOf(groups, g.id), byId),
       };
       if (g.color !== undefined) f.color = g.color;
+      const filed = artifactsOfGroup(groups, g.id).map((a) => ({ slug: a.slug, title: titles.get(a.slug) || a.title }));
+      if (filed.length > 0) f.artifacts = filed;
       return f;
     });
   return { folders, unfiled: ordered(loose, sessionOrderOf(groups, undefined), byId) };
@@ -278,7 +286,7 @@ export async function buildSnapshot(home: string, now: number, extras: SnapshotE
   }
   const shown = [...visibleSessions(all).values()];
   const visible = shown.map(toSessionView).sort(compareSessions);
-  const { folders, unfiled } = foldersOf(groups, visible);
+  const { folders, unfiled } = foldersOf(groups, visible, new Map((artifacts?.items ?? []).map((a) => [a.slug, a.title])));
   const sessions = withExpiry(visible, unfiled, settings).map((s) =>
     // A conversation that waits or works has been asked something: only an idle one can be new.
     extras.transcripts !== undefined && s.status === 'idle' && s.title === undefined && s.toolCount === 0 && s.endedAt === undefined ? { ...s, fresh: true as const } : s,

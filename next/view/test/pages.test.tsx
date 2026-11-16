@@ -179,6 +179,61 @@ describe('a conversation’s row', () => {
   });
 });
 
+describe('the artifacts of a folder (16/11)', () => {
+  const t = translator('en');
+  /** Backend holds a conversation that works, one asleep — and now two artifacts, one of them on claude.ai's list. */
+  const filed = (): Snapshot => {
+    const snap = sample();
+    return { ...snap, folders: snap.folders.map((f) => (f.id === 'f2' ? { ...f, artifacts: [{ slug: 'a2', title: 'API error budget' }, { slug: 'old', title: 'Left claude.ai' }] } : f)) };
+  };
+  const draw = (over = {}): string => html(<SessionsTab ctx={testCtx({ snapshot: filed(), ...over })} />);
+
+  it('sit between the folder’s conversations and its closed ones, under a heading of their own', () => {
+    const out = draw();
+    const live = out.indexOf('data-session="s2"');
+    const head = out.indexOf('data-fold="f2:artifacts"');
+    const first = out.indexOf('API error budget');
+    const closed = out.indexOf('data-flip-anchor="f2:ended"');
+    expect(live).toBeGreaterThan(-1);
+    expect(live).toBeLessThan(head);
+    expect(head).toBeLessThan(first);
+    expect(first).toBeLessThan(closed);
+    // Their count, and what the heading is for a screen reader.
+    expect(out).toContain(`aria-label="${t('folder.artifacts', { n: 2 })}"`);
+    expect(out).toContain('Left claude.ai');
+  });
+
+  it('fold under their heading, as the closed conversations do', () => {
+    const out = draw({ isFolded: (key: string) => key === 'f2:artifacts' });
+    expect(out).toMatch(/data-fold="f2:artifacts"[^>]*aria-expanded="false"/);
+    expect(out).not.toContain('API error budget');
+    // The conversations of the folder still show.
+    expect(out).toContain('data-session="s2"');
+  });
+
+  it('open on a click, and leave the folder by their ×', () => {
+    const out = draw();
+    expect(out).toContain(`aria-label="API error budget — ${t('artifacts.open')}"`);
+    expect(out.split(`aria-label="${t('folder.artifactOut')}"`).length - 1).toBe(2);
+  });
+
+  it('show no heading in a folder that holds none', () => {
+    const snap = sample();
+    const none = { ...snap, folders: snap.folders.map(({ artifacts: _none, ...f }) => f) };
+    const out = html(<SessionsTab ctx={testCtx({ snapshot: none })} />);
+    expect(out).not.toContain(':artifacts"');
+  });
+
+  it('keep a folder that holds only artifacts from saying it is empty', () => {
+    const snap = sample();
+    const only = { ...snap, folders: snap.folders.map((f) => (f.id === 'f2' ? { ...f, sessionIds: [], artifacts: [{ slug: 'a2', title: 'API error budget' }] } : f)) };
+    const out = html(<SessionsTab ctx={testCtx({ snapshot: only })} />);
+    const backend = out.slice(out.indexOf('data-flip-anchor="f2"'), out.indexOf('data-flip-anchor="f3"'));
+    expect(backend).toContain('API error budget');
+    expect(backend).not.toContain(t('folder.empty'));
+  });
+});
+
 describe('the hungriest conversations', () => {
   it('goes to an open conversation, brings back a closed one that can be, and offers nothing for one that cannot', () => {
     const snap = sample();

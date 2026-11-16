@@ -560,10 +560,10 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* Conversations in no folder, at the bottom, without a heading (14/11). */
 .loose { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); border-radius: 0; min-height: 30px; }
 .loose.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); outline: 1px dashed var(--accent); outline-offset: -1px; border-radius: 10px; }
-.ended-group { margin: 2px 0 4px 16px; }
-.ended-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
-.ended-head:hover { background: var(--surface); color: var(--soft); }
-.ended-head .n { font-variant-numeric: tabular-nums; }
+.sub-group { margin: 2px 0 4px 16px; }
+.sub-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
+.sub-head:hover { background: var(--surface); color: var(--soft); }
+.sub-head .n { font-variant-numeric: tabular-nums; }
 
 /* The usage at the foot of the sidebar, one line per limit. */
 .usage.compact { gap: 4px; padding: 6px 12px; }
@@ -581,9 +581,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* Feedback at the click (14/11): the button gives under the finger, then the
    row says « on it » — a spinning ring in place of its dot, a light sweeping
    along its foot — until the result is on screen (busy.ts). */
-.tbtn, .ibtn, .btn-ghost, .btn-go, .btn-danger, .fm-btn, .srow-main, .row-btn, .new-folder, .ended-head { transition: transform 0.08s ease-out; }
+.tbtn, .ibtn, .btn-ghost, .btn-go, .btn-danger, .fm-btn, .srow-main, .row-btn, .new-folder, .sub-head { transition: transform 0.08s ease-out; }
 .tbtn:active, .ibtn:active, .btn-ghost:active:not(:disabled), .btn-go:active, .btn-danger:active { transform: scale(0.88); }
-.fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .ended-head:active { transform: scale(0.985); }
+.fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .sub-head:active { transform: scale(0.985); }
 
 .spinner { flex: none; width: 14px; height: 14px; margin: 1px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: spin 0.7s linear infinite; }
 
@@ -598,7 +598,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ibtn.busy .icon { animation: spin 0.9s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .tbtn:active, .ibtn:active, .btn-ghost:active, .btn-go:active, .btn-danger:active, .fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .ended-head:active { transform: none; }
+  .tbtn:active, .ibtn:active, .btn-ghost:active, .btn-go:active, .btn-danger:active, .fm-btn:active, .srow-main:active, .row-btn:active, .new-folder:active, .sub-head:active { transform: none; }
   .spinner, .ibtn.busy .icon { animation: none; }
   /* Still a mark, just a still one. */
   .srow.busy .srow-main::after, .arow.busy .row::after, .card.busy::after, .proc.busy::after, .group.busy > .sec::after, .opening::after { animation: none; width: 100%; opacity: 0.6; }
