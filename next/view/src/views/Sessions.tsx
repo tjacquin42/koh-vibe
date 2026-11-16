@@ -63,13 +63,17 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
       ))}
       <NewFolder ctx={ctx} />
       {/* The archives, then the conversations in no folder, at the very bottom (14/11). */}
-      {/* Always open, no count (15/11): the last conversations closed, as many as the settings say. */}
+      {/* No count (15/11): the last conversations closed, as many as the settings say.
+          Folded at will (16/11), open to begin with — its own key, so no fold kept
+          from before it was always open applies. */}
       <Section
         title={t('closed.title')}
         marker={<Icon name="archive" size={13} />}
-        // It holds every closed one: a conversation leaving for it goes down
-        // into it, not up into the folder it left (15/11).
-        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': 'false', 'data-flip-holds': closed.map((c) => c.sessionId).join(' ') }}
+        folded={ctx.isFolded('archives')}
+        onToggle={() => ctx.toggle('archives')}
+        // It holds every closed one, folded or not: a conversation leaving for it
+        // goes down into it, not up into the folder it left (15/11).
+        headProps={{ 'data-flip-anchor': 'closed', 'data-flip-folded': String(ctx.isFolded('archives')), 'data-flip-holds': closed.map((c) => c.sessionId).join(' ') }}
       >
         {closed.length === 0 ? <p className="hint">{t('closed.none')}</p> : closed.slice(0, ctx.archives).map((c) => <ClosedRow key={c.sessionId} ctx={ctx} c={c} />)}
       </Section>
