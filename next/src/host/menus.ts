@@ -63,6 +63,30 @@ export const MENU_ITEMS: readonly MenuItem[] = [
 ];
 
 /** The `when` clause package.json carries for an item. */
+/**
+ * The French twin of a menu command (19/11). The editor's menus speak the
+ * editor's language, through the manifest's translation files; Koh-Vibe may
+ * be set to another. Each item is declared twice, titled in the manifest
+ * itself — once in English, once in French — and the row says which one to
+ * show (`kvnFr`, view/src/lib/menu-context.ts).
+ */
+export function frCommand(item: MenuItem): string {
+  return `${item.command}.fr`;
+}
+
+/**
+ * What a right-click asks next — a name, a yes — in Koh-Vibe's language
+ * (19/11), not the editor's: `bundle` is the French host bundle when
+ * Koh-Vibe speaks French, `undefined` for English. A string with no
+ * translation is said in English, never left empty.
+ */
+export function hostTranslator(bundle: Readonly<Record<string, string>> | undefined): (message: string, ...args: (string | number)[]) => string {
+  return (message, ...args) => (bundle?.[message] ?? message).replace(/\{(\d+)\}/g, (m, i: string) => {
+    const v = args[Number(i)];
+    return v === undefined ? m : String(v);
+  });
+}
+
 export function whenOf(item: MenuItem): string {
   return item.when === undefined ? `webviewSection == '${item.section}'` : `webviewSection == '${item.section}' && ${item.when}`;
 }

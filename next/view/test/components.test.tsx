@@ -23,6 +23,7 @@ import { StatusCounts } from '../src/components/molecules/StatusCounts';
 import { TabBar } from '../src/components/molecules/TabBar';
 import { translator } from '../src/i18n';
 import { cx } from '../src/lib/cx';
+import { menuContext, setMenuLanguage } from '../src/lib/menu-context';
 import { NOW, testCtx } from './ctx';
 
 const html = (el: ReactElement): string => renderToStaticMarkup(el);
@@ -33,6 +34,15 @@ describe('cx', () => {
   it('joins what is there and leaves out the rest', () => {
     expect(cx('row', false, undefined, 'busy', '')).toBe('row busy');
     expect(cx(false, undefined)).toBe('');
+  });
+});
+
+describe('menuContext', () => {
+  it('tells the right-click which language to speak: Koh-Vibe’s, not the editor’s (19/11)', () => {
+    setMenuLanguage('fr-FR');
+    expect(JSON.parse(menuContext('kvnSession', { kvnSessionId: 'a' }))).toMatchObject({ webviewSection: 'kvnSession', kvnSessionId: 'a', kvnFr: true });
+    setMenuLanguage('en');
+    expect(JSON.parse(menuContext('kvnSession'))).not.toHaveProperty('kvnFr');
   });
 });
 

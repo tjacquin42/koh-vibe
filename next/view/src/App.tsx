@@ -8,6 +8,7 @@ import { sampleSheet, sampleSnapshot } from './fixture';
 import { folderIndex } from './format';
 import { useNow } from './hooks/useNow';
 import { translator } from './i18n';
+import { setMenuLanguage } from './lib/menu-context';
 import { showStoredTheme } from './lib/theme';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening, type WaitUntil } from './reopen';
 import { activeSessionId } from './sections';
@@ -156,7 +157,11 @@ export function App({ bridge }: { bridge: Bridge }) {
   );
 
   const language = state?.context.language ?? navigator.language;
-  const t = useMemo(() => translator(language), [language]);
+  const t = useMemo(() => {
+    // The right-click menus speak it too, before any row is drawn (lib/menu-context.ts).
+    setMenuLanguage(language);
+    return translator(language);
+  }, [language]);
   const now = useNow();
 
   // Outside the editor no host builds the sheet: the preview makes one up.

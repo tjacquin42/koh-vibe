@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MENU_ITEMS, parseTarget, runMenu, whenOf, type MenuDeps } from '../src/host/menus';
+import { frCommand, hostTranslator, MENU_ITEMS, parseTarget, runMenu, whenOf, type MenuDeps } from '../src/host/menus';
 import type { Action } from '../src/shared/actions';
 
 const root = join(__dirname, '..');
@@ -12,16 +12,19 @@ describe('package.json follows the menu list', () => {
   const en = read('package.nls.json');
   const fr = read('package.nls.fr.json');
 
-  it('declares every item: command, right-click entry, hidden from the palette, titled in both languages', () => {
+  it('declares every item twice — in English and in French — and shows the one of Koh-Vibe’s language, not the editor’s (19/11)', () => {
     for (const m of MENU_ITEMS) {
-      expect(pkg.contributes.commands.find((x) => x.command === m.command)?.title, m.command).toBe(`%command.${m.command}.title%`);
-      expect(pkg.contributes.menus['webview/context']?.find((x) => x.command === m.command), m.command).toEqual({ command: m.command, when: whenOf(m), group: m.group });
-      expect(pkg.contributes.menus['commandPalette']?.find((x) => x.command === m.command)?.when, m.command).toBe('false');
-      expect(en[`command.${m.command}.title`], m.command).toBe(m.en);
-      expect(fr[`command.${m.command}.title`], m.command).toBe(m.fr);
+      for (const [command, title, lang] of [[m.command, m.en, '!kvnFr'], [frCommand(m), m.fr, 'kvnFr']] as const) {
+        expect(pkg.contributes.commands.find((x) => x.command === command)?.title, command).toBe(title);
+        expect(pkg.contributes.menus['webview/context']?.find((x) => x.command === command), command).toEqual({ command, when: `${whenOf(m)} && ${lang}`, group: m.group });
+        expect(pkg.contributes.menus['commandPalette']?.find((x) => x.command === command)?.when, command).toBe('false');
+        // Titled in the manifest itself: a translation file would follow the editor's language.
+        expect(en[`command.${command}.title`], command).toBeUndefined();
+        expect(fr[`command.${command}.title`], command).toBeUndefined();
+      }
     }
     // And nothing the list no longer has.
-    const known = new Set(MENU_ITEMS.map((m) => m.command));
+    const known = new Set(MENU_ITEMS.flatMap((m) => [m.command, frCommand(m)]));
     expect(pkg.contributes.menus['webview/context']?.every((x) => known.has(x.command))).toBe(true);
   });
 });
@@ -49,6 +52,17 @@ function deps(over: Partial<MenuDeps> = {}) {
   };
   return { d, acts, calls };
 }
+
+describe('what the right-click asks, in Koh-Vibe’s language (19/11)', () => {
+  const bundle = { 'New folder name': 'Nouveau nom du dossier', 'Delete « {0} »?': 'Supprimer « {0} » ?' };
+  it('says it in French from the bundle, filling its blanks, and in English as written otherwise', () => {
+    expect(hostTranslator(bundle)('New folder name')).toBe('Nouveau nom du dossier');
+    expect(hostTranslator(bundle)('Delete « {0} »?', 'Shop')).toBe('Supprimer « Shop » ?');
+    expect(hostTranslator(undefined)('Delete « {0} »?', 'Shop')).toBe('Delete « Shop »?');
+    // Not translated yet: English, never an empty string.
+    expect(hostTranslator(bundle)('Rename')).toBe('Rename');
+  });
+});
 
 describe('right-click commands', () => {
   it('reads only well-formed rows', () => {

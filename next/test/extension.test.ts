@@ -12,7 +12,7 @@ import { realEngine } from '../src/host/engine';
 
 const engineRuns: string[] = [];
 import type { ProcessDeps } from '../src/host/processes';
-import { MENU_ITEMS } from '../src/host/menus';
+import { frCommand, MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
 import { installHooks } from '../../src/hooks/installer';
 import { tableOf } from '../../src/process/scan';
@@ -99,8 +99,8 @@ describe('activate', () => {
   it('registers the sidebar and the commands', () => {
     start(ExtensionMode.Production);
     expect([...recorded.providers.keys()]).toEqual([SIDEBAR_VIEW]);
-    // Two of its own, and one per right-click entry (menus.ts).
-    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload', ...MENU_ITEMS.map((m) => m.command)].sort());
+    // Two of its own, and two per right-click entry — in English and in French (menus.ts `frCommand`, 19/11).
+    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload', ...MENU_ITEMS.flatMap((m) => [m.command, frCommand(m)])].sort());
   });
 
   it('keeps the sidebar alive while another view container is shown', () => {

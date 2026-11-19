@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { countKohEntries } from '../../../src/hooks/installer';
 import { realEngine, startEngine, type EngineDeps } from './engine';
@@ -14,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
 import { artifactOpener } from './artifact-open';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
-import { MENU_ITEMS, runMenu, type MenuDeps } from './menus';
+import { frCommand, hostTranslator, MENU_ITEMS, runMenu, type MenuDeps } from './menus';
 import { applyMoves, ensureTidyRulesFile, parseMoves, readTidyRules, runClaude, tidyPrompt, tidyRulesFile, type TidyItem } from './tidy';
 import { SKILL_NAME } from '../../../src/skill/install';
 import { runAction, type Copied } from './actions';
@@ -139,6 +140,29 @@ function languageChoiceOf(context: vscode.ExtensionContext): LanguageChoice {
   return LANGUAGE_CHOICES.find((c) => c === v) ?? 'auto';
 }
 
+/** The language Koh-Vibe speaks: the one picked in its settings, else the editor's. */
+function languageOf(context: vscode.ExtensionContext): string {
+  const choice = languageChoiceOf(context);
+  return choice === 'auto' ? vscode.env.language : choice;
+}
+
+/**
+ * The French host bundle when Koh-Vibe speaks French (19/11), for what a
+ * right-click asks next: `vscode.l10n` follows the editor's language only.
+ * Read again at each use — the language can change — and `undefined`, so
+ * English, for any other language or a bundle that cannot be read.
+ */
+function hostBundle(context: vscode.ExtensionContext): Record<string, string> | undefined {
+  if (!languageOf(context).toLowerCase().startsWith('fr')) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(context.extensionPath, 'l10n', 'bundle.l10n.fr.json'), 'utf8'));
+    if (typeof parsed !== 'object' || parsed === null) return undefined;
+    return Object.fromEntries(Object.entries(parsed).filter((e): e is [string, string] => typeof e[1] === 'string'));
+  } catch {
+    return undefined;
+  }
+}
+
 /** The longest the first list waits for the conversations' names. */
 const NAMES_WAIT_MS = 8_000;
 
@@ -179,7 +203,7 @@ function connect(
     const choice = languageChoiceOf(context);
     return {
     surface,
-    language: choice === 'auto' ? vscode.env.language : choice,
+    language: languageOf(context),
     languageChoice: choice,
     version: versionOf(context.extension.packageJSON as unknown),
     launch,
@@ -457,15 +481,17 @@ export function activate(context: vscode.ExtensionContext): void {
       return picked === undefined ? undefined : picked.id;
     },
     confirm: async (message, yes) => (await vscode.window.showWarningMessage(message, { modal: true }, yes)) === yes,
-    t: (message, ...args) => vscode.l10n.t(message, ...args),
+    // In Koh-Vibe's language, as the menu that led here (19/11).
+    t: (message, ...args) => hostTranslator(hostBundle(context))(message, ...args),
     projectSlugs: (project) => (hub.current?.artifacts?.items ?? []).filter((x) => x.project === project).map((x) => x.slug),
     report: (r) => {
       if (r.ok) return;
+      const t = hostTranslator(hostBundle(context));
       const text = {
-        'v1-missing': vscode.l10n.t('This goes through Koh-Vibe (V1) until the switch-over, and it is not installed here.'),
-        cloud: vscode.l10n.t('claude.ai did not take it (signed out, or refused). The « Koh-Vibe Next » output says why.'),
-        stale: vscode.l10n.t('That changed in the meantime: nothing was done.'),
-        failed: vscode.l10n.t('That did not go through. Nothing was changed.'),
+        'v1-missing': t('This goes through Koh-Vibe (V1) until the switch-over, and it is not installed here.'),
+        cloud: t('claude.ai did not take it (signed out, or refused). The « Koh-Vibe Next » output says why.'),
+        stale: t('That changed in the meantime: nothing was done.'),
+        failed: t('That did not go through. Nothing was changed.'),
       }[r.error];
       void vscode.window.showWarningMessage(`Koh-Vibe: ${text}`);
     },
@@ -706,7 +732,8 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const v of views) v.reload();
     }),
     // The right-click menus (menus.ts): VSCode hands each the row's data-vscode-context.
-    ...MENU_ITEMS.map((m) => vscode.commands.registerCommand(m.command, (arg: unknown) => runMenu(m.command, arg, menuDeps))),
+    // Each in English and in French (menus.ts `frCommand`): the row shows the one of Koh-Vibe's language.
+    ...MENU_ITEMS.flatMap((m) => [m.command, frCommand(m)].map((command) => vscode.commands.registerCommand(command, (arg: unknown) => runMenu(m.command, arg, menuDeps)))),
   );
 }
 
