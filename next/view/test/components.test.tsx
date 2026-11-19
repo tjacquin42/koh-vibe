@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -84,6 +86,12 @@ describe('atoms', () => {
     // A title wins over « fresh »: something was written since.
     expect(html(<SessionName s={session({ fresh: true, title: 'Named' })} t={t} animate />)).toBe('Named');
     expect(html(<SessionName s={session({ branch: 'main' })} t={t} animate />)).toBe('proj · main');
+  });
+
+  it('Hint: its bubble wraps its text — it sits in an (i) that never wraps (19/11)', () => {
+    const css = readFileSync(join(__dirname, '../src/styles/app.css'), 'utf8');
+    const rule = /\.hint-pop \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('white-space: normal');
   });
 
   it('Hint: sentences, a bullet per « - » line, and the option’s name in bold', () => {

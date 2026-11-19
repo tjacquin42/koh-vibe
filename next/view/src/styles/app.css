@@ -451,6 +451,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   display: none; position: absolute; z-index: 40; top: calc(100% + 4px); left: -4px; right: -4px;
   padding: 8px 10px; border-radius: 9px; background: var(--raised); border: 1px solid var(--line);
   color: var(--soft); box-shadow: 0 8px 20px rgb(0 0 0 / 0.4); pointer-events: none; cursor: default;
+  /* Its (i) never wraps, so the icon stays on its name's line: the bubble must not inherit that (19/11). */
+  white-space: normal; overflow-wrap: anywhere; text-align: left;
 }
 .hint-i:hover .hint-pop, .hint-i:focus-visible .hint-pop { display: block; }
 /* The theme's kept tunings: a swatch each — the status colours and the accent — and its Save. */
