@@ -43,7 +43,8 @@ export function Section({
     </>
   );
   return (
-    <section className={className === undefined ? 'group' : `group ${className}`} {...sectionProps}>
+    // Named after its heading: when it folds or opens, its height glides and what is under it follows (hooks/useFlip.ts).
+    <section className={className === undefined ? 'group' : `group ${className}`} data-flip-section={headProps?.['data-flip-anchor']} {...sectionProps}>
       <h2 className="sec" {...headProps}>
         {onToggle === undefined ? (
           head

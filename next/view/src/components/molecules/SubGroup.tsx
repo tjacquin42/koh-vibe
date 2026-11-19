@@ -29,7 +29,7 @@ export function SubGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="sub-group">
+    <div className="sub-group" data-flip-section={headProps?.['data-flip-anchor']}>
       <button type="button" className="sub-head" data-fold={foldKey} aria-expanded={!folded} aria-label={label} onClick={onToggle} {...headProps}>
         <Icon name={folded ? 'chevR' : 'chev'} />
         {marker}

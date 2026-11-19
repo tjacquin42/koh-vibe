@@ -588,6 +588,10 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .loose { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); border-radius: 0; min-height: 30px; }
 .loose.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); outline: 1px dashed var(--accent); outline-offset: -1px; border-radius: 10px; }
 .sub-group { margin: 2px 0 4px 16px; }
+/* A block that folds keeps no margin at its foot (19/11): while its height glides (hooks/useFlip.ts)
+   that margin could not fold into the next heading's, and the glide would end a few pixels off. It
+   was always the smaller of the two, so nothing moves. */
+.group > :last-child, .sub-group > :last-child { margin-bottom: 0; }
 .sub-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; }
 .sub-head:hover { background: var(--surface); color: var(--soft); }
 .sub-head .n { font-variant-numeric: tabular-nums; }

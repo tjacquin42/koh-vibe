@@ -24,7 +24,15 @@ export function FolderArtifacts({ ctx, folder, artifacts, dnd }: { ctx: ViewCtx;
   const key = `${folder}:artifacts`;
   const { drag, setDrag } = dnd;
   return (
-    <SubGroup foldKey={key} folded={ctx.isFolded(key)} onToggle={() => ctx.toggle(key)} label={t('folder.artifacts', { n: artifacts.length })} marker={<Icon name="doc" size={13} />} count={artifacts.length}>
+    <SubGroup
+      foldKey={key}
+      folded={ctx.isFolded(key)}
+      onToggle={() => ctx.toggle(key)}
+      label={t('folder.artifacts', { n: artifacts.length })}
+      marker={<Icon name="doc" size={13} />}
+      count={artifacts.length}
+      headProps={{ 'data-flip-anchor': key, 'data-flip-folded': String(ctx.isFolded(key)) }}
+    >
       {artifacts.map((a) => {
         const listed = snapshot.artifacts?.items.find((x) => x.slug === a.slug);
         const name = a.title || t('artifacts.untitled');

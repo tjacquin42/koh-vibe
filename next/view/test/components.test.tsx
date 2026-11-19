@@ -17,6 +17,7 @@ import { ArtifactLine } from '../src/components/molecules/ArtifactLine';
 import { Gauge, LineGauge } from '../src/components/molecules/Gauge';
 import { Menu, MenuItem } from '../src/components/molecules/Menu';
 import { Section } from '../src/components/molecules/Section';
+import { SubGroup } from '../src/components/molecules/SubGroup';
 import { Choice, SwitchRow } from '../src/components/molecules/SettingRow';
 import { StatusCounts } from '../src/components/molecules/StatusCounts';
 import { TabBar } from '../src/components/molecules/TabBar';
@@ -136,6 +137,23 @@ describe('molecules', () => {
     expect(folded).toContain('</button><span class="sec-tools"><i>tool</i></span>');
     expect(folded).not.toContain('body');
     expect(html(<Section title="Shop" folded={false} onToggle={noop}>body</Section>)).toContain('aria-expanded="true"');
+  });
+
+  it('Section and SubGroup: the block that folds is named after its heading, for the motion of what is under it (19/11)', () => {
+    const folder = html(
+      <Section title="Shop" folded={false} onToggle={noop} headProps={{ 'data-flip-anchor': 'f1', 'data-flip-folded': 'false' }}>
+        body
+      </Section>,
+    );
+    expect(folder).toMatch(/<section class="group" data-flip-section="f1">/);
+    // A section with no heading to fold into has nothing to animate.
+    expect(html(<Section title="Recent">body</Section>)).not.toContain('data-flip-section');
+    const closed = html(
+      <SubGroup foldKey="f1:ended" folded={false} onToggle={noop} label="2 closed" marker={null} count={2} headProps={{ 'data-flip-anchor': 'f1:ended' }}>
+        rows
+      </SubGroup>,
+    );
+    expect(closed).toContain('class="sub-group" data-flip-section="f1:ended"');
   });
 
   it('Menu: lines with an icon, red for what destroys', () => {

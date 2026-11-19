@@ -31,6 +31,12 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * on screen, never from where its slide was going: measured through its
  * running slide, it would jump.
  *
+ * And what is under a section that folds or opens (19/11): the section —
+ * named after its heading (`data-flip-section`) — glides from its old height
+ * to its new one, and everything below follows it down or up, eased, instead
+ * of jumping. Meanwhile the rows outside it are not slid as well: the height
+ * already carries them, and both would move them twice.
+ *
  * Off with the Animations setting, and with the system's reduced motion.
  * Rows out of sight are not animated; a burst of unrelated arrivals or
  * departures (a tab opened) just appears or vanishes.
@@ -38,6 +44,19 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
 const BURST = 12;
 const MOVE_MS = 320;
 const FOLD_MS = 240;
+/** The height of a section that folds or opens: a little longer than its rows, eased at both ends. */
+const HEIGHT_MS = 280;
+const HEIGHT_EASE = 'cubic-bezier(.4,0,.2,1)';
+
+/** The sections whose heading was there a render ago and has folded or opened since. */
+export function foldChanges(before: ReadonlyMap<string, { folded: boolean }>, now: ReadonlyMap<string, { folded: boolean }>): string[] {
+  const out: string[] = [];
+  for (const [key, a] of now) {
+    const was = before.get(key);
+    if (was !== undefined && was.folded !== a.folded) out.push(key);
+  }
+  return out;
+}
 
 interface Spot {
   /** Where the layout puts it, its running slide taken out. */
@@ -62,6 +81,8 @@ interface Anchor {
 
 /** The slide each row is running, to read where it is and to replace it. */
 const slides = new WeakMap<HTMLElement, Animation>();
+/** The height each section is gliding to: dropped before measuring, as it would be read mid-way. */
+const glides = new WeakMap<HTMLElement, Animation>();
 
 /** How far a row's running slide shows it from its place. */
 function slideOffset(node: HTMLElement): { x: number; y: number } {
@@ -78,7 +99,7 @@ function slideOffset(node: HTMLElement): { x: number; y: number } {
 }
 
 export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): void {
-  const prev = useRef<{ rows: Map<string, Spot>; anchors: Map<string, Anchor> } | undefined>(undefined);
+  const prev = useRef<{ rows: Map<string, Spot>; anchors: Map<string, Anchor>; heights: Map<string, number> } | undefined>(undefined);
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return;
@@ -101,8 +122,18 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       const holds = new Set((node.dataset['flipHolds'] ?? '').split(' ').filter((h) => h.length > 0));
       anchors.set(key, { top: topOf(node.getBoundingClientRect()), folded: node.dataset['flipFolded'] === 'true', holds });
     }
+    // The height of every section that can fold, laid out — not as a running glide shows it.
+    const heights = new Map<string, number>();
+    const sections = new Map<string, HTMLElement>();
+    for (const node of el.querySelectorAll<HTMLElement>('[data-flip-section]')) {
+      const key = node.dataset['flipSection'];
+      if (key === undefined || key === '') continue;
+      glides.get(node)?.cancel();
+      heights.set(key, node.getBoundingClientRect().height);
+      sections.set(key, node);
+    }
     const before = prev.current;
-    prev.current = { rows, anchors };
+    prev.current = { rows, anchors, heights };
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     // The first render has nothing to move from — and with every folder folded
     // it may hold no row at all, which must not pass for « first » later on.
@@ -135,9 +166,28 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       return undefined;
     };
 
+    // What is under a section that folded or opened follows its height, eased (19/11).
+    const gliding: HTMLElement[] = [];
+    for (const key of foldChanges(before.anchors, anchors)) {
+      const node = sections.get(key);
+      const from = before.heights.get(key);
+      const to = heights.get(key);
+      if (node === undefined || from === undefined || to === undefined || Math.abs(from - to) < 1) continue;
+      gliding.push(node);
+      glides.set(
+        node,
+        // `clip`, not `hidden`: it cuts what overflows without making a block of its own, so the
+        // heading's top margin still folds into what is above — as it does once the glide is over.
+        node.animate([{ height: `${from}px`, overflow: 'clip' }, { height: `${to}px`, overflow: 'clip' }], { duration: HEIGHT_MS, easing: HEIGHT_EASE }),
+      );
+    }
+    // Moved by a height that glides: the glide carries them already.
+    const carried = (node: HTMLElement): boolean => gliding.length > 0 && !gliding.some((g) => g.contains(node));
+
     for (const [id, spot] of rows) {
       const was = before.rows.get(id);
       if (was === undefined) continue;
+      if (carried(spot.el)) continue;
       // Its place did not change: a slide under way goes on undisturbed.
       if (Math.abs(was.left - spot.left) < 1 && Math.abs(was.top - spot.top) < 1) continue;
       // From where it shows now: its old place, plus how far its slide had it.

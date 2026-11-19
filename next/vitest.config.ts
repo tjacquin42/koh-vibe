@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     // The view's components are drawn to a string (view/test): no browser, so no effect runs — what they say is what is checked.
-    include: ['test/**/*.test.ts', 'view/test/**/*.test.tsx'],
+    include: ['test/**/*.test.ts', 'view/test/**/*.test.{ts,tsx}'],
     environment: 'node',
     setupFiles: ['view/test/setup.ts'],
     // `pnpm test:coverage`: the V2's own code, host and view — not the V1 modules it reads through.
