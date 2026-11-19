@@ -94,6 +94,15 @@ describe('atoms', () => {
     expect(rule).toContain('white-space: normal');
   });
 
+  it('the settings’ heading — and its × — stays at the top while they scroll (19/11)', () => {
+    const css = readFileSync(join(__dirname, '../src/styles/app.css'), 'utf8');
+    const rule = /\.settings-head \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('position: sticky');
+    expect(rule).toContain('top: 0');
+    // Opaque: what scrolls under it must not show through.
+    expect(rule).toContain('background: var(--bg)');
+  });
+
   it('Hint: sentences, a bullet per « - » line, and the option’s name in bold', () => {
     const out = html(<Hint text={'What it does.\nOn two lines.\n- Browser: opens outside.\n- Editor : opens inside.\n- no name here'} />);
     expect(out).toContain('<p>What it does. On two lines.</p>');

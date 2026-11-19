@@ -426,7 +426,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 /* Settings, in place of the tabs. */
 .settings { padding: 4px 6px 10px; }
-.settings-head { display: flex; align-items: center; justify-content: space-between; margin: 8px 4px 4px; }
+/* Held at the top while the settings scroll (19/11): its × is always at hand. Opaque, over what scrolls under it. */
+.settings-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; margin: 0 -6px 4px; padding: 8px 10px 6px; background: var(--bg); }
 .settings-head h2 { font-size: 15px; }
 /* Each section of the settings set apart by a line (14/11), its title a step louder. */
 .set-group { margin-top: 14px; }
