@@ -8,9 +8,16 @@ import { Dot, Icon } from '../atoms/Icon';
 import { IconButton } from '../atoms/IconButton';
 import { SessionName } from '../atoms/SessionName';
 
-/** What a right-click on a conversation offers, wherever it shows (host menus.ts). */
-export function sessionContext(ctx: ViewCtx, id: string, ended: boolean): string {
-  return menuContext('kvnSession', { kvnSessionId: id, kvnEnded: ended, kvnFiled: isFiled(ctx.where, id) });
+/**
+ * What a right-click on a conversation offers, wherever it shows (host
+ * menus.ts). `s`: the conversation as the list knows it — absent for one
+ * that left the list, which the activity views still show. « Mark as
+ * unread » only for an open one at rest (19/11): one that works or waits is
+ * not read to begin with.
+ */
+export function sessionContext(ctx: ViewCtx, id: string, s: SessionView | undefined): string {
+  const ended = s === undefined || s.endedAt !== undefined;
+  return menuContext('kvnSession', { kvnSessionId: id, kvnEnded: ended, kvnFiled: isFiled(ctx.where, id), kvnCanUnread: !ended && s.status === 'idle' });
 }
 
 /** A conversation on one line (14/11): what it does and when it leaves are behind the (i). */
@@ -28,7 +35,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
       aria-busy={busy}
       aria-current={active ? 'true' : undefined}
       data-session={s.id}
-      data-vscode-context={sessionContext(ctx, s.id, s.endedAt !== undefined)}
+      data-vscode-context={sessionContext(ctx, s.id, s)}
     >
       <div className="srow-line">
         <button

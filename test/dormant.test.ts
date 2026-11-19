@@ -222,6 +222,15 @@ describe('shownSession — what a row actually shows', () => {
     expect(shown?.lastEventAt).toBe(42);
   });
 
+  it('brings back, with its tab, the « waiting » or « finished » it ended on — an editor restart loses neither (19/11)', () => {
+    expect(shownSession(onDisk({ endedAt: 10, endedStatus: 'done_unseen' }), restored())?.status).toBe('done_unseen');
+    expect(shownSession(onDisk({ endedAt: 10, endedStatus: 'waiting' }), restored())?.status).toBe('waiting');
+    // What it remembers is not shown as such, nor anything a file could hold there.
+    expect(shownSession(onDisk({ endedAt: 10, endedStatus: 'done_unseen' }), restored())).not.toHaveProperty('endedStatus');
+    const odd = { ...onDisk({ endedAt: 10 }), endedStatus: 'running' } as unknown as Session;
+    expect(shownSession(odd, restored())?.status).toBe('idle');
+  });
+
   it('borrows the tab title only when the file has none', () => {
     expect(shownSession(onDisk({ endedAt: 10 }), restored({ title: 'de l onglet' }))?.title).toBe('de l onglet');
     expect(shownSession(onDisk({ endedAt: 10, title: 'du fichier' }), restored({ title: 'de l onglet' }))?.title).toBe(

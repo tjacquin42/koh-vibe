@@ -13,8 +13,11 @@ export const HOOK_EVENTS = [
 ] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
-/** Events produced by the extension itself, dropped into the same spool. */
-export const LOCAL_EVENTS = ['Ack'] as const;
+/**
+ * Events produced by the extension itself, dropped into the same spool:
+ * `Ack`, a conversation seen; `Unread`, one shown unread again on demand (19/11).
+ */
+export const LOCAL_EVENTS = ['Ack', 'Unread'] as const;
 export type LocalEvent = (typeof LOCAL_EVENTS)[number];
 
 export type EventName = HookEvent | LocalEvent;
@@ -89,4 +92,12 @@ export interface Session {
    * holds the tab. A click wakes it, and a real session takes its place.
    */
   dormant?: true;
+  /**
+   * What an ended conversation had not been seen as yet: waiting for the
+   * user, or finished unread (19/11). An editor that quits ends every
+   * conversation, and its end makes it idle; this is what its tab, restored
+   * with the editor, shows again (claude/dormant.ts `shownSession`). Gone
+   * once it is seen (`Ack`), or once it speaks again.
+   */
+  endedStatus?: 'waiting' | 'done_unseen';
 }

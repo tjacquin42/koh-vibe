@@ -65,6 +65,7 @@
   "command.kohVibeNext.ctx.session.sheet.title": "Open its sheet",
   "command.kohVibeNext.ctx.session.sleep.title": "Put to sleep",
   "command.kohVibeNext.ctx.session.close.title": "Close",
+  "command.kohVibeNext.ctx.session.unread.title": "Mark as unread",
   "command.kohVibeNext.ctx.session.copyId.title": "Copy the ID",
   "command.kohVibeNext.ctx.closed.reopen.title": "Resume",
   "command.kohVibeNext.ctx.closed.copyId.title": "Copy the ID",
@@ -94,5 +95,6 @@
   "config.kohVibe.interface.new": "Koh-Vibe 2: one web view for the sidebar, the cockpit in an editor tab.",
   "config.kohVibe.interface.classic": "Koh-Vibe 1: the tree views, as before 2.0.",
   "config.kohVibe.interface.description": "Which interface Koh-Vibe shows. The hooks, the sounds and your folders are the same under both. A change takes effect when the window reloads.",
-  "command.kohVibe.focusSessionById.title": "Go to session"
+  "command.kohVibe.focusSessionById.title": "Go to session",
+  "command.kohVibe.markUnread.title": "Mark the conversation as unread"
 }

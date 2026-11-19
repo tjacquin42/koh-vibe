@@ -15,7 +15,7 @@ export function Wall({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) {
   return (
     <div className="wall">
       {a.sessions.map((s) => (
-        <OpenCard key={s.id} ctx={ctx} id={s.id} className="tile" context={sessionContext(ctx, s.id, a.listed.get(s.id)?.endedAt !== undefined)}>
+        <OpenCard key={s.id} ctx={ctx} id={s.id} className="tile" context={sessionContext(ctx, s.id, a.listed.get(s.id))}>
           <span className="tile-h">
             <Dot tone={toneFor(s.id, a.listed)} animate={ctx.animate} />
             <span className="ttl conv-ttl">

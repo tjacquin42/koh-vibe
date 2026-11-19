@@ -161,6 +161,8 @@ describe('what goes through V1 commands', () => {
   it('hands conversation actions to V1 with the node shape its menus pass', async () => {
     await run({ kind: 'session.command', command: 'sleep', id: 'a' });
     await run({ kind: 'session.command', command: 'close', id: 'a' });
+    // In no folder too: shown unread again, wherever it is (19/11).
+    await run({ kind: 'session.command', command: 'unread', id: 'c' });
     await run({ kind: 'session.new', folder: 'g1' });
     await run({ kind: 'session.new' });
     await run({ kind: 'folder.rules', id: 'g1', mode: 'add' });
@@ -168,6 +170,7 @@ describe('what goes through V1 commands', () => {
     expect(calls).toEqual([
       [V1_COMMANDS.sleep, { kind: 'session', session: { id: 'a' } }],
       [V1_COMMANDS.close, { kind: 'session', session: { id: 'a' } }],
+      ['kohVibe.markUnread', { kind: 'session', session: { id: 'c' } }],
       ['kohVibe.newSessionInGroup', { kind: 'group', group: { id: 'g1' } }],
       ['kohVibe.newSession'],
       ['kohVibe.addFolderRule', { kind: 'group', group: { id: 'g1' } }],

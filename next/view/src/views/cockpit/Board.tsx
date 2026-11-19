@@ -44,7 +44,7 @@ export function Board({ ctx, folder }: { ctx: ViewCtx; folder: string | null }) 
 function SessionCard({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
   const { t, now } = ctx;
   return (
-    <OpenCard ctx={ctx} id={s.id} className={`bcard tone-${toneOf(s)}`} context={sessionContext(ctx, s.id, s.endedAt !== undefined)}>
+    <OpenCard ctx={ctx} id={s.id} className={`bcard tone-${toneOf(s)}`} context={sessionContext(ctx, s.id, s)}>
       <span className="l1">
         <span className="ttl conv-ttl">
           <SessionName s={s} t={t} animate={ctx.animate} />

@@ -44,7 +44,7 @@ import { registerCloudViews } from './ui/cloud-views';
 import { Reopening } from './ui/reopening';
 import { showBusy } from './ui/busy';
 import { dropEndedWithoutTranscript, ensureDirs, hideSession, readSession, readSessions, removeSession, writeSession } from './spool/persist';
-import { SpoolWatcher } from './spool/watcher';
+import { appendLocalEvent, SpoolWatcher } from './spool/watcher';
 import {
   applyDrop, colorGroupCommand, createGroupCommand, deleteGroupCommand, fileArtifactsCommand, fileSessionCommand,
   renameGroupCommand, reorderGroupsCommand, runGroupAction, soundGroupCommand, soundSessionCommand,
@@ -1238,6 +1238,16 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
       if (typeof id !== 'string') return;
       const s = lastShown.get(id) ?? dormant.get(id) ?? (await readSession(dirs, id));
       if (s !== undefined) focusSession(s);
+    }),
+    // « Mark as unread » (19/11): its dot green again, as if it had just
+    // finished — through the spool like an acknowledgement, so every window
+    // agrees. The reducer only takes it for a conversation at rest.
+    vscode.commands.registerCommand('kohVibe.markUnread', async (node: unknown) => {
+      const id = sessionIdOfNode(node);
+      if (id === undefined) return;
+      const s = lastShown.get(id) ?? dormant.get(id) ?? (await readSession(dirs, id));
+      if (s === undefined) return;
+      await appendLocalEvent(dirs, { event: 'Unread', sessionId: s.id, cwd: s.cwd });
     }),
     /**
      * The moon: closes the tab and leaves the conversation on the dashboard.

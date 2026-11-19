@@ -7,6 +7,7 @@
   "command.kohVibeNext.ctx.session.sheet.title": "Open its sheet",
   "command.kohVibeNext.ctx.session.sleep.title": "Put to sleep",
   "command.kohVibeNext.ctx.session.close.title": "Close",
+  "command.kohVibeNext.ctx.session.unread.title": "Mark as unread",
   "command.kohVibeNext.ctx.session.copyId.title": "Copy the ID",
   "command.kohVibeNext.ctx.closed.reopen.title": "Resume",
   "command.kohVibeNext.ctx.closed.copyId.title": "Copy the ID",

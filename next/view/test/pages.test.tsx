@@ -188,6 +188,13 @@ describe('a conversation’s row', () => {
     expect(row('s5')).toContain(`aria-label="${t('row.close')}"`);
   });
 
+  it('offers « Mark as unread » on its right-click to an open conversation at rest only (19/11)', () => {
+    const can = (id: string): boolean => /&quot;kvnCanUnread&quot;:true/.test(row(id));
+    // s4 rests, open; s3 is unread already; s2 works; s1 waits; s5 is asleep.
+    expect(can('s4')).toBe(true);
+    for (const id of ['s3', 's2', 's1', 's5']) expect(can(id)).toBe(false);
+  });
+
   it('spins while its conversation is being opened, and marks the one in front', () => {
     expect(row('s1', { reopening: new Set(['s1']) })).toContain('class="spinner"');
     expect(row('s1', { activeId: 's1' })).toMatch(/class="srow [^"]*active"[^>]*aria-current="true"/);

@@ -34,6 +34,7 @@ export const MENU_ITEMS: readonly MenuItem[] = [
   { command: c('session.sheet'), section: 'kvnSession', group: '1_open@2', en: 'Open its sheet', fr: 'Ouvrir sa fiche' },
   { command: c('session.sleep'), section: 'kvnSession', when: '!kvnEnded && kvnFiled', group: '2_state@1', en: 'Put to sleep', fr: 'Mettre en veille' },
   { command: c('session.close'), section: 'kvnSession', group: '2_state@2', en: 'Close', fr: 'Fermer' },
+  { command: c('session.unread'), section: 'kvnSession', when: 'kvnCanUnread', group: '3_read@1', en: 'Mark as unread', fr: 'Afficher comme non lu' },
   { command: c('session.copyId'), section: 'kvnSession', group: '9_copy@1', en: 'Copy the ID', fr: 'Copier l’ID' },
   { command: c('closed.reopen'), section: 'kvnClosed', when: 'kvnResumable', group: '1_open@1', en: 'Resume', fr: 'Reprendre' },
   { command: c('closed.copyId'), section: 'kvnClosed', group: '9_copy@1', en: 'Copy the ID', fr: 'Copier l’ID' },
@@ -146,6 +147,9 @@ export async function runMenu(command: string, arg: unknown, deps: MenuDeps): Pr
         return;
       case 'session.close':
         if (sid !== undefined) await act({ kind: 'session.command', command: 'close', id: sid });
+        return;
+      case 'session.unread':
+        if (sid !== undefined) await act({ kind: 'session.command', command: 'unread', id: sid });
         return;
       case 'session.copyId':
       case 'closed.copyId':

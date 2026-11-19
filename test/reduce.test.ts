@@ -116,6 +116,45 @@ describe('reduce', () => {
     expect(c?.status).toBe('running');
   });
 
+  it('remembers, at its end, that it was waiting for you or finished unread (19/11)', () => {
+    // An editor that quits ends every conversation: what was not seen yet must survive it.
+    const done = reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop'));
+    const ended = reduce(done, ev('SessionEnd'));
+    expect(ended?.status).toBe('idle');
+    expect(ended?.endedStatus).toBe('done_unseen');
+    const asking = reduce(reduce(undefined, ev('UserPromptSubmit')), ev('PermissionRequest', { toolName: 'Bash' }));
+    expect(reduce(asking, ev('SessionEnd'))?.endedStatus).toBe('waiting');
+    // Nothing to remember for one that was seen, or working.
+    expect(reduce(reduce(done, ev('Ack')), ev('SessionEnd'))).not.toHaveProperty('endedStatus');
+    expect(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('SessionEnd'))).not.toHaveProperty('endedStatus');
+  });
+
+  it('forgets it once seen, or once the conversation speaks again', () => {
+    const ended = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('SessionEnd'));
+    expect(reduce(ended, ev('Ack'))).not.toHaveProperty('endedStatus');
+    const back = reduce(ended, ev('SessionStart'));
+    expect(back).not.toHaveProperty('endedStatus');
+    expect(back).not.toHaveProperty('endedAt');
+    // A late hook changes nothing of it.
+    expect(reduce(ended, ev('PostToolUse', { at: (ended?.lastEventAt ?? 0) - 5 }))?.endedStatus).toBe('done_unseen');
+  });
+
+  it('shows as unread again on demand — open or ended (19/11)', () => {
+    const seen = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('Ack'));
+    expect(seen?.status).toBe('idle');
+    expect(reduce(seen, ev('Unread'))?.status).toBe('done_unseen');
+    const ended = reduce(seen, ev('SessionEnd'));
+    const unread = reduce(ended, ev('Unread'));
+    // Ended, it stays ended: the mark waits for its tab to come back.
+    expect(unread?.status).toBe('idle');
+    expect(unread?.endedAt).toBe(ended?.endedAt);
+    expect(unread?.endedStatus).toBe('done_unseen');
+    // Never over a conversation that works or waits: it is not « read » to begin with.
+    const working = reduce(undefined, ev('UserPromptSubmit'));
+    expect(reduce(working, ev('Unread'))?.status).toBe('running');
+    expect(reduce(undefined, ev('Unread'))).toBeUndefined();
+  });
+
   it('an Ack on an absent session creates nothing: only a hook event can bring a session into being', () => {
     expect(reduce(undefined, ev('Ack'))).toBeUndefined();
   });

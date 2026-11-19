@@ -37,6 +37,7 @@ import type { Located } from './processes';
 export const V1_COMMANDS: Record<SessionCommand, string> = {
   sleep: 'kohVibe.sleepSession',
   close: 'kohVibe.closeSession',
+  unread: 'kohVibe.markUnread',
 };
 
 /** What was copied, for the status bar line that says so. */

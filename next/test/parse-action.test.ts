@@ -31,6 +31,7 @@ const GOOD: { [K in Action['kind']]: Extract<Action, { kind: K }>[] } = {
   'session.command': [
     { kind: 'session.command', command: 'sleep', id: 'a' },
     { kind: 'session.command', command: 'close', id: 'a' },
+    { kind: 'session.command', command: 'unread', id: 'a' },
   ],
   'session.new': [{ kind: 'session.new' }, { kind: 'session.new', folder: 'g1' }],
   'session.copyId': [{ kind: 'session.copyId', id: 'a' }],

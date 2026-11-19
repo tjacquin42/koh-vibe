@@ -77,12 +77,14 @@ describe('right-click commands', () => {
     const { d, acts, calls } = deps();
     await runMenu('kohVibeNext.ctx.session.sleep', { webviewSection: 'kvnSession', kvnSessionId: 'a' }, d);
     await runMenu('kohVibeNext.ctx.session.sheet', { webviewSection: 'kvnSession', kvnSessionId: 'a' }, d);
+    await runMenu('kohVibeNext.ctx.session.unread', { webviewSection: 'kvnSession', kvnSessionId: 'a' }, d);
     await runMenu('kohVibeNext.ctx.folder.rename', { webviewSection: 'kvnFolder', kvnFolderId: 'g', kvnName: 'Old' }, d);
     await runMenu('kohVibeNext.ctx.folder.color', { webviewSection: 'kvnFolder', kvnFolderId: 'g' }, d);
     await runMenu('kohVibeNext.ctx.artifact.unpin', { webviewSection: 'kvnArtifact', kvnSlug: 'x' }, d);
     await runMenu('kohVibeNext.ctx.process.kill', { webviewSection: 'kvnProcess', kvnPid: 400 }, d);
     expect(acts).toEqual([
       { kind: 'session.command', command: 'sleep', id: 'a' },
+      { kind: 'session.command', command: 'unread', id: 'a' },
       { kind: 'folder.rename', id: 'g', name: 'Renamed' },
       { kind: 'folder.color', id: 'g', color: 'pink' },
       { kind: 'artifact.pin', slug: 'x', pinned: false },

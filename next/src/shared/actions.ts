@@ -32,7 +32,8 @@ export type SettingToggle = (typeof SETTING_TOGGLES)[number];
  * triage (14/11) — it only hid a row that came back on the next message,
  * and the trash does better for a finished conversation.
  */
-export const SESSION_COMMANDS = ['sleep', 'close'] as const;
+/** `unread`: shown unread again, its dot green (19/11). */
+export const SESSION_COMMANDS = ['sleep', 'close', 'unread'] as const;
 export type SessionCommand = (typeof SESSION_COMMANDS)[number];
 
 /** V1's TabsMode (settings/tabs.ts), in the order its picker offers them. */
