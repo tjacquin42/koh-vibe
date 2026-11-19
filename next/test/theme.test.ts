@@ -26,12 +26,18 @@ describe('the theme', () => {
     expect(tuneHex('#808080', { hue: 90, saturation: 0, brightness: 50, grain: 0, textures: [], ground: 'koh' })).toBe('#404040');
   });
 
+  it('starts on the editor’s own background, its colours untouched, on a fresh install (19/11)', () => {
+    expect(DEFAULT_TUNE.ground).toBe('ide');
+    // Nothing kept yet: nothing to read, and the default applies.
+    expect(readStoredTheme(undefined)).toBeUndefined();
+  });
+
   it('reads the background it was kept with, Koh-Vibe’s before there was a choice', () => {
     const slots = [null, null, null, null];
     expect(parseTheme({ current: { ...DEFAULT_TUNE, ground: 'ide' }, slots })?.current.ground).toBe('ide');
     expect(parseTheme({ current: { hue: 0, saturation: 100, brightness: 100 }, slots })?.current.ground).toBe('koh');
     expect(parseTheme({ current: { ...DEFAULT_TUNE, ground: 'paper' }, slots })?.current.ground).toBe('koh');
-    expect(sameTune(DEFAULT_TUNE, { ...DEFAULT_TUNE, ground: 'ide' })).toBe(false);
+    expect(sameTune(DEFAULT_TUNE, { ...DEFAULT_TUNE, ground: 'koh' })).toBe(false);
   });
 
   it('colours the background only — never the text, the accent or the states', () => {

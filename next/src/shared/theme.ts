@@ -46,7 +46,13 @@ export const THEME_RANGE = {
   grain: { min: 0, max: 100 },
 } as const;
 
-export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0, textures: [], ground: 'koh' };
+/**
+ * A fresh install wears the editor's own background (19/11): Koh-Vibe takes
+ * the colours of the editor it lives in, and touches nothing of the code
+ * editor's. Koh-Vibe's own night is one click away, in the settings. A theme
+ * kept before then keeps its background: one kept with none read as Koh-Vibe's.
+ */
+export const DEFAULT_TUNE: ThemeTune = { hue: 0, saturation: 100, brightness: 100, grain: 0, textures: [], ground: 'ide' };
 export const DEFAULT_THEME: ThemeState = { current: DEFAULT_TUNE, slots: Array.from({ length: THEME_SLOTS }, () => null) };
 
 function num(v: unknown, key: keyof typeof THEME_RANGE): number | undefined {
