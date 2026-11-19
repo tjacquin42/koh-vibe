@@ -16,8 +16,12 @@ const EVENT_OF: Partial<Record<Status, ChimeEvent>> = {
   done_unseen: 'done',
 };
 
+/**
+ * Each session's status, as the sound hears it: one marked unread by hand
+ * (19/11) is still at rest — nothing happened in it, and it rings nothing.
+ */
 export function statusesOf(sessions: ReadonlyMap<string, Session>): Map<string, Status> {
-  return new Map([...sessions].map(([id, s]) => [id, s.status]));
+  return new Map([...sessions].map(([id, s]) => [id, s.markedUnread === true ? 'idle' : s.status]));
 }
 
 /** What flipped, and which one: the sound then resolves against this session. */

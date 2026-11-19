@@ -155,6 +155,19 @@ describe('reduce', () => {
     expect(reduce(undefined, ev('Unread'))).toBeUndefined();
   });
 
+  it('says a conversation was marked unread by hand, until it is seen or speaks again — for the sound (19/11)', () => {
+    const seen = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('Ack'));
+    expect(seen).not.toHaveProperty('markedUnread');
+    const marked = reduce(seen, ev('Unread'));
+    expect(marked?.markedUnread).toBe(true);
+    expect(reduce(marked, ev('Ack'))).not.toHaveProperty('markedUnread');
+    expect(reduce(marked, ev('UserPromptSubmit'))).not.toHaveProperty('markedUnread');
+    // A real finish is no longer « by hand ».
+    expect(reduce(reduce(marked, ev('UserPromptSubmit')), ev('Stop'))).not.toHaveProperty('markedUnread');
+    // Ended, it is marked too: its tab brings it back unread, silently.
+    expect(reduce(reduce(seen, ev('SessionEnd')), ev('Unread'))?.markedUnread).toBe(true);
+  });
+
   it('an Ack on an absent session creates nothing: only a hook event can bring a session into being', () => {
     expect(reduce(undefined, ev('Ack'))).toBeUndefined();
   });

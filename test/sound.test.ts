@@ -33,6 +33,14 @@ describe('chimeFor', () => {
     expect(chimeFor(at(['s1', 'waiting']), at(['s1', 'running']))).toBeUndefined();
   });
 
+  it('does not chime for a conversation marked unread by hand — nothing happened in it (19/11)', () => {
+    const marked = new Map([['s1', { ...session('s1', 'done_unseen'), markedUnread: true as const }]]);
+    expect(chimeFor(at(['s1', 'idle']), statusesOf(marked))).toBeUndefined();
+    // Then it really finishes: that one rings.
+    expect(chimeFor(statusesOf(marked), at(['s1', 'running']))).toBeUndefined();
+    expect(chimeFor(at(['s1', 'running']), at(['s1', 'done_unseen']))).toEqual({ event: 'done', sessionId: 's1' });
+  });
+
   it('does not chime when nothing changes', () => {
     expect(chimeFor(at(['s1', 'waiting']), at(['s1', 'waiting']))).toBeUndefined();
   });

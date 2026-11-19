@@ -100,4 +100,10 @@ export interface Session {
    * once it is seen (`Ack`), or once it speaks again.
    */
   endedStatus?: 'waiting' | 'done_unseen';
+  /**
+   * Shown unread by hand (« Mark as unread », 19/11): nothing happened in the
+   * conversation, so its green dot rings no sound (sound/model.ts). Gone once
+   * it is seen, or once it speaks again — a real finish rings.
+   */
+  markedUnread?: true;
 }

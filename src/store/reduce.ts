@@ -40,6 +40,7 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
     delete next.hidden;
     delete next.endedAt;
     delete next.endedStatus;
+    delete next.markedUnread;
   }
 
   switch (ev.event) {
@@ -116,7 +117,10 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       break;
     case 'Ack':
       if (!late && base.status === 'done_unseen') next.status = 'idle';
-      if (!late) delete next.endedStatus;
+      if (!late) {
+        delete next.endedStatus;
+        delete next.markedUnread;
+      }
       break;
     case 'Unread':
       // Shown unread again, on demand (19/11) — only what is at rest: one
@@ -125,6 +129,8 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (late || base.status !== 'idle') break;
       if (base.endedAt === undefined) next.status = 'done_unseen';
       else next.endedStatus = 'done_unseen';
+      // By hand, not by the conversation: no sound for it (sound/model.ts).
+      next.markedUnread = true;
       break;
     default: {
       // Exhaustiveness guard: a future member of `EventName` not handled
