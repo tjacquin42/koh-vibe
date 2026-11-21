@@ -134,3 +134,153 @@ describe('right-click commands', () => {
     expect(acts).toEqual([]);
   });
 });
+
+describe('what every right-click item sends, row by row', () => {
+  const row = (webviewSection: string, extra: Record<string, unknown>): Record<string, unknown> => ({ webviewSection, ...extra });
+
+  it('brings a conversation’s tab forward, copies its id, and reopens a closed one', async () => {
+    const { d, acts, calls } = deps();
+    await runMenu('session.open', row('kvnSession', { kvnSessionId: 'a' }), d);
+    await runMenu('session.close', row('kvnSession', { kvnSessionId: 'a' }), d);
+    await runMenu('session.copyId', row('kvnSession', { kvnSessionId: 'a' }), d);
+    await runMenu('closed.copyId', row('kvnClosed', { kvnSessionId: 'c' }), d);
+    await runMenu('closed.reopen', row('kvnClosed', { kvnSessionId: 'c' }), d);
+    expect(calls).toEqual(['open a', 'reopen c']);
+    expect(acts).toEqual([
+      { kind: 'session.command', command: 'close', id: 'a' },
+      { kind: 'session.copyId', id: 'a' },
+      { kind: 'session.copyId', id: 'c' },
+    ]);
+  });
+
+  it('starts a conversation in the folder it was asked in, or in none from the unfiled list', async () => {
+    const { d, acts } = deps();
+    await runMenu('folder.newSession', row('kvnFolder', { kvnFolderId: 'g' }), d);
+    await runMenu('unfiled.newSession', row('kvnUnfiled', {}), d);
+    expect(acts).toEqual([{ kind: 'session.new', folder: 'g' }, { kind: 'session.new' }]);
+  });
+
+  it('adds a rule to a folder, or opens its rules, by which item was clicked', async () => {
+    const { d, acts } = deps();
+    await runMenu('folder.addRule', row('kvnFolder', { kvnFolderId: 'g' }), d);
+    await runMenu('folder.openRules', row('kvnFolder', { kvnFolderId: 'g' }), d);
+    expect(acts).toEqual([
+      { kind: 'folder.rules', id: 'g', mode: 'add' },
+      { kind: 'folder.rules', id: 'g', mode: 'open' },
+    ]);
+  });
+
+  it('deletes a folder only after a yes that names it, and keeps a rename that is empty, too long or unchanged out of the action', async () => {
+    const asked: string[] = [];
+    const { d, acts } = deps({
+      t: hostTranslator(undefined),
+      confirm: async (m) => {
+        asked.push(m);
+        return true;
+      },
+    });
+    await runMenu('folder.delete', row('kvnFolder', { kvnFolderId: 'g', kvnName: 'Shop' }), d);
+    expect(asked).toEqual(['Delete « Shop »? Its conversations stay, out of any folder.']);
+    expect(acts).toEqual([{ kind: 'folder.delete', id: 'g' }]);
+    for (const typed of ['   ', 'x'.repeat(500), 'Same']) {
+      const r = deps({ ask: async () => typed });
+      await runMenu('folder.rename', row('kvnFolder', { kvnFolderId: 'g', kvnName: 'Same' }), r.d);
+      expect(r.acts, typed.slice(0, 4)).toEqual([]);
+    }
+  });
+
+  it('pins and unpins an artifact, renames it with what was typed, and leaves an unchanged title alone', async () => {
+    const { d, acts } = deps({ ask: async () => '  New page  ' });
+    await runMenu('artifact.pin', row('kvnArtifact', { kvnSlug: 's' }), d);
+    await runMenu('artifact.rename', row('kvnArtifact', { kvnSlug: 's', kvnTitle: 'Old' }), d);
+    await runMenu('artifact.copyLink', row('kvnArtifact', { kvnSlug: 's' }), d);
+    expect(acts).toEqual([
+      { kind: 'artifact.pin', slug: 's', pinned: true },
+      { kind: 'artifact.rename', slug: 's', title: 'New page' },
+      { kind: 'artifact.copyLink', slug: 's' },
+    ]);
+    const same = deps({ ask: async () => 'Old' });
+    await runMenu('artifact.rename', row('kvnArtifact', { kvnSlug: 's', kvnTitle: 'Old' }), same.d);
+    expect(same.acts).toEqual([]);
+  });
+
+  it('deletes an artifact from claude.ai only after a yes, naming its title or else its slug', async () => {
+    const asked: string[] = [];
+    const { d, acts } = deps({
+      t: hostTranslator(undefined),
+      confirm: async (m) => {
+        asked.push(m);
+        return true;
+      },
+    });
+    await runMenu('artifact.delete', row('kvnArtifact', { kvnSlug: 's', kvnTitle: 'Plan' }), d);
+    await runMenu('artifact.delete', row('kvnArtifact', { kvnSlug: 's2' }), d);
+    expect(asked[0]).toContain('« Plan »');
+    expect(asked[1]).toContain('« s2 »');
+    expect(acts).toEqual([
+      { kind: 'artifact.delete', slug: 's' },
+      { kind: 'artifact.delete', slug: 's2' },
+    ]);
+  });
+
+  it('runs a routine only after a yes, and pauses, resumes, opens and links it otherwise', async () => {
+    const { d, acts } = deps();
+    await runMenu('routine.run', row('kvnRoutine', { kvnRoutineId: 'r' }), d);
+    await runMenu('routine.pause', row('kvnRoutine', { kvnRoutineId: 'r' }), d);
+    await runMenu('routine.resume', row('kvnRoutine', { kvnRoutineId: 'r' }), d);
+    await runMenu('routine.open', row('kvnRoutine', { kvnRoutineId: 'r' }), d);
+    await runMenu('routine.copyLink', row('kvnRoutine', { kvnRoutineId: 'r' }), d);
+    expect(acts).toEqual([
+      { kind: 'routine.run', id: 'r' },
+      { kind: 'routine.pause', id: 'r', paused: true },
+      { kind: 'routine.pause', id: 'r', paused: false },
+      { kind: 'routine.open', id: 'r' },
+      { kind: 'routine.copyLink', id: 'r' },
+    ]);
+  });
+
+  it('copies a process’s command or its pid', async () => {
+    const { d, acts } = deps();
+    await runMenu('process.copyCommand', row('kvnProcess', { kvnPid: 400 }), d);
+    await runMenu('process.copyPid', row('kvnProcess', { kvnPid: 400 }), d);
+    expect(acts).toEqual([
+      { kind: 'process.copy', pid: 400, what: 'command' },
+      { kind: 'process.copy', pid: 400, what: 'pid' },
+    ]);
+  });
+
+  it('does nothing for an item whose row lacks the id it needs, or that it does not know', async () => {
+    const { d, acts, calls } = deps();
+    for (const c of ['session.open', 'session.sheet', 'session.copyId', 'closed.reopen', 'folder.newSession', 'folder.rename', 'artifact.open', 'artifact.rename', 'routine.run', 'process.kill', 'nope']) {
+      await runMenu(c, row('kvnSession', {}), d);
+    }
+    await runMenu('artProject.rename', row('kvnArtProject', {}), d);
+    expect(acts).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('reports a failure instead of throwing when an action or a box breaks', async () => {
+    const reports: unknown[] = [];
+    const { d } = deps({
+      act: async () => {
+        throw new Error('boom');
+      },
+      report: (r) => reports.push(r),
+    });
+    await expect(runMenu('session.close', row('kvnSession', { kvnSessionId: 'a' }), d)).resolves.toBeUndefined();
+    expect(reports).toEqual([{ ok: false, error: 'failed' }]);
+  });
+
+  it('hands the result of an action to report, so a refusal is said the way the view says it', async () => {
+    const reports: unknown[] = [];
+    const { d } = deps({ act: async () => ({ ok: false, error: 'stale' }), report: (r) => reports.push(r) });
+    await runMenu('session.sleep', row('kvnSession', { kvnSessionId: 'a' }), d);
+    expect(reports).toEqual([{ ok: false, error: 'stale' }]);
+  });
+
+  it('ignores a click whose row is not well formed', async () => {
+    const { d, acts } = deps();
+    await runMenu('session.close', 'nope', d);
+    expect(acts).toEqual([]);
+  });
+});

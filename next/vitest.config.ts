@@ -8,7 +8,15 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['view/test/setup.ts'],
     // `pnpm test:coverage`: the V2's own code, host and view — not the V1 modules it reads through.
-    coverage: { provider: 'v8', include: ['src/**', 'view/src/**'], reporter: ['text-summary', 'html'] },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**', 'view/src/**'],
+      reporter: ['text-summary', 'html'],
+      // Ratchet floor, not today's figure (currently 85%): `pnpm test:coverage`
+      // fails if a change drops the total below 80%, rather than locking in the
+      // exact level reached when the view's interactions were first covered.
+      thresholds: { lines: 80 },
+    },
   },
   esbuild: { jsx: 'automatic' },
   resolve: {

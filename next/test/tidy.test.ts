@@ -58,4 +58,27 @@ describe('the tidying agent', () => {
     await ensureTidyRulesFile(file, ['Écrasée ?']);
     expect(await readTidyRules(file)).toEqual(['Les recettes vont dans Cuisine', 'Une autre']);
   });
+
+  it('takes any bullet mark, leaves titles out, and keeps the first fifty rules only', () => {
+    expect(rulesOf('# Title\n* star rule\n+ plus rule\n')).toEqual(['star rule', 'plus rule']);
+    const many = Array.from({ length: 60 }, (_, i) => `- rule ${i}`).join('\n');
+    const kept = rulesOf(many);
+    expect(kept).toHaveLength(50);
+    expect(kept[49]).toBe('rule 49');
+  });
+
+  it('does not hide a real failure to create the rules file, only the file already being there', async () => {
+    const home = await makeHome();
+    const blocker = join(home, 'blocker');
+    await writeFile(blocker, 'a file where a folder is needed');
+    await expect(ensureTidyRulesFile(join(blocker, 'rules', 'artifacts.md'))).rejects.toThrow();
+  });
+
+  it('writes nothing when there is no move to apply', async () => {
+    const home = await makeHome();
+    const file = join(home, 'artifact-projects.json');
+    const before = await readArtifactProjects(file);
+    await applyMoves(file, []);
+    expect(await readArtifactProjects(file)).toEqual(before);
+  });
 });
