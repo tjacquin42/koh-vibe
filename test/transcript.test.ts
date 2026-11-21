@@ -3,7 +3,7 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readTranscript, type TranscriptStats } from '../src/transcript/reader';
+import { isInterruption, readTranscript, type TranscriptStats } from '../src/transcript/reader';
 
 // `open` is mocked for a single test (M8): it lets us simulate a `read()`
 // that returns fewer bytes than requested (file truncated between `stat()`
@@ -256,5 +256,59 @@ describe('readTranscript — title without a title: the Claude Code extension\'s
   it('ignores meta messages and sidechains for the first message', async () => {
     const path = await fixture([user('<system>', '{"isMeta":true}'), user('sous-agent', '{"isSidechain":true}'), user('la vraie question')]);
     expect((await readTranscript(path)).title).toBe('la vraie question');
+  });
+});
+
+// The real records of a question closed with its × (Claude Code 2.1.330, 21/11).
+const REJECTED = JSON.stringify({
+  type: 'user',
+  isSidechain: false,
+  timestamp: '2026-11-21T14:05:56.125Z',
+  message: { role: 'user', content: [{ type: 'tool_result', content: 'The user doesn\'t want to proceed with this tool use.', is_error: true, tool_use_id: 't1' }] },
+  toolUseResult: 'User rejected tool use',
+});
+const INTERRUPTED = JSON.stringify({
+  type: 'user',
+  isSidechain: false,
+  timestamp: '2026-11-21T14:05:56.146Z',
+  message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] },
+});
+
+describe('readTranscript — the user stopping the turn (21/11)', () => {
+  it('records when a tool was refused or the turn interrupted, the latest one', async () => {
+    const stats = await readTranscript(await fixture([REJECTED, INTERRUPTED]));
+    expect(stats.interruptedAt).toBe(Date.parse('2026-11-21T14:05:56.146Z'));
+  });
+
+  it('keeps it across a pass that reads nothing new, and from a later chunk', async () => {
+    const path = await fixture([assistant(1, 1).trim()]);
+    const first = await readTranscript(path);
+    expect(first.interruptedAt).toBeUndefined();
+    await appendLine(path, REJECTED);
+    const second = await readTranscript(path, first);
+    expect(second.interruptedAt).toBe(Date.parse('2026-11-21T14:05:56.125Z'));
+    expect((await readTranscript(path, second)).interruptedAt).toBe(second.interruptedAt);
+  });
+
+  it('ignores a record with no usable timestamp', async () => {
+    const stats = await readTranscript(await fixture([JSON.stringify({ ...JSON.parse(INTERRUPTED), timestamp: 'never' })]));
+    expect(stats.interruptedAt).toBeUndefined();
+  });
+});
+
+describe('isInterruption', () => {
+  it('knows the two records Claude Code writes', () => {
+    expect(isInterruption(JSON.parse(REJECTED))).toBe(true);
+    expect(isInterruption(JSON.parse(INTERRUPTED))).toBe(true);
+    expect(isInterruption({ type: 'user', message: { content: '[Request interrupted by user]' } })).toBe(true);
+  });
+
+  it('leaves a subagent, an assistant, an ordinary prompt and odd shapes alone', () => {
+    expect(isInterruption({ ...JSON.parse(REJECTED), isSidechain: true })).toBe(false);
+    expect(isInterruption({ ...JSON.parse(INTERRUPTED), type: 'assistant' })).toBe(false);
+    expect(isInterruption({ type: 'user', message: { content: 'pose moi une question' } })).toBe(false);
+    expect(isInterruption({ type: 'user', message: { content: [{ type: 'text', text: 'hello' }, 'odd'] } })).toBe(false);
+    expect(isInterruption({ type: 'user', message: 'odd' })).toBe(false);
+    expect(isInterruption({ type: 'user' })).toBe(false);
   });
 });

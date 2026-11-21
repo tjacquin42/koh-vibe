@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { withTokens } from '../src/transcript/tokens';
+import { settleInterrupted, withTokens } from '../src/transcript/tokens';
 import type { Session } from '../src/events/types';
 import type { TranscriptStats } from '../src/transcript/reader';
 
@@ -91,5 +91,54 @@ describe('withTokens', () => {
     const out = await withTokens(sessions, new Map<string, TranscriptStats>(), () => {});
 
     expect(out.get('a')?.title).toBe('#Mon titre');
+  });
+});
+
+describe('settleInterrupted (21/11)', () => {
+  const waiting = (): Session => ({
+    ...session('q', '/t'),
+    status: 'waiting',
+    lastEventAt: 1_000,
+    pendingPermission: { tool: 'AskUserQuestion', summary: 'Question' },
+    inFlightSince: 900,
+    currentAction: { tool: 'AskUserQuestion' },
+  });
+
+  it('rests a conversation stopped after its last hook', () => {
+    const s = waiting();
+    settleInterrupted(s, 2_000);
+    expect(s.status).toBe('idle');
+    expect(s.pendingPermission).toBeUndefined();
+    expect(s.inFlightSince).toBeUndefined();
+    expect(s.currentAction).toBeUndefined();
+  });
+
+  it('does the same for one stopped with Escape while it worked', () => {
+    const s = { ...waiting(), status: 'running' as const };
+    settleInterrupted(s, 2_000);
+    expect(s.status).toBe('idle');
+  });
+
+  it('leaves alone what a later hook set, no interruption, an ended one and the other states', () => {
+    const later = waiting();
+    settleInterrupted(later, 1_000);
+    expect(later.status).toBe('waiting');
+    const none = waiting();
+    settleInterrupted(none, undefined);
+    expect(none.status).toBe('waiting');
+    const ended = { ...waiting(), endedAt: 1_500 };
+    settleInterrupted(ended, 2_000);
+    expect(ended.status).toBe('waiting');
+    const unread = { ...waiting(), status: 'done_unseen' as const };
+    settleInterrupted(unread, 2_000);
+    expect(unread.status).toBe('done_unseen');
+  });
+
+  it('is applied by withTokens from the transcript', async () => {
+    const path = join(dir, 'q.jsonl');
+    await writeFile(path, `${JSON.stringify({ type: 'user', timestamp: '2026-11-21T14:05:56.146Z', message: { content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] } })}\n`);
+    const s = { ...waiting(), transcriptPath: path };
+    await withTokens(new Map([['q', s]]), new Map());
+    expect(s.status).toBe('idle');
   });
 });
