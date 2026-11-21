@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PANE_GAP, pushFrames, resist } from '../src/hooks/usePanes';
+import { PANE_GAP, pullOffset, pushFrames } from '../src/hooks/usePanes';
 
 describe('the push between two sections (21/11)', () => {
   it('sends the one left out the way the fingers went, and brings the next from the other side, a gap between', () => {
@@ -17,11 +17,10 @@ describe('the push between two sections (21/11)', () => {
     expect(pushFrames(-1, -40).entering[0]).toBe(`translateX(calc(-100% - ${PANE_GAP - 40}px))`);
   });
 
-  it('gives less and less at an end, never past 48 px, either way', () => {
-    expect(resist(0)).toBe(0);
-    expect(resist(60)).toBeGreaterThan(0);
-    expect(resist(60)).toBeLessThan(60);
-    expect(resist(10_000)).toBeLessThanOrEqual(48);
-    expect(resist(-60)).toBe(-resist(60));
+  it('follows the fingers, but not at all toward an end — before the first section or after the last', () => {
+    expect(pullOffset(40, false)).toBe(40);
+    expect(pullOffset(-40, false)).toBe(-40);
+    expect(pullOffset(40, true)).toBe(0);
+    expect(pullOffset(-40, true)).toBe(0);
   });
 });

@@ -64,7 +64,7 @@ export function swipeStep(
   if (base.mode === 'idle' && e.scrollable) return { state: { ...base, mode: 'scroll' }, claim: false };
   const dx = base.dx + e.dx;
   const step: 1 | -1 = dx > 0 ? 1 : -1;
-  // Nothing that way: the fingers keep pulling, the section only gives (hooks/usePanes.ts).
+  // Nothing that way: no change, and the section does not follow (hooks/usePanes.ts).
   if (Math.abs(dx) < SWIPE_DISTANCE || !(e.can?.(step) ?? true)) return { state: { ...base, mode: 'swipe', dx }, claim: true };
   return { state: { mode: 'done', dx: 0, last: e.at, prev: Math.abs(e.dx), rise: 0, rises: 0 }, claim: true, step };
 }

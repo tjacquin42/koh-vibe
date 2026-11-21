@@ -788,6 +788,10 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* The sections side by side while one pushes the other (hooks/usePanes.ts, 21/11): the one
    left lies over the place it held, then stays hidden, mounted, until the next change. */
 .panes { position: relative; overflow: clip; }
+/* Its own block (21/11): the first heading's top margin stays inside it. Collapsed through it
+   while it sat in the flow, then held inside once it lay over the place it left, the margin
+   dropped the section left by 8 px for the length of the push. */
+.pane { display: flow-root; }
 .pane:focus { outline: none; }
 .pane-left { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
 .pane-gone { display: none; }

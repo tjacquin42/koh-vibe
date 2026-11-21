@@ -18,9 +18,9 @@ const PUSH_MS = 460;
 const BACK_MS = 320;
 const EASE = 'cubic-bezier(.22, 1, .36, 1)';
 
-/** How far a section gives at either end, for `dx` of fingers: less and less, never past 48 px. */
-export function resist(dx: number): number {
-  return Math.sign(dx) * 48 * (1 - Math.exp(-Math.abs(dx) / 120));
+/** How far the section follows the fingers: all the way, or not at all toward an end. */
+export function pullOffset(dx: number, ends: boolean): number {
+  return ends ? 0 : dx;
 }
 
 /** The two ends of a push: where each section starts and ends, from the fingers' offset. */
@@ -40,7 +40,7 @@ export interface Panes<T extends string> {
   /** What to draw: the one left (hidden once it is out), then the current one. */
   panes: readonly Pane<T>[];
   props(pane: Pane<T>): { ref(el: HTMLElement | null): void; className: string; 'aria-hidden'?: true; tabIndex: -1 };
-  /** The fingers' offset during a gesture; `ends` when there is nothing that way. */
+  /** The fingers' offset during a gesture; `ends` when there is nothing that way — it then stays put. */
   drag(dx: number, ends: boolean): void;
   /** The fingers left before a change: the section springs back. */
   release(): void;
@@ -65,7 +65,7 @@ export function usePanes<T extends string>(selected: T, animate: boolean): Panes
     (dx: number, ends: boolean) => {
       const pane = els.current.get(cur.id);
       if (pane === undefined || !animate) return;
-      offset.current = ends ? resist(dx) : dx;
+      offset.current = pullOffset(dx, ends);
       pane.getAnimations().forEach((a) => a.cancel());
       pane.style.transform = `translateX(${-offset.current}px)`;
     },
