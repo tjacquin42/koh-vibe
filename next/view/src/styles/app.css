@@ -422,9 +422,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 
 /* Drag and drop: the section that takes a drop, the line a row lands on. */
 .drag-row { position: relative; }
-/* A clear line of pixels between two conversations (21/11): their bubbles touched, and a waiting
-   one's outline, drawn outside, overlapped the next. It is drawn inside now (.srow.tone-wait). */
-.drag-row + .drag-row { margin-top: 1px; }
+/* Two conversations touch, no gap (21/11), without overlapping: a waiting one's outline is drawn
+   inside its bubble (.srow.tone-wait), where it used to spill over the next one. */
 .drag-row[draggable="true"] { cursor: grab; }
 .drag-row.dragging { opacity: 0.4; }
 .drag-row.drop-line::before { content: ''; position: absolute; left: 8px; right: 8px; top: -1px; height: 2px; border-radius: 1px; background: var(--accent); }
