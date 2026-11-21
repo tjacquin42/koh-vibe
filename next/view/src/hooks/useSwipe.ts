@@ -21,28 +21,31 @@ export interface SwipeState {
   mode: 'idle' | 'scroll' | 'swipe' | 'done';
   dx: number;
   last: number;
-  /** Once used: when it changed the section, its largest step since, and its last one. */
-  usedAt?: number;
+  /** Once used: its largest step since the change, and its last one. */
   peak?: number;
   prev?: number;
   /** The used gesture has died down: growing steps after that are new fingers, not the same ones. */
   armed?: boolean;
-  /** The run of growing steps since, and how far they went. */
+  /** The run of growing steps since, how far they went, and the smallest step once died down. */
   rise?: number;
   rises?: number;
+  low?: number;
 }
 
 export const SWIPE_START: SwipeState = { mode: 'idle', dx: 0, last: Number.NEGATIVE_INFINITY };
 
 /**
  * One gesture changes one section, never two (21/11): after a change, the
- * rest of its momentum is never taken for new fingers. New fingers are only
- * looked for once the push is over (`LOCK_MS`), once the momentum has died
- * down to `CALM` of its peak, and then only on `RISES` growing steps in a row.
+ * rest of its momentum is never taken for new fingers. New fingers are looked
+ * for once the momentum has died down to `CALM` of its peak — fingers laid
+ * again stop it at once — and then only on `RISES` growing steps in a row that
+ * at least double the smallest one. A second swipe made while the first one's
+ * push is still running goes one section further, and a third one further
+ * still (21/11): no wait for the push to end.
  */
-const LOCK_MS = 500;
 const CALM = 0.4;
 const RISES = 3;
+const GROWTH = 2;
 
 /**
  * One wheel event of a gesture: the next state, whether the event is the
@@ -64,12 +67,12 @@ export function swipeStep(
     const size = Math.abs(e.dx);
     const prev = base.prev ?? size;
     const peak = Math.max(base.peak ?? size, size);
-    const settled = e.at - (base.usedAt ?? e.at) >= LOCK_MS;
-    const armed = base.armed === true || (settled && size <= peak * CALM);
+    const armed = base.armed === true || size <= peak * CALM;
+    const low = base.armed === true ? Math.min(base.low ?? size, size) : size;
     const growing = base.armed === true && size > prev && size >= 3;
     const rise = growing ? (base.rise ?? 0) + e.dx : 0;
     const rises = growing ? (base.rises ?? 0) + 1 : 0;
-    if (rises < RISES) return { state: { ...base, peak, prev: size, armed, rise, rises }, claim: true };
+    if (rises < RISES || size < low * GROWTH) return { state: { ...base, peak, prev: size, armed, rise, rises, low }, claim: true };
     return swipeStep({ mode: 'idle', dx: rise - e.dx, last: e.at }, e);
   }
   if (Math.abs(e.dx) <= Math.abs(e.dy)) return { state: base, claim: false };
@@ -78,7 +81,7 @@ export function swipeStep(
   const step: 1 | -1 = dx > 0 ? 1 : -1;
   // Nothing that way: no change, and the section does not follow (hooks/usePanes.ts).
   if (Math.abs(dx) < SWIPE_DISTANCE || !(e.can?.(step) ?? true)) return { state: { ...base, mode: 'swipe', dx }, claim: true };
-  return { state: { mode: 'done', dx: 0, last: e.at, usedAt: e.at, peak: Math.abs(e.dx), prev: Math.abs(e.dx), rise: 0, rises: 0 }, claim: true, step };
+  return { state: { mode: 'done', dx: 0, last: e.at, peak: Math.abs(e.dx), prev: Math.abs(e.dx), rise: 0, rises: 0 }, claim: true, step };
 }
 
 /** Whether something between `target` and `root` can scroll sideways the way `dx` goes. */

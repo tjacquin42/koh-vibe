@@ -95,6 +95,19 @@ describe('a new gesture during the momentum of the last one (21/11)', () => {
     expect(run([...swipe(1), ...swipe(-1)]).steps).toEqual([1, -1]);
   });
 
+  it('goes one section further for each swipe made while the last push still runs', () => {
+    // Fingers laid again stop the momentum at once: each swipe starts small, a few events after the last.
+    const quick = (sign: number) => [4, 8, 12, 16, 20, 22, 20, 16].map((d) => ({ dx: sign * d }));
+    expect(run([...quick(1), ...quick(1), ...quick(1)]).steps).toEqual([1, 1, 1]);
+    expect(run([...quick(1), ...quick(-1)]).steps).toEqual([1, -1]);
+    // All of it inside the push (460 ms): 24 events, 16 ms apart.
+    expect(quick(1).length * 3 * 16).toBeLessThan(460);
+  });
+
+  it('never takes a small bump of the dying momentum for new fingers', () => {
+    expect(run([...swipe(1).slice(0, 14), { dx: 3 }, { dx: 4 }, { dx: 5 }, { dx: 4 }, { dx: 3 }, { dx: 2 }]).steps).toEqual([1]);
+  });
+
   it('never moves twice for fingers that keep speeding up after the change', () => {
     expect(run([4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44].map((dx) => ({ dx }))).steps).toEqual([1]);
   });
