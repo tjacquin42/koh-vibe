@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ViewCtx } from '../context';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { artifactSections } from '../sections';
+import { artifactSections, projectOrder } from '../sections';
 import { Icon } from '../components/atoms/Icon';
 import { Section } from '../components/molecules/Section';
 import type { ArtifactDnd, ArtifactDrag } from '../components/organisms/artifact-dnd';
@@ -20,11 +20,22 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
   // project, onto « Other » to leave theirs, or onto « New project ».
   const [drag, setDrag] = useState<ArtifactDrag | undefined>();
   const [landed, setLanded] = useState<ArtifactDrag | undefined>();
+  // The projects as they are dragged (21/11), by their heading: shown at once, before the host writes it back.
+  const [moving, setMoving] = useState<string | undefined>();
+  const saved = snapshot.artifacts?.order;
+  // Kept until the host's order changes: to this one once written, or to another window's.
+  const savedKey = (saved ?? []).join('\n');
+  const [placed, setPlaced] = useState<{ order: string[]; over: string } | undefined>();
+  const order = placed !== undefined && placed.over === savedKey ? placed.order : (saved ?? []);
   const landedTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(landedTimer.current), []);
   // Dragging near the list's top or bottom edge scrolls it: the projects are many (hooks/useDragScroll.ts).
   const root = useRef<HTMLDivElement>(null);
-  useDragScroll(root, drag !== undefined);
+  useDragScroll(root, drag !== undefined || moving !== undefined);
+  // The folders made by hand show though they hold nothing — and though the list is empty.
+  const made = snapshot.artifacts?.folders ?? [];
+  const s = artifactSections(items, made, order);
+  const named = s.projects.flatMap((p) => (p.project === undefined ? [] : [p.project]));
   const dnd = useMemo<ArtifactDnd>(
     () => ({
       drag,
@@ -40,13 +51,19 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
         }
         void ctx.track(d.slug, ctx.act({ kind: 'artifact.project', slugs: [d.slug], project }));
       },
+      moving,
+      setMoving,
+      place: (name, target, after) => {
+        setMoving(undefined);
+        const next = projectOrder(named, name, target, after);
+        if (next.join('\n') === named.join('\n')) return;
+        setPlaced({ order: next, over: savedKey });
+        void ctx.act({ kind: 'artifact.orderProjects', order: next });
+      },
     }),
-    [drag, landed, ctx],
+    [drag, landed, moving, named.join('\n'), savedKey, ctx],
   );
   const bar = <CloudBar ctx={ctx} what="artifacts" at={snapshot.artifacts?.at} />;
-  // The folders made by hand show though they hold nothing — and though the list is empty.
-  const made = snapshot.artifacts?.folders ?? [];
-  const s = artifactSections(items, made);
   if (items.length === 0) {
     return (
       <div ref={root}>

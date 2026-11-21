@@ -22,6 +22,10 @@ import { ArtifactRow } from './ArtifactRow';
  * An artifact dragged onto it — its heading or its rows, folded or not — is
  * filed in it (16/11); onto « Other », it leaves its project.
  *
+ * A named project is dragged by its heading to another place among the
+ * projects (21/11): dropped on the top half of another, it lands before it;
+ * on the bottom half, after it; on « Other », after them all.
+ *
  * `made`: a folder made by hand (« New folder »), which shows though it holds
  * nothing — and, while it holds nothing, can be deleted from its menu. Any
  * other project goes away by itself with its last artifact.
@@ -34,23 +38,50 @@ export function ProjectSection({ ctx, project, items, dnd, made = false }: { ctx
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [over, setOver] = useState(false);
-  const { drag } = dnd;
+  /** Where a dragged project would land against this one: before it, after it. */
+  const [side, setSide] = useState<'before' | 'after' | undefined>();
+  const { drag, moving } = dnd;
   const accepts = drag !== undefined && dropsInto(drag.project, project);
+  const takes = moving !== undefined && moving !== project;
   // A drag that ends anywhere else leaves nothing lit here.
   useEffect(() => {
     if (drag === undefined) setOver(false);
   }, [drag]);
+  useEffect(() => {
+    if (moving === undefined) setSide(undefined);
+  }, [moving]);
+  const sideOf = (e: DragEvent<HTMLElement>): 'before' | 'after' => {
+    // Onto « Other »: after every project, which is right above it.
+    if (project === undefined) return 'before';
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.clientY > r.top + r.height / 2 ? 'after' : 'before';
+  };
   const sectionProps: HTMLAttributes<HTMLElement> = {
-    onDragOver: (e: DragEvent) => {
+    onDragOver: (e: DragEvent<HTMLElement>) => {
+      if (takes) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const at = sideOf(e);
+        if (side !== at) setSide(at);
+        return;
+      }
       if (!accepts) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       if (!over) setOver(true);
     },
     onDragLeave: (e: DragEvent) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      setOver(false);
+      setSide(undefined);
     },
-    onDrop: (e: DragEvent) => {
+    onDrop: (e: DragEvent<HTMLElement>) => {
+      if (takes) {
+        e.preventDefault();
+        setSide(undefined);
+        dnd.place(moving, project, sideOf(e) === 'after');
+        return;
+      }
       if (!accepts || drag === undefined) return;
       e.preventDefault();
       setOver(false);
@@ -100,15 +131,32 @@ export function ProjectSection({ ctx, project, items, dnd, made = false }: { ctx
   const here = dnd.landed !== undefined && dnd.landed.project === project;
   return (
     <Section
-      className={cx(over && accepts && 'drop-in', here && 'landed')}
+      className={cx(over && accepts && 'drop-in', takes && side === 'before' && 'drop-before', takes && side === 'after' && 'drop-after', moving === project && project !== undefined && 'dragging', here && 'landed')}
       title={title}
       count={items.length}
       folded={folded && !renaming}
       {...(renaming ? {} : { onToggle: () => ctx.toggle(key) })}
       tools={tools}
       sectionProps={sectionProps}
-      // A named project renames from its right-click menu too (15/11).
-      headProps={project === undefined ? undefined : { 'data-kv-menu': menuContext('kvnArtProject', { kvnName: project }) }}
+      // A named project renames from its right-click menu too (15/11), and is dragged by its heading — but while its name is typed (21/11).
+      headProps={
+        project === undefined
+          ? undefined
+          : {
+              'data-kv-menu': menuContext('kvnArtProject', { kvnName: project }),
+              ...(renaming
+                ? {}
+                : {
+                    draggable: true,
+                    onDragStart: (e: DragEvent<HTMLHeadingElement>) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', project);
+                      dnd.setMoving(project);
+                    },
+                    onDragEnd: () => dnd.setMoving(undefined),
+                  }),
+            }
+      }
     >
       {items.length === 0 && <p className="hint drop-hint">{t('artifacts.emptyProject')}</p>}
       {items.map((a) => (

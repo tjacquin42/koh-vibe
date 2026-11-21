@@ -200,6 +200,9 @@ describe('NewProject', () => {
       setDrag: (d) => calls.push(`setDrag ${d === undefined ? 'none' : d.slug}`),
       file: (d, p) => calls.push(`file ${d.slug} ${String(p)}`),
       landed: undefined,
+      moving: undefined,
+      setMoving: noop,
+      place: noop,
     };
     return { dnd, calls };
   };
@@ -428,7 +431,7 @@ describe('ArtifactRow', () => {
 
   it('is carried to another project by dragging, and let go where it falls', () => {
     const calls: unknown[] = [];
-    const dnd: ArtifactDnd = { drag: undefined, setDrag: (d) => calls.push(d), file: noop, landed: undefined };
+    const dnd: ArtifactDnd = { drag: undefined, setDrag: (d) => calls.push(d), file: noop, landed: undefined, moving: undefined, setMoving: noop, place: noop };
     const { m } = row(art({ project: 'nti' }), {}, dnd);
     const root = m.find((n) => n.props['draggable'] === true);
     const setData = vi.fn();
@@ -443,7 +446,7 @@ describe('ArtifactRow', () => {
   it('cannot be dragged without a drag to hand it to, nor while its name is typed', () => {
     const plain = row(art());
     expect(plain.m.all((n) => n.props['draggable'] === true)).toHaveLength(0);
-    const dnd: ArtifactDnd = { drag: undefined, setDrag: noop, file: noop, landed: undefined };
+    const dnd: ArtifactDnd = { drag: undefined, setDrag: noop, file: noop, landed: undefined, moving: undefined, setMoving: noop, place: noop };
     const { m } = row(art(), {}, dnd);
     menuOf(m);
     m.click(m.button(t('artifacts.rename')));
@@ -451,7 +454,7 @@ describe('ArtifactRow', () => {
   });
 
   it('marks the row being dragged, the one that just landed, and a busy one', () => {
-    const dnd: ArtifactDnd = { drag: { slug: 'a1', project: undefined }, setDrag: noop, file: noop, landed: undefined };
+    const dnd: ArtifactDnd = { drag: { slug: 'a1', project: undefined }, setDrag: noop, file: noop, landed: undefined, moving: undefined, setMoving: noop, place: noop };
     const dragging = row(art(), {}, dnd);
     expect(dragging.m.find((n) => n.props['draggable'] === true).props['className']).toContain('dragging');
     const busy = row(art(), { isBusy: (k: string) => k === 'a1' });
@@ -535,7 +538,7 @@ describe('ProjectSection', () => {
   ];
   const dndOf = (over: Partial<ArtifactDnd> = {}) => {
     const filed: string[] = [];
-    const dnd: ArtifactDnd = { drag: undefined, setDrag: noop, file: (d, p) => filed.push(`${d.slug}→${String(p)}`), landed: undefined, ...over };
+    const dnd: ArtifactDnd = { drag: undefined, setDrag: noop, file: (d, p) => filed.push(`${d.slug}→${String(p)}`), landed: undefined, moving: undefined, setMoving: noop, place: noop, ...over };
     return { dnd, filed };
   };
   const section = (project: string | undefined, dnd: ArtifactDnd, extra: { made?: boolean; items?: ArtifactView[]; ctx?: ReturnType<typeof testCtx> } = {}) => {
@@ -627,6 +630,38 @@ describe('ProjectSection', () => {
     expect(m.find((n) => n.tag === 'section').props['className']).toContain('drop-in');
     m.fire(m.find((n) => n.tag === 'section'), 'onDragLeave', { relatedTarget: null, currentTarget: { contains: () => false } });
     expect(m.find((n) => n.tag === 'section').props['className']).not.toContain('drop-in');
+  });
+
+  it('is dragged by its heading to another place, and lands before or after the project it is dropped on (21/11)', () => {
+    const moved: string[] = [];
+    const starts: (string | undefined)[] = [];
+    const head = section('nti', dndOf({ setMoving: (n) => starts.push(n) }).dnd).m;
+    const h2 = head.find((n) => n.tag === 'h2');
+    expect(h2.props['draggable']).toBe(true);
+    head.fire(h2, 'onDragStart', { dataTransfer: { effectAllowed: '', setData: noop } });
+    head.fire(h2, 'onDragEnd', {});
+    expect(starts).toEqual(['nti', undefined]);
+    const { m } = section('docs', dndOf({ moving: 'nti', place: (name, target, after) => moved.push(`${name}→${String(target)} ${after ? 'after' : 'before'}`) }).dnd);
+    const box = { getBoundingClientRect: () => ({ top: 100, height: 40 }) };
+    const top = { preventDefault: vi.fn(), dataTransfer: { dropEffect: '' }, clientY: 110, currentTarget: box };
+    m.fire(m.find((n) => n.tag === 'section'), 'onDragOver', top);
+    expect(top.preventDefault).toHaveBeenCalled();
+    expect(m.find((n) => n.tag === 'section').props['className']).toContain('drop-before');
+    m.fire(m.find((n) => n.tag === 'section'), 'onDragOver', { ...top, clientY: 130 });
+    expect(m.find((n) => n.tag === 'section').props['className']).toContain('drop-after');
+    m.fire(m.find((n) => n.tag === 'section'), 'onDrop', { ...top, clientY: 130 });
+    expect(moved).toEqual(['nti→docs after']);
+  });
+
+  it('takes no project dropped on itself, and has no handle for « Other » nor while renamed', () => {
+    const moved: string[] = [];
+    const { m } = section('nti', dndOf({ moving: 'nti', place: (name) => moved.push(name) }).dnd);
+    const e = { preventDefault: vi.fn(), dataTransfer: { dropEffect: '' }, clientY: 0, currentTarget: { getBoundingClientRect: () => ({ top: 0, height: 10 }) } };
+    m.fire(m.find((n) => n.tag === 'section'), 'onDragOver', e);
+    m.fire(m.find((n) => n.tag === 'section'), 'onDrop', e);
+    expect(e.preventDefault).not.toHaveBeenCalled();
+    expect(moved).toEqual([]);
+    expect(section(undefined, dndOf().dnd).m.find((n) => n.tag === 'h2').props['draggable']).toBeUndefined();
   });
 
   it('marks where an artifact just landed: its project, and its row', () => {

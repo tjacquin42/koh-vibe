@@ -8,6 +8,7 @@ import {
   fileIfUnfiled,
   groupByProject,
   knownProjects,
+  orderProjects,
   parseArtifactProjects,
   projectKey,
   projectOfArtifact,
@@ -283,5 +284,32 @@ describe('folders made by hand (16/11)', () => {
     const s = parseArtifactProjects(JSON.stringify({ version: 1, filed: {}, aliases: {}, folders: ['Veille', 3, ' ', 'veille', null, 'Docs'] }));
     expect(made(s)).toEqual(['Veille', 'Docs']);
     expect(made(parseArtifactProjects(JSON.stringify({ version: 1, folders: 'Veille' })))).toEqual([]);
+  });
+});
+
+describe('the order the projects were dragged into (21/11)', () => {
+  const placed = (s: ArtifactProjects): readonly string[] => s.order ?? [];
+
+  it('is kept by name, once each, and survives the file', () => {
+    const s = orderProjects(filed({ a: 'Shop' }), ['NTI', ' Shop ', 'nti', '']);
+    expect(placed(s)).toEqual(['NTI', 'Shop']);
+    expect(placed(parseArtifactProjects(serializeArtifactProjects(s)))).toEqual(['NTI', 'Shop']);
+  });
+
+  it('is not written until a project is dragged, nor once emptied', () => {
+    expect(serializeArtifactProjects(filed({ a: 'Shop' }))).not.toContain('order');
+    expect(serializeArtifactProjects(orderProjects(orderProjects(filed({}), ['Shop']), []))).not.toContain('order');
+  });
+
+  it('follows a project renamed, and forgets one emptied into « Other » or merged', () => {
+    const s = orderProjects(filed({ a: 'Shop', b: 'Docs', c: 'Veille' }), ['Veille', 'Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', 'Watch'))).toEqual(['Watch', 'Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', null))).toEqual(['Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', 'docs'))).toEqual(['Docs', 'Shop']);
+  });
+
+  it('forgets a folder made by hand once deleted', () => {
+    const s = orderProjects(createFolder(filed({ a: 'Shop' }), 'Veille'), ['Veille', 'Shop']);
+    expect(placed(deleteFolder(s, 'Veille'))).toEqual(['Shop']);
   });
 });

@@ -15,6 +15,7 @@ import type {
   UsageWindowView,
 } from '../../src/shared/protocol';
 import { folderIndex, UNFILED } from './format';
+import { moveBefore } from './order';
 import type { Translate } from './i18n';
 
 /** How many unpinned artifacts « Recent » shows; the rest are under their project. */
@@ -23,16 +24,17 @@ export const RECENT_COUNT = 8;
 export interface ArtifactSections {
   pinned: ArtifactView[];
   recent: ArtifactView[];
-  /** By project name, A→Z; « Other » (`undefined`) last. */
+  /** In the order they were dragged into, then by name, A→Z; « Other » (`undefined`) last. */
   projects: { project: string | undefined; items: ArtifactView[] }[];
 }
 
 /**
  * The items arrive sorted by the host (pinned first, then most recent).
  * `folders`: the folders made by hand, which show among the projects even
- * while they hold nothing (16/11).
+ * while they hold nothing (16/11). `order`: the projects as they were dragged
+ * (21/11) — one it does not name comes after, by name.
  */
-export function artifactSections(items: readonly ArtifactView[], folders: readonly string[] = []): ArtifactSections {
+export function artifactSections(items: readonly ArtifactView[], folders: readonly string[] = [], order: readonly string[] = []): ArtifactSections {
   const pinned = items.filter((a) => a.pinned);
   const recent = items.filter((a) => !a.pinned).slice(0, RECENT_COUNT);
   const byProject = new Map<string | undefined, ArtifactView[]>();
@@ -40,10 +42,27 @@ export function artifactSections(items: readonly ArtifactView[], folders: readon
   for (const folder of folders) if (!byProject.has(folder)) byProject.set(folder, []);
   const named = [...byProject.entries()]
     .filter((e): e is [string, ArtifactView[]] => e[0] !== undefined)
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }))
+    .sort(([a], [b]) => placeOf(order, a) - placeOf(order, b) || a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }))
     .map(([project, list]) => ({ project, items: list }));
   const other = byProject.get(undefined);
   return { pinned, recent, projects: other === undefined ? named : [...named, { project: undefined, items: other }] };
+}
+
+/** Where a project stands in a dragged order: past the end when it is not in it. */
+function placeOf(order: readonly string[], project: string): number {
+  const i = order.indexOf(project);
+  return i < 0 ? order.length : i;
+}
+
+/**
+ * The projects' order once `name` is dropped on `target`'s `after` side — or,
+ * with no `target` (« Other »), at the end of them.
+ */
+export function projectOrder(projects: readonly string[], name: string, target: string | undefined, after: boolean): string[] {
+  if (target === undefined) return moveBefore(projects, name, undefined);
+  const rest = projects.filter((p) => p !== name);
+  const before = after ? rest[rest.indexOf(target) + 1] : target;
+  return moveBefore(projects, name, before);
 }
 
 /**

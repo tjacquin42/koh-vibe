@@ -290,8 +290,11 @@ export interface Snapshot {
   /** Ids of the sessions in no folder, in display order. */
   unfiled: string[];
   usage?: UsageView;
-  /** `folders`: the artifacts folders made by hand, which show even while they hold nothing; absent when there is none. */
-  artifacts: { at: number; items: ArtifactView[]; folders?: string[] } | undefined;
+  /**
+   * `folders`: the artifacts folders made by hand, which show even while they hold nothing; absent when there is none.
+   * `order`: the projects in the order they were dragged into (21/11), by name; absent until one is dragged.
+   */
+  artifacts: { at: number; items: ArtifactView[]; folders?: string[]; order?: string[] } | undefined;
   routines: { at: number; items: RoutineView[] } | undefined;
   closed: ClosedView[];
   settings: SettingsView;

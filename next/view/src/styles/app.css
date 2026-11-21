@@ -429,6 +429,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .drag-row.drop-line::before { content: ''; position: absolute; left: 8px; right: 8px; top: -1px; height: 2px; border-radius: 1px; background: var(--accent); }
 .group.drop-in { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 10px; outline: 1px dashed var(--accent); outline-offset: -1px; }
 .group.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.group.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.group.dragging > .sec { opacity: 0.4; }
 .drop-hint { font-style: italic; }
 /* Artifacts carried from a project to another (16/11). Little motion in this
    tab, on purpose: the row carried dims, the project under it lights up, and

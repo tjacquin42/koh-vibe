@@ -44,6 +44,8 @@ export const LANGUAGE_CHOICES = ['auto', 'en', 'fr'] as const;
 export type LanguageChoice = (typeof LANGUAGE_CHOICES)[number];
 
 export const MAX_NAME = 80;
+/** The most projects an order of the Artifacts tab names. */
+export const MAX_PROJECTS = 500;
 /** claude.ai caps nothing we know of; a title longer than this is a paste gone wrong. */
 export const MAX_TITLE = 200;
 /** claude.ai's slugs, as V1 accepts them (artifacts/model.ts): they end up in a URL. */
@@ -105,6 +107,8 @@ export type Action =
   /** An artifacts folder made by hand, which exists before anything is filed in it (16/11) — and its removal, which files nothing. */
   | { kind: 'artifact.newProject'; name: string }
   | { kind: 'artifact.deleteProject'; name: string }
+  /** The projects of the Artifacts tab in the order they were dragged into (21/11), by name. */
+  | { kind: 'artifact.orderProjects'; order: string[] }
   /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
   | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
   | { kind: 'artifact.copyLink'; slug: string }
@@ -273,6 +277,12 @@ export function parseAction(raw: unknown): Action | undefined {
       const from = cleanName(raw['from']);
       const to = cleanName(raw['to']);
       return list === undefined || from === undefined || to === undefined ? undefined : { kind: 'artifact.renameProject', from, to, slugs: list };
+    }
+    case 'artifact.orderProjects': {
+      const order = raw['order'];
+      if (!Array.isArray(order) || order.length > MAX_PROJECTS) return undefined;
+      const names = order.map(cleanName);
+      return names.every((n): n is string => n !== undefined) ? { kind: 'artifact.orderProjects', order: names } : undefined;
     }
     case 'artifact.project': {
       const list = slugs(raw['slugs']);

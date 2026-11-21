@@ -19,6 +19,7 @@ import {
   routineSections,
   timelineLanes,
   dropsInto,
+  projectOrder,
   usageLines,
   inTone,
 } from '../view/src/sections';
@@ -113,6 +114,20 @@ describe('artifact sections', () => {
     ]);
     // With nothing at all on claude.ai's list, the folders still show.
     expect(artifactSections([], ['Veille']).projects).toEqual([{ project: 'Veille', items: [] }]);
+  });
+
+  it('puts the projects in the order they were dragged into, the others after by name, « Other » last (21/11)', () => {
+    const items = [a('r1', { project: 'alpha' }), a('r2'), a('r3', { project: 'zed' }), a('r4', { project: 'Beta' })];
+    expect(artifactSections(items, ['Veille'], ['zed', 'Veille', 'gone']).projects.map((p) => p.project)).toEqual(['zed', 'Veille', 'alpha', 'Beta', undefined]);
+  });
+
+  it('moves a dropped project before or after the one it lands on, or after them all', () => {
+    const list = ['a', 'b', 'c', 'd'];
+    expect(projectOrder(list, 'a', 'c', false)).toEqual(['b', 'a', 'c', 'd']);
+    expect(projectOrder(list, 'a', 'c', true)).toEqual(['b', 'c', 'a', 'd']);
+    expect(projectOrder(list, 'd', 'a', false)).toEqual(['d', 'a', 'b', 'c']);
+    expect(projectOrder(list, 'b', 'd', true)).toEqual(['a', 'c', 'd', 'b']);
+    expect(projectOrder(list, 'a', undefined, false)).toEqual(['b', 'c', 'd', 'a']);
   });
 
   it('caps the recent list', () => {

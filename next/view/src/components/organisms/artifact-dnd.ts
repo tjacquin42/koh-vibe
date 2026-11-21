@@ -15,4 +15,9 @@ export interface ArtifactDnd {
   file(d: ArtifactDrag, project: string | null): void;
   /** The artifact that just landed, for the little motion that shows where; `undefined` once shown, or with animations off. */
   landed: ArtifactDrag | undefined;
+  /** A project dragged by its heading to another place (21/11), by name. */
+  moving: string | undefined;
+  setMoving(name: string | undefined): void;
+  /** Puts it on `target`'s `after` side — at the end with no `target`. */
+  place(name: string, target: string | undefined, after: boolean): void;
 }
