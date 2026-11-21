@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { SIDEBAR_TABS, type ActivityItemView, type SessionSheetView, type Snapshot } from '../../src/shared/protocol';
 import { ArtifactRow } from '../src/components/organisms/ArtifactRow';
 import { Header } from '../src/components/organisms/Header';
+import type { ViewCtx } from '../src/context';
+import { WaitingCount } from '../src/components/organisms/WaitingCount';
+import { waitingIn } from '../src/sections';
 import { Hungriest } from '../src/components/organisms/Hungriest';
 import { Inbox } from '../src/components/organisms/Inbox';
 import { SessionRow } from '../src/components/organisms/SessionRow';
@@ -120,7 +123,7 @@ describe('the cockpit', () => {
   });
 
   it('counts the chosen folder only', () => {
-    const counts = (folder: string | null): string[] => [...draw({ ...DEFAULT_UI, cockpit: { ...DEFAULT_UI.cockpit, folder } }).matchAll(/class="count tone-\w+"><b>(\d+)<\/b>/g)].map((m) => m[1] ?? '');
+    const counts = (folder: string | null): string[] => [...draw({ ...DEFAULT_UI, cockpit: { ...DEFAULT_UI.cockpit, folder } }).matchAll(/class="count tone-\w+[^"]*"[^>]*>(?:<span class="count-ink">)?<b>(\d+)<\/b>/g)].map((m) => m[1] ?? '');
     expect(counts(null)).toEqual(['1', '1', '1']);
     // Shop holds the one that waits and the one that finished; Backend the one that works.
     expect(counts('f1')).toEqual(['1', '0', '1']);
@@ -152,22 +155,39 @@ describe('what never shows', () => {
   });
 });
 
-describe('« For you »', () => {
-  it('lists what waits, and nothing at all when nothing does', () => {
-    expect(html(<Inbox ctx={testCtx()} />)).toContain('Rename the export button');
+describe('« waiting for you » (21/11)', () => {
+  const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} waiting={waitingIn(ctx.snapshot.sessions).filter((s) => !ctx.isDismissed(s.id, s.lastEventAt))} />);
+
+  it('lists what waits as cards, and nothing at all when nothing does', () => {
+    expect(cards(testCtx())).toContain('Rename the export button');
     const snap = sample();
     const quiet = { ...snap, sessions: snap.sessions.map((s) => ({ ...s, status: 'idle' as const })) };
-    expect(html(<Inbox ctx={testCtx({ snapshot: quiet })} />)).toBe('');
-  });
-
-  it('keeps a card closed with its × closed, until the conversation moves again', () => {
-    const s1 = sessionOf(sample(), 's1');
-    const closed = testCtx({ isDismissed: (id, at) => id === 's1' && at === s1.lastEventAt });
-    expect(html(<Inbox ctx={closed} />)).toBe('');
+    expect(cards(testCtx({ snapshot: quiet }))).toBe('');
   });
 
   it('says what it waits on — the tool and its command', () => {
-    expect(html(<Inbox ctx={testCtx()} />)).toContain('<b>Bash</b> pnpm test');
+    expect(cards(testCtx())).toContain('<b>Bash</b> pnpm test');
+  });
+
+  it('darkens the count, with its rainbow, while something waits — and no longer shows a « For you » section', () => {
+    const ctx = testCtx();
+    const out = html(<WaitingCount ctx={ctx} sessions={ctx.snapshot.sessions} />);
+    expect(out).toContain('count tone-wait asking');
+    expect(out).toContain('aria-haspopup="dialog"');
+    expect(html(<SessionsTab ctx={ctx} />)).not.toContain('For you');
+    expect(out).toContain('asking moving');
+    // Without the Animations setting, darkened still, no rainbow.
+    expect(html(<WaitingCount ctx={testCtx({ animate: false })} sessions={ctx.snapshot.sessions} />)).not.toContain('moving');
+  });
+
+  it('stays plain when nothing waits, or every card was closed with its ×', () => {
+    const s1 = sessionOf(sample(), 's1');
+    const closed = testCtx({ isDismissed: (id, at) => id === 's1' && at === s1.lastEventAt });
+    const out = html(<WaitingCount ctx={closed} sessions={closed.snapshot.sessions} />);
+    expect(out).not.toContain('asking');
+    expect(out).toContain('aria-disabled="true"');
+    // The number still counts what waits: closing a card hides it, it does not answer it.
+    expect(out).toMatch(/<b>1<\/b>/);
   });
 });
 

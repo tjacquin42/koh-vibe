@@ -12,7 +12,6 @@ import { ClosedRow } from '../components/organisms/ClosedRow';
 import type { Dnd, Drag } from '../components/organisms/folder-dnd';
 import { FolderSection } from '../components/organisms/FolderSection';
 import { HooksMissing } from '../components/organisms/HooksMissing';
-import { Inbox } from '../components/organisms/Inbox';
 import { NewFolder } from '../components/organisms/NewFolder';
 
 /** The fold key of the Archives — its own (16/11), so no fold kept from before they could fold again applies. */
@@ -74,7 +73,6 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   return (
     <div ref={root} className="flip-root">
       {snapshot.hooksInstalled === false && <HooksMissing ctx={ctx} />}
-      <Inbox ctx={ctx} />
       {snapshot.folders.map((f) => (
         <FolderSection key={f.id} ctx={ctx} f={f} byId={byId} dnd={dnd} />
       ))}

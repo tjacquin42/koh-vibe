@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Counts } from '../../format';
 import type { Translate } from '../../i18n';
 
@@ -6,12 +7,13 @@ import type { Translate } from '../../i18n';
  * list and the cockpit's views (16/11): one component for both, in English in
  * every language, as the cockpit's views are named. The number and its name
  * on one line, small; on a bar too narrow, the name goes under its number
- * rather than being cut.
+ * rather than being cut. `waiting` takes the first one's place: the count
+ * that shows what waits on hover (organisms/WaitingCount.tsx).
  */
-export function StatusCounts({ counts, t }: { counts: Counts; t: Translate }) {
+export function StatusCounts({ counts, t, waiting }: { counts: Counts; t: Translate; waiting?: ReactNode }) {
   return (
     <div className="counts">
-      <StatusCount n={counts.waiting} label={t('cockpit.count.waiting')} tone="wait" />
+      {waiting ?? <StatusCount n={counts.waiting} label={t('cockpit.count.waiting')} tone="wait" />}
       <StatusCount n={counts.running} label={t('cockpit.count.running')} tone="run" />
       <StatusCount n={counts.done} label={t('cockpit.count.done')} tone="done" />
     </div>

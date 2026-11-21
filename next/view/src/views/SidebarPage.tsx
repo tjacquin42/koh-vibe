@@ -6,6 +6,7 @@ import type { UiState } from '../ui-state';
 import type { IconName } from '../components/atoms/Icon';
 import { SearchBox } from '../components/molecules/SearchBox';
 import { TabBar } from '../components/molecules/TabBar';
+import { WaitingCount } from '../components/organisms/WaitingCount';
 import { Header } from '../components/organisms/Header';
 import { UsageStrip } from '../components/organisms/UsageStrip';
 import { ArtifactsTab } from './Artifacts';
@@ -38,6 +39,7 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
         snapshot={snapshot}
         surface="sidebar"
         version={version}
+        waiting={<WaitingCount ctx={ctx} sessions={snapshot.sessions} />}
         tools={{
           onCockpit: () => ctx.bridge.post({ type: 'openCockpit' }),
           onNew: () => void ctx.track(NEW, ctx.act({ kind: 'session.new' }), 4_000),

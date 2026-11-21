@@ -91,6 +91,31 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .count.tone-wait b { color: var(--wait); }
 .count.tone-run b { color: var(--run); }
 .count.tone-done b { color: var(--done); }
+/* « waiting for you » (organisms/WaitingCount.tsx, 21/11): a button that lists what waits on
+   hover. While something does, it darkens like a notification, and the name's rainbow
+   (.brand-band) runs through its text once every 30 seconds. */
+.count-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.count-wrap > .count { flex: 1 1 auto; font: inherit; color: var(--text); text-align: left; cursor: default; }
+.count-ink { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 5px; min-width: 0; }
+.count.asking { cursor: pointer; background: color-mix(in srgb, var(--wait) 34%, var(--bg)); border-color: var(--wait); transition: background 0.2s, border-color 0.2s; }
+.count.asking:hover, .count.asking[aria-expanded="true"] { background: color-mix(in srgb, var(--wait) 44%, var(--bg)); }
+.count.asking:focus-visible { outline: 2px solid var(--wait); outline-offset: 2px; }
+.count.asking b, .count.asking span { color: var(--text); }
+.count.asking.moving .count-ink {
+  background: linear-gradient(90deg, var(--text) 0%, var(--text) 36%, #ff7a7a 40%, #ff9e5e 43%, #f5d06b 46%, #7ee0a8 50%, #5cc8f0 54%, #8a9bff 57%, #f59ac8 60%, var(--text) 64%, var(--text) 100%);
+  background-size: 300% 100%; background-position: 100% 0;
+  -webkit-background-clip: text; background-clip: text;
+  animation: wait-rainbow 30s infinite;
+}
+.count.asking.moving .count-ink b, .count.asking.moving .count-ink span { color: transparent; }
+@keyframes wait-rainbow {
+  0% { background-position: 100% 0; animation-timing-function: cubic-bezier(.4, 0, .2, 1); }
+  2.5%, 100% { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) { .count.asking.moving .count-ink { animation: none; } }
+.popover:has(> .waiting-pop) { width: min(320px, calc(100vw - 16px)); }
+.waiting-pop { padding: 6px 2px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; }
+.waiting-pop .inbox { max-height: inherit; }
 
 
 .body { position: relative; flex: 1; min-height: 0; overflow: auto; overflow-x: hidden; padding: 0 6px 12px; }
@@ -287,7 +312,6 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .ask-go:focus-visible { outline: 2px solid var(--wait); outline-offset: 2px; }
 .ask .q { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .ask .q b { color: var(--wait); font-weight: 600; margin-right: 4px; }
-.app:not(.surface-cockpit) .inbox { margin-top: 6px; }
 
 .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
 .tile { display: flex; flex-direction: column; gap: 4px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-align: left; color: inherit; min-width: 0; }

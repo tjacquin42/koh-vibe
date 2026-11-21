@@ -1,28 +1,32 @@
+import type { SessionView } from '../../../../src/shared/protocol';
 import type { ViewCtx } from '../../context';
 import { formatAge, isQuietTool, toolLabel } from '../../format';
-import { waitingForYou } from '../../sections';
 import { Dot } from '../atoms/Icon';
 import { IconButton } from '../atoms/IconButton';
 import { Pressable } from '../atoms/Pressable';
 import { SessionName } from '../atoms/SessionName';
 
 /**
- * « For you »: the conversations that wait for an answer, the one that has
- * waited longest first. The whole card goes to the conversation (15/11) and
- * loads until it is in front; its × closes it until the conversation moves
- * again.
+ * The conversations that wait for an answer, as cards — under the « waiting
+ * for you » count, on hover (21/11; they were a « For you » section over the
+ * list until then). The whole card goes to the conversation (15/11) and loads
+ * until it is in front; its × closes it until the conversation moves again.
  */
-export function Inbox({ ctx }: { ctx: ViewCtx }) {
+export function Inbox({ ctx, waiting, onOpen }: { ctx: ViewCtx; /** Already sorted, the closed ones left out. */ waiting: readonly SessionView[]; onOpen?(): void }) {
   const { t, now } = ctx;
-  const waiting = waitingForYou(ctx.snapshot).filter((s) => !ctx.isDismissed(s.id, s.lastEventAt));
   if (waiting.length === 0) return null;
   return (
-    <section className="inbox" aria-label={t('inbox.title')}>
-      <h2 className="sec">
-        {t('inbox.title')} <span className="n">{waiting.length}</span>
-      </h2>
+    <div className="inbox">
       {waiting.map((s) => (
-        <Pressable key={s.id} className="ask ask-go" busy={ctx.reopening.has(s.id)} onPress={() => ctx.open(s.id)}>
+        <Pressable
+          key={s.id}
+          className="ask ask-go"
+          busy={ctx.reopening.has(s.id)}
+          onPress={() => {
+            ctx.open(s.id);
+            onOpen?.();
+          }}
+        >
           <div className="ask-h">
             {/* It turns as it does in the list (15/11): the same conversation, the same wait. */}
             <Dot tone="wait" animate={ctx.animate} />
@@ -50,6 +54,6 @@ export function Inbox({ ctx }: { ctx: ViewCtx }) {
           )}
         </Pressable>
       ))}
-    </section>
+    </div>
   );
 }

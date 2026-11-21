@@ -130,7 +130,12 @@ export function boardColumns(snap: Snapshot, folder: string | undefined, where: 
 
 /** C: what is waiting for you — the longest-waiting first, since it has waited longest. */
 export function waitingForYou(snap: Snapshot): SessionView[] {
-  return snap.sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt);
+  return waitingIn(snap.sessions);
+}
+
+/** The same, among some conversations only — a folder's, in the cockpit. */
+export function waitingIn(sessions: readonly SessionView[]): SessionView[] {
+  return sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt);
 }
 
 export type CountMode = 'fresh' | 'all' | 'weighted';

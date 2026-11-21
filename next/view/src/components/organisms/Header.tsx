@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Snapshot, Surface } from '../../../../src/shared/protocol';
 import { countsOf } from '../../format';
 import type { Translate } from '../../i18n';
@@ -21,7 +22,23 @@ export interface HeaderTools {
  * which are not about them (14/11). The cockpit's: its title, and nothing
  * else — it counts its chosen folder itself, under its folders (CockpitTop).
  */
-export function Header({ t, snapshot, surface, version, tools }: { t: Translate; snapshot: Snapshot; surface: Surface; /** Shown when it is one (not « preview »). */ version: string; tools?: HeaderTools }) {
+export function Header({
+  t,
+  snapshot,
+  surface,
+  version,
+  tools,
+  waiting,
+}: {
+  t: Translate;
+  snapshot: Snapshot;
+  surface: Surface;
+  /** Shown when it is one (not « preview »). */
+  version: string;
+  tools?: HeaderTools;
+  /** The « waiting for you » count that lists what waits (organisms/WaitingCount.tsx). */
+  waiting?: ReactNode;
+}) {
   const sidebar = surface === 'sidebar';
   return (
     <header className="head">
@@ -39,7 +56,7 @@ export function Header({ t, snapshot, surface, version, tools }: { t: Translate;
           </span>
         )}
       </div>
-      {tools !== undefined && !tools.settingsOpen && <StatusCounts counts={countsOf(snapshot.sessions)} t={t} />}
+      {tools !== undefined && !tools.settingsOpen && <StatusCounts counts={countsOf(snapshot.sessions)} t={t} waiting={waiting} />}
     </header>
   );
 }
