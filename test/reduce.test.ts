@@ -74,6 +74,22 @@ describe('reduce', () => {
     expect(c?.pendingPermission).toBeUndefined();
   });
 
+  it('rests, seen, when the question is closed with its × — the tool interrupted (21/11)', () => {
+    const a = reduce(undefined, ev('PreToolUse', { toolName: 'AskUserQuestion' }));
+    const b = reduce(a, ev('PermissionRequest', { toolName: 'AskUserQuestion' }));
+    const c = reduce(b, ev('PostToolUseFailure', { toolName: 'AskUserQuestion', interrupted: true }));
+    expect(c?.status).toBe('idle');
+    expect(c?.pendingPermission).toBeUndefined();
+    expect(c?.currentAction).toBeUndefined();
+    expect(c?.toolCount).toBe(1);
+  });
+
+  it('goes on working when the tool waited on fails on its own, and keeps waiting for another', () => {
+    const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
+    expect(reduce(a, ev('PostToolUseFailure', { toolName: 'Bash' }))?.status).toBe('running');
+    expect(reduce(a, ev('PostToolUseFailure', { toolName: 'Read' }))?.status).toBe('waiting');
+  });
+
   it('keeps waiting when another tool finishes meanwhile — the one asked about has not run', () => {
     const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
     const b = reduce(a, ev('PostToolUse', { toolName: 'Read' }));

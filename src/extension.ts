@@ -68,6 +68,7 @@ import { acknowledgeClickedSession, acknowledgeVisibleSessions } from './focus/a
 import { closeSessionHere, needsConfirmation, requestCloseSession, sleepSessionHere } from './close/close';
 import { claudeTabsOf, closeSessionTab, vscodeTabs, type CloseOutcome } from './close/tabs';
 import { countKohEntries } from './hooks/installer';
+import { upgradeInstalledHooks } from './hooks/upgrade';
 import type { Session } from './events/types';
 import { GUARD_TIMEOUT_MS, ReentrantGuard } from './lib/reentrant-guard';
 
@@ -135,6 +136,8 @@ export async function activate(context: vscode.ExtensionContext, views: ViewHost
   // costs everything.
   void offerSkillUpdate(skillPaths(context.extensionPath, home));
   const dirs = spoolDirs(home);
+  // Installed hooks brought up to this version's events (hooks/upgrade.ts), in the background.
+  void upgradeInstalledHooks(join(homedir(), '.claude', 'settings.json'), dirs.backups);
   const groupsPath = groupsFile(home);
   const settingsPath = settingsFile(home);
   // Given once, passed everywhere: the package's path is only known from here,

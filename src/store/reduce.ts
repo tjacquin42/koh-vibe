@@ -95,6 +95,24 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
         }
       }
       break;
+    case 'PostToolUseFailure':
+      next.toolCount = base.toolCount + 1;
+      if (!late) {
+        delete next.inFlightSince;
+        delete next.currentAction;
+        if (ev.interrupted === true) {
+          // Stopped by the user — a question closed with its ×, Escape (21/11):
+          // the turn is over, under their eyes. At rest, and seen: no Stop
+          // comes after an interruption to say so.
+          next.status = 'idle';
+          delete next.pendingPermission;
+        } else if (base.status === 'waiting' && (base.pendingPermission === undefined || base.pendingPermission.tool === ev.toolName)) {
+          // Failed on its own — a permission refused among others: Claude goes on.
+          next.status = 'running';
+          delete next.pendingPermission;
+        }
+      }
+      break;
     case 'PermissionRequest':
       if (!late) {
         next.status = 'waiting';

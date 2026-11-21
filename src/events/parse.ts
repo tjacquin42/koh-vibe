@@ -127,5 +127,6 @@ export function parseSpoolFile(raw: string): SpoolEvent | undefined {
     agentId: nonEmptyString(payload['agent_id']),
     agentType: nonEmptyString(payload['agent_type']),
     ...(artifactId === undefined ? {} : { artifactId }),
+    ...(event === 'PostToolUseFailure' && payload['is_interrupt'] === true ? { interrupted: true as const } : {}),
   };
 }

@@ -6,6 +6,10 @@ export const HOOK_EVENTS = [
   'UserPromptSubmit',
   'PreToolUse',
   'PostToolUse',
+  // A tool that failed or was stopped (21/11): `is_interrupt` when the user
+  // stopped it — the × on a question, Escape. Without it, a question closed
+  // that way kept its conversation « waiting » for good.
+  'PostToolUseFailure',
   'PermissionRequest',
   'Notification',
   'Stop',
@@ -34,6 +38,8 @@ export interface SpoolEvent {
   toolName?: string;
   toolTarget?: string;
   message?: string;
+  /** On PostToolUseFailure: the user stopped the tool (`is_interrupt`), rather than it failing on its own. */
+  interrupted?: true;
   /**
    * The subagent that made this tool call, when one did.
    *

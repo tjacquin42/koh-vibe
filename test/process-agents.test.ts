@@ -81,6 +81,13 @@ describe('AgentIndex', () => {
     expect(index.markOf('pnpm dev')).toBeUndefined();
   });
 
+  it('forgets a command that failed or was stopped, too (21/11)', () => {
+    const index = new AgentIndex();
+    index.note(ev({}));
+    index.note(ev({ event: 'PostToolUseFailure', interrupted: true }));
+    expect(index.markOf('pnpm dev')).toBeUndefined();
+  });
+
   it('matches a command whose spacing differs from the spool text', () => {
     const index = new AgentIndex();
     index.note(ev({ toolTarget: 'echo a b' }));

@@ -345,3 +345,47 @@ export function uninstallStatusLine(settings: unknown): unknown {
   root['statusLine'] = { type: 'command', command: previous };
   return root;
 }
+
+/** The bridge our installed entries call, read off the first one found; `undefined` when none is. */
+function installedBridge(hooks: Record<string, unknown>): string | undefined {
+  for (const value of Object.values(hooks)) {
+    if (!Array.isArray(value)) continue;
+    for (const entry of value) {
+      if (!isMatcher(entry)) continue;
+      for (const h of entry.hooks) {
+        if (!isOurs(h) || !isRecord(h) || typeof h['command'] !== 'string') continue;
+        const bridge = OUR_COMMAND_RE.exec(h['command'])?.[1];
+        if (bridge !== undefined) return bridge;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Our hooks, brought up to an event they were installed without (21/11:
+ * `PostToolUseFailure`) — the settings with our entry added for each event
+ * that lacks one, or `undefined` when there is nothing to do: our hooks are
+ * not installed (that stays a choice, made by « Install hooks »), or they
+ * already cover every event. Nothing else moves: not the other events'
+ * entries, not the status line, not anyone else's hooks. An event whose
+ * value has a shape we do not know is left alone, as `installHooks` does.
+ */
+export function upgradeHooks(settings: unknown): unknown {
+  if (!isRecord(settings) || !isRecord(settings['hooks'])) return undefined;
+  const hooks: Record<string, unknown> = { ...settings['hooks'] };
+  const bridge = installedBridge(hooks);
+  if (bridge === undefined) return undefined;
+  let added = false;
+  for (const event of HOOK_EVENTS) {
+    const value = hooks[event];
+    if (value !== undefined && !Array.isArray(value)) continue;
+    const list: unknown[] = Array.isArray(value) ? value : [];
+    if (list.some((e) => isMatcher(e) && e.hooks.some(isOurs))) continue;
+    const command = `/bin/sh -c '[ -x "${bridge}" ] && "${bridge}" ${event}; exit 0'`;
+    const ourEntry: HookMatcher = { matcher: '*', hooks: [{ type: 'command', command }] };
+    hooks[event] = [...list, ourEntry];
+    added = true;
+  }
+  return added ? { ...settings, hooks } : undefined;
+}
