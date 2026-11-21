@@ -2,6 +2,7 @@ import { memo, useMemo, useRef, useState } from 'react';
 import type { SidebarTab } from '../../../src/shared/protocol';
 import type { ViewCtx } from '../context';
 import { usePanes } from '../hooks/usePanes';
+import { usePeekGroup } from '../hooks/usePeekGroup';
 import { stepIn, useSwipe } from '../hooks/useSwipe';
 import { search } from '../search';
 import type { UiState } from '../ui-state';
@@ -34,6 +35,8 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
   const [query, setQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const results = useMemo(() => search(snapshot, query), [snapshot, query]);
+  // The three counts share one bubble (hooks/usePeekGroup.ts).
+  const peeks = usePeekGroup();
   // Two fingers left or right: the next or the previous tab, pushed in as macOS moves
   // between its spaces (21/11) — and the same push on a click on a tab.
   const panel = useRef<HTMLElement>(null);
@@ -58,7 +61,7 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
         snapshot={snapshot}
         surface="sidebar"
         version={version}
-        peek={(tone) => <StatusPeek ctx={ctx} tone={tone} sessions={snapshot.sessions} />}
+        peek={(tone) => <StatusPeek ctx={ctx} tone={tone} sessions={snapshot.sessions} group={peeks} />}
         tools={{
           onCockpit: () => ctx.bridge.post({ type: 'openCockpit' }),
           onNew: () => void ctx.track(NEW, ctx.act({ kind: 'session.new' }), 4_000),

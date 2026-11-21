@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { cx } from '../../lib/cx';
 
 /**
  * A small window floating by the button that opened it, over whatever is
@@ -34,7 +35,22 @@ export function placeAt(at: Point, width: number, height: number, win: { width: 
     : { bottom: win.height - at.y, left, maxHeight: above, transformOrigin: 'bottom left' };
 }
 
-export function Popover({ label, onClose, at, role = 'dialog', children }: { label: string; onClose(): void; at?: Point; role?: 'dialog' | 'menu'; children: ReactNode }) {
+export function Popover({
+  label,
+  onClose,
+  at,
+  role = 'dialog',
+  leaving = false,
+  children,
+}: {
+  label: string;
+  onClose(): void;
+  at?: Point;
+  role?: 'dialog' | 'menu';
+  /** Fading out, about to go: it answers nothing more (21/11). */
+  leaving?: boolean;
+  children: ReactNode;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<CSSProperties>({ visibility: 'hidden' });
   useLayoutEffect(() => {
@@ -93,7 +109,7 @@ export function Popover({ label, onClose, at, role = 'dialog', children }: { lab
     };
   }, [onClose, at]);
   return (
-    <div ref={box} className={at === undefined ? 'popover' : 'popover at-point'} role={role} aria-label={label} style={place}>
+    <div ref={box} className={cx('popover', at !== undefined && 'at-point', leaving && 'leaving')} role={role} aria-label={label} aria-hidden={leaving || undefined} style={place}>
       {children}
     </div>
   );

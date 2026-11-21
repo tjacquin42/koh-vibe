@@ -6,6 +6,7 @@ import { ArtifactRow } from '../src/components/organisms/ArtifactRow';
 import { Header } from '../src/components/organisms/Header';
 import type { ViewCtx } from '../src/context';
 import { StatusPeek } from '../src/components/organisms/StatusPeek';
+import { onEnter, type PeekGroup, type PeekState } from '../src/hooks/usePeekGroup';
 import { inTone } from '../src/sections';
 import { Hungriest } from '../src/components/organisms/Hungriest';
 import { Inbox } from '../src/components/organisms/Inbox';
@@ -155,6 +156,26 @@ describe('what never shows', () => {
   });
 });
 
+/** A bubble group frozen in `state`: what the counts draw for it. */
+const group = (state: PeekState = {}): PeekGroup => ({ state, enter: noop, leave: noop, toggle: noop, close: noop });
+
+describe('the counts share one bubble (21/11)', () => {
+  it('opens after a pause with none open, at once going from one to the next, never for an empty count', () => {
+    expect(onEnter({}, true)).toBe('later');
+    expect(onEnter({ open: 'wait' }, true)).toBe('now');
+    expect(onEnter({ leaving: 'run' }, true)).toBe('now');
+    expect(onEnter({ open: 'wait' }, false)).toBe('none');
+  });
+
+  it('draws the open one only, and the fading one as leaving', () => {
+    const ctx = testCtx();
+    const open = { open: 'wait' as const };
+    expect(html(<StatusPeek ctx={ctx} tone="wait" sessions={ctx.snapshot.sessions} group={group(open)} />)).toContain('class="popover"');
+    expect(html(<StatusPeek ctx={ctx} tone="run" sessions={ctx.snapshot.sessions} group={group(open)} />)).not.toContain('popover');
+    expect(html(<StatusPeek ctx={ctx} tone="run" sessions={ctx.snapshot.sessions} group={group({ leaving: 'run' })} />)).toContain('popover leaving');
+  });
+});
+
 describe('« waiting for you » (21/11)', () => {
   const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} tone="wait" sessions={inTone(ctx.snapshot.sessions, 'wait')} />);
 
@@ -171,20 +192,20 @@ describe('« waiting for you » (21/11)', () => {
 
   it('darkens the count, with its rainbow, while something waits — and no longer shows a « For you » section', () => {
     const ctx = testCtx();
-    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={ctx.snapshot.sessions} />);
+    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={ctx.snapshot.sessions} group={group()} />);
     expect(out).toContain('count tone-wait peekable asking');
     expect(out).toContain('aria-haspopup="dialog"');
     expect(html(<SessionsTab ctx={ctx} />)).not.toContain('For you');
     expect(out).toContain('asking moving');
     // Without the Animations setting, darkened still, no rainbow.
-    expect(html(<StatusPeek ctx={testCtx({ animate: false })} tone="wait" sessions={ctx.snapshot.sessions} />)).not.toContain('moving');
+    expect(html(<StatusPeek ctx={testCtx({ animate: false })} tone="wait" sessions={ctx.snapshot.sessions} group={group()} />)).not.toContain('moving');
   });
 
   it('stays plain when nothing waits', () => {
     const snap = sample();
     const quiet = { ...snap, sessions: snap.sessions.map((s) => ({ ...s, status: 'idle' as const })) };
     const ctx = testCtx({ snapshot: quiet });
-    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={quiet.sessions} />);
+    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={quiet.sessions} group={group()} />);
     expect(out).not.toContain('asking');
     expect(out).toContain('aria-disabled="true"');
     expect(out).toMatch(/<b>0<\/b>/);
@@ -192,7 +213,7 @@ describe('« waiting for you » (21/11)', () => {
 
   it('lists the working and the finished ones too, on hover — in the sidebar only, plain in the cockpit', () => {
     const ctx = testCtx();
-    const run = html(<StatusPeek ctx={ctx} tone="run" sessions={ctx.snapshot.sessions} />);
+    const run = html(<StatusPeek ctx={ctx} tone="run" sessions={ctx.snapshot.sessions} group={group()} />);
     expect(run).toContain('count tone-run peekable');
     expect(run).not.toContain('asking');
     expect(html(<Inbox ctx={ctx} tone="done" sessions={inTone(ctx.snapshot.sessions, 'done')} />)).toContain('ask ask-go tone-done');

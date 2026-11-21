@@ -705,7 +705,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 @media (prefers-reduced-motion: no-preference) {
   .popover { animation: pop-in 0.12s ease-out; transform-origin: top right; }
   @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+  /* A count's bubble fading out once the pointer left them all (hooks/usePeekGroup.ts, 21/11). */
+  .popover.leaving { animation: pop-out 0.16s ease-in forwards; }
+  @keyframes pop-out { to { opacity: 0; transform: translateY(-4px) scale(0.97); } }
 }
+.popover.leaving { pointer-events: none; }
 
 /* A waiting card's text takes the room; the toast's ×. */
 .ask-h .txt { flex: 1; min-width: 0; }
