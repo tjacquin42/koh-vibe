@@ -1,0 +1,51 @@
+name: Next
+
+# Koh-Vibe Next (next/) is the V2 in progress: its own package, its own
+# lockfile, built and tested apart from the shipped extension so that neither
+# can break the other's run. It reads V1's state through V1's own modules
+# (../src), hence the second path filter.
+on:
+  pull_request:
+    paths: ['next/**', 'src/**', '.github/workflows/next.yml']
+  push:
+    branches: [main, dev]
+    paths: ['next/**', 'src/**', '.github/workflows/next.yml']
+
+concurrency:
+  group: next-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            next/pnpm-lock.yaml
+
+      # The host type-checks V1's modules it imports, which resolve their
+      # dependencies (@types/vscode…) from the root install.
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm build

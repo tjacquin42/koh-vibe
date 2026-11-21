@@ -57,5 +57,14 @@
   "command.kohVibe.searchSessions.title": "Search conversations",
   "command.kohVibe.renameArtifactProject.title": "Rename project…",
   "command.kohVibe.addFolderRule.title": "Add a rule…",
-  "command.kohVibe.openFolderRules.title": "Open the rules"
+  "command.kohVibe.openFolderRules.title": "Open the rules",
+  "view.kohVibeNext.sidebar.name": "Sessions",
+  "command.kohVibeNext.openCockpit.title": "Open the cockpit",
+  "command.kohVibeNext.reload.title": "Reload the view",
+  "command.kohVibe.switchInterface.title": "Switch between the new and the classic interface",
+  "config.kohVibe.interface.new": "Koh-Vibe 2: one web view for the sidebar, the cockpit in an editor tab.",
+  "config.kohVibe.interface.classic": "Koh-Vibe 1: the tree views, as before 2.0.",
+  "config.kohVibe.interface.description": "Which interface Koh-Vibe shows. The hooks, the sounds and your folders are the same under both. A change takes effect when the window reloads.",
+  "command.kohVibe.focusSessionById.title": "Go to session",
+  "command.kohVibe.markUnread.title": "Mark the conversation as unread"
 }

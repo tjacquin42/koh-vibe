@@ -1,6 +1,6 @@
 ---
 name: koh-vibe
-description: What Koh-Vibe is — the editor extension that shows the user's Claude Code sessions in a sidebar, files them into folders, gives folders rules, and lists their claude.ai artifacts and routines — and how to act on it from a conversation. Use it whenever the user mentions Koh-Vibe, its folders (« put this conversation in the VIDEO folder », « which folder am I in? », « create a folder for… »), folder rules (« add a rule to the PRO folder », « every session in this folder must… », « what are the rules of folder X? », « remove the rule about… »), a conversation that starts with « Folder rule — … » or « Règle de dossier — … », the Sessions, Artifacts, Routines or Processes views, « Recently closed », or asks why a conversation, a tab or an artifact shows where it does — even without saying « Koh-Vibe ».
+description: What Koh-Vibe is — the editor extension that shows the user's Claude Code sessions in a sidebar, files them into folders, gives folders rules, and lists their claude.ai artifacts and routines — and how to act on it from a conversation. Use it whenever the user mentions Koh-Vibe, its folders (« put this conversation in the VIDEO folder », « which folder am I in? », « create a folder for… »), folder rules (« add a rule to the PRO folder », « every session in this folder must… », « what are the rules of folder X? », « remove the rule about… »), a conversation that starts with « Folder rule — … » or « Règle de dossier — … », the rules of the artifact tidying agent (« Artifact tidying rule », « Règle de rangement des artifacts »), the Sessions, Artifacts, Routines or Processes views, « Recently closed », or asks why a conversation, a tab or an artifact shows where it does — even without saying « Koh-Vibe ».
 ---
 
 # Koh-Vibe
@@ -40,6 +40,7 @@ The root is `$KOH_VIBE_HOME` when set, otherwise `~/.koh-vibe`. Find it with
 |---|---|---|
 | `groups.json` | Folders, which conversation is in which folder, manual order, sounds, artifacts filed in folders | read; write with care (below) |
 | `rules/<folder id>.md` | A folder's rules | read and write |
+| `rules/artifacts.md` | The rules of the agent that files the artifacts under projects | read and write |
 | `artifact-projects.json` | Which project each artifact is filed under in the Artifacts view | read; write with care |
 | `settings.json` | The extension's own settings | read only — the user changes them in the view |
 | `sessions/`, `events/`, `closed.json`, `status.json`, `usage.json`, `routines.json`, `artifacts.json` | State the extension writes many times a minute | read only |
@@ -130,6 +131,30 @@ this conversation's context:
 - name exact skills and paths, and check that a skill you cite exists — say so if it does not;
 - keep it to a few bullets;
 - never a secret: the file is plain text, injected into every conversation of the folder.
+
+## Artifact tidying rules
+
+The Artifacts view has a **Tidy** button: it runs a Claude agent in the background that files
+the user's claude.ai artifacts under projects (in `artifact-projects.json`). The agent follows
+the rules in `rules/artifacts.md`, read at each run:
+
+```markdown
+---
+for: Koh-Vibe artifact tidying
+---
+- Recipes go to Cooking.
+- Anything about koh-vibe goes to Koh, even when already filed elsewhere.
+```
+
+One bullet per rule; an indented line continues the bullet above. A conversation opened by the
+view's *Add a rule…* starts with « Artifact tidying rule » (« Règle de rangement des
+artifacts ») and gives the file's path. Then, as for a folder: read what is there and sum it up
+in one sentence, ask for the rule if it was not given, add, change or remove that one rule
+(create the file with its header if needed), and show the final file. The view shows the change
+at once; the agent applies it at the next Tidy.
+
+A rule is read by an agent that sees only artifact titles and project names: phrase it on those
+(« titles mentioning a recipe go to Cooking »), and name projects exactly as the user does.
 
 ## What not to do
 

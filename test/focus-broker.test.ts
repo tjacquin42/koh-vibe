@@ -41,6 +41,8 @@ let closeCalls: CloseCalls;
 let listed = true;
 
 let opened: string[] = [];
+// Whether the conversation has a transcript yet — a fresh one has none.
+let written = true;
 
 function makeBroker(): FocusBroker {
   const b = new FocusBroker(
@@ -58,6 +60,7 @@ function makeBroker(): FocusBroker {
     },
     async () => listed,
     (sessionId) => opened.push(sessionId),
+    async () => written,
   );
   brokers.push(b);
   return b;
@@ -78,6 +81,7 @@ function setWorkspaceFolders(folders: readonly { uri: { fsPath: string } }[] | u
 
 beforeEach(async () => {
   listed = true;
+  written = true;
   home = mkdtempSync(join(tmpdir(), 'koh-broker-'));
   dirs = spoolDirs(home);
   await ensureDirs(dirs);
@@ -126,6 +130,88 @@ describe('FocusBroker.request', () => {
     expect(parsed.sessionId).toBe('s-remote');
     expect(parsed.label).toBe('projet · feat-x'); // sessionLabel() falls back to project · branch with no title
     expect(parsed.origin).toBe('vscode');
+  });
+});
+
+describe('FocusBroker.request — a window that holds the folder but not the conversation', () => {
+  // The case found on 15/11: a window on the home folder claims every project
+  // under it, but its Claude Code lists only the home folder's conversations.
+  // Revealing from there opened a blank conversation instead of the one live
+  // in the window on ~/DEV.
+  it('hands the click to the other windows rather than opening a blank conversation', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const broker = makeBroker();
+
+    await broker.request(session({ id: 'elsewhere' }));
+
+    expect(executeCommand).not.toHaveBeenCalled();
+    const parsed = JSON.parse(await readFile(join(dirs.requests, 'focus-elsewhere.json'), 'utf8')) as { sessionId: string };
+    expect(parsed.sessionId).toBe('elsewhere');
+  });
+
+  it('still reveals a fresh conversation, which no list holds until its first message', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    listed = false;
+    written = false;
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const broker = makeBroker();
+
+    await broker.request(session({ id: 'fresh' }));
+
+    expect(executeCommand).toHaveBeenCalledWith('claude-vscode.editor.open', 'fresh');
+  });
+
+  it('leaves a focus request it cannot show for the window that can', async () => {
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    const other = makeBroker();
+    await other.request(session({ id: 'theirs' }));
+
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const broker = makeBroker();
+    await (broker as unknown as { consume: () => Promise<void> }).consume();
+
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(await readdir(dirs.requests)).toContain('focus-theirs.json');
+  });
+
+  it('takes a fresh conversation another window asks for, though no list holds it yet', async () => {
+    vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
+    const executeCommand = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    written = false;
+    const other = makeBroker();
+    await other.request(session({ id: 'brand-new' }));
+
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
+    listed = false;
+    const broker = makeBroker();
+    await (broker as unknown as { consume: () => Promise<void> }).consume();
+
+    expect(executeCommand).toHaveBeenCalledWith('claude-vscode.editor.open', 'brand-new');
+  });
+
+  it('says where things stand when no window takes it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+      listed = false;
+      const shown: string[] = [];
+      vi.spyOn(vscode.window, 'showInformationMessage').mockImplementation(async (m: string) => {
+        shown.push(m);
+        return undefined;
+      });
+      const broker = makeBroker();
+      await broker.request(session({ id: 'nowhere', title: 'Carnet' }));
+
+      await vi.advanceTimersByTimeAsync(2_100);
+      await vi.waitFor(() => expect(shown.some((m) => m.includes('Carnet'))).toBe(true));
+      expect(await readdir(dirs.requests)).not.toContain('focus-nowhere.json');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -284,6 +370,7 @@ describe('requestReopen', () => {
   it('opens a terminal instead of the command when this window\'s session list does not hold the id — the command would start a blank conversation', async () => {
     setWorkspaceFolders([{ uri: { fsPath: '/Users/dev/projet' } }]);
     listed = false;
+    const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
     const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
     const sendText = vi.fn();
     const terminal = vi
@@ -293,6 +380,8 @@ describe('requestReopen', () => {
     expect(run).not.toHaveBeenCalledWith('claude-vscode.editor.open', 's1');
     expect(terminal).toHaveBeenCalledWith({ cwd: '/Users/dev/projet', name: 'projet' });
     expect(sendText).toHaveBeenCalledWith('claude --resume s1');
+    // Never silent: a terminal in place of a tab says why.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('terminal'));
     expect(await readdir(dirs.requests)).toEqual([]);
   });
 
@@ -314,6 +403,70 @@ describe('requestReopen', () => {
     });
     expect(run).not.toHaveBeenCalledWith('claude-vscode.editor.open', 's9');
     expect(await readdir(dirs.requests)).toEqual([]);
+  });
+
+  it('asks the other windows, rather than opening a terminal, when this one holds the folder only from above', async () => {
+    // A window on a parent folder claims the project, but its Claude Code
+    // lists only the parent's conversations: the one that can show it is a
+    // window on the project itself.
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const terminal = vi.spyOn(vscode.window, 'createTerminal');
+    await makeBroker().requestReopen(entry());
+    expect(terminal).not.toHaveBeenCalled();
+    expect(await readdir(dirs.requests)).toEqual(['reopen-s1.json']);
+  });
+
+  it('leaves a reopen request it can only answer with a terminal for a window on the project itself', async () => {
+    setWorkspaceFolders([{ uri: { fsPath: '/Users/dev' } }]);
+    listed = false;
+    const terminal = vi.spyOn(vscode.window, 'createTerminal');
+    await writeFile(
+      join(dirs.requests, 'reopen-s9.json'),
+      JSON.stringify({ sessionId: 's9', cwd: '/Users/dev/projet', label: 'projet', origin: 'vscode', at: Date.now() }),
+      'utf8',
+    );
+    await (makeBroker() as unknown as { consume: () => Promise<void> }).consume();
+    expect(terminal).not.toHaveBeenCalled();
+    expect(await readdir(dirs.requests)).toEqual(['reopen-s9.json']);
+  });
+
+  it('opens a window on the project when no window takes the reopen, and leaves the request for it — never a terminal', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      setWorkspaceFolders([{ uri: { fsPath: '/Users/elsewhere' } }]);
+      const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+      vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined);
+      const terminal = vi.spyOn(vscode.window, 'createTerminal');
+      // A folder that exists: `home` is the test's own temporary directory.
+      await makeBroker().requestReopen(entry({ cwd: home }));
+
+      await vi.advanceTimersByTimeAsync(2_100);
+      await vi.waitFor(() => expect(run).toHaveBeenCalledWith('vscode.openFolder', vscode.Uri.file(home), { forceNewWindow: true }));
+      expect(terminal).not.toHaveBeenCalled();
+      expect(await readdir(dirs.requests)).toEqual(['reopen-s1.json']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back on a terminal when the project folder is gone, since no window can open on it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      setWorkspaceFolders([{ uri: { fsPath: '/Users/elsewhere' } }]);
+      const run = vi.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+      const warn = vi.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
+      const sendText = vi.fn();
+      vi.spyOn(vscode.window, 'createTerminal').mockReturnValue({ sendText, show: vi.fn() } as unknown as vscode.Terminal);
+      await makeBroker().requestReopen(entry({ cwd: join(home, 'gone') }));
+
+      await vi.advanceTimersByTimeAsync(2_100);
+      await vi.waitFor(() => expect(sendText).toHaveBeenCalledWith('claude --resume s1'));
+      expect(run).not.toHaveBeenCalledWith('vscode.openFolder', expect.anything(), expect.anything());
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('no longer exists'));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('writes a request when another window holds the folder', async () => {

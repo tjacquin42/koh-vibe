@@ -67,8 +67,8 @@ export class AgentIndex {
     if (event.toolName !== 'Bash') return;
     const key = agentKey(event.toolTarget ?? '');
     if (key.length === 0) return;
-    if (event.event === 'PostToolUse') {
-      // Cleared whoever it belonged to: the command is over, and the next
+    if (event.event === 'PostToolUse' || event.event === 'PostToolUseFailure') {
+      // Cleared whoever it belonged to: the command is over — done or failed — and the next
       // identical one may well be the conversation's own.
       this.claims.delete(key);
       return;

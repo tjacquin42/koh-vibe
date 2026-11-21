@@ -23,6 +23,11 @@ export interface Routine {
   fired: boolean;
   /** `owner/name` of each repository the routine works in. */
   repos: string[];
+  /**
+   * When its run under way started, if one is (15/11): the last run, fired
+   * and not finished — claude.ai sets its end and a final status together.
+   */
+  runningSince?: number;
 }
 
 export interface RoutineList {
@@ -62,7 +67,17 @@ function routineOf(row: unknown): Routine | undefined {
     nextRunAt: isoTimeOf(row['next_run_at']),
     fired: row['ended_reason'] === 'run_once_fired',
     repos: reposOf(row['job_config']),
+    runningSince: runningSinceOf(row['last_run']),
   };
+}
+
+/** A run neither finished nor settled: no end time, and a status that is not a final one. */
+const FINAL_RUN = /SUCCEEDED|FAILED|CANCEL|ERROR|TIMED_OUT|SKIPPED/;
+function runningSinceOf(lastRun: unknown): number | undefined {
+  if (!isRecord(lastRun) || lastRun['finished_at'] !== undefined) return undefined;
+  const status = lastRun['status'];
+  if (typeof status === 'string' && FINAL_RUN.test(status)) return undefined;
+  return isoTimeOf(lastRun['fired_at']);
 }
 
 function reposOf(jobConfig: unknown): string[] {
@@ -108,7 +123,8 @@ export function isRoutine(v: unknown): v is Routine {
     list.every((r) => typeof r === 'string') &&
     (v['cron'] === undefined || typeof v['cron'] === 'string') &&
     optionalTime(v['runOnceAt']) &&
-    optionalTime(v['nextRunAt'])
+    optionalTime(v['nextRunAt']) &&
+    optionalTime(v['runningSince'])
   );
 }
 

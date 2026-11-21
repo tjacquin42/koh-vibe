@@ -1,0 +1,276 @@
+import { useLayoutEffect, useRef, type RefObject } from 'react';
+
+/**
+ * Rows that move where they belong, « physically » (14/11): a conversation
+ * that closes slides down to the closed ones, one filed in a folder slides
+ * into it. Folding a section draws its rows up into its heading, where they
+ * vanish; unfolding lets them out of it, down to their places — and every
+ * other coming and going does the same, by the same heading.
+ *
+ * FLIP: after each render, every `[data-flip="<id>"]` under `root` is
+ * measured; one that was elsewhere a render ago is put back there with a
+ * transform and let go — the browser animates the way home. One that is
+ * gone is re-inserted as a ghost at its last place and animated out.
+ * Positions are taken in the scroll container's own coordinates, so
+ * scrolling between two renders is not mistaken for a move.
+ *
+ * A row names its sections, nearest first (`data-flip-parent`, space
+ * separated: a sleeping row names its group, then its folder); a heading
+ * names itself (`data-flip-anchor`) and says whether it is folded
+ * (`data-flip-folded`). A row goes into, and comes out of, the nearest of its
+ * headings still on screen — the folder's when folding it took the group's
+ * heading away with it.
+ *
+ * A heading can also name the rows it holds out of sight
+ * (`data-flip-holds`, space separated): the closed ones, folded or not. A row
+ * that leaves for it goes down into it, wherever it stood — not up into the
+ * folder it left (15/11) — and one that comes back from it comes out of it.
+ * A row may also say where it goes when it vanishes (`data-flip-gone`, a
+ * heading's name): a conversation closed leaves the list before the
+ * Archives list it (two files, two snapshots), and must head for them all
+ * the same (21/11) — down from a folder, up from « no folder » below them.
+ *
+ * A row already on its way when the order changes again — a click re-sorts by
+ * state, then the tab opening re-sorts once more — sets off from where it is
+ * on screen, never from where its slide was going: measured through its
+ * running slide, it would jump.
+ *
+ * And what is under a section that folds or opens (19/11): the section —
+ * named after its heading (`data-flip-section`) — glides from its old height
+ * to its new one, and everything below follows it down or up, eased, instead
+ * of jumping. Meanwhile the rows outside it are not slid as well: the height
+ * already carries them, and both would move them twice.
+ *
+ * Off with the Animations setting, and with the system's reduced motion.
+ * Rows out of sight are not animated; a burst of unrelated arrivals or
+ * departures (a tab opened) just appears or vanishes.
+ */
+const BURST = 12;
+const MOVE_MS = 320;
+const FOLD_MS = 240;
+/** The longest trip of a row to the Archives: far away, it must not linger. */
+const TRIP_MAX_MS = 560;
+/** The height of a section that folds or opens: a little longer than its rows, eased at both ends. */
+const HEIGHT_MS = 280;
+const HEIGHT_EASE = 'cubic-bezier(.4,0,.2,1)';
+
+/** The sections whose heading was there a render ago and has folded or opened since. */
+export function foldChanges(before: ReadonlyMap<string, { folded: boolean }>, now: ReadonlyMap<string, { folded: boolean }>): string[] {
+  const out: string[] = [];
+  for (const [key, a] of now) {
+    const was = before.get(key);
+    if (was !== undefined && was.folded !== a.folded) out.push(key);
+  }
+  return out;
+}
+
+/**
+ * How a row that vanishes leaves: into a heading `dy` px away (none: where it
+ * stands). Into its own section's heading, the fold's quick motion. On a trip
+ * to a heading elsewhere — the Archives (21/11) — it stays seen most of the
+ * way, and takes longer the farther it goes, within bounds.
+ */
+export function leaveFrames(dy: number | undefined, trip: boolean): [Keyframe[], KeyframeAnimationOptions] {
+  if (dy === undefined) return [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scaleY(0.2)' }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' }];
+  if (!trip) return [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(${dy}px) scaleY(0.6)` }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' }];
+  return [
+    [
+      { opacity: 1, transform: 'none' },
+      { opacity: 0.9, transform: `translateY(${Math.round(dy * 0.7)}px) scaleY(0.9)`, offset: 0.7 },
+      { opacity: 0, transform: `translateY(${dy}px) scaleY(0.5)` },
+    ],
+    { duration: Math.round(Math.min(TRIP_MAX_MS, Math.max(MOVE_MS, MOVE_MS + Math.abs(dy) * 0.25))), easing: 'cubic-bezier(.45,0,.25,1)' },
+  ];
+}
+
+interface Spot {
+  /** Where the layout puts it, its running slide taken out. */
+  top: number;
+  left: number;
+  /** Where its running slide shows it, from there. */
+  dx: number;
+  dy: number;
+  width: number;
+  height: number;
+  el: HTMLElement;
+  /** Its sections, nearest first: a sleeping row names its group, then its folder. */
+  parents: string[];
+  /** The heading it heads for when it vanishes (`data-flip-gone`). */
+  gone?: string;
+}
+
+interface Anchor {
+  top: number;
+  folded: boolean;
+  /** The rows it holds out of sight (`data-flip-holds`). */
+  holds: ReadonlySet<string>;
+}
+
+/** The slide each row is running, to read where it is and to replace it. */
+const slides = new WeakMap<HTMLElement, Animation>();
+/** The height each section is gliding to: dropped before measuring, as it would be read mid-way. */
+const glides = new WeakMap<HTMLElement, Animation>();
+
+/** How far a row's running slide shows it from its place. */
+function slideOffset(node: HTMLElement): { x: number; y: number } {
+  const slide = slides.get(node);
+  if (slide === undefined || slide.playState !== 'running') return { x: 0, y: 0 };
+  const t = getComputedStyle(node).transform;
+  if (t === '' || t === 'none' || typeof DOMMatrixReadOnly !== 'function') return { x: 0, y: 0 };
+  try {
+    const m = new DOMMatrixReadOnly(t);
+    return { x: m.m41, y: m.m42 };
+  } catch {
+    return { x: 0, y: 0 };
+  }
+}
+
+export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): void {
+  const prev = useRef<{ rows: Map<string, Spot>; anchors: Map<string, Anchor>; heights: Map<string, number> } | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (el === null) return;
+    const scroller = el.closest<HTMLElement>('.body') ?? el;
+    const base = scroller.getBoundingClientRect();
+    const topOf = (r: DOMRect): number => r.top - base.top + scroller.scrollTop;
+    const rows = new Map<string, Spot>();
+    for (const node of el.querySelectorAll<HTMLElement>('[data-flip]')) {
+      const id = node.dataset['flip'];
+      if (id === undefined) continue;
+      const r = node.getBoundingClientRect();
+      const off = slideOffset(node);
+      const parents = (node.dataset['flipParent'] ?? '').split(' ').filter((p) => p.length > 0);
+      const gone = node.dataset['flipGone'];
+      rows.set(id, { top: topOf(r) - off.y, left: r.left - base.left - off.x, dx: off.x, dy: off.y, width: r.width, height: r.height, el: node, parents, ...(gone === undefined ? {} : { gone }) });
+    }
+    const anchors = new Map<string, Anchor>();
+    for (const node of el.querySelectorAll<HTMLElement>('[data-flip-anchor]')) {
+      const key = node.dataset['flipAnchor'];
+      if (key === undefined) continue;
+      const holds = new Set((node.dataset['flipHolds'] ?? '').split(' ').filter((h) => h.length > 0));
+      anchors.set(key, { top: topOf(node.getBoundingClientRect()), folded: node.dataset['flipFolded'] === 'true', holds });
+    }
+    // The height of every section that can fold, laid out — not as a running glide shows it.
+    const heights = new Map<string, number>();
+    const sections = new Map<string, HTMLElement>();
+    for (const node of el.querySelectorAll<HTMLElement>('[data-flip-section]')) {
+      const key = node.dataset['flipSection'];
+      if (key === undefined || key === '') continue;
+      glides.get(node)?.cancel();
+      heights.set(key, node.getBoundingClientRect().height);
+      sections.set(key, node);
+    }
+    const before = prev.current;
+    prev.current = { rows, anchors, heights };
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // The first render has nothing to move from — and with every folder folded
+    // it may hold no row at all, which must not pass for « first » later on.
+    if (before === undefined || !enabled || reduced || typeof el.animate !== 'function') return;
+
+    // What a fold or an unfold touches is in sight or near it; the rest needs no show.
+    const viewTop = scroller.scrollTop - 200;
+    const viewBottom = scroller.scrollTop + scroller.clientHeight + 200;
+    const inSight = (top: number): boolean => top >= viewTop && top <= viewBottom;
+    // Whether one of a row's sections just folded or opened — its own group,
+    // or the folder around it, which takes the group with it.
+    const justFolded = (parents: readonly string[]): boolean =>
+      parents.some((p) => anchors.get(p)?.folded === true && before.anchors.get(p)?.folded === false);
+    const justOpened = (parents: readonly string[]): boolean =>
+      parents.some((p) => anchors.get(p)?.folded === false && before.anchors.get(p)?.folded === true);
+    // Where a row goes into or comes out of: the outermost of its sections
+    // that just folded or opened — a folder taking its group with it moves
+    // everything through its own heading — else the nearest still on screen.
+    const headingOf = (parents: readonly string[]): Anchor | undefined => {
+      const changed = [...parents].reverse().find((p) => {
+        const now = anchors.get(p);
+        const was = before.anchors.get(p);
+        return now !== undefined && was !== undefined && now.folded !== was.folded;
+      });
+      if (changed !== undefined) return anchors.get(changed);
+      for (const p of parents) {
+        const a = anchors.get(p);
+        if (a !== undefined) return a;
+      }
+      return undefined;
+    };
+
+    // What is under a section that folded or opened follows its height, eased (19/11).
+    const gliding: HTMLElement[] = [];
+    for (const key of foldChanges(before.anchors, anchors)) {
+      const node = sections.get(key);
+      const from = before.heights.get(key);
+      const to = heights.get(key);
+      if (node === undefined || from === undefined || to === undefined || Math.abs(from - to) < 1) continue;
+      gliding.push(node);
+      glides.set(
+        node,
+        // `clip`, not `hidden`: it cuts what overflows without making a block of its own, so the
+        // heading's top margin still folds into what is above — as it does once the glide is over.
+        node.animate([{ height: `${from}px`, overflow: 'clip' }, { height: `${to}px`, overflow: 'clip' }], { duration: HEIGHT_MS, easing: HEIGHT_EASE }),
+      );
+    }
+    // Moved by a height that glides: the glide carries them already.
+    const carried = (node: HTMLElement): boolean => gliding.length > 0 && !gliding.some((g) => g.contains(node));
+
+    for (const [id, spot] of rows) {
+      const was = before.rows.get(id);
+      if (was === undefined) continue;
+      if (carried(spot.el)) continue;
+      // Its place did not change: a slide under way goes on undisturbed.
+      if (Math.abs(was.left - spot.left) < 1 && Math.abs(was.top - spot.top) < 1) continue;
+      // From where it shows now: its old place, plus how far its slide had it.
+      const dx = was.left + spot.dx - spot.left;
+      const dy = was.top + spot.dy - spot.top;
+      slides.get(spot.el)?.cancel();
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      slides.set(spot.el, spot.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: MOVE_MS, easing: 'cubic-bezier(.2,.8,.2,1)' }));
+    }
+
+    // One motion for every coming and going (14/11): a row leaves by going up
+    // into its section's heading and vanishing there — the fold's motion —
+    // and arrives by coming out of it. A row whose section has no heading
+    // left (a folder deleted) folds where it stands.
+    const arrived = [...rows].filter(([id]) => !before.rows.has(id));
+    const loose = arrived.filter(([, s]) => !justOpened(s.parents));
+    for (const [id, spot] of arrived) {
+      if (!inSight(spot.top)) continue;
+      if (!justOpened(spot.parents) && loose.length > BURST) continue;
+      // Back from a heading that held it out of sight: out of that one.
+      const held = [...before.anchors].find(([, a]) => a.holds.has(id))?.[0];
+      const from = (held === undefined ? undefined : anchors.get(held)) ?? headingOf(spot.parents);
+      const start = from === undefined ? 'scaleY(0.4)' : `translateY(${from.top - spot.top}px) scaleY(0.6)`;
+      spot.el.animate([{ opacity: 0, transform: start, transformOrigin: 'top center' }, { opacity: 1, transform: 'none', transformOrigin: 'top center' }], {
+        duration: FOLD_MS,
+        easing: 'cubic-bezier(.2,.8,.2,1)',
+      });
+    }
+
+    const gone = [...before.rows].filter(([id]) => !rows.has(id));
+    const leaving = gone.filter(([, s]) => !justFolded(s.parents));
+    for (const [id, was] of gone) {
+      if (!inSight(was.top)) continue;
+      if (!justFolded(was.parents) && leaving.length > BURST) continue;
+      // Gone into a heading that now holds it out of sight (the closed ones),
+      // unless it is its own section folding that took it.
+      const sink = justFolded(was.parents) ? undefined : ([...anchors.values()].find((a) => a.holds.has(id)) ?? (was.gone === undefined ? undefined : anchors.get(was.gone)));
+      const into = sink ?? headingOf(was.parents);
+      // The old node is detached by now; a copy of it stands where it was, then goes.
+      const ghost = was.el.cloneNode(true) as HTMLElement;
+      ghost.removeAttribute('data-flip');
+      ghost.setAttribute('aria-hidden', 'true');
+      Object.assign(ghost.style, {
+        position: 'absolute',
+        top: `${was.top}px`,
+        left: `${was.left}px`,
+        width: `${was.width}px`,
+        height: `${was.height}px`,
+        margin: '0',
+        pointerEvents: 'none',
+        transformOrigin: 'top center',
+      });
+      scroller.appendChild(ghost);
+      const out = ghost.animate(...leaveFrames(into === undefined ? undefined : into.top - was.top, sink !== undefined));
+      out.onfinish = () => ghost.remove();
+    }
+  });
+}

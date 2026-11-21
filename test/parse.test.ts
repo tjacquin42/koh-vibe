@@ -30,6 +30,15 @@ describe('parseSpoolFile', () => {
     expect(call(',"agent_id":"","agent_type":7')?.agentType).toBeUndefined();
   });
 
+  it('reads an interruption by the user on a failed tool, and only there (21/11)', () => {
+    const call = (event: string, extra: string): ReturnType<typeof parseSpoolFile> =>
+      parseSpoolFile(`{"event":"${event}","at":1,"payload":{"session_id":"s","cwd":"/x","tool_name":"AskUserQuestion"${extra}}}`);
+    expect(call('PostToolUseFailure', ',"is_interrupt":true,"error":"interrupted"')?.interrupted).toBe(true);
+    expect(call('PostToolUseFailure', ',"is_interrupt":false')?.interrupted).toBeUndefined();
+    expect(call('PostToolUseFailure', ',"is_interrupt":"true"')?.interrupted).toBeUndefined();
+    expect(call('PostToolUse', ',"is_interrupt":true')?.interrupted).toBeUndefined();
+  });
+
   it('reads the artifact a publish produced, off the Artifact tool result, and nowhere else', () => {
     // The tool's structured result as Claude Code hands it to PostToolUse:
     // `artifact_id` is the slug the artifacts listing uses (the URL carries a

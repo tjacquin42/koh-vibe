@@ -31,6 +31,14 @@ describe('the recently closed view', () => {
     expect(tree.getChildren().map((n) => n.kind)).toEqual(['empty']);
   });
 
+  it('shows the ten latest, though the history now keeps fifty for the new interface (15/11)', () => {
+    const tree = new ClosedTree();
+    tree.setClosed(Array.from({ length: 30 }, (_, i) => closed(`s${i}`)));
+    expect(ids(tree)).toHaveLength(10);
+    expect(ids(tree)[0]).toBe('closed:s0');
+    expect(ids(tree)[9]).toBe('closed:s9');
+  });
+
   it('lists its entries in the order it is given, newest first', () => {
     const tree = new ClosedTree();
     tree.setClosed([closed('recent', { closedAt: 9 }), closed('older', { closedAt: 1 })]);

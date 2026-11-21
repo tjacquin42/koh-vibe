@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // The host bundle in watch mode plus the Vite server. Stays running in
+      // the terminal panel; the launch waits for its "ready" line.
+      "label": "next: dev",
+      "type": "shell",
+      "command": "pnpm install --silent && pnpm dev",
+      "options": { "cwd": "${workspaceFolder}/next" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "koh-vibe-next",
+        "pattern": { "regexp": "^✘ \\[ERROR\\] (.*)$", "message": 1 },
+        "background": {
+          "activatesForBuild": true,
+          "beginsPattern": "koh-vibe-next: starting",
+          "endsPattern": "koh-vibe-next: ready"
+        }
+      }
+    }
+  ]
+}

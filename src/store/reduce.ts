@@ -39,6 +39,8 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
   if (isHookEvent(ev.event) && !late) {
     delete next.hidden;
     delete next.endedAt;
+    delete next.endedStatus;
+    delete next.markedUnread;
   }
 
   switch (ev.event) {
@@ -48,6 +50,8 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       // the end is stale: a twin of this conversation in another editor has
       // spoken since, and it is that twin's process the row now stands for.
       if (!late) {
+        // What was not seen yet outlives the end: an editor that quits ends them all (19/11).
+        if (base.status === 'waiting' || base.status === 'done_unseen') next.endedStatus = base.status;
         next.status = 'idle';
         next.endedAt = ev.at;
         delete next.inFlightSince;
@@ -81,6 +85,32 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       if (!late) {
         delete next.inFlightSince;
         delete next.currentAction;
+        // The tool it waited on has run: the question is answered, the
+        // permission given (15/11). Without this, the row and its « For you »
+        // card kept waiting until Claude's next tool, or the end of its turn.
+        // Only that tool: another one finishing alongside answers nothing.
+        if (base.status === 'waiting' && (base.pendingPermission === undefined || base.pendingPermission.tool === ev.toolName)) {
+          next.status = 'running';
+          delete next.pendingPermission;
+        }
+      }
+      break;
+    case 'PostToolUseFailure':
+      next.toolCount = base.toolCount + 1;
+      if (!late) {
+        delete next.inFlightSince;
+        delete next.currentAction;
+        if (ev.interrupted === true) {
+          // Stopped by the user — a question closed with its ×, Escape (21/11):
+          // the turn is over, under their eyes. At rest, and seen: no Stop
+          // comes after an interruption to say so.
+          next.status = 'idle';
+          delete next.pendingPermission;
+        } else if (base.status === 'waiting' && (base.pendingPermission === undefined || base.pendingPermission.tool === ev.toolName)) {
+          // Failed on its own — a permission refused among others: Claude goes on.
+          next.status = 'running';
+          delete next.pendingPermission;
+        }
       }
       break;
     case 'PermissionRequest':
@@ -105,6 +135,20 @@ export function reduce(prev: Session | undefined, ev: SpoolEvent): Session | und
       break;
     case 'Ack':
       if (!late && base.status === 'done_unseen') next.status = 'idle';
+      if (!late) {
+        delete next.endedStatus;
+        delete next.markedUnread;
+      }
+      break;
+    case 'Unread':
+      // Shown unread again, on demand (19/11) — only what is at rest: one
+      // that works or waits is not « read » to begin with. Ended, the mark
+      // waits for its tab to come back with the editor.
+      if (late || base.status !== 'idle') break;
+      if (base.endedAt === undefined) next.status = 'done_unseen';
+      else next.endedStatus = 'done_unseen';
+      // By hand, not by the conversation: no sound for it (sound/model.ts).
+      next.markedUnread = true;
       break;
     default: {
       // Exhaustiveness guard: a future member of `EventName` not handled
