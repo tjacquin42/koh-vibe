@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import type { ViewCtx } from '../context';
 import type { CockpitView, UiState } from '../ui-state';
-import { stepIn, useSlide, useSwipe } from '../hooks/useSwipe';
-import { cx } from '../lib/cx';
+import { usePanes } from '../hooks/usePanes';
+import { stepIn, useSwipe } from '../hooks/useSwipe';
 import type { IconName } from '../components/atoms/Icon';
 import { TabBar } from '../components/molecules/TabBar';
 import { CockpitTop } from '../components/organisms/CockpitTop';
@@ -42,15 +42,24 @@ export function CockpitPage({
 }) {
   const { t } = ctx;
   const set = (next: Partial<Cockpit>): void => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }));
-  // Two fingers left or right: the next or the previous view, sliding in (21/11).
+  // Two fingers left or right: the next or the previous view, pushed in as macOS moves
+  // between its spaces (21/11) — and the same push on a click on a view's tab.
   const area = useRef<HTMLDivElement>(null);
-  useSwipe(area, true, (step) => {
-    const view = stepIn(ui.viewOrder, ui.cockpit.view, step);
-    if (view === undefined) return;
+  const panes = usePanes(ui.cockpit.view, ctx.animate);
+  const select = (view: CockpitView, focus = false): void => {
     onSheet(undefined);
+    panes.go(view, ui.viewOrder.indexOf(view) >= ui.viewOrder.indexOf(ui.cockpit.view) ? 1 : -1, focus);
     set({ view });
+  };
+  useSwipe(area, true, {
+    can: (step) => stepIn(ui.viewOrder, ui.cockpit.view, step) !== undefined,
+    drag: panes.drag,
+    release: panes.release,
+    step: (step) => {
+      const view = stepIn(ui.viewOrder, ui.cockpit.view, step);
+      if (view !== undefined) select(view, true);
+    },
   });
-  const slide = useSlide(ui.viewOrder, ui.cockpit.view, ctx.animate);
   return (
     <>
       <Header t={t} snapshot={ctx.snapshot} surface="cockpit" version={version} />
@@ -65,10 +74,7 @@ export function CockpitPage({
         name={(v) => t(`cockpit.view.${v}`)}
         flipKey="view"
         animate={ctx.animate}
-        onSelect={(view) => {
-          onSheet(undefined);
-          set({ view });
-        }}
+        onSelect={(view) => select(view)}
         onOrder={(viewOrder) => updateUi((prev) => ({ ...prev, viewOrder }))}
       />
       <div ref={area} className="cockpit">
@@ -76,8 +82,12 @@ export function CockpitPage({
           {sheet !== undefined ? (
             <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
           ) : (
-            <div key={ui.cockpit.view} className={cx('pane', slide)}>
-              <ViewBody ctx={ctx} ui={ui.cockpit} onSpan={(spanH) => set({ spanH })} />
+            <div className="panes">
+              {panes.panes.map((p) => (
+                <div key={p.id} {...panes.props(p)}>
+                  <ViewBody ctx={ctx} ui={{ ...ui.cockpit, view: p.key }} onSpan={(spanH) => set({ spanH })} />
+                </div>
+              ))}
             </div>
           )}
         </main>

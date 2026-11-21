@@ -63,7 +63,8 @@ export function scrollerOf(el: Element): HTMLElement | undefined {
 /** Waits for the list under `root` to settle, then scrolls `row` whole into sight. */
 export async function revealRow(root: Element, row: Element, smooth: boolean): Promise<void> {
   await settled(root);
-  if (!row.isConnected) return;
+  // Gone, or in a section left behind and hidden (hooks/usePanes.ts): nothing to show.
+  if (!row.isConnected || row.getClientRects().length === 0) return;
   const scroller = scrollerOf(row);
   if (scroller === undefined) return;
   const to = revealScroll(row.getBoundingClientRect(), scroller.getBoundingClientRect(), scroller.scrollTop);

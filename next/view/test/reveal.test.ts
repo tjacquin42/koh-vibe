@@ -71,7 +71,7 @@ describe('scrollerOf and revealRow', () => {
     const scrollTo = vi.fn();
     const body = { overflowY: 'auto', parentElement: null, scrollTop: 300, getBoundingClientRect: () => box(100, 500), scrollTo };
     const list = { overflowY: 'visible', parentElement: body };
-    const row = { parentElement: list, isConnected: true, getBoundingClientRect: () => box(80, 120) } as unknown as Element;
+    const row = { parentElement: list, isConnected: true, getClientRects: () => [box(80, 120)], getBoundingClientRect: () => box(80, 120) } as unknown as Element;
     expect(scrollerOf(row)).toBe(body);
     await revealRow(host([]), row, true);
     expect(scrollTo).toHaveBeenCalledWith({ top: 272, behavior: 'smooth' });
@@ -83,7 +83,10 @@ describe('scrollerOf and revealRow', () => {
     vi.stubGlobal('getComputedStyle', () => ({ overflowY: 'visible' }));
     const gone = { isConnected: false } as unknown as Element;
     await expect(revealRow(host([]), gone, true)).resolves.toBeUndefined();
-    const loose = { parentElement: { parentElement: null }, isConnected: true } as unknown as Element;
+    // In a section left behind, hidden: no box at all.
+    const hidden = { isConnected: true, getClientRects: () => [] } as unknown as Element;
+    await expect(revealRow(host([]), hidden, true)).resolves.toBeUndefined();
+    const loose = { parentElement: { parentElement: null }, isConnected: true, getClientRects: () => [box(0, 10)] } as unknown as Element;
     expect(scrollerOf(loose)).toBeUndefined();
     await expect(revealRow(host([]), loose, true)).resolves.toBeUndefined();
   });

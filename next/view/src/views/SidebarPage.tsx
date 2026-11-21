@@ -1,8 +1,8 @@
 import { memo, useMemo, useRef, useState } from 'react';
 import type { SidebarTab } from '../../../src/shared/protocol';
 import type { ViewCtx } from '../context';
-import { useSlide, useSwipe, stepIn } from '../hooks/useSwipe';
-import { cx } from '../lib/cx';
+import { usePanes } from '../hooks/usePanes';
+import { stepIn, useSwipe } from '../hooks/useSwipe';
 import { search } from '../search';
 import type { UiState } from '../ui-state';
 import type { IconName } from '../components/atoms/Icon';
@@ -34,13 +34,23 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
   const [query, setQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const results = useMemo(() => search(snapshot, query), [snapshot, query]);
-  // Two fingers left or right: the next or the previous tab, sliding in (21/11).
+  // Two fingers left or right: the next or the previous tab, pushed in as macOS moves
+  // between its spaces (21/11) — and the same push on a click on a tab.
   const panel = useRef<HTMLElement>(null);
-  useSwipe(panel, !settingsOpen && results === undefined, (step) => {
-    const tab = stepIn(ui.tabOrder, ui.tab, step);
-    if (tab !== undefined) updateUi((prev) => ({ ...prev, tab }));
+  const panes = usePanes(ui.tab, ctx.animate);
+  const select = (tab: SidebarTab, focus = false): void => {
+    panes.go(tab, ui.tabOrder.indexOf(tab) >= ui.tabOrder.indexOf(ui.tab) ? 1 : -1, focus);
+    updateUi((prev) => ({ ...prev, tab }));
+  };
+  useSwipe(panel, !settingsOpen && results === undefined, {
+    can: (step) => stepIn(ui.tabOrder, ui.tab, step) !== undefined,
+    drag: panes.drag,
+    release: panes.release,
+    step: (step) => {
+      const tab = stepIn(ui.tabOrder, ui.tab, step);
+      if (tab !== undefined) select(tab, true);
+    },
   });
-  const slide = useSlide(ui.tabOrder, ui.tab, ctx.animate);
   return (
     <>
       <Header
@@ -82,7 +92,7 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
               flipKey="tab"
               controls="panel"
               animate={ctx.animate}
-              onSelect={(tab) => updateUi((prev) => ({ ...prev, tab }))}
+              onSelect={(tab) => select(tab)}
               onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}
             />
           )}
@@ -90,8 +100,12 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
             {results !== undefined ? (
               <Results ctx={ctx} results={results} query={query} />
             ) : (
-              <div key={ui.tab} className={cx('pane', slide)}>
-                <TabBody ctx={ctx} tab={ui.tab} />
+              <div className="panes">
+                {panes.panes.map((p) => (
+                  <div key={p.id} {...panes.props(p)}>
+                    <TabBody ctx={ctx} tab={p.key} />
+                  </div>
+                ))}
               </div>
             )}
           </main>

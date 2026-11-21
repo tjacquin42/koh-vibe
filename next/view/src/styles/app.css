@@ -775,10 +775,9 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .tidy-ask { width: auto; }
 .confirm-btns { flex-wrap: wrap; }
 
-/* A section slides in from the side it comes from (hooks/useSwipe.ts, 21/11): two fingers on the
-   trackpad, or a click on its tab. The list under it clips the overflow. */
-.slide-next { animation: slide-next 0.32s cubic-bezier(.2, .8, .2, 1); }
-.slide-prev { animation: slide-prev 0.32s cubic-bezier(.2, .8, .2, 1); }
-@keyframes slide-next { from { transform: translateX(24%); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes slide-prev { from { transform: translateX(-24%); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .slide-next, .slide-prev { animation: none; } }
+/* The sections side by side while one pushes the other (hooks/usePanes.ts, 21/11): the one
+   left lies over the place it held, then stays hidden, mounted, until the next change. */
+.panes { position: relative; overflow: clip; }
+.pane:focus { outline: none; }
+.pane-left { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+.pane-gone { display: none; }

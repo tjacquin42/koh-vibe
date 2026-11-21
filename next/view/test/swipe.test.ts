@@ -84,3 +84,34 @@ describe('scrollsSideways', () => {
     expect(scrollsSideways(null, asEl(root), 10)).toBe(false);
   });
 });
+
+describe('a new gesture during the momentum of the last one (21/11)', () => {
+  // Fingers speeding up, then the momentum slowing down — a trackpad's swipe.
+  const swipe = (sign: number) => [4, 8, 12, 16, 20, 22, 20, 16, 12, 9, 7, 5, 4, 3, 2].map((d) => ({ dx: sign * d }));
+
+  it('moves again, without waiting for the trackpad to go still', () => {
+    expect(run([...swipe(1), ...swipe(1)]).steps).toEqual([1, 1]);
+    expect(run([...swipe(1), ...swipe(-1)]).steps).toEqual([1, -1]);
+  });
+
+  it('never moves twice for fingers that keep speeding up after the change', () => {
+    expect(run([4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44].map((dx) => ({ dx }))).steps).toEqual([1]);
+  });
+
+  it('never takes the momentum alone for new fingers, nor a single bump in it', () => {
+    expect(run([...swipe(1), { dx: 3 }, { dx: 2 }, { dx: 1 }]).steps).toEqual([1]);
+    expect(run([...swipe(1).slice(0, 9), { dx: 10 }, { dx: 6 }, { dx: 4 }]).steps).toEqual([1]);
+  });
+
+  it('keeps pulling at an end: no step, the section only gives', () => {
+    let st = SWIPE_START;
+    const steps: number[] = [];
+    [4, 8, 12, 16, 20, 22].forEach((dx, i) => {
+      const r = swipeStep(st, { dx, dy: 0, at: 1_000 + i * 16, scrollable: false, can: () => false });
+      st = r.state;
+      if (r.step !== undefined) steps.push(r.step);
+    });
+    expect(steps).toEqual([]);
+    expect(st).toMatchObject({ mode: 'swipe', dx: 82 });
+  });
+});

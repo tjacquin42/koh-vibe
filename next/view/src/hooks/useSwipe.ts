@@ -17,13 +17,22 @@ export const SWIPE_DISTANCE = 60;
 export const GESTURE_GAP_MS = 220;
 
 export interface SwipeState {
-  /** What the gesture under way is: undecided yet, a scroll left to the page, or a swipe. */
+  /** What the gesture under way is: undecided yet, a scroll left to the page, a swipe, or one already used. */
   mode: 'idle' | 'scroll' | 'swipe' | 'done';
   dx: number;
   last: number;
+  /** Once used: the last step's size, and the run of growing ones since — new fingers, not momentum. */
+  prev?: number;
+  /** The used gesture has slowed down once: growing steps after that are new fingers, not the same ones. */
+  armed?: boolean;
+  rise?: number;
+  rises?: number;
 }
 
 export const SWIPE_START: SwipeState = { mode: 'idle', dx: 0, last: Number.NEGATIVE_INFINITY };
+
+/** Growing steps in a row that tell new fingers from the momentum of the gesture just used. */
+const RISES = 2;
 
 /**
  * One wheel event of a gesture: the next state, whether the event is the
@@ -33,17 +42,31 @@ export const SWIPE_START: SwipeState = { mode: 'idle', dx: 0, last: Number.NEGAT
  */
 export function swipeStep(
   st: SwipeState,
-  e: { dx: number; dy: number; at: number; scrollable: boolean },
+  e: { dx: number; dy: number; at: number; scrollable: boolean; can?: (step: 1 | -1) => boolean },
 ): { state: SwipeState; claim: boolean; step?: 1 | -1 } {
   const fresh = e.at - st.last > GESTURE_GAP_MS;
   const base: SwipeState = fresh ? { mode: 'idle', dx: 0, last: e.at } : { ...st, last: e.at };
   if (base.mode === 'scroll') return { state: base, claim: false };
-  if (base.mode === 'done') return { state: base, claim: true };
+  if (base.mode === 'done') {
+    // The momentum of a used gesture only slows down; fingers laid again speed up. A new
+    // gesture begun before the momentum ran out was swallowed whole: the next swipe did
+    // nothing until the trackpad went still (21/11).
+    const size = Math.abs(e.dx);
+    const prev = base.prev ?? Number.POSITIVE_INFINITY;
+    const armed = base.armed === true || size < prev;
+    const growing = base.armed === true && size > prev && size >= 3;
+    const rise = growing ? (base.rise ?? 0) + e.dx : 0;
+    const rises = growing ? (base.rises ?? 0) + 1 : 0;
+    if (rises < RISES) return { state: { ...base, prev: size, armed, rise, rises }, claim: true };
+    return swipeStep({ mode: 'idle', dx: rise - e.dx, last: e.at }, e);
+  }
   if (Math.abs(e.dx) <= Math.abs(e.dy)) return { state: base, claim: false };
   if (base.mode === 'idle' && e.scrollable) return { state: { ...base, mode: 'scroll' }, claim: false };
   const dx = base.dx + e.dx;
-  if (Math.abs(dx) < SWIPE_DISTANCE) return { state: { ...base, mode: 'swipe', dx }, claim: true };
-  return { state: { ...base, mode: 'done', dx: 0 }, claim: true, step: dx > 0 ? 1 : -1 };
+  const step: 1 | -1 = dx > 0 ? 1 : -1;
+  // Nothing that way: the fingers keep pulling, the section only gives (hooks/usePanes.ts).
+  if (Math.abs(dx) < SWIPE_DISTANCE || !(e.can?.(step) ?? true)) return { state: { ...base, mode: 'swipe', dx }, claim: true };
+  return { state: { mode: 'done', dx: 0, last: e.at, prev: Math.abs(e.dx), rise: 0, rises: 0 }, claim: true, step };
 }
 
 /** Whether something between `target` and `root` can scroll sideways the way `dx` goes. */
@@ -63,38 +86,45 @@ export function stepIn<T>(order: readonly T[], selected: T, step: 1 | -1): T | u
   return i < 0 ? undefined : order[i + step];
 }
 
-/** Listens for the gesture over `root`; `onStep` changes the section. */
-export function useSwipe(root: RefObject<HTMLElement | null>, enabled: boolean, onStep: (step: 1 | -1) => void): void {
-  const step = useRef(onStep);
-  step.current = onStep;
+export interface SwipeHandlers {
+  /** Whether there is a section that way. */
+  can(step: 1 | -1): boolean;
+  /** The fingers' offset so far, before a change. */
+  drag(dx: number, ends: boolean): void;
+  /** The gesture ended without a change. */
+  release(): void;
+  /** The change: +1 the next section, -1 the previous one. */
+  step(step: 1 | -1): void;
+}
+
+/** Listens for the gesture over `root`. */
+export function useSwipe(root: RefObject<HTMLElement | null>, enabled: boolean, handlers: SwipeHandlers): void {
+  const h = useRef(handlers);
+  h.current = handlers;
   useEffect(() => {
     const el = root.current;
     if (!enabled || el === null) return;
     let st = SWIPE_START;
+    let end: ReturnType<typeof setTimeout> | undefined;
     const onWheel = (e: WheelEvent): void => {
       if (e.ctrlKey) return; // a pinch
       const target = e.target instanceof Element ? e.target : null;
-      const r = swipeStep(st, { dx: e.deltaX, dy: e.deltaY, at: e.timeStamp, scrollable: scrollsSideways(target, el, e.deltaX) });
+      const r = swipeStep(st, { dx: e.deltaX, dy: e.deltaY, at: e.timeStamp, scrollable: scrollsSideways(target, el, e.deltaX), can: (s) => h.current.can(s) });
       st = r.state;
       if (r.claim) e.preventDefault();
-      if (r.step !== undefined) step.current(r.step);
+      clearTimeout(end);
+      if (r.step !== undefined) {
+        h.current.step(r.step);
+        return;
+      }
+      if (st.mode !== 'swipe') return;
+      h.current.drag(st.dx, !h.current.can(st.dx > 0 ? 1 : -1));
+      end = setTimeout(() => h.current.release(), GESTURE_GAP_MS);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      clearTimeout(end);
+      el.removeEventListener('wheel', onWheel);
+    };
   }, [root, enabled]);
-}
-
-/**
- * Which way the new section slides in, from where the last one stood in
- * `order`: from the right for one further on, from the left for one before.
- * Undefined until the section changes — nothing slides when a view opens.
- */
-export function useSlide<T>(order: readonly T[], selected: T, animate: boolean): 'slide-next' | 'slide-prev' | undefined {
-  const prev = useRef(selected);
-  const dir = useRef<'slide-next' | 'slide-prev' | undefined>(undefined);
-  if (prev.current !== selected) {
-    dir.current = order.indexOf(selected) >= order.indexOf(prev.current) ? 'slide-next' : 'slide-prev';
-    prev.current = selected;
-  }
-  return animate ? dir.current : undefined;
 }
