@@ -28,7 +28,7 @@ export function Header({
   surface,
   version,
   tools,
-  waiting,
+  peek,
 }: {
   t: Translate;
   snapshot: Snapshot;
@@ -36,8 +36,8 @@ export function Header({
   /** Shown when it is one (not « preview »). */
   version: string;
   tools?: HeaderTools;
-  /** The « waiting for you » count that lists what waits (organisms/WaitingCount.tsx). */
-  waiting?: ReactNode;
+  /** Each count, drawn so that it lists its conversations on hover (organisms/StatusPeek.tsx). */
+  peek?: (tone: 'wait' | 'run' | 'done') => ReactNode;
 }) {
   const sidebar = surface === 'sidebar';
   return (
@@ -56,7 +56,7 @@ export function Header({
           </span>
         )}
       </div>
-      {tools !== undefined && !tools.settingsOpen && <StatusCounts counts={countsOf(snapshot.sessions)} t={t} waiting={waiting} />}
+      {tools !== undefined && !tools.settingsOpen && <StatusCounts counts={countsOf(snapshot.sessions)} t={t} peek={peek} />}
     </header>
   );
 }

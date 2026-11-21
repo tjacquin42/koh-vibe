@@ -5,8 +5,8 @@ import { SIDEBAR_TABS, type ActivityItemView, type SessionSheetView, type Snapsh
 import { ArtifactRow } from '../src/components/organisms/ArtifactRow';
 import { Header } from '../src/components/organisms/Header';
 import type { ViewCtx } from '../src/context';
-import { WaitingCount } from '../src/components/organisms/WaitingCount';
-import { waitingIn } from '../src/sections';
+import { StatusPeek } from '../src/components/organisms/StatusPeek';
+import { inTone } from '../src/sections';
 import { Hungriest } from '../src/components/organisms/Hungriest';
 import { Inbox } from '../src/components/organisms/Inbox';
 import { SessionRow } from '../src/components/organisms/SessionRow';
@@ -156,7 +156,7 @@ describe('what never shows', () => {
 });
 
 describe('« waiting for you » (21/11)', () => {
-  const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} waiting={waitingIn(ctx.snapshot.sessions)} />);
+  const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} tone="wait" sessions={inTone(ctx.snapshot.sessions, 'wait')} />);
 
   it('lists what waits as cards, and nothing at all when nothing does', () => {
     expect(cards(testCtx())).toContain('Rename the export button');
@@ -171,23 +171,39 @@ describe('« waiting for you » (21/11)', () => {
 
   it('darkens the count, with its rainbow, while something waits — and no longer shows a « For you » section', () => {
     const ctx = testCtx();
-    const out = html(<WaitingCount ctx={ctx} sessions={ctx.snapshot.sessions} />);
-    expect(out).toContain('count tone-wait asking');
+    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={ctx.snapshot.sessions} />);
+    expect(out).toContain('count tone-wait peekable asking');
     expect(out).toContain('aria-haspopup="dialog"');
     expect(html(<SessionsTab ctx={ctx} />)).not.toContain('For you');
     expect(out).toContain('asking moving');
     // Without the Animations setting, darkened still, no rainbow.
-    expect(html(<WaitingCount ctx={testCtx({ animate: false })} sessions={ctx.snapshot.sessions} />)).not.toContain('moving');
+    expect(html(<StatusPeek ctx={testCtx({ animate: false })} tone="wait" sessions={ctx.snapshot.sessions} />)).not.toContain('moving');
   });
 
   it('stays plain when nothing waits', () => {
     const snap = sample();
     const quiet = { ...snap, sessions: snap.sessions.map((s) => ({ ...s, status: 'idle' as const })) };
     const ctx = testCtx({ snapshot: quiet });
-    const out = html(<WaitingCount ctx={ctx} sessions={quiet.sessions} />);
+    const out = html(<StatusPeek ctx={ctx} tone="wait" sessions={quiet.sessions} />);
     expect(out).not.toContain('asking');
     expect(out).toContain('aria-disabled="true"');
     expect(out).toMatch(/<b>0<\/b>/);
+  });
+
+  it('lists the working and the finished ones too, on hover — in the sidebar only, plain in the cockpit', () => {
+    const ctx = testCtx();
+    const run = html(<StatusPeek ctx={ctx} tone="run" sessions={ctx.snapshot.sessions} />);
+    expect(run).toContain('count tone-run peekable');
+    expect(run).not.toContain('asking');
+    expect(html(<Inbox ctx={ctx} tone="done" sessions={inTone(ctx.snapshot.sessions, 'done')} />)).toContain('ask ask-go tone-done');
+    expect(html(<Inbox ctx={ctx} tone="run" sessions={inTone(ctx.snapshot.sessions, 'run')} />)).toContain('Fix the flaky date test');
+    const done = inTone(ctx.snapshot.sessions, 'done').map((s) => ({ ...s, lastEventAt: ctx.now - 5 * 60_000 }));
+    expect(html(<Inbox ctx={ctx} tone="done" sessions={done} />)).toContain('5 min ago');
+    const cockpit = html(<CockpitPage ctx={ctx} version="1" ui={DEFAULT_UI} updateUi={noop} sheet={undefined} onSheet={noop} />);
+    expect(cockpit).not.toContain('peekable');
+    expect(cockpit).not.toContain('asking');
+    const sidebar = html(<SidebarPage ctx={ctx} version="1" ui={DEFAULT_UI} updateUi={noop} />);
+    expect(sidebar).toContain('count tone-wait peekable asking');
   });
 
   it('puts the latest question on top, and offers no × — a question waits until it is answered', () => {
@@ -195,7 +211,7 @@ describe('« waiting for you » (21/11)', () => {
     const base = sessionOf(snap, 's1');
     const older = { ...base, id: 'old', title: 'Asked first', lastEventAt: base.lastEventAt - 60_000 };
     const newer = { ...base, id: 'new', title: 'Asked last', lastEventAt: base.lastEventAt + 60_000 };
-    expect(waitingIn([older, newer]).map((s) => s.id)).toEqual(['new', 'old']);
+    expect(inTone([older, newer], 'wait').map((s) => s.id)).toEqual(['new', 'old']);
     const out = cards(testCtx({ snapshot: { ...snap, sessions: [older, newer] } }));
     expect(out.indexOf('Asked last')).toBeLessThan(out.indexOf('Asked first'));
     expect(out).not.toContain('ask-x');

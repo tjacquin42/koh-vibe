@@ -128,9 +128,11 @@ export function boardColumns(snap: Snapshot, folder: string | undefined, where: 
   return cols;
 }
 
-/** What is waiting for you among `sessions` — the latest asked on top, as notifications are (21/11). */
-export function waitingIn(sessions: readonly SessionView[]): SessionView[] {
-  return sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => b.lastEventAt - a.lastEventAt);
+/** The open conversations a count counts — waiting, working, finished — the latest on top, as notifications are (21/11). */
+export type PeekTone = 'wait' | 'run' | 'done';
+const PEEK_STATUS = { wait: 'waiting', run: 'running', done: 'done_unseen' } as const;
+export function inTone(sessions: readonly SessionView[], tone: PeekTone): SessionView[] {
+  return sessions.filter((s) => s.endedAt === undefined && s.status === PEEK_STATUS[tone]).sort((a, b) => b.lastEventAt - a.lastEventAt);
 }
 
 export type CountMode = 'fresh' | 'all' | 'weighted';

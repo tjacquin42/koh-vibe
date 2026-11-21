@@ -20,7 +20,7 @@ import {
   timelineLanes,
   dropsInto,
   usageLines,
-  waitingIn,
+  inTone,
 } from '../view/src/sections';
 
 describe('search', () => {
@@ -181,7 +181,7 @@ describe('cockpit sections', () => {
   it('C: what waits for you, the latest asked on top — never a closed one', () => {
     const first = snap.sessions[0]!;
     const two = { ...snap, sessions: [...snap.sessions, { ...first, id: 'older', lastEventAt: -1e9 }, { ...first, id: 'gone', endedAt: 5 }] };
-    expect(waitingIn(two.sessions).map((s) => s.id)).toEqual(['s1', 'older']);
+    expect(inTone(two.sessions, 'wait').map((s) => s.id)).toEqual(['s1', 'older']);
   });
 
   it('counts tokens three ways', () => {

@@ -5,7 +5,6 @@ import { FOLDER_COLORS } from '../../lib/colors';
 import { Icon } from '../atoms/Icon';
 import { EdgeScroll } from '../molecules/EdgeScroll';
 import { StatusCounts } from '../molecules/StatusCounts';
-import { WaitingCount } from './WaitingCount';
 
 /**
  * The top of the cockpit (14/11): the folders side by side — ∞ for every
@@ -13,8 +12,7 @@ import { WaitingCount } from './WaitingCount';
  */
 export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: string | null; onFolder(v: string | null): void }) {
   const { t, snapshot } = ctx;
-  const mine = folder === null ? snapshot.sessions : snapshot.sessions.filter((s) => ctx.where.get(s.id) === folder);
-  const counts = countsOf(mine);
+  const counts = countsOf(folder === null ? snapshot.sessions : snapshot.sessions.filter((s) => ctx.where.get(s.id) === folder));
   const chip = (id: string | null, body: ReactNode, label?: string) => (
     <button key={id ?? 'all'} type="button" role="radio" aria-checked={folder === id} aria-label={label} className="fchip" onClick={() => onFolder(id)}>
       {body}
@@ -41,7 +39,8 @@ export function CockpitTop({ ctx, folder, onFolder }: { ctx: ViewCtx; folder: st
           </>,
         )}
       </EdgeScroll>
-      <StatusCounts counts={counts} t={t} waiting={<WaitingCount ctx={ctx} sessions={mine} />} />
+      {/* Plain counts here (21/11): no list on hover, no darkening, no rainbow. */}
+      <StatusCounts counts={counts} t={t} />
     </div>
   );
 }
