@@ -774,3 +774,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .popover:has(.tidy-ask) { width: min(330px, calc(100vw - 16px)); }
 .tidy-ask { width: auto; }
 .confirm-btns { flex-wrap: wrap; }
+
+/* A section slides in from the side it comes from (hooks/useSwipe.ts, 21/11): two fingers on the
+   trackpad, or a click on its tab. The list under it clips the overflow. */
+.slide-next { animation: slide-next 0.32s cubic-bezier(.2, .8, .2, 1); }
+.slide-prev { animation: slide-prev 0.32s cubic-bezier(.2, .8, .2, 1); }
+@keyframes slide-next { from { transform: translateX(24%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slide-prev { from { transform: translateX(-24%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .slide-next, .slide-prev { animation: none; } }

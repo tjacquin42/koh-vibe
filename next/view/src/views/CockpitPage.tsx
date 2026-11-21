@@ -1,5 +1,8 @@
+import { useRef } from 'react';
 import type { ViewCtx } from '../context';
 import type { CockpitView, UiState } from '../ui-state';
+import { stepIn, useSlide, useSwipe } from '../hooks/useSwipe';
+import { cx } from '../lib/cx';
 import type { IconName } from '../components/atoms/Icon';
 import { TabBar } from '../components/molecules/TabBar';
 import { CockpitTop } from '../components/organisms/CockpitTop';
@@ -39,6 +42,15 @@ export function CockpitPage({
 }) {
   const { t } = ctx;
   const set = (next: Partial<Cockpit>): void => updateUi((prev) => ({ ...prev, cockpit: { ...prev.cockpit, ...next } }));
+  // Two fingers left or right: the next or the previous view, sliding in (21/11).
+  const area = useRef<HTMLDivElement>(null);
+  useSwipe(area, true, (step) => {
+    const view = stepIn(ui.viewOrder, ui.cockpit.view, step);
+    if (view === undefined) return;
+    onSheet(undefined);
+    set({ view });
+  });
+  const slide = useSlide(ui.viewOrder, ui.cockpit.view, ctx.animate);
   return (
     <>
       <Header t={t} snapshot={ctx.snapshot} surface="cockpit" version={version} />
@@ -59,9 +71,15 @@ export function CockpitPage({
         }}
         onOrder={(viewOrder) => updateUi((prev) => ({ ...prev, viewOrder }))}
       />
-      <div className="cockpit">
+      <div ref={area} className="cockpit">
         <main className="ck-main">
-          {sheet !== undefined ? <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} /> : <ViewBody ctx={ctx} ui={ui.cockpit} onSpan={(spanH) => set({ spanH })} />}
+          {sheet !== undefined ? (
+            <SessionSheet ctx={ctx} id={sheet} onClose={() => onSheet(undefined)} />
+          ) : (
+            <div key={ui.cockpit.view} className={cx('pane', slide)}>
+              <ViewBody ctx={ctx} ui={ui.cockpit} onSpan={(spanH) => set({ spanH })} />
+            </div>
+          )}
         </main>
       </div>
     </>

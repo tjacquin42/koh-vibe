@@ -1,6 +1,8 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import type { SidebarTab } from '../../../src/shared/protocol';
 import type { ViewCtx } from '../context';
+import { useSlide, useSwipe, stepIn } from '../hooks/useSwipe';
+import { cx } from '../lib/cx';
 import { search } from '../search';
 import type { UiState } from '../ui-state';
 import type { IconName } from '../components/atoms/Icon';
@@ -32,6 +34,13 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
   const [query, setQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const results = useMemo(() => search(snapshot, query), [snapshot, query]);
+  // Two fingers left or right: the next or the previous tab, sliding in (21/11).
+  const panel = useRef<HTMLElement>(null);
+  useSwipe(panel, !settingsOpen && results === undefined, (step) => {
+    const tab = stepIn(ui.tabOrder, ui.tab, step);
+    if (tab !== undefined) updateUi((prev) => ({ ...prev, tab }));
+  });
+  const slide = useSlide(ui.tabOrder, ui.tab, ctx.animate);
   return (
     <>
       <Header
@@ -77,8 +86,14 @@ export function SidebarPage({ ctx, version, ui, updateUi }: { ctx: ViewCtx; vers
               onOrder={(tabOrder) => updateUi((prev) => ({ ...prev, tabOrder }))}
             />
           )}
-          <main className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
-            {results !== undefined ? <Results ctx={ctx} results={results} query={query} /> : <TabBody ctx={ctx} tab={ui.tab} />}
+          <main ref={panel} className="body" id="panel" role={results === undefined ? 'tabpanel' : undefined}>
+            {results !== undefined ? (
+              <Results ctx={ctx} results={results} query={query} />
+            ) : (
+              <div key={ui.tab} className={cx('pane', slide)}>
+                <TabBody ctx={ctx} tab={ui.tab} />
+              </div>
+            )}
           </main>
           {ui.tab !== 'usage' && ui.showUsage && <UsageStrip ctx={ctx} />}
         </>
