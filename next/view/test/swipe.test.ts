@@ -86,8 +86,9 @@ describe('scrollsSideways', () => {
 });
 
 describe('a new gesture during the momentum of the last one (21/11)', () => {
-  // Fingers speeding up, then the momentum slowing down — a trackpad's swipe.
-  const swipe = (sign: number) => [4, 8, 12, 16, 20, 22, 20, 16, 12, 9, 7, 5, 4, 3, 2].map((d) => ({ dx: sign * d }));
+  // Fingers speeding up, then the momentum slowing down for most of a second — a trackpad's swipe.
+  const tail = Array.from({ length: 30 }, (_, i) => (i < 10 ? 2 : 1));
+  const swipe = (sign: number) => [4, 8, 12, 16, 20, 22, 20, 16, 12, 9, 7, 5, 4, 3, 2, ...tail].map((d) => ({ dx: sign * d }));
 
   it('moves again, without waiting for the trackpad to go still', () => {
     expect(run([...swipe(1), ...swipe(1)]).steps).toEqual([1, 1]);
@@ -98,12 +99,20 @@ describe('a new gesture during the momentum of the last one (21/11)', () => {
     expect(run([4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44].map((dx) => ({ dx }))).steps).toEqual([1]);
   });
 
+  it('changes one section only, however the momentum of one gesture wavers', () => {
+    // Bumps in the momentum, before and after the push is over: never new fingers.
+    const wavering = [4, 8, 12, 16, 20, 24, 18, 14, 15, 16, 17, 12, 10, 8, 9, 10, 7, 5, ...tail, 2, 3, 2, 1, 1].map((dx) => ({ dx }));
+    expect(run(wavering).steps).toEqual([1]);
+    // A swipe made slowly, its fingers speeding up and slowing down twice.
+    expect(run([3, 6, 9, 12, 15, 18, 14, 10, 12, 14, 16, 12, 8, 5, 3, 2, 1].map((dx) => ({ dx }))).steps).toEqual([1]);
+  });
+
   it('never takes the momentum alone for new fingers, nor a single bump in it', () => {
     expect(run([...swipe(1), { dx: 3 }, { dx: 2 }, { dx: 1 }]).steps).toEqual([1]);
     expect(run([...swipe(1).slice(0, 9), { dx: 10 }, { dx: 6 }, { dx: 4 }]).steps).toEqual([1]);
   });
 
-  it('keeps pulling at an end: no step, the section only gives', () => {
+  it('keeps pulling at an end: no step, and nothing moves (hooks/usePanes.ts)', () => {
     let st = SWIPE_START;
     const steps: number[] = [];
     [4, 8, 12, 16, 20, 22].forEach((dx, i) => {
