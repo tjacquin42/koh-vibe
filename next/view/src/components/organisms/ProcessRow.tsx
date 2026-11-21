@@ -11,7 +11,7 @@ const KIND_ICON: Record<ProcessKind, IconName> = { mcp: 'plug', shell: 'term', w
 export function ProcessRow({ ctx, p }: { ctx: ViewCtx; p: ProcessView }) {
   const { t } = ctx;
   return (
-    <div className={`proc${ctx.isBusy(`pid:${p.pid}`) ? ' busy' : ''}`} data-vscode-context={menuContext('kvnProcess', { kvnPid: p.pid })} style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
+    <div className={`proc${ctx.isBusy(`pid:${p.pid}`) ? ' busy' : ''}`} data-kv-menu={menuContext('kvnProcess', { kvnPid: p.pid })} style={{ paddingLeft: `${10 + Math.min(p.depth, 4) * 12}px` }}>
       <span className="pk" role="img" aria-label={t(`processes.kind.${p.kind}`)}>
         <Icon name={KIND_ICON[p.kind]} size={13} />
       </span>

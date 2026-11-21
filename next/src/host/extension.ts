@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { FOLDER_COLOR_IDS, LANGUAGE_CHOICES, type Action, type ActionResult, type FolderColor, type LanguageChoice } from '../shared/actions';
 import { artifactOpener } from './artifact-open';
 import { parseTabsMode, tabsTarget } from '../../../src/settings/tabs';
-import { frCommand, hostTranslator, MENU_ITEMS, runMenu, type MenuDeps } from './menus';
+import { hostTranslator, runMenu, type MenuDeps } from './menus';
 import { applyMoves, ensureTidyRulesFile, parseMoves, readTidyRules, runClaude, tidyPrompt, tidyRulesFile, type TidyItem } from './tidy';
 import { SKILL_NAME } from '../../../src/skill/install';
 import { runAction, type Copied } from './actions';
@@ -126,6 +126,8 @@ interface ViewActions {
   act(action: Action): Promise<ActionResult>;
   showTab(tab: SidebarTab | undefined): void;
   openArtifact(slug: string): void;
+  /** A right-click item, on the row it was opened on (menus.ts). */
+  menu(item: string, context: Record<string, unknown>): Promise<void>;
 }
 
 /**
@@ -250,6 +252,12 @@ function connect(
       case 'openArtifact':
         actions.openArtifact(msg.slug);
         return;
+      case 'menu': {
+        await actions.menu(msg.item, msg.context);
+        const reply: HostMessage = { type: 'acted', req: msg.req, result: { ok: true } };
+        void webview.postMessage(reply);
+        return;
+      }
     }
   });
   return {
@@ -647,6 +655,7 @@ export function activate(context: vscode.ExtensionContext): void {
       openSession: focus,
       reopenClosed: reopen,
       openArtifact: (slug) => void artifacts.open(slug),
+      menu: (item, ctx) => runMenu(item, ctx, menuDeps),
       showTab(tab) {
         const shown = tab !== undefined && showing(tab);
         if (tab === undefined) tabs.delete(key);
@@ -731,9 +740,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kohVibeNext.reload', () => {
       for (const v of views) v.reload();
     }),
-    // The right-click menus (menus.ts): VSCode hands each the row's data-vscode-context.
-    // Each in English and in French (menus.ts `frCommand`): the row shows the one of Koh-Vibe's language.
-    ...MENU_ITEMS.flatMap((m) => [m.command, frCommand(m)].map((command) => vscode.commands.registerCommand(command, (arg: unknown) => runMenu(m.command, arg, menuDeps)))),
   );
 }
 

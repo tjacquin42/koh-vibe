@@ -128,6 +128,10 @@ const PATHS = {
   ),
   more: <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.2" />,
   moon: <path d="M12.5 9.5A5 5 0 0 1 6.5 3.5a5 5 0 1 0 6 6z" />,
+  unread: <circle cx="8" cy="8" r="3.2" fill="currentColor" stroke="none" />,
+  palette: <path d="M8 2.5a5.5 5.5 0 1 0 0 11c.9 0 1.3-.6 1.3-1.2 0-.8-.7-1-.7-1.8 0-.6.5-1 1.1-1h1.4a2.4 2.4 0 0 0 2.4-2.4C13.5 4.6 11 2.5 8 2.5zM5 7.5h.01M6.5 5h.01M9.5 5h.01" />,
+  play: <path d="M5 3.5l7 4.5-7 4.5z" />,
+  pause: <path d="M5.5 3.5v9M10.5 3.5v9" />,
   trash: <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M6.8 7v4M9.2 7v4" />,
   copy: (
     <>

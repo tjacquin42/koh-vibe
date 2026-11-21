@@ -10,6 +10,7 @@
 
 import { isActionResult, parseAction, type Action, type ActionResult, type EditorTabs, type LanguageChoice } from './actions';
 import type { ThemeState } from './theme';
+import { isMenuId } from './menus';
 import type { ArtifactOpen } from './actions';
 
 export type SessionStatus = 'running' | 'waiting' | 'done_unseen' | 'idle';
@@ -398,7 +399,13 @@ export type ViewMessage =
   /** Which conversation's sheet the cockpit shows — `null` when none. The host builds only that one. */
   | { type: 'sheet'; sessionId: string | null }
   /** A change (actions.ts). `req` numbers it, so the answer finds its way back. */
-  | { type: 'act'; req: number; action: Action };
+  | { type: 'act'; req: number; action: Action }
+  /**
+   * A right-click item clicked (shared/menus.ts), on the row whose
+   * `data-kv-menu` is `context` — checked by the host field by field. Answered
+   * by an `acted` of the same `req` once it is done.
+   */
+  | { type: 'menu'; req: number; item: string; context: Record<string, unknown> };
 
 /** claude.ai's slugs, as V1 accepts them (artifacts/model.ts): they end up in a URL. */
 const SLUG = /^[A-Za-z0-9_-]{1,128}$/;
@@ -440,6 +447,11 @@ export function parseViewMessage(raw: unknown): ViewMessage | undefined {
       const req = raw['req'];
       const action = parseAction(raw['action']);
       return typeof req === 'number' && Number.isSafeInteger(req) && action !== undefined ? { type: 'act', req, action } : undefined;
+    }
+    case 'menu': {
+      const req = raw['req'];
+      const context = raw['context'];
+      return typeof req === 'number' && Number.isSafeInteger(req) && isMenuId(raw['item']) && isRecord(context) ? { type: 'menu', req, item: raw['item'], context } : undefined;
     }
     case 'tab':
       return isSidebarTab(raw['tab']) ? { type: 'tab', tab: raw['tab'] } : undefined;

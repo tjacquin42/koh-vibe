@@ -181,7 +181,8 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
       headProps={{
         'data-flip-anchor': f.id,
         'data-flip-folded': String(folded),
-        'data-vscode-context': menuContext('kvnFolder', { kvnFolderId: f.id, kvnName: f.name, kvnColor: f.color }),
+        // The list of no folder offers only a new conversation: it has no name, colour or rules of its own.
+        'data-kv-menu': real ? menuContext('kvnFolder', { kvnFolderId: f.id, kvnName: f.name, kvnColor: f.color }) : menuContext('kvnUnfiled'),
         // Dragged by its heading — but while its name is being typed.
         ...(renaming
           ? {}
@@ -232,7 +233,7 @@ function FolderMenu({ ctx, f, onClose, onRename }: { ctx: ViewCtx; f: FolderView
   }
   return (
     <Menu label={t('folder.menu', { name: f.name })}>
-      <MenuItem icon="plus" onClick={then(() => void ctx.act({ kind: 'session.new', folder: f.id }))}>
+      <MenuItem icon="plus" onClick={then(() => void ctx.track(`new:${f.id}`, ctx.act({ kind: 'session.new', folder: f.id }), 4_000))}>
         {t('folder.newSession')}
       </MenuItem>
       <MenuItem icon="edit" onClick={then(onRename)}>

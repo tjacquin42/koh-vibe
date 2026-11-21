@@ -662,6 +662,12 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .popover .pop-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
 .popover .confirm { background: color-mix(in srgb, var(--danger) 14%, var(--raised)); }
 .popover .swatches { padding: 6px 8px 8px; }
+/* The right-click menu (21/11): as wide as its longest line, at the pointer. */
+.popover.at-point { width: max-content; min-width: 170px; max-width: calc(100vw - 16px); }
+.fm-group { display: grid; gap: 2px; }
+.fm-sep { height: 1px; margin: 3px 6px 5px; background: var(--line); }
+.fm-btn:focus-visible { outline: none; background: var(--surface); }
+.menu-on { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 7px; }
 @media (prefers-reduced-motion: no-preference) {
   .popover { animation: pop-in 0.12s ease-out; transform-origin: top right; }
   @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }

@@ -17,7 +17,7 @@ export function RoutineCard({ ctx, r }: { ctx: ViewCtx; r: RoutineView }) {
     <div
       className={`card${ctx.isBusy(r.id) ? ' busy' : ''}`}
       aria-busy={ctx.isBusy(r.id)}
-      data-vscode-context={menuContext('kvnRoutine', { kvnRoutineId: r.id, kvnName: r.name, kvnEnabled: r.enabled, kvnCanRun: canRun, kvnCanResume: !r.enabled && !r.spent })}
+      data-kv-menu={menuContext('kvnRoutine', { kvnRoutineId: r.id, kvnName: r.name, kvnEnabled: r.enabled, kvnCanRun: canRun, kvnCanResume: !r.enabled && !r.spent })}
     >
       <div className="card-l1">
         <span className="ttl">{r.name}</span>

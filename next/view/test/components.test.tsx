@@ -23,7 +23,9 @@ import { StatusCounts } from '../src/components/molecules/StatusCounts';
 import { TabBar } from '../src/components/molecules/TabBar';
 import { translator } from '../src/i18n';
 import { cx } from '../src/lib/cx';
-import { menuContext, setMenuLanguage } from '../src/lib/menu-context';
+import { menuBusyKey, menuContext, readMenuContext } from '../src/lib/menu-context';
+import { menuPoint } from '../src/components/organisms/ContextMenu';
+import { placeAt } from '../src/components/molecules/Popover';
 import { NOW, testCtx } from './ctx';
 
 const html = (el: ReactElement): string => renderToStaticMarkup(el);
@@ -38,11 +40,22 @@ describe('cx', () => {
 });
 
 describe('menuContext', () => {
-  it('tells the right-click which language to speak: Koh-Vibe’s, not the editor’s (19/11)', () => {
-    setMenuLanguage('fr-FR');
-    expect(JSON.parse(menuContext('kvnSession', { kvnSessionId: 'a' }))).toMatchObject({ webviewSection: 'kvnSession', kvnSessionId: 'a', kvnFr: true });
-    setMenuLanguage('en');
-    expect(JSON.parse(menuContext('kvnSession'))).not.toHaveProperty('kvnFr');
+  it('says the row’s kind and its ids, leaving out what it does not have', () => {
+    expect(JSON.parse(menuContext('kvnSession', { kvnSessionId: 'a', kvnName: undefined }))).toEqual({ webviewSection: 'kvnSession', kvnSessionId: 'a' });
+  });
+
+  it('reads a row back, and nothing that is not one', () => {
+    expect(readMenuContext(menuContext('kvnFolder', { kvnFolderId: 'g' }))).toEqual({ webviewSection: 'kvnFolder', kvnFolderId: 'g' });
+    expect(readMenuContext(undefined)).toBeUndefined();
+    expect(readMenuContext('[1]')).toBeUndefined();
+    expect(readMenuContext('{oops')).toBeUndefined();
+  });
+
+  it('marks the folder a new conversation is asked for in, as its button does (21/11)', () => {
+    expect(menuBusyKey('folder.newSession', { kvnFolderId: 'g' })).toBe('new:g');
+    expect(menuBusyKey('folder.addRule', { kvnFolderId: 'g' })).toBe('new:g');
+    expect(menuBusyKey('unfiled.newSession', {})).toBe('new:');
+    expect(menuBusyKey('folder.rename', { kvnFolderId: 'g' })).toBeUndefined();
   });
 });
 
@@ -78,7 +91,7 @@ describe('atoms', () => {
     const busy = html(<Pressable className="card" busy context="{}" onPress={noop}>x</Pressable>);
     expect(busy).toContain('class="card opening"');
     expect(busy).toContain('aria-busy="true"');
-    expect(busy).toContain('data-vscode-context="{}"');
+    expect(busy).toContain('data-kv-menu="{}"');
   });
 
   it('Meter: the use, and the pace mark only where there is a pace', () => {
@@ -266,5 +279,23 @@ describe('the name (C2)', () => {
 
   it('is a PNG image', () => {
     expect(WORDMARK.startsWith('data:image/png;base64,')).toBe(true);
+  });
+});
+
+describe('the right-click menu’s place (21/11)', () => {
+  const win = { width: 300, height: 600 };
+  it('opens right and down from the pointer, inside the window', () => {
+    expect(placeAt({ x: 40, y: 100 }, 180, 200, win)).toEqual({ top: 100, left: 40, maxHeight: 492, transformOrigin: 'top left' });
+  });
+  it('opens to the left when the right side has no room, never past the left edge', () => {
+    expect(placeAt({ x: 250, y: 100 }, 180, 200, win).left).toBe(70);
+    expect(placeAt({ x: 100, y: 100 }, 280, 200, win).left).toBe(8);
+  });
+  it('opens upwards near the bottom, when there is more room above', () => {
+    expect(placeAt({ x: 40, y: 560 }, 180, 200, win)).toEqual({ bottom: 40, left: 40, maxHeight: 552, transformOrigin: 'bottom left' });
+  });
+  it('from the keyboard, opens under the row rather than at the window’s corner', () => {
+    expect(menuPoint({ clientX: 0, clientY: 0 }, { left: 10, bottom: 50 })).toEqual({ x: 22, y: 50 });
+    expect(menuPoint({ clientX: 70, clientY: 90 }, { left: 10, bottom: 50 })).toEqual({ x: 70, y: 90 });
   });
 });

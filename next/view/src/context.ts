@@ -27,6 +27,8 @@ export interface ViewCtx {
   reopen(sessionId: string): void;
   /** A change, answered by the host; a refusal is already shown when it resolves. */
   act(action: Action): Promise<ActionResult>;
+  /** A right-click item on the row whose `data-kv-menu` is `context`, run by the host; resolves once done. */
+  menu(item: string, context: Record<string, unknown>): Promise<void>;
   /** A short line at the bottom that goes away — for what worked and is worth saying. */
   notify(text: string): void;
   /**

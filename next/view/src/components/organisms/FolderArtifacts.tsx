@@ -42,7 +42,7 @@ export function FolderArtifacts({ ctx, folder, artifacts, dnd }: { ctx: ViewCtx;
             key={a.slug}
             className={cx('arow', busy && 'busy', drag?.kind === 'artifact' && drag.slug === a.slug && 'dragging', dnd.landed === a.slug && 'landed')}
             aria-busy={busy}
-            data-vscode-context={listed === undefined ? undefined : menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: listed.title, kvnPinned: listed.pinned })}
+            data-kv-menu={listed === undefined ? undefined : menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: listed.title, kvnPinned: listed.pinned })}
             draggable
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = 'move';

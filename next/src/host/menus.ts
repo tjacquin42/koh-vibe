@@ -1,78 +1,12 @@
 /**
- * The right-click menus (14/11): VSCode's own context menus, opened over the
- * web view. Each row says what it is through `data-vscode-context`
- * (`webviewSection` plus its ids and a few flags); package.json maps each
- * section to these commands, and VSCode hands the command that context.
- *
- * This list is the one source: package.json's `webview/context` entries, the
- * commands, and their titles are checked against it by a test. The handlers
- * reuse the actions of the view (actions.ts) — what needs a word or a yes
- * (rename, colour, delete, run) asks with the editor's own boxes, which is
- * what a native menu leads one to expect.
+ * What a right-click item does (21/11). The menus are Koh-Vibe's own, drawn
+ * by the view (shared/menus.ts); a click comes here as the item's id and the
+ * row's context (protocol.ts `menu`). The handlers reuse the actions of the
+ * view (actions.ts) — what needs a word or a yes (rename, colour, delete,
+ * run) asks with the editor's own boxes.
  */
 import { MAX_NAME, MAX_TITLE, type Action, type ActionResult, type FolderColor } from '../shared/actions';
-
-/** Prefixed: `webviewSection` is shared with every other extension's web views. */
-export const SECTIONS = ['kvnSession', 'kvnClosed', 'kvnFolder', 'kvnUnfiled', 'kvnArtifact', 'kvnArtProject', 'kvnRoutine', 'kvnProcess'] as const;
-export type Section = (typeof SECTIONS)[number];
-
-export interface MenuItem {
-  command: string;
-  section: Section;
-  /** Extra condition on the row's flags, in VSCode's `when` syntax. */
-  when?: string;
-  /** `group@order`: groups are separated by a line in the menu. */
-  group: string;
-  en: string;
-  fr: string;
-}
-
-const c = (name: string): string => `kohVibeNext.ctx.${name}`;
-
-export const MENU_ITEMS: readonly MenuItem[] = [
-  { command: c('session.open'), section: 'kvnSession', group: '1_open@1', en: 'Go to the conversation', fr: 'Aller à la conversation' },
-  { command: c('session.sheet'), section: 'kvnSession', group: '1_open@2', en: 'Open its sheet', fr: 'Ouvrir sa fiche' },
-  { command: c('session.sleep'), section: 'kvnSession', when: '!kvnEnded && kvnFiled', group: '2_state@1', en: 'Put to sleep', fr: 'Mettre en veille' },
-  { command: c('session.close'), section: 'kvnSession', group: '2_state@2', en: 'Close', fr: 'Fermer' },
-  { command: c('session.unread'), section: 'kvnSession', when: 'kvnCanUnread', group: '3_read@1', en: 'Mark as unread', fr: 'Afficher comme non lu' },
-  { command: c('session.copyId'), section: 'kvnSession', group: '9_copy@1', en: 'Copy the ID', fr: 'Copier l’ID' },
-  { command: c('closed.reopen'), section: 'kvnClosed', when: 'kvnResumable', group: '1_open@1', en: 'Resume', fr: 'Reprendre' },
-  { command: c('closed.copyId'), section: 'kvnClosed', group: '9_copy@1', en: 'Copy the ID', fr: 'Copier l’ID' },
-  { command: c('folder.newSession'), section: 'kvnFolder', group: '1_new@1', en: 'New conversation here', fr: 'Nouvelle conversation ici' },
-  { command: c('unfiled.newSession'), section: 'kvnUnfiled', group: '1_new@1', en: 'New conversation', fr: 'Nouvelle conversation' },
-  { command: c('folder.addRule'), section: 'kvnFolder', group: '2_rules@1', en: 'Add a rule', fr: 'Ajouter une règle' },
-  { command: c('folder.openRules'), section: 'kvnFolder', group: '2_rules@2', en: 'See the rules', fr: 'Voir les règles' },
-  { command: c('folder.rename'), section: 'kvnFolder', group: '3_edit@1', en: 'Rename…', fr: 'Renommer…' },
-  { command: c('folder.color'), section: 'kvnFolder', group: '3_edit@2', en: 'Color…', fr: 'Couleur…' },
-  { command: c('folder.delete'), section: 'kvnFolder', group: '9_delete@1', en: 'Delete the folder…', fr: 'Supprimer le dossier…' },
-  { command: c('artifact.open'), section: 'kvnArtifact', group: '1_open@1', en: 'Open on claude.ai', fr: 'Ouvrir sur claude.ai' },
-  { command: c('artifact.pin'), section: 'kvnArtifact', when: '!kvnPinned', group: '2_edit@1', en: 'Pin', fr: 'Épingler' },
-  { command: c('artifact.unpin'), section: 'kvnArtifact', when: 'kvnPinned', group: '2_edit@1', en: 'Unpin', fr: 'Désépingler' },
-  { command: c('artifact.rename'), section: 'kvnArtifact', group: '2_edit@2', en: 'Rename…', fr: 'Renommer…' },
-  { command: c('artifact.copyLink'), section: 'kvnArtifact', group: '8_copy@1', en: 'Copy the link', fr: 'Copier le lien' },
-  { command: c('artifact.delete'), section: 'kvnArtifact', group: '9_delete@1', en: 'Delete…', fr: 'Supprimer…' },
-  { command: c('artProject.rename'), section: 'kvnArtProject', group: '1_edit@1', en: 'Rename…', fr: 'Renommer…' },
-  { command: c('routine.run'), section: 'kvnRoutine', when: 'kvnCanRun', group: '1_run@1', en: 'Run now…', fr: 'Lancer maintenant…' },
-  { command: c('routine.pause'), section: 'kvnRoutine', when: 'kvnEnabled', group: '1_run@2', en: 'Pause', fr: 'Mettre en pause' },
-  { command: c('routine.resume'), section: 'kvnRoutine', when: 'kvnCanResume', group: '1_run@2', en: 'Resume', fr: 'Reprendre' },
-  { command: c('routine.open'), section: 'kvnRoutine', group: '2_open@1', en: 'Open on claude.ai', fr: 'Ouvrir sur claude.ai' },
-  { command: c('routine.copyLink'), section: 'kvnRoutine', group: '8_copy@1', en: 'Copy the link', fr: 'Copier le lien' },
-  { command: c('process.copyCommand'), section: 'kvnProcess', group: '8_copy@1', en: 'Copy the command', fr: 'Copier la commande' },
-  { command: c('process.copyPid'), section: 'kvnProcess', group: '8_copy@2', en: 'Copy the pid', fr: 'Copier le pid' },
-  { command: c('process.kill'), section: 'kvnProcess', group: '9_kill@1', en: 'Terminate…', fr: 'Terminer…' },
-];
-
-/** The `when` clause package.json carries for an item. */
-/**
- * The French twin of a menu command (19/11). The editor's menus speak the
- * editor's language, through the manifest's translation files; Koh-Vibe may
- * be set to another. Each item is declared twice, titled in the manifest
- * itself — once in English, once in French — and the row says which one to
- * show (`kvnFr`, view/src/lib/menu-context.ts).
- */
-export function frCommand(item: MenuItem): string {
-  return `${item.command}.fr`;
-}
+import { SECTIONS, type Section } from '../shared/menus';
 
 /**
  * What a right-click asks next — a name, a yes — in Koh-Vibe's language
@@ -87,11 +21,7 @@ export function hostTranslator(bundle: Readonly<Record<string, string>> | undefi
   });
 }
 
-export function whenOf(item: MenuItem): string {
-  return item.when === undefined ? `webviewSection == '${item.section}'` : `webviewSection == '${item.section}' && ${item.when}`;
-}
-
-/** What a row put in its `data-vscode-context`, checked field by field: it comes from a web page. */
+/** What a row put in its `data-kv-menu`, checked field by field: it comes from a web page. */
 export interface MenuTarget {
   section: Section;
   sessionId?: string;
@@ -151,7 +81,7 @@ export interface MenuDeps {
   projectSlugs(project: string): string[];
 }
 
-/** Runs a menu command on the row it was opened on. Never throws. */
+/** Runs a menu item on the row it was opened on. Never throws. */
 export async function runMenu(command: string, arg: unknown, deps: MenuDeps): Promise<void> {
   const target = parseTarget(arg);
   if (target === undefined) return;
@@ -159,7 +89,7 @@ export async function runMenu(command: string, arg: unknown, deps: MenuDeps): Pr
   const name = (fallback: string): string => target.name ?? target.title ?? fallback;
   const { sessionId: sid, folderId: fid, slug, routineId: rid, pid } = target;
   try {
-    switch (command.replace('kohVibeNext.ctx.', '')) {
+    switch (command) {
       case 'session.open':
         if (sid !== undefined) deps.open(sid);
         return;

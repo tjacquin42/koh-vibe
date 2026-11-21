@@ -35,6 +35,9 @@ export function testCtx(over: Partial<ViewCtx> & { snapshot?: Snapshot; language
       acted.push(action);
       return { ok: true };
     },
+    menu: async (item, context) => {
+      acted.push({ menu: item, context });
+    },
     notify: () => undefined,
     show: () => undefined,
     open: () => undefined,

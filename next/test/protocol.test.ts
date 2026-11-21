@@ -4,6 +4,14 @@ import { builtHtml, devHtml, makeNonce } from '../src/host/webview-html';
 import { isRelevant } from '../src/host/watch';
 
 describe('parseViewMessage', () => {
+  it('takes a right-click item only by an id it lists, with a numbered request and a row (21/11)', () => {
+    const context = { webviewSection: 'kvnSession', kvnSessionId: 'a' };
+    expect(parseViewMessage({ type: 'menu', req: 2, item: 'session.close', context })).toEqual({ type: 'menu', req: 2, item: 'session.close', context });
+    expect(parseViewMessage({ type: 'menu', req: 2, item: 'rm -rf', context })).toBeUndefined();
+    expect(parseViewMessage({ type: 'menu', req: 1.5, item: 'session.close', context })).toBeUndefined();
+    expect(parseViewMessage({ type: 'menu', req: 2, item: 'session.close', context: 'x' })).toBeUndefined();
+  });
+
   it('accepts the known messages', () => {
     expect(parseViewMessage({ type: 'ready' })).toEqual({ type: 'ready' });
     expect(parseViewMessage({ type: 'reload' })).toEqual({ type: 'reload' });

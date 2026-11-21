@@ -8,13 +8,13 @@ import { sampleSheet, sampleSnapshot } from './fixture';
 import { folderIndex } from './format';
 import { useNow } from './hooks/useNow';
 import { translator } from './i18n';
-import { setMenuLanguage } from './lib/menu-context';
 import { showStoredTheme } from './lib/theme';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening, type WaitUntil } from './reopen';
 import { activeSessionId } from './sections';
 import { atLaunch, dismiss, parseUiState, setFolds, toggleFold, type UiState } from './ui-state';
 import { Toast } from './components/molecules/Toast';
 import { BootBrand } from './components/organisms/Brand';
+import { ContextMenu } from './components/organisms/ContextMenu';
 import { Shell } from './components/templates/Shell';
 import { CockpitPage } from './views/CockpitPage';
 import { SidebarPage } from './views/SidebarPage';
@@ -157,11 +157,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   );
 
   const language = state?.context.language ?? navigator.language;
-  const t = useMemo(() => {
-    // The right-click menus speak it too, before any row is drawn (lib/menu-context.ts).
-    setMenuLanguage(language);
-    return translator(language);
-  }, [language]);
+  const t = useMemo(() => translator(language), [language]);
   const now = useNow();
 
   // Outside the editor no host builds the sheet: the preview makes one up.
@@ -256,6 +252,19 @@ export function App({ bridge }: { bridge: Bridge }) {
     [bridge, showToast, t],
   );
 
+  /** A right-click item (components/organisms/ContextMenu.tsx): run by the host, resolved once done. */
+  const menu = useCallback(
+    (item: string, context: Record<string, unknown>): Promise<void> => {
+      if (!bridge.inEditor) return Promise.resolve();
+      const req = nextReq.current++;
+      return new Promise<void>((resolve) => {
+        pending.current.set(req, () => resolve());
+        bridge.post({ type: 'menu', req, item, context });
+      });
+    },
+    [bridge],
+  );
+
   const folded = useMemo(() => new Set(ui.folded), [ui.folded]);
   const opening = useMemo(() => new Set(reopening.keys()), [reopening]);
   const languageChoice = state?.context.languageChoice ?? 'auto';
@@ -278,6 +287,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       reopenNotice: (id) => notices.get(id),
       reopen,
       act,
+      menu,
       notify: showToast,
       isBusy: (key) => busy.has(key),
       activeId,
@@ -292,7 +302,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       show: (id) => (surface === 'cockpit' ? setSheet(id) : openConversation(id)),
       open: openConversation,
     };
-  }, [t, language, now, snapshot, where, bridge, folded, opening, notices, busy, activeId, ui.dismissed, ui.sort, ui.archives, ui.spendWindow, languageChoice, surface, updateUi, reopen, act, showToast, track, openConversation]);
+  }, [t, language, now, snapshot, where, bridge, folded, opening, notices, busy, activeId, ui.dismissed, ui.sort, ui.archives, ui.spendWindow, languageChoice, surface, updateUi, reopen, act, menu, showToast, track, openConversation]);
 
   if (state === undefined || ctx === undefined || surface === undefined) {
     return <BootBrand label={t('live.wait')} />;
@@ -309,6 +319,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       ) : (
         <SidebarPage ctx={ctx} version={version} ui={ui} updateUi={updateUi} />
       )}
+      <ContextMenu ctx={ctx} />
     </Shell>
   );
 }

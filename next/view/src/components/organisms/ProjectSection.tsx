@@ -108,7 +108,7 @@ export function ProjectSection({ ctx, project, items, dnd, made = false }: { ctx
       tools={tools}
       sectionProps={sectionProps}
       // A named project renames from its right-click menu too (15/11).
-      headProps={project === undefined ? undefined : { 'data-vscode-context': menuContext('kvnArtProject', { kvnName: project }) }}
+      headProps={project === undefined ? undefined : { 'data-kv-menu': menuContext('kvnArtProject', { kvnName: project }) }}
     >
       {items.length === 0 && <p className="hint drop-hint">{t('artifacts.emptyProject')}</p>}
       {items.map((a) => (

@@ -50,7 +50,7 @@ export function ArtifactRow({ ctx, a, dnd, landed = false }: { ctx: ViewCtx; a: 
     <div
       className={cx('arow', panel !== undefined && 'open', busy && 'busy', dnd?.drag?.slug === a.slug && 'dragging', landed && 'landed')}
       aria-busy={busy}
-      data-vscode-context={menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: a.title, kvnPinned: a.pinned })}
+      data-kv-menu={menuContext('kvnArtifact', { kvnSlug: a.slug, kvnTitle: a.title, kvnPinned: a.pinned })}
       // Not while its name is being typed: the field's own selection must not start a drag.
       draggable={dnd !== undefined && panel !== 'rename' ? true : undefined}
       onDragStart={

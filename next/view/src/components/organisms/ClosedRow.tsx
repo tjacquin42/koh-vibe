@@ -12,7 +12,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   if (!c.resumable) {
     // Started outside the editor and the terminal: V1 has nothing to resume it from.
     return (
-      <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed" data-vscode-context={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: false })}>
+      <div className="row closed-row" data-flip={c.sessionId} data-flip-parent="closed" data-kv-menu={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: false })}>
         <Dot tone="ended" animate={false} />
         <span className="txt">
           <span className="ttl conv-ttl">{title}</span>
@@ -25,7 +25,7 @@ export function ClosedRow({ ctx, c }: { ctx: ViewCtx; c: ClosedView }) {
   const waiting = ctx.reopening.has(c.sessionId);
   const notice = ctx.reopenNotice(c.sessionId);
   return (
-    <div className="closed-item" data-flip={c.sessionId} data-flip-parent="closed" data-vscode-context={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: true })}>
+    <div className="closed-item" data-flip={c.sessionId} data-flip-parent="closed" data-kv-menu={menuContext('kvnClosed', { kvnSessionId: c.sessionId, kvnResumable: true })}>
       <button
         type="button"
         className="row row-btn closed-row"

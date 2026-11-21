@@ -35,7 +35,7 @@ export function SessionRow({ ctx, s }: { ctx: ViewCtx; s: SessionView }) {
       aria-busy={busy}
       aria-current={active ? 'true' : undefined}
       data-session={s.id}
-      data-vscode-context={sessionContext(ctx, s.id, s)}
+      data-kv-menu={sessionContext(ctx, s.id, s)}
     >
       <div className="srow-line">
         <button

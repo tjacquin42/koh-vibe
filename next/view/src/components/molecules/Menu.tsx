@@ -12,10 +12,15 @@ export function Menu({ label, children }: { label: string; children: ReactNode }
 }
 
 /** One line of a menu: an icon and what it does; red when it destroys. */
-export function MenuItem({ icon, danger = false, onClick, children }: { icon: IconName; danger?: boolean; onClick(): void; children: ReactNode }) {
+export function MenuItem({ icon, danger = false, role, onClick, children }: { icon: IconName; danger?: boolean; /** In a right-click menu. */ role?: 'menuitem'; onClick(): void; children: ReactNode }) {
   return (
-    <button type="button" className={cx('fm-btn', danger && 'danger')} onClick={onClick}>
+    <button type="button" className={cx('fm-btn', danger && 'danger')} role={role} onClick={onClick}>
       <Icon name={icon} /> {children}
     </button>
   );
+}
+
+/** The line between two groups of a menu. */
+export function MenuSeparator() {
+  return <div className="fm-sep" role="separator" />;
 }

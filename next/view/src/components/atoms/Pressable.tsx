@@ -27,7 +27,7 @@ export function Pressable({
       role="button"
       tabIndex={0}
       aria-busy={busy}
-      data-vscode-context={context}
+      data-kv-menu={context}
       onClick={onPress}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;

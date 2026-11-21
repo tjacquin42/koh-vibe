@@ -12,7 +12,6 @@ import { realEngine } from '../src/host/engine';
 
 const engineRuns: string[] = [];
 import type { ProcessDeps } from '../src/host/processes';
-import { frCommand, MENU_ITEMS } from '../src/host/menus';
 import { readGroups } from '../../src/groups/store';
 import { installHooks } from '../../src/hooks/installer';
 import { tableOf } from '../../src/process/scan';
@@ -99,8 +98,8 @@ describe('activate', () => {
   it('registers the sidebar and the commands', () => {
     start(ExtensionMode.Production);
     expect([...recorded.providers.keys()]).toEqual([SIDEBAR_VIEW]);
-    // Two of its own, and two per right-click entry — in English and in French (menus.ts `frCommand`, 19/11).
-    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload', ...MENU_ITEMS.flatMap((m) => [m.command, frCommand(m)])].sort());
+    // Its two own: the right-click menus are drawn by the view, not the editor (21/11).
+    expect([...recorded.commands.keys()].sort()).toEqual(['kohVibeNext.openCockpit', 'kohVibeNext.reload']);
   });
 
   it('keeps the sidebar alive while another view container is shown', () => {
@@ -334,12 +333,14 @@ describe('activate', () => {
     await vi.waitFor(() => expect(messages(view).find((m) => m.type === 'acted')).toEqual({ type: 'acted', req: 3, result: { ok: false, error: 'cloud' } }), { timeout: 1_000, interval: 10 });
   });
 
-  it('runs a right-click entry on the row it was opened on', async () => {
+  it('runs a right-click item on the row it was opened on, and answers once done', async () => {
     start(ExtensionMode.Production);
     const got: unknown[] = [];
     recorded.commands.set('kohVibe.sleepSession', (n: unknown) => got.push(n));
-    await recorded.commands.get('kohVibeNext.ctx.session.sleep')?.({ webviewSection: 'kvnSession', kvnSessionId: 'b', webview: 'kohVibeNext.sidebar' });
+    const view = sidebar();
+    await view.webview.receive({ type: 'menu', req: 7, item: 'session.sleep', context: { webviewSection: 'kvnSession', kvnSessionId: 'b' } });
     expect(got).toEqual([{ kind: 'session', session: { id: 'b' } }]);
+    expect(messages(view).find((m) => m.type === 'acted')).toEqual({ type: 'acted', req: 7, result: { ok: true } });
   });
 
   it('says when Claude Code holds no Koh-Vibe hook', async () => {

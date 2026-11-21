@@ -1,32 +1,43 @@
 /**
- * What a row tells VSCode on a right-click (data-vscode-context): its kind
- * (`webviewSection`) and the ids the menu commands need (host menus.ts).
- * The editor's own Cut / Copy / Paste are left out: they mean nothing on a row.
+ * What a row tells the right-click menu (view/src/components/organisms/
+ * ContextMenu.tsx), in its `data-kv-menu`: its kind (`webviewSection`) and
+ * the ids the items need (shared/menus.ts) — the host checks them again.
  */
+
 /**
- * The same, for the whole view (15/11): a right-click anywhere else opens
- * nothing — the editor's Cut / Copy / Paste would copy nothing there.
+ * The editor's own menu, for the whole view (15/11): a right-click anywhere
+ * else opens nothing — its Cut / Copy / Paste would copy nothing there.
  */
 export const NO_MENU = JSON.stringify({ preventDefaultContextMenuItems: true });
 
 /** In a text field they do mean something: there the editor's own come back. */
 export const TEXT_MENU = JSON.stringify({ preventDefaultContextMenuItems: false });
 
-/** Whether the right-click speaks French: Koh-Vibe's language, set by the view as it starts (19/11). */
-let french = false;
-
-/**
- * The language the right-click menus speak — Koh-Vibe's, not the editor's:
- * each item is declared in English and in French (host menus.ts
- * `frCommand`), and the row says which to show (`kvnFr`).
- */
-export function setMenuLanguage(language: string): void {
-  french = language.toLowerCase().startsWith('fr');
-}
-
 export function menuContext(section: string, fields: Record<string, string | number | boolean | undefined> = {}): string {
-  const out: Record<string, string | number | boolean> = { webviewSection: section, preventDefaultContextMenuItems: true };
-  if (french) out['kvnFr'] = true;
+  const out: Record<string, string | number | boolean> = { webviewSection: section };
   for (const [k, v] of Object.entries(fields)) if (v !== undefined) out[k] = v;
   return JSON.stringify(out);
+}
+
+/** A row's `data-kv-menu` read back; `undefined` when it is not one. */
+export function readMenuContext(raw: string | undefined): Record<string, unknown> | undefined {
+  if (raw === undefined) return undefined;
+  try {
+    const v: unknown = JSON.parse(raw);
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The busy mark a right-click item sets (busy.ts), as the button that does
+ * the same: a new conversation asked for in a folder shows up first in none,
+ * and the list waits for it in its folder before bringing it into sight.
+ */
+export function menuBusyKey(item: string, context: Readonly<Record<string, unknown>>): string | undefined {
+  const folder = context['kvnFolderId'];
+  if ((item === 'folder.newSession' || item === 'folder.addRule') && typeof folder === 'string') return `new:${folder}`;
+  if (item === 'unfiled.newSession') return 'new:';
+  return undefined;
 }
