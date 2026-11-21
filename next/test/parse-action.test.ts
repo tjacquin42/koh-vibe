@@ -57,6 +57,7 @@ const GOOD: { [K in Action['kind']]: Extract<Action, { kind: K }>[] } = {
   ],
   'artifact.newProject': [{ kind: 'artifact.newProject', name: 'Veille' }],
   'artifact.deleteProject': [{ kind: 'artifact.deleteProject', name: 'Veille' }],
+  'artifact.folderOrder': [{ kind: 'artifact.folderOrder', folder: 'f1', slugs: ['a1b2c3d4-0000-4000-8000-000000000001'] }],
   'artifact.orderProjects': [
     { kind: 'artifact.orderProjects', order: ['NTI', 'Koh-Vibe'] },
     { kind: 'artifact.orderProjects', order: [] },
@@ -171,6 +172,8 @@ describe('parseAction, action by action', () => {
     { kind: 'artifact.newProject', name: long(MAX_NAME + 1) },
     { kind: 'artifact.newProject' },
     { kind: 'artifact.deleteProject', name: 7 },
+    { kind: 'artifact.folderOrder', folder: 'f1', slugs: ['not a slug'] },
+    { kind: 'artifact.folderOrder', slugs: ['a1b2c3d4-0000-4000-8000-000000000001'] },
     { kind: 'artifact.orderProjects', order: 'NTI' },
     { kind: 'artifact.orderProjects', order: ['NTI', '  '] },
     { kind: 'artifact.orderProjects', order: Array.from({ length: 501 }, (_, i) => `p${i}`) },

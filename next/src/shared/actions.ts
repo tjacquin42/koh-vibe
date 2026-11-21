@@ -111,6 +111,8 @@ export type Action =
   | { kind: 'artifact.orderProjects'; order: string[] }
   /** Files a page in a folder of the Sessions tab, or takes it out with no `folder`. */
   | { kind: 'artifact.folder'; slug: string; title: string; folder?: string }
+  /** The artifacts of a Sessions folder in the order they were dragged into (21/11). */
+  | { kind: 'artifact.folderOrder'; folder: string; slugs: string[] }
   | { kind: 'artifact.copyLink'; slug: string }
   /**
    * The tidying agent (host tidy.ts): reads the list again, then files the
@@ -297,6 +299,10 @@ export function parseAction(raw: unknown): Action | undefined {
       if (!isSlug(raw['slug']) || typeof title !== 'string' || title.length > MAX_TITLE) return undefined;
       if (folder === undefined) return { kind: 'artifact.folder', slug: raw['slug'], title };
       return isId(folder) ? { kind: 'artifact.folder', slug: raw['slug'], title, folder } : undefined;
+    }
+    case 'artifact.folderOrder': {
+      const list = slugs(raw['slugs']);
+      return list === undefined || !isId(raw['folder']) ? undefined : { kind: 'artifact.folderOrder', folder: raw['folder'], slugs: list };
     }
     case 'artifact.copyLink':
       return isSlug(raw['slug']) ? { kind: 'artifact.copyLink', slug: raw['slug'] } : undefined;

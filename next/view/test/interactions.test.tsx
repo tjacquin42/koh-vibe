@@ -5,6 +5,8 @@ import { Toast } from '../src/components/molecules/Toast';
 import { Confirm, NameInput } from '../src/components/molecules/Inline';
 import { TidyRules } from '../src/components/molecules/TidyRules';
 import { ArtifactRow } from '../src/components/organisms/ArtifactRow';
+import { FolderArtifacts } from '../src/components/organisms/FolderArtifacts';
+import type { Dnd, Drag } from '../src/components/organisms/folder-dnd';
 import type { ArtifactDnd, ArtifactDrag } from '../src/components/organisms/artifact-dnd';
 import { HooksMissing } from '../src/components/organisms/HooksMissing';
 import { NewFolder } from '../src/components/organisms/NewFolder';
@@ -669,5 +671,44 @@ describe('ProjectSection', () => {
     const { m } = section('nti', dnd, { ctx: testCtx({ isFolded: () => true }) });
     expect(m.find((n) => n.tag === 'section').props['className']).toContain('landed');
     expect(m.all((n) => String(n.props['className']).includes('landed') && n.tag === 'div')).toHaveLength(1);
+  });
+});
+
+describe('FolderArtifacts', () => {
+  const list = [
+    { slug: 'a1', title: 'Carnet' },
+    { slug: 'a2', title: 'Budget' },
+    { slug: 'a3', title: 'HealthFit' },
+  ];
+  const mount = (drag: Drag | undefined) => {
+    const ctx = testCtx({ isFolded: () => false });
+    const dnd: Dnd = { drag, setDrag: noop, landed: undefined, land: noop };
+    return { ctx, m: new Mounted(() => <FolderArtifacts ctx={ctx} folder="f1" artifacts={list} dnd={dnd} />) };
+  };
+  const row = (m: Mounted, slug: string) => m.find((n) => n.tag === 'div' && String(n.props['className']).split(' ').includes('arow') && textOf(n).includes(list.find((a) => a.slug === slug)?.title ?? '?'));
+  const at = (y: number) => ({ preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { dropEffect: '' }, clientY: y, currentTarget: { getBoundingClientRect: () => ({ top: 100, height: 20 }) } });
+
+  it('puts an artifact dragged among its folder\'s own above or below the row it is dropped on (21/11)', () => {
+    const { ctx, m } = mount({ kind: 'artifact', slug: 'a3', title: 'HealthFit', from: 'f1' });
+    const e = at(105);
+    m.fire(row(m, 'a1'), 'onDragOver', e);
+    expect(e.preventDefault).toHaveBeenCalled();
+    expect(String(row(m, 'a1').props['className'])).toContain('drop-above');
+    m.fire(row(m, 'a1'), 'onDragOver', at(115));
+    expect(String(row(m, 'a1').props['className'])).toContain('drop-below');
+    m.fire(row(m, 'a1'), 'onDrop', at(105));
+    expect(ctx.acted).toEqual([{ kind: 'artifact.folderOrder', folder: 'f1', slugs: ['a3', 'a1', 'a2'] }]);
+  });
+
+  it('leaves to the folder an artifact from another one, and writes nothing for one dropped where it is', () => {
+    const other = mount({ kind: 'artifact', slug: 'x', title: 'X', from: 'f2' });
+    const e = at(105);
+    other.m.fire(row(other.m, 'a1'), 'onDragOver', e);
+    other.m.fire(row(other.m, 'a1'), 'onDrop', e);
+    expect(e.preventDefault).not.toHaveBeenCalled();
+    expect(other.ctx.acted).toEqual([]);
+    const same = mount({ kind: 'artifact', slug: 'a1', title: 'Carnet', from: 'f1' });
+    same.m.fire(row(same.m, 'a2'), 'onDrop', at(105));
+    expect(same.ctx.acted).toEqual([]);
   });
 });

@@ -55,14 +55,15 @@ function placeOf(order: readonly string[], project: string): number {
 }
 
 /**
- * The projects' order once `name` is dropped on `target`'s `after` side — or,
- * with no `target` (« Other »), at the end of them.
+ * A list once `id` is dropped on `target`'s `after` side — or, with no
+ * `target`, at its end: the Artifacts tab's projects (« Other » takes them
+ * last), a folder's artifacts (21/11).
  */
-export function projectOrder(projects: readonly string[], name: string, target: string | undefined, after: boolean): string[] {
-  if (target === undefined) return moveBefore(projects, name, undefined);
-  const rest = projects.filter((p) => p !== name);
+export function placeIn(list: readonly string[], id: string, target: string | undefined, after: boolean): string[] {
+  if (target === undefined) return moveBefore(list, id, undefined);
+  const rest = list.filter((x) => x !== id);
   const before = after ? rest[rest.indexOf(target) + 1] : target;
-  return moveBefore(projects, name, before);
+  return moveBefore(list, id, before);
 }
 
 /**

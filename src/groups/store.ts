@@ -40,8 +40,10 @@ async function updateGroupsOnce(
 function merge(latestRaw: string | undefined, before: GroupsState, after: GroupsState): GroupsState {
   const latest = toState(latestRaw);
   const groups = mergeGroups(latest.groups, before.groups, after.groups);
+  // Its own order of artifacts is merged below, never taken as is.
+  const { artifactOrder: _ours, ...rest } = after;
   return {
-    ...after,
+    ...rest,
     groups,
     assignments: mergeAssignments(latest.assignments, before.assignments, after.assignments),
     sessionOrder: mergeSessionOrder(latest.sessionOrder, before.sessionOrder, after.sessionOrder),
@@ -54,7 +56,15 @@ function merge(latestRaw: string | undefined, before: GroupsState, after: Groups
       done: mergeAssignments(latest.sessionSounds.done, before.sessionSounds.done, after.sessionSounds.done),
     },
     artifacts: mergeArtifacts(latest.artifacts, before.artifacts, after.artifacts, groups),
+    ...artifactOrderOf(mergeSessionOrder(latest.artifactOrder ?? {}, before.artifactOrder ?? {}, after.artifactOrder ?? {}), groups),
   };
+}
+
+/** The artifacts' orders, merged folder by folder like the sessions' (21/11): none for a folder gone, and no field at all when empty. */
+function artifactOrderOf(orders: Record<string, readonly string[]>, groups: readonly Group[]): { artifactOrder?: Record<string, readonly string[]> } {
+  const known = new Set(groups.map((g) => g.id));
+  const kept = Object.fromEntries(Object.entries(orders).filter(([id]) => known.has(id)));
+  return Object.keys(kept).length === 0 ? {} : { artifactOrder: kept };
 }
 
 /**

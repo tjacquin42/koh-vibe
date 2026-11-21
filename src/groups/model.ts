@@ -82,11 +82,18 @@ export interface GroupsState {
    * they show in: filing one again moves it to the end of its folder.
    */
   artifacts: Readonly<Record<string, FiledArtifact>>;
+  /**
+   * The artifacts of a folder in the order they were dragged into (21/11),
+   * by folder id. Those it does not name come after, in the order they were
+   * filed — a page filed later lands at the end. Absent, and not written,
+   * until one is dragged.
+   */
+  artifactOrder?: Readonly<Record<string, readonly string[]>>;
   /** Fields of the file we do not know: preserved as is on write. */
   unknown: Readonly<Record<string, unknown>>;
 }
 
-const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds', 'artifacts']);
+const KNOWN = new Set(['version', 'groups', 'assignments', 'sessionOrder', 'sessionSounds', 'artifacts', 'artifactOrder']);
 
 /** The order key for « Unfiled ». */
 const UNFILED = '';
@@ -198,10 +205,22 @@ export function parseGroups(raw: string): GroupsState {
     }
   }
 
+  // Slugs only, for folders that exist; an order naming a page no longer filed there is harmless — it is read against the folder.
+  const artifactOrder: Record<string, readonly string[]> = {};
+  const rawArtifactOrder = root['artifactOrder'];
+  if (isRecord(rawArtifactOrder)) {
+    for (const [groupId, slugs] of Object.entries(rawArtifactOrder)) {
+      if (!ids.has(groupId) || !Array.isArray(slugs)) continue;
+      const clean = [...new Set(slugs.filter((slug): slug is string => isSlug(slug)))];
+      if (clean.length > 0) artifactOrder[groupId] = clean;
+    }
+  }
+
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(root)) if (!KNOWN.has(k)) unknown[k] = v;
 
-  return { groups, assignments, sessionOrder, sessionSounds, artifacts, unknown };
+  const state = { groups, assignments, sessionOrder, sessionSounds, artifacts, unknown };
+  return Object.keys(artifactOrder).length === 0 ? state : { ...state, artifactOrder };
 }
 
 export function serializeGroups(s: GroupsState): string {
@@ -213,6 +232,7 @@ export function serializeGroups(s: GroupsState): string {
     sessionOrder: s.sessionOrder,
     sessionSounds: s.sessionSounds,
     artifacts: s.artifacts,
+    ...(s.artifactOrder === undefined || Object.keys(s.artifactOrder).length === 0 ? {} : { artifactOrder: s.artifactOrder }),
   };
   return `${JSON.stringify(body, null, 2)}\n`;
 }
@@ -355,7 +375,9 @@ export function deleteGroup(s: GroupsState, id: string): GroupsState {
   for (const [slug, filed] of Object.entries(s.artifacts)) {
     if (filed.group !== id) artifacts[slug] = filed;
   }
-  return { ...s, groups, assignments, sessionOrder, artifacts };
+  const { artifactOrder: before, ...rest } = s;
+  const { [id]: _order, ...artifactOrder } = before ?? {};
+  return { ...rest, groups, assignments, sessionOrder, artifacts, ...(Object.keys(artifactOrder).length === 0 ? {} : { artifactOrder }) };
 }
 
 /**
@@ -392,11 +414,28 @@ export function unfileArtifacts(s: GroupsState, slugs: readonly string[]): Group
   return { ...s, artifacts };
 }
 
-/** The artifacts a folder holds, in the order they were filed. */
+/** The artifacts a folder holds: in the order they were dragged into, then the others in the order they were filed. */
 export function artifactsOfGroup(s: GroupsState, groupId: string): { slug: string; title: string }[] {
+  const order = s.artifactOrder?.[groupId] ?? [];
+  const at = (slug: string): number => {
+    const i = order.indexOf(slug);
+    return i < 0 ? order.length : i;
+  };
   return Object.entries(s.artifacts)
     .filter(([, filed]) => filed.group === groupId)
-    .map(([slug, filed]) => ({ slug, title: filed.title }));
+    .map(([slug, filed], i) => ({ slug, title: filed.title, i }))
+    .sort((a, b) => at(a.slug) - at(b.slug) || a.i - b.i)
+    .map(({ slug, title }) => ({ slug, title }));
+}
+
+/** Freezes the order of a folder's artifacts (21/11). An empty list removes it: « no order chosen ». */
+export function setArtifactOrder(s: GroupsState, groupId: string, slugs: readonly string[]): GroupsState {
+  if (!s.groups.some((g) => g.id === groupId)) return s;
+  const clean = [...new Set(slugs.filter((slug) => isSlug(slug)))];
+  const { artifactOrder: before, ...rest } = s;
+  const { [groupId]: _dropped, ...others } = before ?? {};
+  const artifactOrder = clean.length === 0 ? others : { ...others, [groupId]: clean };
+  return Object.keys(artifactOrder).length === 0 ? rest : { ...rest, artifactOrder };
 }
 
 export function assign(s: GroupsState, sessionId: string, groupId: string): GroupsState {

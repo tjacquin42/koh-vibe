@@ -436,6 +436,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
    tab, on purpose: the row carried dims, the project under it lights up, and
    what lands shows where for a moment — the row fades in, its heading glows. */
 .arow.dragging { opacity: 0.4; }
+/* An artifact of a Sessions folder dragged among its own (21/11): the line it lands on. */
+.arow.drop-above, .arow.drop-below { position: relative; }
+.arow.drop-above::before, .arow.drop-below::after { content: ''; position: absolute; left: 8px; right: 8px; height: 2px; border-radius: 1px; background: var(--accent); }
+.arow.drop-above::before { top: -1px; }
+.arow.drop-below::after { bottom: -1px; }
 .group.drop-in, .new-folder.drop-in { transition: background-color 0.12s ease-out; }
 .new-folder.drop-in { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .arow.landed { animation: landed-row 0.28s ease-out; }

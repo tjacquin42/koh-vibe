@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ViewCtx } from '../context';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { artifactSections, projectOrder } from '../sections';
+import { artifactSections, placeIn } from '../sections';
 import { Icon } from '../components/atoms/Icon';
 import { Section } from '../components/molecules/Section';
 import type { ArtifactDnd, ArtifactDrag } from '../components/organisms/artifact-dnd';
@@ -55,7 +55,7 @@ export function ArtifactsTab({ ctx }: { ctx: ViewCtx }) {
       setMoving,
       place: (name, target, after) => {
         setMoving(undefined);
-        const next = projectOrder(named, name, target, after);
+        const next = placeIn(named, name, target, after);
         if (next.join('\n') === named.join('\n')) return;
         setPlaced({ order: next, over: savedKey });
         void ctx.act({ kind: 'artifact.orderProjects', order: next });

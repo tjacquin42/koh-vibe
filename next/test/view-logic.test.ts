@@ -19,7 +19,7 @@ import {
   routineSections,
   timelineLanes,
   dropsInto,
-  projectOrder,
+  placeIn,
   usageLines,
   inTone,
 } from '../view/src/sections';
@@ -123,11 +123,11 @@ describe('artifact sections', () => {
 
   it('moves a dropped project before or after the one it lands on, or after them all', () => {
     const list = ['a', 'b', 'c', 'd'];
-    expect(projectOrder(list, 'a', 'c', false)).toEqual(['b', 'a', 'c', 'd']);
-    expect(projectOrder(list, 'a', 'c', true)).toEqual(['b', 'c', 'a', 'd']);
-    expect(projectOrder(list, 'd', 'a', false)).toEqual(['d', 'a', 'b', 'c']);
-    expect(projectOrder(list, 'b', 'd', true)).toEqual(['a', 'c', 'd', 'b']);
-    expect(projectOrder(list, 'a', undefined, false)).toEqual(['b', 'c', 'd', 'a']);
+    expect(placeIn(list, 'a', 'c', false)).toEqual(['b', 'a', 'c', 'd']);
+    expect(placeIn(list, 'a', 'c', true)).toEqual(['b', 'c', 'a', 'd']);
+    expect(placeIn(list, 'd', 'a', false)).toEqual(['d', 'a', 'b', 'c']);
+    expect(placeIn(list, 'b', 'd', true)).toEqual(['a', 'c', 'd', 'b']);
+    expect(placeIn(list, 'a', undefined, false)).toEqual(['b', 'c', 'd', 'a']);
   });
 
   it('caps the recent list', () => {

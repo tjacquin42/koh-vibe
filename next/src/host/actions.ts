@@ -19,6 +19,7 @@ import {
   createGroupCommand,
   deleteGroupCommand,
   fileArtifactsCommand,
+  orderArtifactsCommand,
   renameGroupCommand,
   reorderGroupsCommand,
 } from '../../../src/groups/commands';
@@ -165,6 +166,9 @@ async function apply(a: Action, deps: ActionDeps): Promise<ActionResult> {
       return OK;
     case 'artifact.folder':
       await fileArtifactsCommand(file, [{ slug: a.slug, title: a.title }], a.folder);
+      return OK;
+    case 'artifact.folderOrder':
+      await orderArtifactsCommand(file, a.folder, a.slugs);
       return OK;
     case 'artifact.copyLink':
       await deps.copy(artifactUrl(a.slug), 'link');
