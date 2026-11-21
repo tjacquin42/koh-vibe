@@ -4,6 +4,7 @@ import type { ViewCtx } from '../context';
 import { UNFILED } from '../format';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { useFlip } from '../hooks/useFlip';
+import { revealRow } from '../lib/reveal';
 import { revealStep } from '../sections';
 import { Icon } from '../components/atoms/Icon';
 import { Section } from '../components/molecules/Section';
@@ -50,10 +51,12 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
     if (!step.reveal) return;
     if (folder !== undefined && folder !== UNFILED && ctx.isFolded(folder)) ctx.toggle(folder);
     window.requestAnimationFrame(() => {
-      const row = root.current?.querySelector(`[data-session="${CSS.escape(active)}"]`);
+      const list = root.current;
+      const row = list?.querySelector(`[data-session="${CSS.escape(active)}"]`);
       // Not drawn yet: the next snapshot tries again.
-      if (row === null || row === undefined) shown.current = undefined;
-      else row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (list === null || list === undefined || row === null || row === undefined) shown.current = undefined;
+      // Once its folder has opened and the row has slid in: measured mid-flight, it came to rest half hidden (21/11).
+      else void revealRow(list, row, ctx.animate);
     });
   }, [active, ctx, snapshot.folders]);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
