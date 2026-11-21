@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GESTURE_GAP_MS, scrollsSideways, stepIn, SWIPE_DISTANCE, SWIPE_START, swipeStep, type SwipeState } from '../src/hooks/useSwipe';
+import recordedRaw from './fixtures/trackpad-swipes.json?raw';
 
 /** Feeds a gesture's events one after the other, 16 ms apart; returns the steps taken and the last state. */
 function run(events: { dx: number; dy?: number; scrollable?: boolean }[], from: SwipeState = SWIPE_START, start = 1_000) {
@@ -16,6 +17,21 @@ function run(events: { dx: number; dy?: number; scrollable?: boolean }[], from: 
 }
 
 const burst = (dx: number, n = 12) => Array.from({ length: n }, () => ({ dx }));
+
+/** Swipes recorded on a MacBook trackpad: `[ms since the first, deltaX, deltaY]` per wheel event. */
+const recorded = (JSON.parse(recordedRaw) as { swipes: [number, number, number][][] }).swipes;
+
+/** Plays a recording at its own pace; returns each step and when it was taken. */
+function replay(events: readonly [number, number, number][]): { step: 1 | -1; at: number }[] {
+  let st = SWIPE_START;
+  const steps: { step: 1 | -1; at: number }[] = [];
+  for (const [at, dx, dy] of events) {
+    const r = swipeStep(st, { dx, dy, at: 1_000 + at, scrollable: false });
+    st = r.state;
+    if (r.step !== undefined) steps.push({ step: r.step, at });
+  }
+  return steps;
+}
 
 describe('swipeStep (21/11)', () => {
   it('takes one step per gesture, however long its momentum runs', () => {
@@ -95,13 +111,13 @@ describe('a new gesture during the momentum of the last one (21/11)', () => {
     expect(run([...swipe(1), ...swipe(-1)]).steps).toEqual([1, -1]);
   });
 
-  it('goes one section further for each swipe made while the last push still runs', () => {
-    // Fingers laid again stop the momentum at once: each swipe starts small, a few events after the last.
-    const quick = (sign: number) => [4, 8, 12, 16, 20, 22, 20, 16].map((d) => ({ dx: sign * d }));
-    expect(run([...quick(1), ...quick(1), ...quick(1)]).steps).toEqual([1, 1, 1]);
-    expect(run([...quick(1), ...quick(-1)]).steps).toEqual([1, -1]);
-    // All of it inside the push (460 ms): 24 events, 16 ms apart.
-    expect(quick(1).length * 3 * 16).toBeLessThan(460);
+  it('goes one section further for a swipe made while the last push still runs', () => {
+    // Recorded: a swipe left, then fingers laid again 309 ms later, inside the push (460 ms).
+    const steps = replay(recorded[1]!);
+    const [, second, third] = steps;
+    expect(second?.step).toBe(-1);
+    expect(third?.step).toBe(-1);
+    expect(third!.at - second!.at).toBeLessThan(460);
   });
 
   it('never takes a small bump of the dying momentum for new fingers', () => {
@@ -123,6 +139,21 @@ describe('a new gesture during the momentum of the last one (21/11)', () => {
   it('never takes the momentum alone for new fingers, nor a single bump in it', () => {
     expect(run([...swipe(1), { dx: 3 }, { dx: 2 }, { dx: 1 }]).steps).toEqual([1]);
     expect(run([...swipe(1).slice(0, 9), { dx: 10 }, { dx: 6 }, { dx: 4 }]).steps).toEqual([1]);
+  });
+
+  it('changes one section for each of the swipes recorded on a trackpad (21/11)', () => {
+    // Each finger stroke jumps about (42, 12, 27, 39…): it once changed two sections, ~100 ms apart.
+    for (const i of [0, 2, 3, 5]) expect(replay(recorded[i]!).map((s) => s.step)).toEqual([-1]);
+    expect(replay(recorded[6]!).map((s) => s.step)).toEqual([1]);
+    // Five swipes in a row, the fingers slowing down and speeding up again within the last one.
+    expect(replay(recorded[1]!).map((s) => s.step)).toEqual([1, -1, -1, -1, 1]);
+  });
+
+  it('never changes twice within one stroke of the fingers, in any recording', () => {
+    for (const swipe of recorded) {
+      const steps = replay(swipe);
+      steps.slice(1).forEach((s, i) => expect(s.at - steps[i]!.at).toBeGreaterThan(200));
+    }
   });
 
   it('keeps pulling at an end: no step, and nothing moves (hooks/usePanes.ts)', () => {
