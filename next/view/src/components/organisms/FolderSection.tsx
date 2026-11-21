@@ -92,6 +92,8 @@ export function FolderSection({ ctx, f, byId, dnd }: { ctx: ViewCtx; f: FolderVi
       key={s.id}
       data-flip={s.id}
       data-flip-parent={parent}
+      // Gone from the list — closed, put away: it heads for the Archives (21/11).
+      data-flip-gone="closed"
       className={cx('drag-row', over === s.id && draggingSession && 'drop-line', draggingSession && drag.id === s.id && 'dragging')}
       draggable
       onDragStart={(e) => {

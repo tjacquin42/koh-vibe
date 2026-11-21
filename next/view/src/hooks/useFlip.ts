@@ -25,6 +25,10 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * (`data-flip-holds`, space separated): the closed ones, folded or not. A row
  * that leaves for it goes down into it, wherever it stood — not up into the
  * folder it left (15/11) — and one that comes back from it comes out of it.
+ * A row may also say where it goes when it vanishes (`data-flip-gone`, a
+ * heading's name): a conversation closed leaves the list before the
+ * Archives list it (two files, two snapshots), and must head for them all
+ * the same (21/11) — down from a folder, up from « no folder » below them.
  *
  * A row already on its way when the order changes again — a click re-sorts by
  * state, then the tab opening re-sorts once more — sets off from where it is
@@ -44,6 +48,8 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
 const BURST = 12;
 const MOVE_MS = 320;
 const FOLD_MS = 240;
+/** The longest trip of a row to the Archives: far away, it must not linger. */
+const TRIP_MAX_MS = 560;
 /** The height of a section that folds or opens: a little longer than its rows, eased at both ends. */
 const HEIGHT_MS = 280;
 const HEIGHT_EASE = 'cubic-bezier(.4,0,.2,1)';
@@ -58,6 +64,25 @@ export function foldChanges(before: ReadonlyMap<string, { folded: boolean }>, no
   return out;
 }
 
+/**
+ * How a row that vanishes leaves: into a heading `dy` px away (none: where it
+ * stands). Into its own section's heading, the fold's quick motion. On a trip
+ * to a heading elsewhere — the Archives (21/11) — it stays seen most of the
+ * way, and takes longer the farther it goes, within bounds.
+ */
+export function leaveFrames(dy: number | undefined, trip: boolean): [Keyframe[], KeyframeAnimationOptions] {
+  if (dy === undefined) return [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scaleY(0.2)' }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' }];
+  if (!trip) return [[{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(${dy}px) scaleY(0.6)` }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' }];
+  return [
+    [
+      { opacity: 1, transform: 'none' },
+      { opacity: 0.9, transform: `translateY(${Math.round(dy * 0.7)}px) scaleY(0.9)`, offset: 0.7 },
+      { opacity: 0, transform: `translateY(${dy}px) scaleY(0.5)` },
+    ],
+    { duration: Math.round(Math.min(TRIP_MAX_MS, Math.max(MOVE_MS, MOVE_MS + Math.abs(dy) * 0.25))), easing: 'cubic-bezier(.45,0,.25,1)' },
+  ];
+}
+
 interface Spot {
   /** Where the layout puts it, its running slide taken out. */
   top: number;
@@ -70,6 +95,8 @@ interface Spot {
   el: HTMLElement;
   /** Its sections, nearest first: a sleeping row names its group, then its folder. */
   parents: string[];
+  /** The heading it heads for when it vanishes (`data-flip-gone`). */
+  gone?: string;
 }
 
 interface Anchor {
@@ -113,7 +140,8 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       const r = node.getBoundingClientRect();
       const off = slideOffset(node);
       const parents = (node.dataset['flipParent'] ?? '').split(' ').filter((p) => p.length > 0);
-      rows.set(id, { top: topOf(r) - off.y, left: r.left - base.left - off.x, dx: off.x, dy: off.y, width: r.width, height: r.height, el: node, parents });
+      const gone = node.dataset['flipGone'];
+      rows.set(id, { top: topOf(r) - off.y, left: r.left - base.left - off.x, dx: off.x, dy: off.y, width: r.width, height: r.height, el: node, parents, ...(gone === undefined ? {} : { gone }) });
     }
     const anchors = new Map<string, Anchor>();
     for (const node of el.querySelectorAll<HTMLElement>('[data-flip-anchor]')) {
@@ -224,7 +252,7 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
       if (!justFolded(was.parents) && leaving.length > BURST) continue;
       // Gone into a heading that now holds it out of sight (the closed ones),
       // unless it is its own section folding that took it.
-      const sink = justFolded(was.parents) ? undefined : [...anchors.values()].find((a) => a.holds.has(id));
+      const sink = justFolded(was.parents) ? undefined : ([...anchors.values()].find((a) => a.holds.has(id)) ?? (was.gone === undefined ? undefined : anchors.get(was.gone)));
       const into = sink ?? headingOf(was.parents);
       // The old node is detached by now; a copy of it stands where it was, then goes.
       const ghost = was.el.cloneNode(true) as HTMLElement;
@@ -241,8 +269,7 @@ export function useFlip(root: RefObject<HTMLElement | null>, enabled: boolean): 
         transformOrigin: 'top center',
       });
       scroller.appendChild(ghost);
-      const end = into === undefined ? 'scaleY(0.2)' : `translateY(${into.top - was.top}px) scaleY(0.6)`;
-      const out = ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: end }], { duration: FOLD_MS, easing: 'cubic-bezier(.4,0,.6,1)' });
+      const out = ghost.animate(...leaveFrames(into === undefined ? undefined : into.top - was.top, sink !== undefined));
       out.onfinish = () => ghost.remove();
     }
   });
