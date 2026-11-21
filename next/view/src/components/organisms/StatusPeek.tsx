@@ -37,7 +37,7 @@ export function StatusPeek({ ctx, tone, sessions, group }: { ctx: ViewCtx; tone:
         aria-expanded={any ? shown : undefined}
         aria-disabled={!any}
         onClick={() => {
-          if (any) group.toggle(tone);
+          if (any) group.press(tone);
         }}
       >
         <span className="count-ink">

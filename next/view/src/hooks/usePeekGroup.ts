@@ -7,6 +7,11 @@ import type { PeekTone } from '../sections';
  * crossing it by chance opens nothing — but with a bubble already open, or
  * still fading, the next one opens at once and the last one is gone at once:
  * one goes from count to count freely. Leaving them all, the bubble fades out.
+ *
+ * A press on a count opens its bubble at once, and never closes it (21/11):
+ * pressed while the pause ran out, a toggle shut the bubble that had just
+ * opened under the pointer. It stays while the pointer is on the count or the
+ * bubble, and goes as a hovered one does.
  */
 export const SHOW_DELAY_MS = 350;
 /** Time to cross the gap between a count and its bubble, or to the next count. */
@@ -30,8 +35,8 @@ export interface PeekGroup {
   state: PeekState;
   enter(tone: PeekTone, any: boolean): void;
   leave(): void;
-  /** A press on a count: its bubble at once, or closed if it is the one shown. */
-  toggle(tone: PeekTone): void;
+  /** A press on a count: its bubble at once — the one shown stays. */
+  press(tone: PeekTone): void;
   /** Clicked elsewhere, Escape, a card chosen: the bubble fades out. */
   close(): void;
 }
@@ -87,12 +92,11 @@ export function usePeekGroup(): PeekGroup {
     stop('hide');
     timers.current.hide = setTimeout(close, HIDE_MS);
   }, [close]);
-  const toggle = useCallback(
+  const press = useCallback(
     (tone: PeekTone) => {
-      if (cur.current.open === tone) close();
-      else show(tone);
+      if (cur.current.open !== tone) show(tone);
     },
-    [show, close],
+    [show],
   );
-  return useMemo(() => ({ state, enter, leave, toggle, close }), [state, enter, leave, toggle, close]);
+  return useMemo(() => ({ state, enter, leave, press, close }), [state, enter, leave, press, close]);
 }

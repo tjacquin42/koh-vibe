@@ -157,7 +157,7 @@ describe('what never shows', () => {
 });
 
 /** A bubble group frozen in `state`: what the counts draw for it. */
-const group = (state: PeekState = {}): PeekGroup => ({ state, enter: noop, leave: noop, toggle: noop, close: noop });
+const group = (state: PeekState = {}): PeekGroup => ({ state, enter: noop, leave: noop, press: noop, close: noop });
 
 describe('the counts share one bubble (21/11)', () => {
   it('opens after a pause with none open, at once going from one to the next, never for an empty count', () => {
