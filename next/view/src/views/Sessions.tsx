@@ -4,6 +4,7 @@ import type { ViewCtx } from '../context';
 import { UNFILED } from '../format';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { useFlip } from '../hooks/useFlip';
+import { revealStep } from '../sections';
 import { Icon } from '../components/atoms/Icon';
 import { Section } from '../components/molecules/Section';
 import { ClosedRow } from '../components/organisms/ClosedRow';
@@ -41,12 +42,20 @@ export function SessionsTab({ ctx }: { ctx: ViewCtx }) {
   const active = ctx.activeId;
   const shown = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (active === undefined || active === shown.current) return;
-    shown.current = active;
+    if (active === undefined) return;
     const folder = ctx.where.get(active);
+    const step = revealStep(shown.current, active, folder, snapshot.folders.some((f) => ctx.isBusy(`new:${f.id}`)));
+    if (step === undefined) return;
+    shown.current = step.key;
+    if (!step.reveal) return;
     if (folder !== undefined && folder !== UNFILED && ctx.isFolded(folder)) ctx.toggle(folder);
-    window.requestAnimationFrame(() => root.current?.querySelector(`[data-session="${CSS.escape(active)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-  }, [active, ctx]);
+    window.requestAnimationFrame(() => {
+      const row = root.current?.querySelector(`[data-session="${CSS.escape(active)}"]`);
+      // Not drawn yet: the next snapshot tries again.
+      if (row === null || row === undefined) shown.current = undefined;
+      else row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [active, ctx, snapshot.folders]);
   if (snapshot.sessions.length === 0 && closed.length === 0 && snapshot.folders.length === 0) {
     return (
       <div className="empty">

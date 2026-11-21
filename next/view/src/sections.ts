@@ -14,7 +14,7 @@ import type {
   UsageView,
   UsageWindowView,
 } from '../../src/shared/protocol';
-import { folderIndex } from './format';
+import { folderIndex, UNFILED } from './format';
 import type { Translate } from './i18n';
 
 /** How many unpinned artifacts « Recent » shows; the rest are under their project. */
@@ -244,3 +244,22 @@ export function activeSessionId(snap: Snapshot): string | undefined {
   return fresh[0]?.id;
 }
 
+
+/**
+ * Whether the list brings the conversation in front into sight
+ * (views/Sessions.tsx), given the key of the last time it did (`prev`): once
+ * per conversation — and again when it leaves « no folder » for a folder. A
+ * new conversation asked for in a folder shows up first in none, at the
+ * bottom, then moves to its folder (21/11): while one is on its way
+ * (`newInFolder`), a conversation in no folder waits, and the list goes
+ * straight to the folder. One moved by hand from a folder to another stays
+ * where the hand put it.
+ */
+export function revealStep(prev: string | undefined, active: string, folder: string | undefined, newInFolder: boolean): { key: string; reveal: boolean } | undefined {
+  const unfiled = folder === undefined || folder === UNFILED;
+  if (unfiled && newInFolder) return undefined;
+  const key = `${active}\n${unfiled ? '' : folder}`;
+  if (key === prev) return undefined;
+  const wasFiled = prev !== undefined && prev.startsWith(`${active}\n`) && !prev.endsWith('\n');
+  return { key, reveal: !wasFiled };
+}

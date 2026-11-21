@@ -6,7 +6,7 @@ import { countsOf, fold, folderIndex, formatWhen, isFiled, megabytes, UNFILED } 
 import { translator } from '../view/src/i18n';
 import { isEmpty, search } from '../view/src/search';
 import { atLaunch, DEFAULT_UI, parseUiState, setFolds, toggleFold } from '../view/src/ui-state';
-import { activeSessionId, FIVE_HOURS_MS, gaugeOf, pacePercent, WEEK_MS } from '../view/src/sections';
+import { activeSessionId, FIVE_HOURS_MS, gaugeOf, pacePercent, revealStep, WEEK_MS } from '../view/src/sections';
 import { answered, expire, MAX_MS, onSnapshot, startBusy } from '../view/src/busy';
 import {
   artifactSections,
@@ -382,5 +382,25 @@ describe('an artifact dropped on a project (16/11)', () => {
     // Dropped where it already is: nothing to write.
     expect(dropsInto('api', 'api')).toBe(false);
     expect(dropsInto(undefined, undefined)).toBe(false);
+  });
+});
+
+describe('revealStep: the conversation in front brought into sight (21/11)', () => {
+  it('goes to a new conversation once, in its folder — not first at the bottom, in no folder', () => {
+    // Asked for in folder g: it shows up first in no folder, while the ask is under way.
+    expect(revealStep(undefined, 'n', 'unfiled', true)).toBeUndefined();
+    expect(revealStep(undefined, 'n', undefined, true)).toBeUndefined();
+    const filed = revealStep(undefined, 'n', 'g', true);
+    expect(filed).toEqual({ key: 'n\ng', reveal: true });
+    expect(revealStep(filed?.key, 'n', 'g', false)).toBeUndefined();
+  });
+
+  it('follows a conversation that leaves « no folder », not one moved by hand between folders', () => {
+    const first = revealStep(undefined, 'a', 'unfiled', false);
+    expect(first).toEqual({ key: 'a\n', reveal: true });
+    expect(revealStep(first?.key, 'a', 'g', false)).toEqual({ key: 'a\ng', reveal: true });
+    expect(revealStep('a\ng', 'a', 'h', false)).toEqual({ key: 'a\nh', reveal: false });
+    // Another conversation in front: brought into sight wherever it is.
+    expect(revealStep('a\ng', 'b', 'h', false)).toEqual({ key: 'b\nh', reveal: true });
   });
 });
