@@ -20,7 +20,7 @@ import {
   timelineLanes,
   dropsInto,
   usageLines,
-  waitingForYou,
+  waitingIn,
 } from '../view/src/sections';
 
 describe('search', () => {
@@ -59,7 +59,7 @@ describe('ui state', () => {
   it('falls back to the default on anything unreadable', () => {
     expect(parseUiState(undefined)).toEqual(DEFAULT_UI);
     expect(parseUiState({ tab: 'nope', folded: 'x' })).toEqual(DEFAULT_UI);
-    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, showUsage: true, dismissed: {}, sort: 'status', archives: 10, spendWindow: '5h', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
+    expect(parseUiState({ tab: 'usage', folded: ['a', 3] })).toEqual({ tab: 'usage', folded: ['a'], cockpit: DEFAULT_UI.cockpit, showUsage: true, sort: 'status', archives: 10, spendWindow: '5h', tabOrder: DEFAULT_UI.tabOrder, viewOrder: DEFAULT_UI.viewOrder });
     expect(parseUiState({ cockpit: { view: 'wall', folder: 'f1', spanH: 24 } }).cockpit).toEqual({ view: 'wall', folder: 'f1', spanH: 24 });
     expect(parseUiState({ cockpit: { view: 'x', folder: 3, count: 'y', spanH: 5 } }).cockpit).toEqual(DEFAULT_UI.cockpit);
   });
@@ -178,10 +178,10 @@ describe('cockpit sections', () => {
     expect(boardColumns(snap, 'unfiled').rest.map((s) => s.id)).toEqual(['s4']);
   });
 
-  it('C: what waits for you, the longest waiting first — never a closed one', () => {
+  it('C: what waits for you, the latest asked on top — never a closed one', () => {
     const first = snap.sessions[0]!;
     const two = { ...snap, sessions: [...snap.sessions, { ...first, id: 'older', lastEventAt: -1e9 }, { ...first, id: 'gone', endedAt: 5 }] };
-    expect(waitingForYou(two).map((s) => s.id)).toEqual(['older', 's1']);
+    expect(waitingIn(two.sessions).map((s) => s.id)).toEqual(['s1', 'older']);
   });
 
   it('counts tokens three ways', () => {

@@ -101,18 +101,19 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .count.asking:hover, .count.asking[aria-expanded="true"] { background: color-mix(in srgb, var(--wait) 44%, var(--bg)); }
 .count.asking:focus-visible { outline: 2px solid var(--wait); outline-offset: 2px; }
 .count.asking b, .count.asking span { color: var(--text); }
-.count.asking.moving .count-ink {
-  background: linear-gradient(90deg, var(--text) 0%, var(--text) 36%, #ff7a7a 40%, #ff9e5e 43%, #f5d06b 46%, #7ee0a8 50%, #5cc8f0 54%, #8a9bff 57%, #f59ac8 60%, var(--text) 64%, var(--text) 100%);
-  background-size: 300% 100%; background-position: 100% 0;
-  -webkit-background-clip: text; background-clip: text;
-  animation: wait-rainbow 30s infinite;
+.count.asking { position: relative; overflow: hidden; }
+.count.asking .count-ink { position: relative; z-index: 1; }
+.count.asking.moving::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 0%, transparent 36%, #ff7a7a 40%, #ff9e5e 43%, #f5d06b 46%, #7ee0a8 50%, #5cc8f0 54%, #8a9bff 57%, #f59ac8 60%, transparent 64%, transparent 100%);
+  background-size: 300% 100%; background-position: 100% 0; opacity: 0.85;
+  animation: wait-rainbow 10s infinite;
 }
-.count.asking.moving .count-ink b, .count.asking.moving .count-ink span { color: transparent; }
 @keyframes wait-rainbow {
   0% { background-position: 100% 0; animation-timing-function: cubic-bezier(.4, 0, .2, 1); }
-  2.5%, 100% { background-position: 0% 0; }
+  9%, 100% { background-position: 0% 0; }
 }
-@media (prefers-reduced-motion: reduce) { .count.asking.moving .count-ink { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .count.asking.moving::before { animation: none; opacity: 0; } }
 .popover:has(> .waiting-pop) { width: min(320px, calc(100vw - 16px)); }
 .waiting-pop { padding: 6px 2px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; }
 .waiting-pop .inbox { max-height: inherit; }
@@ -697,9 +698,8 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
   @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
 }
 
-/* The ×: on a « For you » card (closed until the conversation asks again), and on the toast. */
+/* A waiting card's text takes the room; the toast's ×. */
 .ask-h .txt { flex: 1; min-width: 0; }
-.ask-x { flex: none; margin: -4px -4px 0 0; }
 .toast { display: flex; align-items: flex-start; gap: 8px; }
 .toast > span { flex: 1; min-width: 0; padding-top: 2px; }
 .toast .tbtn { flex: none; margin: -3px -5px -3px 0; }

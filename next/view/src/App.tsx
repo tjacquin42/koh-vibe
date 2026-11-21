@@ -11,7 +11,7 @@ import { translator } from './i18n';
 import { showStoredTheme } from './lib/theme';
 import { REOPEN_WAIT_MS, settleReopening, startReopening, stopReopening, type Reopening, type WaitUntil } from './reopen';
 import { activeSessionId } from './sections';
-import { atLaunch, dismiss, parseUiState, setFolds, toggleFold, type UiState } from './ui-state';
+import { atLaunch, parseUiState, setFolds, toggleFold, type UiState } from './ui-state';
 import { Toast } from './components/molecules/Toast';
 import { BootBrand } from './components/organisms/Brand';
 import { ContextMenu } from './components/organisms/ContextMenu';
@@ -291,8 +291,6 @@ export function App({ bridge }: { bridge: Bridge }) {
       notify: showToast,
       isBusy: (key) => busy.has(key),
       activeId,
-      isDismissed: (id, at) => ui.dismissed[id] === at,
-      dismiss: (id, at) => updateUi((prev) => dismiss(prev, id, at, snapshot.sessions.filter((s) => s.status === 'waiting').map((s) => s.id))),
       sort: ui.sort,
       archives: ui.archives,
       spendWindow: ui.spendWindow,
@@ -302,7 +300,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       show: (id) => (surface === 'cockpit' ? setSheet(id) : openConversation(id)),
       open: openConversation,
     };
-  }, [t, language, now, snapshot, where, bridge, folded, opening, notices, busy, activeId, ui.dismissed, ui.sort, ui.archives, ui.spendWindow, languageChoice, surface, updateUi, reopen, act, menu, showToast, track, openConversation]);
+  }, [t, language, now, snapshot, where, bridge, folded, opening, notices, busy, activeId, ui.sort, ui.archives, ui.spendWindow, languageChoice, surface, updateUi, reopen, act, menu, showToast, track, openConversation]);
 
   if (state === undefined || ctx === undefined || surface === undefined) {
     return <BootBrand label={t('live.wait')} />;

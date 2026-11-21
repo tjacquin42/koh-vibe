@@ -12,15 +12,16 @@ const HIDE_MS = 220;
 
 /**
  * « waiting for you » (21/11), in place of the « For you » section: while a
- * conversation waits and its card was not closed, the count darkens, as a
- * notification does, and a rainbow runs through it every 30 seconds, the one
- * the name runs on a click. Hovering it — or pressing it — shows the
- * conversations that wait; a card goes to its conversation, its × closes it.
+ * conversation waits, the count darkens, as a notification does, and the
+ * rainbow the name runs on a click crosses the whole count every 10 seconds.
+ * Hovering it — or pressing it — shows the conversations that wait, the
+ * latest on top; a card goes to its conversation. None can be closed: it
+ * waits until it is answered.
  */
 export function WaitingCount({ ctx, sessions }: { ctx: ViewCtx; /** The conversations counted: all, or a folder's. */ sessions: readonly SessionView[] }) {
   const { t } = ctx;
   const n = countsOf(sessions).waiting;
-  const waiting = waitingIn(sessions).filter((s) => !ctx.isDismissed(s.id, s.lastEventAt));
+  const waiting = waitingIn(sessions);
   const asking = waiting.length > 0;
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

@@ -156,7 +156,7 @@ describe('what never shows', () => {
 });
 
 describe('« waiting for you » (21/11)', () => {
-  const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} waiting={waitingIn(ctx.snapshot.sessions).filter((s) => !ctx.isDismissed(s.id, s.lastEventAt))} />);
+  const cards = (ctx: ViewCtx) => html(<Inbox ctx={ctx} waiting={waitingIn(ctx.snapshot.sessions)} />);
 
   it('lists what waits as cards, and nothing at all when nothing does', () => {
     expect(cards(testCtx())).toContain('Rename the export button');
@@ -180,14 +180,25 @@ describe('« waiting for you » (21/11)', () => {
     expect(html(<WaitingCount ctx={testCtx({ animate: false })} sessions={ctx.snapshot.sessions} />)).not.toContain('moving');
   });
 
-  it('stays plain when nothing waits, or every card was closed with its ×', () => {
-    const s1 = sessionOf(sample(), 's1');
-    const closed = testCtx({ isDismissed: (id, at) => id === 's1' && at === s1.lastEventAt });
-    const out = html(<WaitingCount ctx={closed} sessions={closed.snapshot.sessions} />);
+  it('stays plain when nothing waits', () => {
+    const snap = sample();
+    const quiet = { ...snap, sessions: snap.sessions.map((s) => ({ ...s, status: 'idle' as const })) };
+    const ctx = testCtx({ snapshot: quiet });
+    const out = html(<WaitingCount ctx={ctx} sessions={quiet.sessions} />);
     expect(out).not.toContain('asking');
     expect(out).toContain('aria-disabled="true"');
-    // The number still counts what waits: closing a card hides it, it does not answer it.
-    expect(out).toMatch(/<b>1<\/b>/);
+    expect(out).toMatch(/<b>0<\/b>/);
+  });
+
+  it('puts the latest question on top, and offers no × — a question waits until it is answered', () => {
+    const snap = sample();
+    const base = sessionOf(snap, 's1');
+    const older = { ...base, id: 'old', title: 'Asked first', lastEventAt: base.lastEventAt - 60_000 };
+    const newer = { ...base, id: 'new', title: 'Asked last', lastEventAt: base.lastEventAt + 60_000 };
+    expect(waitingIn([older, newer]).map((s) => s.id)).toEqual(['new', 'old']);
+    const out = cards(testCtx({ snapshot: { ...snap, sessions: [older, newer] } }));
+    expect(out.indexOf('Asked last')).toBeLessThan(out.indexOf('Asked first'));
+    expect(out).not.toContain('ask-x');
   });
 });
 

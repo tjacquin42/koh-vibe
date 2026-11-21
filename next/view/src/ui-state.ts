@@ -34,11 +34,6 @@ export interface UiState {
   showUsage: boolean;
   /** The extension start this state was last seen under (ViewContext.launch). */
   launch?: string;
-  /**
-   * « For you » cards closed with their ×, by conversation: the time of its
-   * last event then. A new event — another question — brings the card back.
-   */
-  dismissed: Record<string, number>;
   /** How a folder's conversations are ordered (sections.ts sortSessions). */
   sort: SessionSort;
   /** How many closed conversations the Archives show, the latest first (15/11). */
@@ -55,7 +50,6 @@ export const DEFAULT_UI: UiState = {
   folded: [],
   cockpit: { view: 'board', folder: null, spanH: 8 },
   showUsage: true,
-  dismissed: {},
   // By state by default (15/11): what waits for you first.
   sort: 'status',
   archives: 10,
@@ -82,10 +76,6 @@ export function parseUiState(raw: unknown): UiState {
     ? (rec['folded'] as unknown[]).filter((k): k is string => typeof k === 'string')
     : DEFAULT_UI.folded;
   const showUsage = typeof rec['showUsage'] === 'boolean' ? rec['showUsage'] : DEFAULT_UI.showUsage;
-  const dismissed: Record<string, number> = {};
-  if (typeof rec['dismissed'] === 'object' && rec['dismissed'] !== null) {
-    for (const [k, v] of Object.entries(rec['dismissed'] as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v)) dismissed[k] = v;
-  }
   const sort = SESSION_SORTS.find((x) => x === rec['sort']) ?? DEFAULT_UI.sort;
   const archives = ARCHIVE_COUNTS.find((x) => x === rec['archives']) ?? DEFAULT_UI.archives;
   const spendWindow = SPEND_WINDOWS.find((x) => x === rec['spendWindow']) ?? DEFAULT_UI.spendWindow;
@@ -94,7 +84,6 @@ export function parseUiState(raw: unknown): UiState {
     folded,
     cockpit: parseCockpit(rec['cockpit']),
     showUsage,
-    dismissed,
     sort,
     archives,
     spendWindow,
@@ -115,12 +104,6 @@ export function atLaunch(state: UiState, launch: string, folderIds: readonly str
   if (state.launch === launch) return state;
   const folders = [...folderIds, 'unfiled'];
   return { ...state, launch, folded: [...new Set([...state.folded, ...folders])] };
-}
-
-/** Closes a « For you » card; only the conversations still waiting are kept, so the list stays short. */
-export function dismiss(state: UiState, sessionId: string, lastEventAt: number, waiting: readonly string[]): UiState {
-  const kept = Object.fromEntries(Object.entries(state.dismissed).filter(([id]) => waiting.includes(id)));
-  return { ...state, dismissed: { ...kept, [sessionId]: lastEventAt } };
 }
 
 /** Folds, or unfolds, several sections at once — « fold all », « unfold all ». */

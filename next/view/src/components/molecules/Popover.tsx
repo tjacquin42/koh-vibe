@@ -40,7 +40,7 @@ export function Popover({ label, onClose, at, role = 'dialog', children }: { lab
   useLayoutEffect(() => {
     const el = box.current;
     if (el !== null && at !== undefined) {
-      setPlace(placeAt(at, el.getBoundingClientRect().width, el.scrollHeight, { width: window.innerWidth, height: window.innerHeight }));
+      setPlace(placeAt(at, el.offsetWidth, el.scrollHeight, { width: window.innerWidth, height: window.innerHeight }));
       return;
     }
     const anchor = el?.parentElement?.getBoundingClientRect();
@@ -50,7 +50,9 @@ export function Popover({ label, onClose, at, role = 'dialog', children }: { lab
     const above = anchor.top - GAP - MARGIN;
     const height = el.scrollHeight;
     // Right-aligned on its button, but never past the window's left edge either (15/11).
-    const width = el.getBoundingClientRect().width;
+    // Its layout width: the opening animation scales it down a little, and a width read
+    // through it left the box a few pixels past the window's left edge (21/11).
+    const width = el.offsetWidth;
     const right = Math.min(Math.max(MARGIN, window.innerWidth - anchor.right), Math.max(MARGIN, window.innerWidth - MARGIN - width));
     setPlace(
       height <= below || below >= above

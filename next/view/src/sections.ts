@@ -128,14 +128,9 @@ export function boardColumns(snap: Snapshot, folder: string | undefined, where: 
   return cols;
 }
 
-/** C: what is waiting for you — the longest-waiting first, since it has waited longest. */
-export function waitingForYou(snap: Snapshot): SessionView[] {
-  return waitingIn(snap.sessions);
-}
-
-/** The same, among some conversations only — a folder's, in the cockpit. */
+/** What is waiting for you among `sessions` — the latest asked on top, as notifications are (21/11). */
 export function waitingIn(sessions: readonly SessionView[]): SessionView[] {
-  return sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => a.lastEventAt - b.lastEventAt);
+  return sessions.filter((s) => s.endedAt === undefined && s.status === 'waiting').sort((a, b) => b.lastEventAt - a.lastEventAt);
 }
 
 export type CountMode = 'fresh' | 'all' | 'weighted';

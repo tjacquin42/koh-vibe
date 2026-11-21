@@ -44,8 +44,6 @@ export function testCtx(over: Partial<ViewCtx> & { snapshot?: Snapshot; language
     activeId: activeSessionId(snapshot),
     isBusy: () => false,
     track: (_key, p) => p,
-    isDismissed: () => false,
-    dismiss: () => undefined,
     sort: 'status',
     archives: 10,
     spendWindow: '5h',
