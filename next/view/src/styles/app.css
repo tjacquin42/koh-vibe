@@ -249,8 +249,11 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 .g-l2 { font-size: 11px; color: var(--muted); }
 .bar { position: relative; height: 6px; border-radius: 3px; background: var(--raised); margin-top: 3px; }
 /* The pace mark (atoms/Meter.tsx): where the use should be at most by now.
-   It glides over the 30 seconds between two ticks of the view's clock. */
-.pace { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent); opacity: 1; transition: left 30s linear; pointer-events: auto; }
+   It glides over the 30 seconds between two ticks of the view's clock. One
+   size on every bar, rounded at both ends, centred on the bar (25/11). */
+.pace { position: absolute; top: 50%; left: var(--pace); width: 3px; height: 12px; margin: -6px 0 0 -1px; border-radius: 999px; background: var(--accent); transition: left 30s linear; pointer-events: auto; }
+/* On a whole pixel where the editor can round: between two, it was drawn blurred. */
+@supports (left: round(nearest, 10%, 1px)) { .pace { left: round(nearest, var(--pace), 1px); } }
 @media (prefers-reduced-motion: reduce) { .pace { transition: none; } }
 .fill { display: block; height: 100%; border-radius: 3px; background: var(--run); }
 .fill.tone-wait { background: var(--wait); }
@@ -640,7 +643,7 @@ html, body { scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent)
 /* The usage at the foot of the sidebar, one line per limit. */
 .usage.compact { gap: 4px; padding: 6px 12px; }
 .lgauge { display: grid; grid-template-columns: 34px minmax(0, 1fr) 38px 34px; align-items: center; gap: 8px; font-size: 11.5px; }
-.lgauge .bar { margin-top: 0; height: 5px; }
+.lgauge .bar { margin-top: 0; }
 .lg-l { color: var(--soft); }
 .lg-p { text-align: right; }
 .lg-r { color: var(--muted); font-size: 10.5px; text-align: right; }

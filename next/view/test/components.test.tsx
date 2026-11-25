@@ -99,7 +99,7 @@ describe('atoms', () => {
     expect(plain).toContain('role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" aria-label="5 hours"');
     expect(plain).toContain('class="fill tone-run" style="width:42%"');
     expect(plain).not.toContain('pace');
-    expect(html(<Meter label="5 hours" percent={90} tone="wait" pace={50} paceLabel="at most 50 %" />)).toContain('class="pace" style="left:50%" title="at most 50 %"');
+    expect(html(<Meter label="5 hours" percent={90} tone="wait" pace={50} paceLabel="at most 50 %" />)).toContain('class="pace" style="--pace:50%" title="at most 50 %"');
   });
 
   it('SessionName: the title, or « New » in every language for one with nothing written yet', () => {
@@ -240,7 +240,7 @@ describe('molecules', () => {
     expect(calm).toContain('<span class="mono">42 %</span>');
     expect(calm).toContain('fill tone-run');
     // Half the window gone: the pace mark stands at half the bar.
-    expect(calm).toContain('class="pace" style="left:50%"');
+    expect(calm).toContain('class="pace" style="--pace:50%"');
     expect(calm).toContain('class="g-l2"');
     const hot = html(<Gauge ctx={ctx} label="Week" w={{ percent: 130, resetsAt: NOW - 1 }} span={5 * hour} />);
     expect(hot).toContain('<span class="mono">100 %</span>');
