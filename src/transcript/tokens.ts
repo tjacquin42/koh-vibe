@@ -2,6 +2,22 @@ import type { Session } from '../events/types';
 import { readTranscript, type TranscriptStats } from './reader';
 
 /**
+ * A conversation the user stopped after its last hook rests (21/11). No hook
+ * says so (see `TranscriptStats.interruptedAt`), so without this a question
+ * closed with its × kept the row waiting, orange, until the next prompt.
+ * Any hook after the interruption — the next prompt first — is newer and
+ * wins: the state it set stands.
+ */
+export function settleInterrupted(s: Session, interruptedAt: number | undefined): void {
+  if (interruptedAt === undefined || interruptedAt <= s.lastEventAt) return;
+  if (s.endedAt !== undefined || (s.status !== 'waiting' && s.status !== 'running')) return;
+  s.status = 'idle';
+  delete s.pendingPermission;
+  delete s.inFlightSince;
+  delete s.currentAction;
+}
+
+/**
  * Attaches each session's transcript token counters to it.
  *
  * Isolated per session: `readTranscript` only guards against the missing-
@@ -26,6 +42,7 @@ export async function withTokens(
       s.tokens = { input: stats.input, output: stats.output };
       if (s.branch === undefined && stats.branch !== undefined) s.branch = stats.branch;
       if (stats.title !== undefined) s.title = stats.title;
+      settleInterrupted(s, stats.interruptedAt);
     } catch (err) {
       onFailure?.(s, err);
     }

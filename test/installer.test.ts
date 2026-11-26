@@ -5,6 +5,7 @@ import {
   installHooks,
   KOH_MARKER,
   uninstallHooks,
+  upgradeHooks,
 } from '../src/hooks/installer';
 
 const BRIDGE = '/Users/dev/koh-vibe/bin/koh-vibe-bridge';
@@ -22,8 +23,8 @@ const existing = {
 };
 
 describe('installHooks', () => {
-  it('adds our 8 entries', () => {
-    expect(countKohEntries(installHooks(existing, BRIDGE))).toBe(8);
+  it('adds our 9 entries', () => {
+    expect(countKohEntries(installHooks(existing, BRIDGE))).toBe(9);
   });
 
   it('preserves the existing entries', () => {
@@ -45,11 +46,11 @@ describe('installHooks', () => {
 
   it('is idempotent', () => {
     const once = installHooks(existing, BRIDGE);
-    expect(countKohEntries(installHooks(once, BRIDGE))).toBe(8);
+    expect(countKohEntries(installHooks(once, BRIDGE))).toBe(9);
   });
 
   it('works on a settings.json with no hooks', () => {
-    expect(countKohEntries(installHooks({}, BRIDGE))).toBe(8);
+    expect(countKohEntries(installHooks({}, BRIDGE))).toBe(9);
   });
 
   it('uninstalls only our own', () => {
@@ -284,7 +285,7 @@ describe('the folder rules hook', () => {
       `/bin/sh -c '[ -x "${RULES}" ] && "${RULES}"; exit 0'`,
     ]);
     expect(entriesOf(out, 'Stop').flatMap((e) => e.hooks)).toHaveLength(1);
-    expect(countKohEntries(out)).toBe(9);
+    expect(countKohEntries(out)).toBe(10);
   });
 
   it('is ours: reinstalled without doubling, uninstalled, invisible to the fingerprint', () => {
@@ -293,7 +294,7 @@ describe('the folder rules hook', () => {
     expect(foreignFingerprint(once)).toEqual(foreignFingerprint(existing));
     expect(uninstallHooks(once)).toEqual(existing);
     // An install without it takes it back out, rather than leaving it orphaned.
-    expect(countKohEntries(installHooks(once, BRIDGE))).toBe(8);
+    expect(countKohEntries(installHooks(once, BRIDGE))).toBe(9);
   });
 
   it('never takes a foreign command that merely mentions it for ours', () => {
@@ -304,5 +305,41 @@ describe('the folder rules hook', () => {
     };
     expect(countKohEntries(foreign)).toBe(0);
     expect(uninstallHooks(foreign)).toEqual(foreign);
+  });
+});
+
+describe('upgradeHooks: installed hooks brought up to a new event (21/11)', () => {
+  const ours = (event: string): string => `/bin/sh -c '[ -x "${BRIDGE}" ] && "${BRIDGE}" ${event}; exit 0'`;
+  /** Our hooks as an older version installed them: every event but PostToolUseFailure. */
+  const older = (): Record<string, unknown> => {
+    const all = installHooks(existing, BRIDGE) as { hooks: Record<string, unknown> };
+    const { PostToolUseFailure: _gone, ...hooks } = all.hooks;
+    return { ...all, hooks };
+  };
+
+  it('adds our entry for the missing event, with the bridge already installed, and moves nothing else', () => {
+    const before = older();
+    const after = upgradeHooks(before) as { hooks: Record<string, unknown> };
+    expect(after.hooks['PostToolUseFailure']).toEqual([{ matcher: '*', hooks: [{ type: 'command', command: ours('PostToolUseFailure') }] }]);
+    expect(countKohEntries(after)).toBe(9);
+    expect(foreignFingerprint(after)).toEqual(foreignFingerprint(before));
+    expect(after.hooks['PreToolUse']).toEqual((before['hooks'] as Record<string, unknown>)['PreToolUse']);
+  });
+
+  it('does nothing when our hooks are not installed — that stays a choice — or already cover every event', () => {
+    expect(upgradeHooks(existing)).toBeUndefined();
+    expect(upgradeHooks({})).toBeUndefined();
+    expect(upgradeHooks('nope')).toBeUndefined();
+    expect(upgradeHooks(installHooks(existing, BRIDGE))).toBeUndefined();
+  });
+
+  it('keeps someone else’s entry already on the new event, and leaves an unknown shape alone', () => {
+    const before = older();
+    const foreign = [{ matcher: '*', hooks: [{ type: 'command', command: 'theirs' }] }];
+    const withTheirs = { ...before, hooks: { ...(before['hooks'] as Record<string, unknown>), PostToolUseFailure: foreign } };
+    const after = upgradeHooks(withTheirs) as { hooks: Record<string, unknown[]> };
+    expect(after.hooks['PostToolUseFailure']).toEqual([...foreign, { matcher: '*', hooks: [{ type: 'command', command: ours('PostToolUseFailure') }] }]);
+    const odd = { ...before, hooks: { ...(before['hooks'] as Record<string, unknown>), PostToolUseFailure: 'odd' } };
+    expect(upgradeHooks(odd)).toBeUndefined();
   });
 });

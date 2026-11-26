@@ -138,8 +138,10 @@ export function shownSession(onDisk: Session | undefined, restored: Session | un
   if (restored === undefined) return onDisk;
   if (onDisk === undefined) return restored;
   if (onDisk.endedAt === undefined) return onDisk;
-  const { endedAt: _over, ...rest } = onDisk;
-  const next: Session = { ...rest, status: 'idle', dormant: true };
+  // What it had not been seen as yet comes back with its tab (19/11): the end was the editor quitting.
+  const { endedAt: _over, endedStatus, ...rest } = onDisk;
+  const status = endedStatus === 'waiting' || endedStatus === 'done_unseen' ? endedStatus : 'idle';
+  const next: Session = { ...rest, status, dormant: true };
   if (next.title === undefined && restored.title !== undefined) next.title = restored.title;
   return next;
 }

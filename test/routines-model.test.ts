@@ -41,6 +41,19 @@ describe('parseRoutines', () => {
     });
   });
 
+  it('knows a routine running now, by its last run with no end yet (15/11)', () => {
+    const running = { status: 'ROUTINE_RUN_STATUS_PENDING', fired_at: '2026-11-15T15:46:01.391Z', session_id: 'cse_x' };
+    const done = { ...running, status: 'ROUTINE_RUN_STATUS_SUCCEEDED', finished_at: '2026-11-15T15:50:00.000Z' };
+    const failed = { ...running, status: 'ROUTINE_RUN_STATUS_FAILED' };
+    const [a, b, c, d] = parseRoutines({ data: [trigger({ last_run: running }), trigger({ last_run: done }), trigger({ last_run: failed }), trigger()] })?.routines ?? [];
+    expect(a?.runningSince).toBe(Date.parse('2026-11-15T15:46:01.391Z'));
+    expect(b?.runningSince).toBeUndefined();
+    expect(c?.runningSince).toBeUndefined();
+    expect(d?.runningSince).toBeUndefined();
+    expect(isRoutine(a)).toBe(true);
+    expect(isRoutine({ ...a, runningSince: 'soon' })).toBe(false);
+  });
+
   it('reads a one-shot, and knows one that already fired', () => {
     const [due, spent] = parseRoutines({
       data: [

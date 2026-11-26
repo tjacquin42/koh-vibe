@@ -52,6 +52,24 @@ describe('temporaryToExpire — a conversation filed nowhere, quiet for a day', 
     });
   });
 
+  it('closes a restored tab over a conversation quiet for a day: its age is the conversation\'s', () => {
+    // An ended conversation whose tab the editor restored shows dormant, with
+    // the spool's last activity (shownSession) — it used to be skipped forever.
+    const plan = temporaryToExpire([s('restored', { dormant: true })], nowhere, (id) => id === 'restored', NOW);
+    expect(ids(plan.close)).toEqual(['restored']);
+    expect(plan.remove).toEqual([]);
+  });
+
+  it('keeps a restored tab that is younger than a day, or that this window cannot tell apart', () => {
+    const young = s('young', { dormant: true, lastEventAt: NOW - TEMPORARY_TTL_MS + 1 });
+    expect(temporaryToExpire([young], nowhere, everywhere, NOW)).toEqual({ remove: [], close: [] });
+    expect(temporaryToExpire([s('lost', { dormant: true })], nowhere, nowhere, NOW)).toEqual({ remove: [], close: [] });
+  });
+
+  it('keeps a restored tab filed in a folder, whatever its age', () => {
+    expect(temporaryToExpire([s('kept', { dormant: true })], everywhere, everywhere, NOW)).toEqual({ remove: [], close: [] });
+  });
+
   it('is exactly the ttl: a day less a millisecond stays, a day and a millisecond goes', () => {
     const edge = (lastEventAt: number): Session[] =>
       temporaryToExpire([s('edge', { lastEventAt })], nowhere, everywhere, NOW).close;

@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import type { Session } from '../events/types';
+import { editorViews, type ViewHost } from './view-host';
 
 export class StatusSummary {
   private readonly item: vscode.StatusBarItem;
 
-  constructor() {
-    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+  constructor(views: ViewHost = editorViews) {
+    this.item = views.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
     this.item.command = 'kohVibe.sessions.focus';
     this.item.name = 'Koh-Vibe';
   }

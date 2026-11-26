@@ -11,6 +11,7 @@ import {
   fileArtifactsInGroup,
   parseGroups,
   serializeGroups,
+  setArtifactOrder,
   unfileArtifacts,
   type GroupsState,
 } from '../src/groups/model';
@@ -96,5 +97,57 @@ describe('artifacts in the shared groups file', () => {
       return fileArtifactsInGroup(s, [{ slug: 'a1', title: 'A' }], 'g1');
     });
     expect(out.artifacts).toEqual({});
+  });
+});
+
+describe('the order of a folder\'s artifacts (21/11)', () => {
+  const filedThree = (): GroupsState =>
+    fileArtifactsInGroup(twoFolders(), [{ slug: 'a1', title: 'A' }, { slug: 'a2', title: 'B' }, { slug: 'a3', title: 'C' }], 'g1');
+  const slugsOf = (s: GroupsState, g = 'g1'): string[] => artifactsOfGroup(s, g).map((a) => a.slug);
+
+  it('lists them as dragged, then the others in the order they were filed', () => {
+    const s = setArtifactOrder(filedThree(), 'g1', ['a3', 'a1']);
+    expect(slugsOf(s)).toEqual(['a3', 'a1', 'a2']);
+    // One filed later lands at the end.
+    expect(slugsOf(fileArtifactsInGroup(s, [{ slug: 'a4', title: 'D' }], 'g1'))).toEqual(['a3', 'a1', 'a2', 'a4']);
+  });
+
+  it('survives the file, and is not written until something is dragged', () => {
+    expect(serializeGroups(filedThree())).not.toContain('artifactOrder');
+    const s = setArtifactOrder(filedThree(), 'g1', ['a2', 'a3', 'a1']);
+    expect(slugsOf(parseGroups(serializeGroups(s)))).toEqual(['a2', 'a3', 'a1']);
+    expect(setArtifactOrder(s, 'g1', []).artifactOrder).toBeUndefined();
+  });
+
+  it('refuses an unknown folder, and goes with its folder', () => {
+    const s = filedThree();
+    expect(setArtifactOrder(s, 'nope', ['a1'])).toBe(s);
+    expect(deleteGroup(setArtifactOrder(s, 'g1', ['a3']), 'g1').artifactOrder).toBeUndefined();
+  });
+});
+
+describe('the order of a folder\'s artifacts in the shared file (21/11)', () => {
+  let dir: string;
+  let file: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'koh-groups-artifact-order-'));
+    file = join(dir, 'groups.json');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('is written though nothing else changes, and keeps the order another window set in another folder', async () => {
+    const start = fileArtifactsInGroup(
+      fileArtifactsInGroup(twoFolders(), [{ slug: 'a1', title: 'A' }, { slug: 'a2', title: 'B' }], 'g1'),
+      [{ slug: 'b1', title: 'C' }, { slug: 'b2', title: 'D' }],
+      'g2',
+    );
+    await writeFile(file, serializeGroups(start));
+    const out = await updateGroups(file, async (s) => {
+      await writeFile(file, serializeGroups(setArtifactOrder(parseGroups(await readFile(file, 'utf8')), 'g2', ['b2', 'b1'])));
+      return setArtifactOrder(s, 'g1', ['a2', 'a1']);
+    });
+    expect(artifactsOfGroup(out, 'g1').map((a) => a.slug)).toEqual(['a2', 'a1']);
+    expect(artifactsOfGroup(out, 'g2').map((a) => a.slug)).toEqual(['b2', 'b1']);
+    expect(artifactsOfGroup(parseGroups(await readFile(file, 'utf8')), 'g1').map((a) => a.slug)).toEqual(['a2', 'a1']);
   });
 });

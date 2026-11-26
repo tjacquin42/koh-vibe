@@ -11,6 +11,7 @@ import {
   setSessionOrder,
   setSessionSound,
   unassign,
+  setArtifactOrder,
   unfileArtifacts,
 } from './model';
 import type { GroupsState } from './model';
@@ -163,6 +164,11 @@ export async function fileArtifactsCommand(
         )
       : fileArtifactsInGroup(s, items, groupId),
   );
+}
+
+/** Puts a folder's artifacts in the order they were dragged into (21/11). */
+export async function orderArtifactsCommand(groupsFilePath: string, groupId: string, slugs: readonly string[]): Promise<GroupsState> {
+  return updateGroups(groupsFilePath, (s) => setArtifactOrder(s, groupId, slugs));
 }
 
 export async function runGroupAction(

@@ -9,3 +9,4 @@ coverage/
 .superpowers/
 build-info.json
 .worktrees/
+next/engine/

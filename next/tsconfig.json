@@ -1,0 +1,22 @@
+{
+  // The extension host side. Type-checked only: esbuild emits the bundle
+  // (scripts/build-host.mjs), because the host imports V1's read paths from
+  // ../src and tsc cannot emit across that boundary with one rootDir.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node", "vscode"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": false,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/host", "src/shared", "test", "vite.config.ts", "vitest.config.ts"]
+}

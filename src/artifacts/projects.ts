@@ -18,10 +18,21 @@ import { isSlug, sortArtifacts, type Artifact } from './model';
  * to its new name — or to `null` when it was emptied into « Other ». What
  * still goes by the old name finds the project it became: the repository a
  * project was named after (`projectForName`), a title (`projectOfArtifact`).
+ *
+ * `folders` are the projects made by hand, which exist before anything is
+ * filed in them — a project otherwise exists only through what it holds.
+ * Absent when there is none, and not written then: a file from before the
+ * folders reads and writes as it always did.
+ *
+ * `order` is the order the projects were dragged into (21/11), by name. A
+ * project it does not name comes after the ones it does, by name. Absent, and
+ * not written, until a project is dragged.
  */
 export interface ArtifactProjects {
   filed: Readonly<Record<string, string | null>>;
   aliases: Readonly<Record<string, string | null>>;
+  folders?: readonly string[];
+  order?: readonly string[];
   /** Fields of the file we do not know: preserved as is on write. */
   unknown: Readonly<Record<string, unknown>>;
 }
@@ -32,7 +43,7 @@ export interface ProjectGroup {
   artifacts: Artifact[];
 }
 
-const KNOWN = new Set(['version', 'filed', 'aliases']);
+const KNOWN = new Set(['version', 'filed', 'aliases', 'folders', 'order']);
 
 export function emptyArtifactProjects(): ArtifactProjects {
   return { filed: {}, aliases: {}, unknown: {} };
@@ -72,12 +83,35 @@ export function parseArtifactProjects(raw: string): ArtifactProjects {
       if (key.length > 0 && projectKey(key) === key && target !== undefined) aliases[key] = target;
     }
   }
+  const folders = names(root['folders']);
+  const order = names(root['order']);
   const unknown = Object.fromEntries(Object.entries(root).filter(([key]) => !KNOWN.has(key)));
-  return { filed, aliases, unknown };
+  return { filed, aliases, ...(folders.length === 0 ? {} : { folders }), ...(order.length === 0 ? {} : { order }), unknown };
+}
+
+/** Only names, and each project once however it is spelled. */
+function names(raw: unknown): string[] {
+  const out: string[] = [];
+  if (!Array.isArray(raw)) return out;
+  for (const entry of raw as unknown[]) {
+    const name = typeof entry === 'string' ? entry.trim() : '';
+    const key = projectKey(name);
+    if (key.length > 0 && !out.some((f) => projectKey(f) === key)) out.push(name);
+  }
+  return out;
 }
 
 export function serializeArtifactProjects(s: ArtifactProjects): string {
-  return `${JSON.stringify({ ...s.unknown, version: 1, filed: s.filed, aliases: s.aliases }, null, 2)}\n`;
+  const folders = s.folders !== undefined && s.folders.length > 0 ? { folders: s.folders } : {};
+  const order = s.order !== undefined && s.order.length > 0 ? { order: s.order } : {};
+  return `${JSON.stringify({ ...s.unknown, version: 1, filed: s.filed, aliases: s.aliases, ...folders, ...order }, null, 2)}\n`;
+}
+
+/** The projects in the order they were dragged into (21/11): names only, each once. */
+export function orderProjects(s: ArtifactProjects, order: readonly string[]): ArtifactProjects {
+  const list = names(order);
+  const { order: _before, ...rest } = s;
+  return list.length === 0 ? rest : { ...rest, order: list };
 }
 
 /**
@@ -94,11 +128,14 @@ export function projectKey(name: string): string {
     .trim();
 }
 
-/** Every project something is filed into, once each, « Other » aside. */
+/** Every project something is filed into, then the folders made by hand that hold nothing yet — once each, « Other » aside. */
 export function knownProjects(s: ArtifactProjects): string[] {
   const out: string[] = [];
   for (const project of Object.values(s.filed)) {
     if (project !== null && !out.includes(project)) out.push(project);
+  }
+  for (const folder of s.folders ?? []) {
+    if (!out.some((p) => projectKey(p) === projectKey(folder))) out.push(folder);
   }
   return out;
 }
@@ -113,6 +150,31 @@ function canonical(name: string, among: readonly string[]): string {
   const key = projectKey(trimmed);
   if (key.length === 0) return trimmed;
   return among.find((p) => projectKey(p) === key) ?? trimmed;
+}
+
+/**
+ * Makes a folder by hand: a project that exists before anything is filed in
+ * it. Nothing happens when the name is blank, or is a project already —
+ * whatever the spelling.
+ */
+export function createFolder(s: ArtifactProjects, name: string): ArtifactProjects {
+  const trimmed = name.trim();
+  const key = projectKey(trimmed);
+  if (key.length === 0 || knownProjects(s).some((p) => projectKey(p) === key)) return s;
+  return { ...s, folders: [...(s.folders ?? []), trimmed] };
+}
+
+/**
+ * Takes a folder made by hand off the list. What is filed under its name
+ * stays filed: the project then lasts as long as it holds something.
+ */
+export function deleteFolder(s: ArtifactProjects, name: string): ArtifactProjects {
+  const key = projectKey(name);
+  const folders = (s.folders ?? []).filter((f) => projectKey(f) !== key);
+  if (folders.length === (s.folders ?? []).length) return s;
+  const { folders: _gone, order, ...rest } = s;
+  const kept = (order ?? []).filter((f) => projectKey(f) !== key);
+  return { ...rest, ...(folders.length === 0 ? {} : { folders }), ...(kept.length === 0 ? {} : { order: kept }) };
 }
 
 /** Files the artifacts into a project — `null`, or a blank name, files them into « Other ». */
@@ -157,7 +219,22 @@ export function renameProject(s: ArtifactProjects, from: string, to: string | nu
   for (const [key, project] of Object.entries(aliases)) {
     if (project !== null && projectKey(project) === key) delete aliases[key];
   }
-  return { ...s, filed, aliases };
+  // A folder made by hand follows its name — and leaves the list when it is
+  // emptied into « Other », or becomes a project that is there already.
+  const merged = target !== null && others.some((p) => projectKey(p) === projectKey(target));
+  const follow = (list: readonly string[]): string[] => {
+    const out: string[] = [];
+    for (const folder of list) {
+      if (folder !== from) out.push(folder);
+      else if (target !== null && !merged) out.push(target);
+    }
+    return out;
+  };
+  const folders = follow(s.folders ?? []);
+  // Its place in the dragged order too, and none once it is gone into another project or « Other ».
+  const order = follow(s.order ?? []);
+  const { folders: _before, order: _placed, ...rest } = s;
+  return { ...rest, filed, aliases, ...(folders.length === 0 ? {} : { folders }), ...(order.length === 0 ? {} : { order }) };
 }
 
 /**

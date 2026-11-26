@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Artifact } from '../src/artifacts/model';
 import {
+  createFolder,
+  deleteFolder,
   emptyArtifactProjects,
   fileArtifacts,
   fileIfUnfiled,
   groupByProject,
   knownProjects,
+  orderProjects,
   parseArtifactProjects,
   projectKey,
   projectOfArtifact,
@@ -222,5 +225,91 @@ describe('groupByProject', () => {
   it('shows no project that has nothing in it', () => {
     const groups = groupByProject([artifact('a')], filed({ a: 'NTI', gone: 'Vetibble' }));
     expect(groups.map((g) => g.project)).toEqual(['NTI']);
+  });
+});
+
+describe('folders made by hand (16/11)', () => {
+  const made = (s: ArtifactProjects): readonly string[] => s.folders ?? [];
+
+  it('exist before anything is filed in them, and survive the file', () => {
+    const s = createFolder(emptyArtifactProjects(), '  Veille  ');
+    expect(made(s)).toEqual(['Veille']);
+    expect(knownProjects(s)).toEqual(['Veille']);
+    expect(made(parseArtifactProjects(serializeArtifactProjects(s)))).toEqual(['Veille']);
+  });
+
+  it('are not written when there is none: a file from before reads and writes as it did', () => {
+    const before = filed({ a: 'koh-vibe' });
+    expect(serializeArtifactProjects(before)).not.toContain('folders');
+    expect(made(parseArtifactProjects(serializeArtifactProjects(before)))).toEqual([]);
+  });
+
+  it('never double a project that exists, whatever the spelling, nor take a blank name', () => {
+    const s = filed({ a: 'Koh-Vibe' });
+    expect(createFolder(s, 'koh vibe')).toBe(s);
+    expect(createFolder(s, '   ')).toBe(s);
+    const once = createFolder(s, 'NTI');
+    expect(createFolder(once, 'nti')).toBe(once);
+  });
+
+  it('take what is filed under their name, spelled as they were made', () => {
+    const s = fileArtifacts(createFolder(emptyArtifactProjects(), 'NTI'), ['a'], 'nti');
+    expect(s.filed).toEqual({ a: 'NTI' });
+    expect(knownProjects(s)).toEqual(['NTI']);
+  });
+
+  it('point a title to them like any project', () => {
+    const s = createFolder(emptyArtifactProjects(), 'NTI');
+    expect(projectOfArtifact(artifact('x', { title: 'Journal de bord NTI' }), s)).toBe('NTI');
+  });
+
+  it('follow their name when renamed, and leave when emptied into « Other » or merged', () => {
+    const s = createFolder(createFolder(filed({ a: 'Shop' }), 'Veille'), 'Docs');
+    expect(made(renameProject(s, 'Veille', 'Watch'))).toEqual(['Watch', 'Docs']);
+    expect(made(renameProject(s, 'Veille', null))).toEqual(['Docs']);
+    // Merged into a project that exists: one folder, the one it became.
+    expect(made(renameProject(s, 'Veille', 'docs'))).toEqual(['Docs']);
+    expect(made(renameProject(s, 'Veille', 'shop'))).toEqual(['Docs']);
+  });
+
+  it('are deleted by name, which files nothing anywhere', () => {
+    const s = createFolder(filed({ a: 'Shop' }), 'Veille');
+    const gone = deleteFolder(s, 'Veille');
+    expect(made(gone)).toEqual([]);
+    expect(gone.filed).toEqual({ a: 'Shop' });
+    expect(deleteFolder(gone, 'Veille')).toBe(gone);
+  });
+
+  it('drop from the file whatever is no name: only strings, once each', () => {
+    const s = parseArtifactProjects(JSON.stringify({ version: 1, filed: {}, aliases: {}, folders: ['Veille', 3, ' ', 'veille', null, 'Docs'] }));
+    expect(made(s)).toEqual(['Veille', 'Docs']);
+    expect(made(parseArtifactProjects(JSON.stringify({ version: 1, folders: 'Veille' })))).toEqual([]);
+  });
+});
+
+describe('the order the projects were dragged into (21/11)', () => {
+  const placed = (s: ArtifactProjects): readonly string[] => s.order ?? [];
+
+  it('is kept by name, once each, and survives the file', () => {
+    const s = orderProjects(filed({ a: 'Shop' }), ['NTI', ' Shop ', 'nti', '']);
+    expect(placed(s)).toEqual(['NTI', 'Shop']);
+    expect(placed(parseArtifactProjects(serializeArtifactProjects(s)))).toEqual(['NTI', 'Shop']);
+  });
+
+  it('is not written until a project is dragged, nor once emptied', () => {
+    expect(serializeArtifactProjects(filed({ a: 'Shop' }))).not.toContain('order');
+    expect(serializeArtifactProjects(orderProjects(orderProjects(filed({}), ['Shop']), []))).not.toContain('order');
+  });
+
+  it('follows a project renamed, and forgets one emptied into « Other » or merged', () => {
+    const s = orderProjects(filed({ a: 'Shop', b: 'Docs', c: 'Veille' }), ['Veille', 'Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', 'Watch'))).toEqual(['Watch', 'Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', null))).toEqual(['Docs', 'Shop']);
+    expect(placed(renameProject(s, 'Veille', 'docs'))).toEqual(['Docs', 'Shop']);
+  });
+
+  it('forgets a folder made by hand once deleted', () => {
+    const s = orderProjects(createFolder(filed({ a: 'Shop' }), 'Veille'), ['Veille', 'Shop']);
+    expect(placed(deleteFolder(s, 'Veille'))).toEqual(['Shop']);
   });
 });

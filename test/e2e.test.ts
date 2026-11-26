@@ -88,7 +88,7 @@ afterEach(() => {
 });
 
 describe('end to end: install → bridge → reduce → uninstall', () => {
-  it('installs stable, executable copies of the bridge and the rules hook, referenced by the 9 hooks', () => {
+  it('installs stable, executable copies of the bridge and the rules hook, referenced by the 10 hooks', () => {
     runInstaller();
 
     const bridgeTarget = join(kohHome, 'bin', 'koh-vibe-bridge');
@@ -100,7 +100,7 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
       hooks: Record<string, Array<{ matcher: string; hooks: Array<{ command: string }> }>>;
     };
     // One bridge per event, plus the folder rules on UserPromptSubmit.
-    expect(countKohEntries(after)).toBe(9);
+    expect(countKohEntries(after)).toBe(10);
 
     for (const event of HOOK_EVENTS) {
       const commands = after.hooks[event]?.flatMap((m) => m.hooks.map((h) => h.command)) ?? [];
@@ -133,7 +133,7 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
     expect(stat.isFile()).toBe(true);
     expect(stat.mode & 0o111).not.toBe(0);
     expect(stat.mtimeMs).toBeGreaterThanOrEqual(firstRun);
-    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(9);
+    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(10);
   });
 
   it('fills the spool through the real bridge, then reduces a consistent status, project and current action', async () => {
@@ -169,7 +169,7 @@ describe('end to end: install → bridge → reduce → uninstall', () => {
 
   it('uninstalls and returns the dummy configuration strictly identical to its starting state', () => {
     runInstaller();
-    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(9);
+    expect(countKohEntries(JSON.parse(readFileSync(settingsPath, 'utf8')))).toBe(10);
 
     runInstaller('--uninstall');
 

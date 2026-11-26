@@ -66,6 +66,37 @@ describe('reduce', () => {
     expect(b?.pendingPermission).toBeUndefined();
   });
 
+  it('leaves waiting as soon as the question is answered — the tool it waited on has run (15/11)', () => {
+    const a = reduce(undefined, ev('PreToolUse', { toolName: 'AskUserQuestion' }));
+    const b = reduce(a, ev('PermissionRequest', { toolName: 'AskUserQuestion' }));
+    const c = reduce(b, ev('PostToolUse', { toolName: 'AskUserQuestion' }));
+    expect(c?.status).toBe('running');
+    expect(c?.pendingPermission).toBeUndefined();
+  });
+
+  it('rests, seen, when the question is closed with its × — the tool interrupted (21/11)', () => {
+    const a = reduce(undefined, ev('PreToolUse', { toolName: 'AskUserQuestion' }));
+    const b = reduce(a, ev('PermissionRequest', { toolName: 'AskUserQuestion' }));
+    const c = reduce(b, ev('PostToolUseFailure', { toolName: 'AskUserQuestion', interrupted: true }));
+    expect(c?.status).toBe('idle');
+    expect(c?.pendingPermission).toBeUndefined();
+    expect(c?.currentAction).toBeUndefined();
+    expect(c?.toolCount).toBe(1);
+  });
+
+  it('goes on working when the tool waited on fails on its own, and keeps waiting for another', () => {
+    const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
+    expect(reduce(a, ev('PostToolUseFailure', { toolName: 'Bash' }))?.status).toBe('running');
+    expect(reduce(a, ev('PostToolUseFailure', { toolName: 'Read' }))?.status).toBe('waiting');
+  });
+
+  it('keeps waiting when another tool finishes meanwhile — the one asked about has not run', () => {
+    const a = reduce(undefined, ev('PermissionRequest', { toolName: 'Bash' }));
+    const b = reduce(a, ev('PostToolUse', { toolName: 'Read' }));
+    expect(b?.status).toBe('waiting');
+    expect(b?.pendingPermission?.tool).toBe('Bash');
+  });
+
   it('finishes unread, then idle after acknowledgment', () => {
     const a = reduce(undefined, ev('UserPromptSubmit'));
     const b = reduce(a, ev('Stop'));
@@ -99,6 +130,58 @@ describe('reduce', () => {
     const c = reduce(b, ev('SessionEnd', { at: (b?.lastEventAt ?? 0) - 5 }));
     expect(c).not.toHaveProperty('endedAt');
     expect(c?.status).toBe('running');
+  });
+
+  it('remembers, at its end, that it was waiting for you or finished unread (19/11)', () => {
+    // An editor that quits ends every conversation: what was not seen yet must survive it.
+    const done = reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop'));
+    const ended = reduce(done, ev('SessionEnd'));
+    expect(ended?.status).toBe('idle');
+    expect(ended?.endedStatus).toBe('done_unseen');
+    const asking = reduce(reduce(undefined, ev('UserPromptSubmit')), ev('PermissionRequest', { toolName: 'Bash' }));
+    expect(reduce(asking, ev('SessionEnd'))?.endedStatus).toBe('waiting');
+    // Nothing to remember for one that was seen, or working.
+    expect(reduce(reduce(done, ev('Ack')), ev('SessionEnd'))).not.toHaveProperty('endedStatus');
+    expect(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('SessionEnd'))).not.toHaveProperty('endedStatus');
+  });
+
+  it('forgets it once seen, or once the conversation speaks again', () => {
+    const ended = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('SessionEnd'));
+    expect(reduce(ended, ev('Ack'))).not.toHaveProperty('endedStatus');
+    const back = reduce(ended, ev('SessionStart'));
+    expect(back).not.toHaveProperty('endedStatus');
+    expect(back).not.toHaveProperty('endedAt');
+    // A late hook changes nothing of it.
+    expect(reduce(ended, ev('PostToolUse', { at: (ended?.lastEventAt ?? 0) - 5 }))?.endedStatus).toBe('done_unseen');
+  });
+
+  it('shows as unread again on demand — open or ended (19/11)', () => {
+    const seen = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('Ack'));
+    expect(seen?.status).toBe('idle');
+    expect(reduce(seen, ev('Unread'))?.status).toBe('done_unseen');
+    const ended = reduce(seen, ev('SessionEnd'));
+    const unread = reduce(ended, ev('Unread'));
+    // Ended, it stays ended: the mark waits for its tab to come back.
+    expect(unread?.status).toBe('idle');
+    expect(unread?.endedAt).toBe(ended?.endedAt);
+    expect(unread?.endedStatus).toBe('done_unseen');
+    // Never over a conversation that works or waits: it is not « read » to begin with.
+    const working = reduce(undefined, ev('UserPromptSubmit'));
+    expect(reduce(working, ev('Unread'))?.status).toBe('running');
+    expect(reduce(undefined, ev('Unread'))).toBeUndefined();
+  });
+
+  it('says a conversation was marked unread by hand, until it is seen or speaks again — for the sound (19/11)', () => {
+    const seen = reduce(reduce(reduce(undefined, ev('UserPromptSubmit')), ev('Stop')), ev('Ack'));
+    expect(seen).not.toHaveProperty('markedUnread');
+    const marked = reduce(seen, ev('Unread'));
+    expect(marked?.markedUnread).toBe(true);
+    expect(reduce(marked, ev('Ack'))).not.toHaveProperty('markedUnread');
+    expect(reduce(marked, ev('UserPromptSubmit'))).not.toHaveProperty('markedUnread');
+    // A real finish is no longer « by hand ».
+    expect(reduce(reduce(marked, ev('UserPromptSubmit')), ev('Stop'))).not.toHaveProperty('markedUnread');
+    // Ended, it is marked too: its tab brings it back unread, silently.
+    expect(reduce(reduce(seen, ev('SessionEnd')), ev('Unread'))?.markedUnread).toBe(true);
   });
 
   it('an Ack on an absent session creates nothing: only a hook event can bring a session into being', () => {

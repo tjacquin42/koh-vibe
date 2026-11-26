@@ -24,6 +24,14 @@ export interface TranscriptStats {
    * and the tab then carries the prompt: the list must say the same thing.
    */
   title?: string;
+  /**
+   * When the user last stopped the turn themselves (21/11): a question or a
+   * permission closed with its ×, or Escape while Claude worked. Claude Code
+   * runs no hook for either — no `PostToolUseFailure`, no `Stop` — and writes
+   * it only here, as « User rejected tool use » or « [Request interrupted by
+   * user… ». Milliseconds, the transcript's own clock.
+   */
+  interruptedAt?: number;
 }
 
 /** What the tab shows of a prompt: its first line, whitespace folded, cut short. */
@@ -49,6 +57,18 @@ function userText(message: unknown): string | undefined {
     if (block['type'] === 'text' && typeof block['text'] === 'string') parts.push(block['text']);
   }
   return parts.length > 0 ? parts.join('\n') : undefined;
+}
+
+/** Whether a user record says the user stopped the turn: a tool refused, or the turn interrupted. */
+export function isInterruption(entry: Record<string, unknown>): boolean {
+  if (entry['type'] !== 'user' || entry['isSidechain'] === true) return false;
+  if (entry['toolUseResult'] === 'User rejected tool use') return true;
+  const message = entry['message'];
+  if (!isRecord(message)) return false;
+  const content = message['content'];
+  const said = (t: unknown): boolean => typeof t === 'string' && t.startsWith('[Request interrupted by user');
+  if (said(content)) return true;
+  return Array.isArray(content) && content.some((b) => isRecord(b) && b['type'] === 'text' && said(b['text']));
 }
 
 const EMPTY: TranscriptStats = { offset: 0, input: 0, output: 0 };
@@ -135,6 +155,11 @@ export async function readTranscript(path: string, from?: TranscriptStats): Prom
       } else if (type === 'user' && stats.firstPrompt === undefined && entry['isMeta'] !== true && entry['isSidechain'] !== true) {
         const t = promptTitle(userText(entry['message']));
         if (t !== undefined) stats.firstPrompt = t;
+      }
+
+      if (isInterruption(entry)) {
+        const at = typeof entry['timestamp'] === 'string' ? Date.parse(entry['timestamp']) : NaN;
+        if (Number.isFinite(at)) stats.interruptedAt = Math.max(stats.interruptedAt ?? 0, at);
       }
 
       if (type !== 'assistant') continue;

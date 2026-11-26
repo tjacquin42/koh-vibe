@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from 'node:fs';
+import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -71,6 +71,14 @@ export class FocusBroker {
      * without it, and its tests do without it too.
      */
     private readonly onOpened?: (sessionId: string) => void,
+    /**
+     * Whether a conversation has a transcript yet. Claude Code writes it on
+     * the first message, and lists nothing before: a fresh conversation is
+     * absent from every window's list, its own included, so the list cannot
+     * say which window holds it. Without the answer, every conversation is
+     * taken as written.
+     */
+    private readonly written: (s: Session) => Promise<boolean> = async () => true,
   ) {}
 
   private folders(): string[] {
@@ -98,21 +106,10 @@ export class FocusBroker {
    */
   private async postRequest(
     prefix: 'focus' | 'reopen' | 'close' | 'sleep',
-    s: { id: string; cwd: string; origin: unknown; label: string },
+    s: { id: string; cwd: string; origin: unknown; label: string; fresh?: boolean },
     onUnconsumed: () => void | Promise<void>,
   ): Promise<void> {
-    const seq = (this.requestSeq += 1);
-    const name = join(this.dirs.requests, `${prefix}-${s.id}.json`);
-    const tmp = join(this.dirs.requests, `.tmp-${prefix}-${s.id}-${process.pid}-${seq}`);
-    const body = JSON.stringify({
-      sessionId: s.id,
-      cwd: s.cwd,
-      label: s.label,
-      origin: s.origin,
-      at: Date.now(),
-    });
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, name);
+    const name = await this.writeRequest(prefix, s);
 
     const existing = this.fallbacks.get(name);
     if (existing !== undefined) clearTimeout(existing);
@@ -130,15 +127,62 @@ export class FocusBroker {
     this.fallbacks.set(name, timer);
   }
 
+  /** Writes one request file, without a fallback: see `postRequest`. */
+  private async writeRequest(
+    prefix: 'focus' | 'reopen' | 'close' | 'sleep',
+    s: { id: string; cwd: string; origin: unknown; label: string; fresh?: boolean },
+  ): Promise<string> {
+    const seq = (this.requestSeq += 1);
+    const name = join(this.dirs.requests, `${prefix}-${s.id}.json`);
+    const tmp = join(this.dirs.requests, `.tmp-${prefix}-${s.id}-${process.pid}-${seq}`);
+    const body = JSON.stringify({
+      sessionId: s.id,
+      cwd: s.cwd,
+      label: s.label,
+      origin: s.origin,
+      ...(s.fresh === true ? { fresh: true } : {}),
+      at: Date.now(),
+    });
+    await writeFile(tmp, body, 'utf8');
+    await rename(tmp, name);
+    return name;
+  }
+
+  /**
+   * Whether this window is on the conversation's own folder — the window
+   * whose Claude Code lists what was launched from it. When even this one
+   * does not list the id (the user hid it), no window will: the terminal is
+   * the only way back left.
+   */
+  private isOn(cwd: string): boolean {
+    return this.folders()[0] === cwd;
+  }
+
   /** Asks for a session's focus, wherever it lives. */
   async request(s: Session): Promise<void> {
-    if (claims(this.folders(), s.cwd)) {
+    const claimed = claims(this.folders(), s.cwd);
+    // Claiming the folder is not enough to show the conversation: a window on
+    // the home folder claims every project under it, while its Claude Code
+    // lists only the conversations launched from the home folder itself — the
+    // reveal command would open a blank one there (15/11). A conversation no
+    // list holds yet, a fresh one, cannot be placed by the lists: the window
+    // that claims it keeps it, and the request says so to the others.
+    const editor = isEditorOrigin(s.origin);
+    const fresh = editor && !(await this.written(s));
+    if (claimed && (!editor || fresh || (await this.listed(s.id)))) {
       await this.focusSession(focusPlanFor(s), 'focus');
       return;
     }
-    // If nobody consumed it, no window holds this project: we open it.
-    await this.postRequest('focus', { ...s, label: sessionLabel(s) }, () => {
-      execFile('code', ['-r', s.cwd], () => undefined);
+    await this.postRequest('focus', { ...s, label: sessionLabel(s), fresh }, () => {
+      // If nobody consumed it and this window does not hold the project
+      // either, no window does: we open it. If this one does, a window is
+      // missing that could show the conversation — opening it here would only
+      // start a blank one, so we say so instead.
+      if (!claimed) execFile('code', ['-r', s.cwd], () => undefined);
+      else
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('Koh-Vibe: « {0} » is open in another window, which did not answer.', sessionLabel(s)),
+        );
     });
   }
 
@@ -173,22 +217,47 @@ export class FocusBroker {
     }
     if (claims(this.folders(), entry.cwd)) {
       // The editor command only when this window's list holds the id: it
-      // would otherwise open a blank conversation. A terminal resumes it
-      // from anywhere. Going through `focusSession` rather than calling
-      // `executeCommand` directly gives this local path the same one-time
-      // missing-command warning as the remote one below.
-      const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, await this.listed(entry.id));
-      if (local.kind === 'terminal') openResumeTerminal(local);
-      else await this.focusSession(local, 'reopen');
-      return;
+      // would otherwise open a blank conversation. Going through
+      // `focusSession` rather than calling `executeCommand` directly gives
+      // this local path the same one-time missing-command warning as the
+      // remote one below.
+      if (await this.listed(entry.id)) {
+        const local = reopenPlan(entry.origin, entry.id, entry.cwd, label, true);
+        if (local.kind === 'terminal') openResumeTerminal(local);
+        else await this.focusSession(local, 'reopen');
+        return;
+      }
+      // On the project's own folder and still not listed: hidden from Claude
+      // Code's list, so no window will list it. Holding the project only
+      // from a parent folder is another matter — a window on the project
+      // itself lists it, and the request below finds it or opens it.
+      if (this.isOn(entry.cwd)) {
+        resumeInTerminal(entry.cwd, entry.id, label, 'hidden');
+        return;
+      }
     }
-    // Fallback deliberately different from the focus one: NO `code -r`, which
-    // would lose the reopen itself. No window holds the project, so no tab
-    // can come back — but a terminal can, from here: `claude --resume` finds
-    // the conversation by its id whatever the folder.
-    await this.postRequest('reopen', { ...entry, label }, () => {
-      openResumeTerminal({ cwd: entry.cwd, name: label, command: `claude --resume ${entry.id}` });
-    });
+    // Nobody consumed it: no window can show the conversation. A tab is what
+    // the user expects of a conversation started in the editor (15/11), not a
+    // terminal — so a window opens on its project, and finds the request
+    // there. Fallback deliberately different from the focus one: NO
+    // `code -r`, which would replace the window the user is working in.
+    await this.postRequest('reopen', { ...entry, label }, () => this.openProjectWindow(entry, label));
+  }
+
+  /**
+   * Opens a new window of this editor on a closed conversation's project,
+   * and leaves it a fresh reopen request to find as it starts. Only a
+   * folder that is gone — a removed worktree — still goes to a terminal:
+   * `claude --resume` finds the conversation by its id whatever the folder.
+   */
+  private async openProjectWindow(entry: ClosedEntry, label: string): Promise<void> {
+    if (!existsSync(entry.cwd)) return resumeInTerminal(entry.cwd, entry.id, label, 'gone');
+    try {
+      await this.writeRequest('reopen', { ...entry, label });
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(entry.cwd), { forceNewWindow: true });
+    } catch {
+      resumeInTerminal(entry.cwd, entry.id, label, 'noWindow');
+    }
   }
 
   /**
@@ -359,11 +428,13 @@ export class FocusBroker {
         }
         const cwd = (parsed as { cwd?: unknown }).cwd;
         if (typeof cwd !== 'string' || !claims(folders, cwd)) continue;
-        await unlink(path);
         const rawLabel = (parsed as { label?: unknown }).label;
         const label = typeof rawLabel === 'string' && rawLabel.length > 0 ? rawLabel : 'session';
         const sessionId = (parsed as { sessionId?: unknown }).sessionId;
-        if (typeof sessionId !== 'string' || sessionId.length === 0) continue;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+          await unlink(path);
+          continue;
+        }
         // This window only has what the request carries, not the Session
         // object: the plan is rebuilt via `focusPlan`/`reopenPlan`, the same
         // rule as the local path, never a copy that could drift. `cwd` is
@@ -371,6 +442,7 @@ export class FocusBroker {
         // request would have been ignored before reaching here.
         const origin = (parsed as { origin?: unknown }).origin;
         if (name.startsWith('close-') || name.startsWith('sleep-')) {
+          await unlink(path);
           // Neither request should ever carry a non-editor origin: `closePlan`
           // turns those into a plain forget before any file is written.
           // Honouring one would close a tab in a window where the user asked
@@ -383,6 +455,12 @@ export class FocusBroker {
           continue;
         }
         const isReopen = name.startsWith('reopen-');
+        // A focus this window cannot show is left for the one that can — the
+        // window that wrote it, a window on the home folder, is one of them.
+        // Its fallback removes it when nobody takes it. A fresh conversation
+        // is in no list yet: the claim is all there is to go by.
+        const fresh = (parsed as { fresh?: unknown }).fresh === true;
+        if (!isReopen && isEditorOrigin(origin) && !fresh && !(await this.listed(sessionId))) continue;
         const plan = isReopen
           ? reopenPlan(origin, sessionId, cwd, label, await this.listed(sessionId))
           : focusPlan(sessionId, origin, label);
@@ -391,12 +469,17 @@ export class FocusBroker {
           // handled where the click happened, without a file — and a request
           // that does is not honoured: it would open a terminal in a window
           // where the user asked for nothing. An EDITOR conversation this
-          // window's list does not hold is different: this window holds its
-          // project, the user asked for it back, and the terminal is the only
-          // way to bring it back without starting a blank one.
-          if (isReopen && isEditorOrigin(origin)) openResumeTerminal(plan);
+          // window's list does not hold is different only on the project's
+          // own folder: no window will list it, and the terminal is the only
+          // way back. From a parent folder, it is left for a window on the
+          // project, which the clicking window opens if none answers.
+          const editorReopen = isReopen && isEditorOrigin(origin);
+          if (editorReopen && !this.isOn(cwd)) continue;
+          await unlink(path);
+          if (editorReopen) resumeInTerminal(cwd, sessionId, label, 'hidden');
           continue;
         }
+        await unlink(path);
         // A single announcement, never two that would contradict each
         // other: "requested" (or "reopening") in front of a command that is
         // actually going to open something, `focusSession`'s explanation
@@ -419,4 +502,24 @@ export class FocusBroker {
       }
     }
   }
+}
+
+/** Why an editor conversation could not come back in a tab. */
+type NoTab = 'hidden' | 'gone' | 'noWindow';
+
+/**
+ * The last resort for an editor conversation: `claude --resume` in a
+ * terminal, which finds it by its id whatever the folder. Never silent — a
+ * conversation started in the editor is expected back in a tab (15/11), so
+ * a terminal in its place says why.
+ */
+function resumeInTerminal(cwd: string, id: string, label: string, why: NoTab): void {
+  openResumeTerminal({ cwd, name: label, command: `claude --resume ${id}` });
+  void vscode.window.showWarningMessage(
+    why === 'hidden'
+      ? vscode.l10n.t('Koh-Vibe: « {0} » is hidden from Claude Code’s list here, so it cannot come back in a tab — resumed in a terminal.', label)
+      : why === 'gone'
+        ? vscode.l10n.t('Koh-Vibe: the folder of « {0} » no longer exists, so it cannot come back in a tab — resumed in a terminal.', label)
+        : vscode.l10n.t('Koh-Vibe: no window could open on the folder of « {0} » — resumed in a terminal.', label),
+  );
 }

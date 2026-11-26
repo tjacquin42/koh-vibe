@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ClosedEntry } from '../closed/model';
+import { CLOSED_SHOWN, type ClosedEntry } from '../closed/model';
 import { closedDescription, closedTooltip, sessionLabel } from './labels';
 
 /**
@@ -89,7 +89,7 @@ export class ClosedTree implements vscode.TreeDataProvider<ClosedNode> {
    * afresh.
    */
   private visible(): ClosedEntry[] {
-    return (this.entries ?? []).filter((e) => !this.live.has(e.id));
+    return (this.entries ?? []).filter((e) => !this.live.has(e.id)).slice(0, CLOSED_SHOWN);
   }
 
   /** The entries on screen — what the search lists. */

@@ -12,6 +12,7 @@
 **
 
 !out/**
+!dist/view/**
 !resources/**
 !bin/koh-vibe-bridge
 !bin/koh-vibe-statusline

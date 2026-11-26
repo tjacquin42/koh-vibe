@@ -9,9 +9,14 @@ import type { Origin } from '../events/types';
  *
  * Ten rather than five since the history moved out of the session tree and
  * into a view of its own: it no longer competes for room with the live
- * sessions, so the list can be as long as it is useful.
+ * sessions, so the list can be as long as it is useful. Fifty since 15/11:
+ * the new interface shows the last 10, 20 or 50, as chosen; the classic one
+ * still shows ten (CLOSED_SHOWN).
  */
-export const MAX_CLOSED = 10;
+export const MAX_CLOSED = 50;
+
+/** How many the classic interface's « Recently closed » shows. */
+export const CLOSED_SHOWN = 10;
 
 /**
  * A conversation as it was when it ended — a frozen snapshot, not a reference.
