@@ -12,8 +12,14 @@ export interface Expiry {
 /**
  * The temporary conversations that have run their course: not filed in any
  * folder, and nothing happened in them for `ttl`. A folder is a keep — the
- * user sorted it, it stays whatever its age. A dormant tab has no age to
- * count.
+ * user sorted it, it stays whatever its age.
+ *
+ * A tab the editor restored and nobody has shown since is dormant. Alone —
+ * no state file behind it — it is dated zero (claude/dormant.ts): it has no
+ * age to count, and stays. Over a conversation the spool knows, it keeps that
+ * conversation's last activity, and that age counts like any other (26/11):
+ * skipping every dormant row kept three day-old conversations in the list for
+ * as long as their restored tabs stayed in the tab bar.
  *
  * An ended one is removed: nothing runs behind it. An open one leaves WITH its
  * tab, or not at all. It used to be hidden while its tab stayed open, and the
@@ -35,7 +41,7 @@ export function temporaryToExpire(
 ): Expiry {
   const out: Expiry = { remove: [], close: [] };
   for (const s of sessions) {
-    if (s.dormant === true) continue;
+    if (s.dormant === true && s.lastEventAt === 0) continue;
     if (filed(s.id)) continue;
     if (now - s.lastEventAt <= ttl) continue;
     if (s.endedAt !== undefined) {
